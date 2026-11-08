@@ -219,6 +219,12 @@ project.yml       XcodeGen spec
 - A domain name can be entered as host but is not resolved; CIDs are computed for IP addresses only (a domain-name
   row is shown red as an invalid server address).
 
+## Download
+
+Grab the latest build from [Releases](https://github.com/ercanatay/player-identity/releases/latest):
+unzip, move `PlayerIdentity.app` to `/Applications`, then right-click → **Open** on first launch
+(the build is ad-hoc signed, not notarized).
+
 ## Install (local build)
 
 ```bash
