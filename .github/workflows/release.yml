@@ -10,7 +10,7 @@ permissions:
 jobs:
   release:
     name: Build & publish
-    runs-on: macos-27
+    runs-on: macos-26
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
