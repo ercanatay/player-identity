@@ -173,7 +173,8 @@ final class BanCheckTests: XCTestCase {
     }
 
     func testCancellationStopsCheck() async {
-        let transport = FakeUDPTransport { _, _ in [] }
+        // Sessizlikte gerçekten bekleyen oturum: iptal, görev hangi anda başlarsa başlasın yakalanır.
+        let transport = FakeUDPTransport(waitsOnSilence: true) { _, _ in [] }
         let checker = BanChecker(transport: transport, now: { Date() }, qport: { 1 })
         let req = request()
         let task = Task { try await checker.check(req) }

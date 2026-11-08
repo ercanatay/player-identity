@@ -81,6 +81,18 @@ Uygulamanın tek yazma istisnası: seçili gamedir'deki `config.cfg` ve (varsa) 
   karakter, yalnız `A-Z a-z 0-9 _ -`. Geçersizse Uygula devre dışıdır.
 - Uygula sonrası dosyalar yeniden okunur ve kayıt "Kaydedilmedi" olur; Kaydet yeni ad/modeli `profile.json`'a yazar.
 
+## Model önizleme (v1.4)
+Model dropdown'ının her satırında 20×24 küçük resim, profil kartında seçili model için 56×68 önizleme (8 pt köşe,
+koyu `#1B2432` zemin, 1 px çerçeve; ipucunda kaynak dosya yolu) gösterilir.
+- **Kaynak:** `<gamedir>/models/player/<model>/` içindeki uzantısı `.bmp` olan ilk dosya (ad büyük/küçük harf
+  duyarsız, alfabetik; ör. `Robo.bmp`, `TMCM.bmp`). Görsel yoksa veya bozuksa SF Symbol `person.crop.square`
+  yer tutucusu kullanılır; hata mesajı gösterilmez. Uzantısı `.BMP` olan dosya eşlenmez (valve'de `gman`).
+- Görseller ImageIO ile decode edilir, oran korunur, yüksek kaliteli interpolasyonla çizilir; 3B render yoktur.
+- **Önbellek:** yalnız bellekte, (gamedir, model, dosya mtime) anahtarıyla; yükleme arka planda yapılır, liste hemen
+  açılır (yüklenmeyen satırda koyu boş kutu). Gamedir değişince liste ve görseller yenilenir. Dosyalar salt okunur.
+- macOS 27'de menü öğesi görselleri varsayılan olarak gizlendiği için dropdown yerel `NSPopUpButton` ile kurulur ve
+  öğe görselleri `preferredImageVisibility = .visible` ile açıkça gösterilir.
+
 ## Ne yapmalı? (v1.2)
 Her gerekçenin altında gri, küçük bir `→ öneri` satırı görünür (kullanıcının atabileceği somut adım).
 Üst bardaki durum etiketine (örn. "Kritik hata") tıklanınca **Ne yapmalı?** penceresi açılır: o anki tüm

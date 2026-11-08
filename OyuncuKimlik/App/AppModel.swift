@@ -74,6 +74,14 @@ final class AppModel {
     /// Uygula sonrası kayıt "Kaydedilmedi" olur; Kaydet ile sıfırlanır.
     private var appliedSinceSave = false
 
+    // MARK: §16 model önizleme
+    /// Seçili gamedir'in model önizlemeleri; yüklenmemiş model sözlükte yoktur (iskelet görünüm).
+    private(set) var modelPreviews: [String: ModelPreview] = [:]
+    private(set) var isLoadingPreviews = false
+    @ObservationIgnored private let previewCache = ModelPreviewCache()
+    @ObservationIgnored private var previewGeneration = 0
+    @ObservationIgnored private var previewTask: Task<Void, Never>?
+
     enum ApplyStatus: Equatable {
         case success(String)
         case failure(EditMessage)
@@ -155,10 +163,12 @@ final class AppModel {
         // Düzenlenmemiş taslaklar yeni etkin değeri izler; kullanıcının taslağı korunur.
         if nameDraft == config.name { nameDraft = profile.config.name }
         if modelDraft == config.model { modelDraft = profile.config.model }
+        let gamedirChanged = previewGamedir != profile.selectedGamedir
         config = profile.config
         configSources = profile.configSources
         availableModels = profile.models
         isGameRunning = gameRunning
+        loadPreviews(resetting: gamedirChanged)
 
         if includeNetwork {
             // §13 ban kontrolü: diğer ağ adımlarıyla paralel; yenileme iptaliyle birlikte iptal edilir.
@@ -270,6 +280,48 @@ final class AppModel {
 
     private func markEdited() {
         if snapshotState.snapshot == nil { editedWithoutSnapshot = true }
+    }
+
+    // MARK: Model önizleme (§16)
+
+    @ObservationIgnored private var previewGamedir: String?
+
+    /// Liste + mevcut modelin önizlemelerini arka planda yükler (async; UI bloklanmaz).
+    /// Gamedir değişince eski görseller hemen temizlenir.
+    @discardableResult
+    func loadPreviews(resetting: Bool = false) -> Task<Void, Never>? {
+        previewGeneration += 1
+        let current = previewGeneration
+        previewTask?.cancel()
+        previewGamedir = selectedGamedir
+        if resetting { modelPreviews = [:] }
+        guard let gamedir = selectedGamedir else {
+            modelPreviews = [:]
+            isLoadingPreviews = false
+            return nil
+        }
+        let gamedirURL = dataRoot.appendingPathComponent(gamedir, isDirectory: true)
+        var models = modelOptions.map(\.value)
+        if !modelDraft.isEmpty, !models.contains(modelDraft) { models.append(modelDraft) }
+        let cache = previewCache
+        isLoadingPreviews = true
+        let task = Task {
+            let previews = await cache.previews(gamedir: gamedirURL, models: models)
+            guard current == previewGeneration else { return }
+            modelPreviews = previews
+            isLoadingPreviews = false
+        }
+        previewTask = task
+        return task
+    }
+
+    func preview(for model: String) -> ModelPreview? {
+        modelPreviews[model]
+    }
+
+    /// Testler için: arka plandaki önizleme yüklemesinin bitmesini bekler.
+    func waitForPreviews() async {
+        await previewTask?.value
     }
 
     // MARK: Ad/model düzenleme (§15)

@@ -174,25 +174,33 @@ struct ContentView: View {
             }
             if let error = model.nameError { fieldError(error) }
             FieldRow(title: "Oyuncu modeli") {
-                Menu {
-                    ForEach(model.modelOptions, id: \.self) { option in
-                        Button(option.label) { model.modelDraft = option.value }
-                    }
-                    if model.allowsManualModelEntry {
-                        Divider()
-                        Button("Elle gir…") {
-                            manualModelText = model.modelDraft
-                            showsManualModel = true
-                        }
-                    }
-                } label: {
-                    Text(model.modelDraft.isEmpty ? "—" : model.modelDraft)
-                }
+                ModelPopUpButton(
+                    title: model.modelDraft,
+                    options: model.modelOptions,
+                    thumbnails: Dictionary(uniqueKeysWithValues: model.modelOptions.map {
+                        ($0.value, ModelPreviewStyle.thumbnail(model.preview(for: $0.value)))
+                    }),
+                    allowsManualEntry: model.allowsManualModelEntry,
+                    onSelect: { model.modelDraft = $0 },
+                    onManualEntry: {
+                        manualModelText = model.modelDraft
+                        showsManualModel = true
+                    })
                 .fixedSize()
-                .accessibilityLabel("Oyuncu modeli: \(model.modelDraft)")
                 sourceNote(model.configSources.model)
             }
             if let error = model.modelError { fieldError(error) }
+            FieldRow(title: "") {
+                // §16.3 seçili model önizlemesi; kaynak dosya yolu ipucunda.
+                let preview = model.preview(for: model.modelDraft)
+                    ?? (model.isLoadingPreviews ? nil : ModelPreview.placeholder)
+                HStack(spacing: 10) {
+                    ModelPreviewView(preview: preview, modelName: model.modelDraft)
+                    Text(model.modelDraft.isEmpty ? "—" : model.modelDraft)
+                        .foregroundStyle(.secondary)
+                }
+                .help(preview?.image?.url.path ?? "")
+            }
             HStack(spacing: 12) {
                 Spacer().frame(width: 130)
                 Button {

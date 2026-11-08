@@ -29,12 +29,15 @@ final class FakeUDPTransport: UDPTransport, @unchecked Sendable {
 
     let responder: Responder
     let clock: TestClock?
+    /// `true` ise sessizlikte gerçekten bekler (iptal testleri için); aksi hâlde saat ilerletilip hemen döner.
+    let waitsOnSilence: Bool
     private let lock = NSLock()
     private var sent: [(UDPEndpoint, [UInt8])] = []
     private var sessions = 0
 
-    init(clock: TestClock? = nil, responder: @escaping Responder) {
+    init(clock: TestClock? = nil, waitsOnSilence: Bool = false, responder: @escaping Responder) {
         self.clock = clock
+        self.waitsOnSilence = waitsOnSilence
         self.responder = responder
     }
 
@@ -84,6 +87,7 @@ final class FakeUDPSession: UDPSession, @unchecked Sendable {
             transport.clock?.advance(reply.delay)
             return reply.bytes
         }
+        if transport.waitsOnSilence { try await Task.sleep(for: .seconds(timeout)) }
         transport.clock?.advance(timeout)
         return nil
     }
