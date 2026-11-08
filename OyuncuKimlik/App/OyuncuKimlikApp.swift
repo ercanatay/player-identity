@@ -1,20 +1,32 @@
+import AppKit
 import SwiftUI
 
 @main
 struct OyuncuKimlikApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     var body: some Scene {
-        WindowGroup("Oyuncu Kimlik Kartı") {
-            ContentView()
+        Window("Oyuncu Kimlik Kartı", id: "main") {
+            ContentView(model: appDelegate.model)
         }
+        .defaultSize(width: 900, height: 760)
         .windowResizability(.contentMinSize)
     }
 }
 
-/// İskelet pencere; asıl arayüz parça 2'de.
-struct ContentView: View {
-    var body: some View {
-        Text("Hazır")
-            .font(.title)
-            .frame(minWidth: 720, maxWidth: .infinity, minHeight: 520, maxHeight: .infinity)
+/// Kapanışta kaydedilmemiş değişiklik onayı (§8).
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    let model = AppModel(dependencies: .live())
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard model.hasUnsavedChanges else { return .terminateNow }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Kaydetmeden çık?"
+        alert.informativeText = "Kaydedilmemiş değişiklikler kaybolacak."
+        alert.addButton(withTitle: "Kaydetmeden Çık")
+        alert.addButton(withTitle: "Vazgeç")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 }

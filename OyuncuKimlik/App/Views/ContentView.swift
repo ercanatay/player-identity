@@ -1,0 +1,397 @@
+import AppKit
+import SwiftUI
+
+/// Tek pencere arayüzü (§8).
+struct ContentView: View {
+    @Bindable var model: AppModel
+
+    @State private var sheet: SheetMode?
+    @State private var copiedKey: String?
+
+    enum SheetMode: Identifiable {
+        case add
+        case edit(UUID)
+
+        var id: String {
+            switch self {
+            case .add: return "add"
+            case .edit(let id): return id.uuidString
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            topBar
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    profileCard
+                    networkCard
+                    serversCard
+                    reasonsSection
+                }
+                .padding(16)
+            }
+        }
+        .frame(minWidth: 720, minHeight: 520)
+        .task {
+            if !AppModel.isRunningTests { model.refresh() }
+        }
+        .sheet(item: $sheet) { mode in
+            sheetView(mode)
+        }
+        .alert("Kayıt yazılamadı", isPresented: Binding(
+            get: { model.saveErrorMessage != nil },
+            set: { if !$0 { model.saveErrorMessage = nil } }
+        )) {
+            Button("Tamam", role: .cancel) {}
+        } message: {
+            Text(model.saveErrorMessage ?? "")
+        }
+    }
+
+    // MARK: Üst bar
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            if let report = model.report {
+                Label {
+                    Text(report.overall.label).font(.title3.bold())
+                } icon: {
+                    Image(systemName: report.overall.symbolName)
+                        .foregroundStyle(report.overall.color)
+                        .font(.title2)
+                }
+                .accessibilityElement(children: .combine)
+            } else {
+                Text(model.isRefreshing ? "Kontrol ediliyor…" : "Henüz kontrol edilmedi")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("Son kontrol: \(TimeText.format(model.lastChecked))")
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+
+            Spacer()
+
+            if model.hasUnsavedChanges {
+                Text("Kaydedilmedi")
+                    .font(.caption.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.orange.opacity(0.2)))
+                    .foregroundStyle(.orange)
+            }
+
+            Button {
+                model.refresh()
+            } label: {
+                HStack(spacing: 6) {
+                    if model.isRefreshing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    Text("Yenile")
+                }
+            }
+            .disabled(model.isRefreshing)
+            .keyboardShortcut("r", modifiers: .command)
+
+            Button {
+                model.save()
+            } label: {
+                Label("Kaydet", systemImage: "square.and.arrow.down")
+            }
+            .keyboardShortcut("s", modifiers: .command)
+        }
+    }
+
+    // MARK: Profil kartı
+
+    private var profileCard: some View {
+        Card(title: "Profil") {
+            FieldRow(title: "Kullanıcı adı") {
+                Text(model.config.name.isEmpty ? "—" : model.config.name)
+                    .textSelection(.enabled)
+            }
+            FieldRow(title: "Oyuncu modeli") {
+                Text(model.config.model.isEmpty ? "—" : model.config.model)
+                    .textSelection(.enabled)
+            }
+            FieldRow(title: "Ham kimlik") {
+                Text(identityValue?.rawIDHex ?? "—")
+                    .font(.body.monospaced())
+                    .textSelection(.enabled)
+            }
+            FieldRow(title: "Kimlik kaynağı") {
+                let path = identityValue?.source.url.path
+                Text(path.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? "—")
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(path ?? "")
+            }
+            FieldRow(title: "Gamedir") {
+                if gamedirOptions.isEmpty {
+                    Text("Gamedir bulunamadı").foregroundStyle(.secondary)
+                } else {
+                    Picker("Gamedir", selection: Binding(
+                        get: { model.selectedGamedir ?? "" },
+                        set: { model.selectGamedir($0) }
+                    )) {
+                        ForEach(gamedirOptions, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+            }
+            FieldRow(title: "Veri kökü") {
+                Text((model.dataRoot.path as NSString).abbreviatingWithTildeInPath)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(model.dataRoot.path)
+                Button("Klasör Seç…", action: chooseDataRoot)
+            }
+        }
+    }
+
+    private var identityValue: Identity? {
+        guard case .success(let identity)? = model.identity else { return nil }
+        return identity
+    }
+
+    private var gamedirOptions: [String] {
+        var options = model.gamedirs
+        if let selected = model.selectedGamedir, !options.contains(selected) { options.append(selected) }
+        return options
+    }
+
+    private func chooseDataRoot() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.directoryURL = model.dataRoot
+        panel.prompt = "Seç"
+        panel.message = "Oyun veri kökü klasörünü seçin"
+        if panel.runModal() == .OK, let url = panel.url {
+            model.setDataRoot(url)
+        }
+    }
+
+    // MARK: Ağ kartı
+
+    private var networkCard: some View {
+        Card(title: "Ağ") {
+            FieldRow(title: "Genel IP") {
+                if let ip = model.publicIP {
+                    Text(ip)
+                        .font(.title2.monospaced())
+                        .textSelection(.enabled)
+                    copyButton(text: ip, key: "publicIP")
+                } else {
+                    Text(model.lastChecked == nil ? "—" : "Alınamadı")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            FieldRow(title: "Yerel IP'ler") {
+                if model.lanAddresses.isEmpty {
+                    Text(model.lastChecked == nil ? "—" : MessageCode.lanIPMissing.text)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(model.lanAddresses, id: \.display) { address in
+                            Text(address.display)
+                                .font(.body.monospaced())
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func copyButton(text: String, key: String) -> some View {
+        Button {
+            copy(text, key: key)
+        } label: {
+            Image(systemName: "doc.on.doc")
+        }
+        .buttonStyle(.borderless)
+        .help("Kopyala")
+        .accessibilityLabel("Kopyala")
+        if copiedKey == key {
+            Text("Kopyalandı").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func copy(_ text: String, key: String) {
+        Pasteboard.copy(text)
+        copiedKey = key
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            if copiedKey == key { copiedKey = nil }
+        }
+    }
+
+    // MARK: Sunucular
+
+    private var serversCard: some View {
+        Card(title: "Sunucular") {
+            if model.servers.isEmpty {
+                VStack(spacing: 8) {
+                    Text("Henüz sunucu eklenmedi").foregroundStyle(.secondary)
+                    addServerButton
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(model.servers) { entry in
+                        ServerRowView(entry: entry,
+                                      status: model.rowStatus(entry.id),
+                                      copied: copiedKey == entry.id.uuidString,
+                                      onCopy: { copy($0, key: entry.id.uuidString) },
+                                      onEdit: { sheet = .edit(entry.id) },
+                                      onDelete: { model.deleteServer(id: entry.id) })
+                        if entry.id != model.servers.last?.id { Divider() }
+                    }
+                }
+                addServerButton
+            }
+        }
+    }
+
+    private var addServerButton: some View {
+        Button {
+            sheet = .add
+        } label: {
+            Label("Sunucu Ekle", systemImage: "plus")
+        }
+    }
+
+    @ViewBuilder
+    private func sheetView(_ mode: SheetMode) -> some View {
+        switch mode {
+        case .add:
+            ServerFormSheet(title: "Sunucu Ekle", confirmTitle: "Ekle",
+                            onConfirm: { draft in
+                                model.addServer(draft)
+                                sheet = nil
+                            },
+                            onCancel: { sheet = nil })
+        case .edit(let id):
+            if let entry = model.servers.first(where: { $0.id == id }) {
+                ServerFormSheet(title: "Sunucuyu Düzenle", confirmTitle: "Tamam", draft: ServerDraft(entry: entry),
+                                onConfirm: { draft in
+                                    model.updateServer(id: id, with: draft)
+                                    sheet = nil
+                                },
+                                onCancel: { sheet = nil })
+            }
+        }
+    }
+
+    // MARK: Gerekçeler
+
+    @ViewBuilder
+    private var reasonsSection: some View {
+        if let reasons = model.report?.reasons, !reasons.isEmpty {
+            Card(title: "Gerekçeler") {
+                ForEach(Array(reasons.enumerated()), id: \.offset) { _, reason in
+                    Label {
+                        Text(reason.message)
+                    } icon: {
+                        Image(systemName: reason.severity.symbolName)
+                            .foregroundStyle(reason.severity.color)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(reason.severity.label): \(reason.message)")
+                }
+            }
+        }
+    }
+}
+
+/// Sunucu satırı: durum ikonu · etiket · host:port · CID; altında son kontrol zamanı (§8).
+struct ServerRowView: View {
+    let entry: ServerEntry
+    let status: ServerRowStatus?
+    let copied: Bool
+    let onCopy: (String) -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Group {
+                if let status {
+                    StatusIcon(level: status.level, help: status.message?.text)
+                } else {
+                    Image(systemName: "circle.dashed")
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Kontrol edilmedi")
+                }
+            }
+            .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 12) {
+                    Text(entry.label).fontWeight(.medium)
+                    Text("\(entry.host):\(String(entry.port))")
+                        .font(.body.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+                HStack(spacing: 8) {
+                    Text("Son kontrol: \(TimeText.format(entry.lastCheckedAt))")
+                    if let message = status?.message {
+                        Text(message.text)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            if let cid = status?.currentCID {
+                Button {
+                    onCopy(cid)
+                } label: {
+                    Text(copied ? "Kopyalandı" : cid)
+                        .font(.body.monospaced())
+                        .frame(minWidth: 290, alignment: .trailing)
+                }
+                .buttonStyle(.plain)
+                .help("Kopyalamak için tıklayın")
+            } else {
+                Text("—").foregroundStyle(.secondary)
+            }
+
+            Button(action: onDelete) {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("Sil")
+            .accessibilityLabel("Sil")
+            .opacity(hovering ? 1 : 0)
+            .disabled(!hovering)
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .contextMenu {
+            Button("Düzenle", action: onEdit)
+            Button("Sil", role: .destructive, action: onDelete)
+        }
+    }
+}
