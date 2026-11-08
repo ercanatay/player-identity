@@ -1,156 +1,183 @@
-# Oyuncu Kimlik Kartı (macOS)
+# Player Identity (macOS)
 
-Xash3D FWGS oyun istemcisinin kimlik verilerini (kullanıcı adı, oyuncu modeli, ham kimlik, genel/yerel IP,
-sunucuya özel CID'ler) tek pencerede gösteren, "Kaydet" ile diske kayıt (snapshot) tutan ve "Yenile" ile
-verileri yeniden okuyup kayıtla karşılaştırarak sonucu tek bir durum ikonuyla özetleyen SwiftUI uygulaması.
+A SwiftUI app that shows the identity data of the Xash3D FWGS game client in a single window (player name,
+player model, raw identity, public/local IPs, per-server CIDs), keeps an on-disk record (snapshot) via **Save**,
+and on **Refresh** re-reads everything, compares it with the record and summarizes the result with a single
+status icon.
 
-Uygulama oyun dosyalarını **değiştirmez**; tek istisna ad/model düzenlemedir: yalnız `config.cfg` ve (varsa) `userconfig.cfg` içindeki `name`/`model` satırları yazılır. Ayrıca kendi kaydını (`profile.json`) ve `*.appbak` yedeklerini oluşturur.
+The app does **not** modify game files, with one exception: name/model editing writes only the `name`/`model`
+lines in `config.cfg` and (if present) `userconfig.cfg`. Besides that it writes only its own record
+(`profile.json`) and `*.appbak` backups.
 
-## Gereksinimler
-macOS 14+, Xcode (Swift 6), [XcodeGen](https://github.com/yonaskolb/XcodeGen). Harici bağımlılık yok.
+## Requirements
+macOS 14+, Xcode (Swift 6), [XcodeGen](https://github.com/yonaskolb/XcodeGen). No external dependencies.
 
-## Build ve test
+## Build and test
 ```sh
 xcodegen generate
-xcodebuild -project OyuncuKimlik.xcodeproj -scheme OyuncuKimlik -destination 'platform=macOS' -derivedDataPath .build build
-xcodebuild -project OyuncuKimlik.xcodeproj -scheme OyuncuKimlik -destination 'platform=macOS' -derivedDataPath .build test
+xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build build
+xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build test
 ```
-Testler ağa ve kullanıcının gerçek dosyalarına bağımlı değildir (geçici klasör fixture'ları + sahte HTTP istemcisi). Toplam **176** test.
+The `.xcodeproj` is generated and not tracked in git. Tests never touch the network or the user's real files
+(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **193** tests.
 
-## Çalıştırma
+## Run
 ```sh
-open .build/Build/Products/Debug/OyuncuKimlik.app
+open .build/Build/Products/Debug/PlayerIdentity.app
 ```
-Ad-hoc imzalıdır; App Sandbox ve hardened runtime kapalıdır. Açılışta bir kez yenileme yapılır.
+Ad-hoc signed; App Sandbox and hardened runtime are disabled. Bundle id: `tr.ercanatay.playeridentity`.
+One refresh runs at launch.
 
-| Kısayol | İşlem |
+| Shortcut | Action |
 |---|---|
-| ⌘R | Yenile (yenileme sürerken basılırsa önceki iptal edilir, en son istek kazanır) |
-| ⌘S | Kaydet |
+| ⌘R | Refresh (pressing it during a refresh cancels the previous one; the latest request wins) |
+| ⌘S | Save |
+| ⌘⏎ | Apply name/model |
 
-## Özellikler (öne çıkanlar)
-- Ban kontrolü (IP/CID) ve sunucu satırında **Düzelt** akışı (ayrıntı: aşağıdaki bölümler).
-- Model önizleme: dropdown ve profil kartında BMP küçük resim.
-- Gerekçe başına "ne yapmalı" önerileri ve panoya kopyalama.
-- Ad/model dropdown'ları ve **Uygula** ile `config.cfg` / `userconfig.cfg` güncelleme.
+## Features
+- Single status (green / orange / red) with a list of reasons and a "what to do" suggestion for each reason.
+- Ban check (IP / CID) per server, plus a **Fix** flow on banned/unreachable rows.
+- IP range display (`/24`, `/16`; IPv6 `/64`, `/48`) and IP range ban detection.
+- Name/model dropdowns and **Apply** to update `config.cfg` / `userconfig.cfg`.
+- Model previews: BMP thumbnails in the model dropdown and the profile card.
 
-## Veri kaynakları
-- **Kimlik dosyası** (öncelik sırası): `~/.config/.xash_id` → `~/.local/.xash_id` → `~/.xash_id` → `<gamedir>/.xash_id`.
-  İlk okunabilen ve geçerli (16 hex) dosya kullanılır.
-- **İsim / model:** seçili gamedir'deki `config.cfg` (`name`, `model`).
-- **Genel IP:** `https://api.ipify.org?format=json`, yedek `https://ifconfig.me/ip` (8 sn zaman aşımı).
-- **Yerel IP'ler:** sistem arayüzleri; `lo0` ve `fe80::/10` hariç.
-- **CID:** `MD5(ham kimlik 8 bayt küçük-endian + IPv4 4 / IPv6 16 bayt)`, 32 küçük harf hex.
+## Data sources
+- **Identity file** (priority order): `~/.config/.xash_id` → `~/.local/.xash_id` → `~/.xash_id` → `<gamedir>/.xash_id`.
+  The first readable and valid (16 hex characters) file is used.
+- **Name / model:** `config.cfg` in the selected gamedir (`name`, `model`); `userconfig.cfg` overrides it.
+- **Public IP:** `https://api.ipify.org?format=json`, fallback `https://ifconfig.me/ip` (8 s timeout).
+- **Local IPs:** system interfaces, excluding `lo0` and `fe80::/10`.
+- **CID:** `MD5(raw identity, 8 bytes little-endian + IPv4 4 / IPv6 16 bytes)`, 32 lowercase hex characters.
 
-## Veri kökü seçimi
-Varsayılan veri kökü `~/Library/Application Support/Xash3D FWGS`. Profil kartındaki **Klasör Seç…** ile başka bir
-kök seçilebilir; seçim UserDefaults'ta (`tr.ercanatay.oyuncukimlik` → `dataRoot`) ve Kaydet ile kayıtta saklanır.
-Seçim değişince gamedir'ler yeniden keşfedilir ve yenileme yapılır. Gamedir, kartındaki seçiciden değiştirilir
-(`valve` varsa varsayılan odur).
+## Data root
+The default data root is `~/Library/Application Support/Xash3D FWGS`. Another root can be chosen from the profile
+card; the choice is stored in UserDefaults (`dataRoot`) and in the record on Save. Changing it rediscovers the
+gamedirs and refreshes. The gamedir is chosen from the picker on the profile card (`valve` is the default if present).
 
-Not: `~/.config`, `~/.local` ve `~` altındaki kimlik dosyaları gamedir'den önce gelir; bu yüzden yalnızca veri
-kökünü değiştirmek, ev dizinindeki kimlik dosyasını gizlemez.
+Note: identity files under `~/.config`, `~/.local` and `~` take precedence over the gamedir, so changing only the
+data root does not hide an identity file in the home folder.
 
-## Kayıt dosyası
-`~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json` (JSON, `schemaVersion: 1`, atomik yazma).
-- Yalnızca **Kaydet** yazar; Yenile kaydı değiştirmez.
-- Kaydedilmemiş değişiklik (veri kökü, gamedir, sunucu listesi) varsa "Kaydedilmedi" rozeti görünür ve çıkışta
-  "Kaydetmeden çık?" onayı sorulur.
-- Dosya yoksa "kayıt yok" (turuncu); bozuksa veya şema desteklenmiyorsa kırmızı uyarı verilir, uygulama çalışmaya
-  devam eder ve Kaydet yeni kayıt oluşturur.
+## Data files
+- **Record:** `~/Library/Application Support/tr.ercanatay.playeridentity/profile.json`
+  (JSON, `schemaVersion: 1`, atomic write).
+  - Only **Save** writes it; Refresh never changes the record.
+  - Unsaved changes (data root, gamedir, server list, applied name/model, fix results) show an "unsaved" badge,
+    and quitting asks for confirmation.
+  - Missing file → "no record" (orange); corrupt file or unsupported schema → red warning. The app keeps running
+    and Save creates a new record.
+- **Settings (UserDefaults domain `tr.ercanatay.playeridentity`):** `dataRoot`, `banCheckEnabled`,
+  `recentNames`, `migration.v2.completed`.
 
-## Renk anlamları
-| Durum | İkon | Etiket | Anlam |
-|---|---|---|---|
-| Yeşil | `checkmark.circle.fill` | Tümü tamam | Kritik sorun yok, tüm alanlar kayıtla birebir uyumlu |
-| Turuncu | `exclamationmark.triangle.fill` | Dikkat | Kritik olmayan fark/uyarı: kayıt yok, IP/isim/model farkı, ham kimlik 0, sunucu CID farkı, yerel IP yok |
-| Kırmızı | `xmark.octagon.fill` | Kritik hata | Kimlik dosyası yok/geçersiz, genel IP alınamadı, kayıt okunamıyor |
+### Migration from the previous bundle
+Earlier builds used the bundle id `tr.ercanatay.oyuncukimlik`. On first launch the app migrates once:
+- `~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json` is copied atomically to the new location
+  **only if the new file does not exist yet**. The legacy file is never modified or deleted. A corrupt or
+  unsupported legacy record is skipped.
+- `dataRoot`, `banCheckEnabled` and `recentNames` are copied from the legacy UserDefaults domain unless the new
+  domain already has a value.
+- `migration.v2.completed` is then set in the new domain, so the migration never runs again. If copying fails
+  (I/O error), the flag stays unset and the next launch retries; the app keeps working either way.
+- The migration is skipped while running tests.
 
-Durum her zaman ikon **ve** metinle gösterilir. Gerekçeler pencerenin altında listelenir. Sunucu satırları da
-aynı ikonları kullanır: host geçersizse kırmızı (genel durumu etkilemez), CID kayıttan farklıysa veya kayıtlı CID
-boşsa turuncu, eşitse yeşil. Sunucu CID'si kayda, satır bir Yenile ile kontrol edildikten sonra yazılır.
-
-## Ad ve model düzenleme (v1.3)
-Uygulamanın tek yazma istisnası: seçili gamedir'deki `config.cfg` ve (varsa) `userconfig.cfg` içindeki
-`name` / `model` satırları.
-- **Etkin değer:** `userconfig.cfg` motor tarafından `config.cfg`'den sonra çalıştırıldığı için anahtar oradaysa
-  o kazanır; profil kartında kaynak notu görünür (`config.cfg` veya `userconfig.cfg (config.cfg'yi ezer)`).
-- **Dropdown'lar:** model listesi `<gamedir>/models/player/` klasör adlarından (alfabetik; listede olmayan mevcut
-  model "(mevcut)" ile başta; klasör yoksa "Elle gir…"). Ad listesi: mevcut ad, kayıttaki ad, son kullanılan 10 ad
-  (UserDefaults `recentNames`) ve "Yeni ad…".
-- **Uygula (⌘⏎):** yalnız değişen anahtarlar yazılır; anahtar iki dosyada da varsa ikisi de aynı değere getirilir,
-  hiçbirinde yoksa `config.cfg` sonuna eklenir. Anahtarın tüm geçişleri güncellenir, dosyanın geri kalanı bayt bayt
-  ve satır sonu stiliyle korunur. Yazma atomiktir; her değişen dosyanın önceki hâli `<dosya>.appbak` olarak saklanır
-  (oyunun `config.cfg.bak` dosyasına dokunulmaz). `xash3d` süreci açıksa yazma reddedilir ve uyarı bandı görünür.
-- **Doğrulama:** ad 1–31 karakter ve ≤ 31 bayt (UTF-8), `"` `\` satır sonu ve kontrol karakteri yok; model 1–32
-  karakter, yalnız `A-Z a-z 0-9 _ -`. Geçersizse Uygula devre dışıdır.
-- Uygula sonrası dosyalar yeniden okunur ve kayıt "Kaydedilmedi" olur; Kaydet yeni ad/modeli `profile.json`'a yazar.
-
-## Düzelt (v1.5)
-Sunucu satırında ban ikonunun altında **Düzelt** düğmesi yalnız `IP ban`, `CID ban` ve `Erişilemiyor` durumlarında
-görünür. Düzelt bir unban değildir; uygulama "çözüldü" ifadesini yalnız IP gerçekten değişip yeniden kontrol IP
-engeli göstermediğinde kullanır.
-- **IP ban:** onay sayfası (mevcut IP, adımlar, 5–20 sn kesinti, risk) → "Başlat" ile: eski IP alınır, varsayılan
-  arayüz bulunur (`route get default`); Wi-Fi ise `networksetup -setairportpower <if> off` → 3 sn → `on`, Ethernet ise
-  `ipconfig set <if> DHCP` (macOS yönetici diyaloğu). Ağ 45 sn beklenir (3 sn'de bir genel IP), yeni IP karşılaştırılır
-  ve IP değiştiyse o sunucu yeniden kontrol edilir. Hata, iptal veya zaman aşımında Wi-Fi her durumda yeniden açılır.
-  IP değişmezse router arayüzü/VPN/bekleme önerilir; yeni IP de banlıysa üç olası neden ve itiraz metni gösterilir.
-- **CID ban:** ağ komutu yok. Açıklama, "Unban mesajını kopyala" (sunucu, saat yerel+UTC, ad, CID, çıkış IP'si,
-  istemci, ham cevap, kontrol türü ve admin kontrol listesiyle itiraz metni), "Sunucu sayfasını aç" (GameTracker) ve
-  "Yeniden kontrol et".
-- **Erişilemiyor:** yalnız yeniden kontrol ve sunucu sayfası.
-- `cidUnknown` + `errormsg`/`disconnect` cevabı satırda "Ban türü doğrulanamadı (plugin/SQL olabilir)" ve ham cevapla
-  gösterilir.
-- **Güvenlik:** aynı anda tek Düzelt, iki başlatma arası en az 60 sn, iptal edilebilir. Komutlar sabit bir allowlist'ten
-  üretilir (arayüz adı sistem çıktısından okunur ve doğrulanır; kullanıcı girdisi komuta girmez, kabuk kullanılmaz).
-  Parola yalnız macOS diyaloğunda girilir. Sunucu komutu (banid/removeid vb.) hiçbir akışta çalıştırılmaz.
-  Düzelt sonrası satırın ban durumu güncellenir ve kayıt "Kaydedilmedi" olur.
-
-## Model önizleme (v1.4)
-Model dropdown'ının her satırında 20×24 küçük resim, profil kartında seçili model için 56×68 önizleme (8 pt köşe,
-koyu `#1B2432` zemin, 1 px çerçeve; ipucunda kaynak dosya yolu) gösterilir.
-- **Kaynak:** `<gamedir>/models/player/<model>/` içindeki ilk `.bmp` dosyası; arama dosya adı ve uzantıda büyük/küçük
-  harf duyarsız, alfabetik (ör. `Robo.bmp`, `TMCM.bmp`, `gman.BMP`). Görsel yoksa veya bozuksa SF Symbol
-  `person.crop.square` yer tutucusu kullanılır; hata mesajı gösterilmez.
-- Görseller ImageIO ile decode edilir, oran korunur, yüksek kaliteli interpolasyonla çizilir; 3B render yoktur.
-- **Önbellek:** yalnız bellekte, (gamedir, model, dosya mtime) anahtarıyla; yükleme arka planda yapılır, liste hemen
-  açılır (yüklenmeyen satırda koyu boş kutu). Gamedir değişince liste ve görseller yenilenir. Dosyalar salt okunur.
-- macOS 27'de menü öğesi görselleri varsayılan olarak gizlendiği için dropdown yerel `NSPopUpButton` ile kurulur ve
-  öğe görselleri `preferredImageVisibility = .visible` ile açıkça gösterilir.
-
-## Ne yapmalı? (v1.2)
-Her gerekçenin altında gri, küçük bir `→ öneri` satırı görünür (kullanıcının atabileceği somut adım).
-Üst bardaki durum etiketine (örn. "Kritik hata") tıklanınca **Ne yapmalı?** penceresi açılır: o anki tüm
-gerekçelerin önerileri numaralı listelenir; **Kopyala** listeyi düz metin olarak panoya yazar. Gerekçe yoksa
-etiket tıklanmaz. Öneri metinleri tek merkezi eşlemededir (`OyuncuKimlik/Core/Suggestions.swift`); yeni bir
-gerekçe kodu eklenip önerisi yazılmazsa derleme kırılır. Durum/renk mantığı önerilerden etkilenmez.
-
-## Ban kontrolü (v1.1)
-Her Yenile'de, geçerli IP'li her sunucu satırı için UDP ile tek kontrol üçlüsü yapılır (yeniden deneme yok,
-oyuna girilmez):
-1. **A2S_INFO** — sunucu ayakta mı; yanıt yoksa "Erişilemiyor".
-2. **getchallenge** — yanıtta `banned` geçiyorsa "IP ban"; challenge gelirse IP engeli yok.
-3. **connect 49** (yalnız challenge alındıysa) — satırın CID'iyle el sıkışma; `client_connect` gelince hemen durur.
-
-Adım başına 4 sn, toplam en fazla 12 sn; aynı sunucuya iki kontrol arası en az 10 sn; yenileme iptal edilince
-kontrol de iptal edilir.
-
-| Ban kolonu | Anlam | Genel duruma etkisi |
+## Status colors
+| Status | Icon | Meaning |
 |---|---|---|
-| IP ban / CID ban | Sunucu bu IP'yi / CID'yi banlamış | Kırmızı + gerekçe |
-| Engel yok | IP engeli yok; CID el sıkışması başarılı veya CID kontrolü bu sunucuda uygulanamaz | — |
-| Erişilemiyor / Belirsiz | Yanıt yok / sonuç belirlenemedi | Turuncu + gerekçe |
+| Green | `checkmark.circle.fill` | No critical issue; every field matches the record |
+| Orange | `exclamationmark.triangle.fill` | Non-critical difference/warning: no record, IP/name/model changed, raw identity 0, server CID changed, no local IP, server unreachable |
+| Red | `xmark.octagon.fill` | Identity file missing/invalid, public IP unavailable, record unreadable, server ban |
 
-Sonuç satırın `banCheck` alanına (`status`, `checkedAt`, `detail`) yazılır ve Kaydet ile `profile.json`'a girer
-(şema 1; bu alanı olmayan eski kayıtlar okunur). Satır üzerine gelince ipucunda son kontrol zamanı ve ayrıntı görünür.
-**Oyuncu Kimlik > Ayarlar… > Ban kontrolü** anahtarı (varsayılan açık, UserDefaults `banCheckEnabled`) kapalıyken
-hiçbir UDP paketi gönderilmez; önceki sonuçlar gösterilmeye devam eder.
+The status is always shown with an icon **and** text. Server rows use the same icons: invalid host → red (does not
+affect the overall status), CID different from the record or saved CID empty → orange, equal → green. A server CID is
+written to the record only after the row was checked by a Refresh.
 
-## Bilinen sınırlar (V1 kapsamı dışı)
-- Kimlik dosyalarını yazma/değiştirme, oyunu başlatma, oyuna girme (spawn). Ban kontrolü dışında sunucuya paket
-  gönderilmez.
-- Çoklu profil, iCloud senkronizasyonu, App Store dağıtımı, sandbox, otomatik güncelleme.
-- IPv6 sunucu satırları için özel arayüz (CID mantığı aynıdır).
-- Bildirim/uyarı zamanlayıcıları, arka planda periyodik yenileme.
-- Host alanına alan adı yazılabilir ama DNS çözümlemesi yapılmaz; CID yalnızca IP adresleri için hesaplanır
-  (alan adı satırı "Sunucu adresi geçersiz." olarak kırmızı görünür).
+## Name and model editing
+The app's only write exception: the `name` / `model` lines in `config.cfg` and (if present) `userconfig.cfg` of the
+selected gamedir.
+- **Effective value:** the engine runs `userconfig.cfg` after `config.cfg`, so a key there wins; the profile card
+  shows the source.
+- **Dropdowns:** the model list comes from the folder names under `<gamedir>/models/player/` (alphabetical; a current
+  model not in the list is shown first; manual entry when the folder is missing). The name list contains the current
+  name, the saved name, the last 10 used names (UserDefaults `recentNames`) and a "new name" entry.
+- **Apply (⌘⏎):** only changed keys are written; if a key exists in both files both get the same value, if in neither
+  it is appended to `config.cfg`. All occurrences are updated; the rest of the file is preserved byte for byte,
+  including its line ending style. Writes are atomic; the previous version of every changed file is kept as
+  `<file>.appbak` (the game's own `config.cfg.bak` is never touched). Writing is refused while an `xash3d` process
+  is running, and a warning banner is shown.
+- **Validation:** name 1–31 characters and ≤ 31 bytes (UTF-8), no `"`, `\`, newlines or control characters; model
+  1–32 characters, only `A-Z a-z 0-9 _ -`. Apply is disabled when invalid.
+- After Apply the files are re-read and the record becomes "unsaved"; Save writes the new name/model to `profile.json`.
+
+## Ban check
+On every Refresh, one UDP check triple runs for each server row with a valid IP (no retries, never joins the game):
+1. **A2S_INFO** — is the server up; no reply → unreachable.
+2. **getchallenge** — a reply containing `banned` → IP ban; a challenge → no IP block.
+3. **connect 49** (only if a challenge was received) — handshake with the row's CID; stops immediately on
+   `client_connect`.
+
+4 s per step, at most 12 s in total; at least 10 s between two checks of the same server; cancelling the refresh
+cancels the check.
+
+| Ban column | Meaning | Effect on overall status |
+|---|---|---|
+| IP ban / CID ban | The server banned this IP / CID | Red + reason |
+| No block | No IP block; CID handshake succeeded or the CID check does not apply to this server | — |
+| Unreachable / Unknown | No reply / result undetermined | Orange + reason |
+
+The result is stored in the row's `banCheck` field (`status`, `checkedAt`, `detail`) and goes into `profile.json` on
+Save (schema 1; older records without this field are still read). The **Ban check** toggle in Settings (on by
+default, UserDefaults `banCheckEnabled`) stops all UDP packets when off; previous results stay visible.
+
+## Fix
+A **Fix** button appears under the ban icon only for IP ban, CID ban and unreachable rows. Fix is not an unban; the
+app reports "resolved" only when the IP really changed and the recheck shows no IP block.
+- **IP ban:** confirmation sheet (current IP, steps, 5–20 s outage, risk) → old IP is recorded, the default interface
+  is found (`route get default`); Wi-Fi: `networksetup -setairportpower <if> off` → 3 s → `on`; Ethernet:
+  `ipconfig set <if> DHCP` (macOS administrator dialog). The app waits up to 45 s for the network (public IP every
+  3 s), compares the new IP and rechecks the server if it changed. On error, cancellation or timeout Wi-Fi is always
+  turned back on. If the IP did not change, router page / VPN / waiting are suggested.
+- **IP range ban:** if the IP changed but is still banned within the same `/16` (IPv6 `/48`), the result is an IP
+  range ban; renewing the IP is not suggested, a different network (hotspot/VPN) and an appeal are.
+  A new IP in a different range that is still banned lists three possible causes (range ban, plugin/SQL ban,
+  `sv_filterban`).
+- **CID ban:** no network command. Explanation, copyable appeal text (server, local + UTC time, name, CID, egress IP,
+  client, raw reply, check type and an admin checklist), server page (GameTracker) and recheck.
+- **Unreachable:** recheck and server page only.
+- **Safety:** one fix at a time, at least 60 s between starts, cancellable. Commands come from a fixed allowlist (the
+  interface name is read from system output and validated; no user input reaches a command, no shell). The password
+  is entered only in the macOS dialog. No server command (banid/removeid etc.) is ever run.
+
+## Model preview
+Each row of the model dropdown shows a 20×24 thumbnail; the profile card shows a 56×68 preview of the selected model
+(8 pt corners, dark `#1B2432` background, 1 px border; source file path in the tooltip).
+- **Source:** the first `.bmp` in `<gamedir>/models/player/<model>/`, case-insensitive in file name and extension,
+  alphabetical (e.g. `Robo.bmp`, `TMCM.bmp`, `gman.BMP`). Missing or corrupt image → SF Symbol
+  `person.crop.square` placeholder, no error message.
+- Decoded with ImageIO, aspect ratio kept, drawn with high-quality interpolation; no 3D rendering.
+- **Cache:** in memory only, keyed by (gamedir, model, file mtime); loading runs in the background. Changing the
+  gamedir reloads the list and images. Files are read-only.
+- macOS 27 hides menu item images by default, so the dropdown uses a native `NSPopUpButton` with
+  `preferredImageVisibility = .visible`.
+
+## Suggestions
+Each reason has a small gray `→ suggestion` line with a concrete action. Clicking the status label in the top bar
+opens a popover listing the suggestions for all current reasons; **Copy** puts the list on the pasteboard as plain
+text. All suggestion texts live in one exhaustive mapping (`PlayerIdentity/Core/Suggestions.swift`); adding a reason
+code without a suggestion breaks the build.
+
+## Project layout
+```
+PlayerIdentity/
+  App/            PlayerIdentityApp, AppModel, Views/
+  Core/           identity, config, CID, network, snapshot, status, ban check, fix, migration
+  Assets.xcassets
+PlayerIdentityTests/
+project.yml       XcodeGen spec
+```
+
+## Known limits (out of scope)
+- Writing identity files, launching or joining the game (spawn). No packets are sent to servers except the ban check.
+- Multiple profiles, iCloud sync, App Store distribution, sandbox, auto-update.
+- Dedicated UI for IPv6 server rows (the CID logic is the same).
+- Notifications/timers, periodic background refresh.
+- A domain name can be entered as host but is not resolved; CIDs are computed for IP addresses only (a domain-name
+  row is shown red as an invalid server address).

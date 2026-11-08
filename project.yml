@@ -1,4 +1,4 @@
-name: OyuncuKimlik
+name: PlayerIdentity
 options:
   bundleIdPrefix: tr.ercanatay
   deploymentTarget:
@@ -16,15 +16,15 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_STRICT_CONCURRENCY: complete
 targets:
-  OyuncuKimlik:
+  PlayerIdentity:
     type: application
     platform: macOS
     sources:
-      - path: OyuncuKimlik
+      - path: PlayerIdentity
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.oyuncukimlik
-        PRODUCT_NAME: OyuncuKimlik
+        PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity
+        PRODUCT_NAME: PlayerIdentity
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Oyuncu Kimlik
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
@@ -35,16 +35,16 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme:
       testTargets:
-        - OyuncuKimlikTests
+        - PlayerIdentityTests
       gatherCoverageData: false
-  OyuncuKimlikTests:
+  PlayerIdentityTests:
     type: bundle.unit-test
     platform: macOS
     sources:
-      - path: OyuncuKimlikTests
+      - path: PlayerIdentityTests
     dependencies:
-      - target: OyuncuKimlik
+      - target: PlayerIdentity
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.oyuncukimlik.tests
+        PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity.tests
         GENERATE_INFOPLIST_FILE: YES

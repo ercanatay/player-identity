@@ -1,0 +1,370 @@
+import XCTest
+@testable import PlayerIdentity
+
+/// §17.6 + §17.9.5: fake runner/IP/clock; no network, no real command runs.
+final class IPBanFixerTests: XCTestCase {
+    private let en0 = NetworkInterfaceName("en0")!
+
+    private func check(_ status: BanStatus, _ detail: String = "") -> BanCheck {
+        BanCheck(status: status, checkedAt: Date(timeIntervalSince1970: 1_793_000_000), detail: detail)
+    }
+
+    private final class ProgressLog: @unchecked Sendable {
+        private let lock = NSLock()
+        private var items: [FixProgress] = []
+        func add(_ p: FixProgress) { lock.withLock { items.append(p) } }
+        var all: [FixProgress] { lock.withLock { items } }
+    }
+
+    private func fixer(runner: FakeCommandRunner, ips: SequencedIPs, clock: TestClock, sleeper: FakeSleeper? = nil,
+                       recheck: BanCheck?, log: ProgressLog = ProgressLog()) -> IPBanFixer {
+        IPBanFixer(runner: runner, sleeper: sleeper ?? FakeSleeper(clock: clock), now: { clock.now },
+                   fetchPublicIP: { try ips.next() }, recheck: { recheck }, progress: { log.add($0) })
+    }
+
+    // 1. IP changed + ban lifted → success
+    func testIPChangedAndBanLifted() async {
+        let clock = TestClock()
+        let runner = FakeCommandRunner()
+        let log = ProgressLog()
+        let ips = SequencedIPs(["198.51.100.10", nil, "88.230.1.2"])
+        let result = await fixer(runner: runner, ips: ips, clock: clock, recheck: check(.ipOk), log: log).run()
+        XCTAssertEqual(result.outcome, .resolved(old: "198.51.100.10", new: "88.230.1.2"))
+        XCTAssertEqual(result.outcome.message, "Çözüldü: IP değişti (198.51.100.10 → 88.230.1.2), ban kalktı.")
+        XCTAssertEqual(result.newIP, "88.230.1.2")
+        XCTAssertEqual(runner.commands, [.routeGetDefault, .airportPowerStatus(en0),
+                                         .setAirportPower(en0, on: false), .setAirportPower(en0, on: true)])
+        XCTAssertEqual(log.all, [.renewingIP, .waitingForNetwork, .rechecking])
+        XCTAssertEqual(FixProgress.renewingIP.text, "IP yenileniyor…")
+        XCTAssertEqual(FixProgress.waitingForNetwork.text, "Ağ bekleniyor…")
+        XCTAssertEqual(FixProgress.rechecking.text, "Yeniden kontrol ediliyor…")
+    }
+
+    // 2. IP changed + ban persists → warning, three causes, no "resolved" (§17.9.3)
+    func testIPChangedButStillBanned() async {
+        let clock = TestClock()
+        let result = await fixer(runner: FakeCommandRunner(), ips: SequencedIPs(["1.1.1.1", "2.2.2.2"]), clock: clock,
+                                 recheck: check(.ipBanned)).run()
+        XCTAssertEqual(result.outcome, .stillBanned(old: "1.1.1.1", new: "2.2.2.2"))
+        XCTAssertEqual(result.outcome.message,
+                       "Yeni IP de banlı olabilir (subnet/aralık banı) veya sunucu tüm aralığı engelliyor.")
+        XCTAssertFalse(result.outcome.isSuccess)
+        XCTAssertFalse(result.outcome.message.lowercased().contains("çözüldü"))
+        XCTAssertEqual(IPFixOutcome.stillBannedReasons.count, 3)
+        XCTAssertTrue(IPFixOutcome.stillBannedReasons[0].hasPrefix("Aralık/subnet banı"))
+        XCTAssertTrue(IPFixOutcome.stillBannedReasons[1].hasPrefix("Plugin/SQL banı"))
+        XCTAssertTrue(IPFixOutcome.stillBannedReasons[2].hasPrefix("sv_filterban"))
+    }
+
+    // 3. IP unchanged → guidance text + router link
+    func testIPUnchangedGivesNextSteps() async {
+        let clock = TestClock()
+        let result = await fixer(runner: FakeCommandRunner(), ips: SequencedIPs(["1.1.1.1"]), clock: clock,
+                                 recheck: check(.ipOk)).run()
+        XCTAssertEqual(result.outcome, .ipUnchanged(ip: "1.1.1.1", routerURL: URL(string: "http://192.0.2.1")))
+        XCTAssertEqual(result.outcome.message, "IP değişmedi.")
+        XCTAssertNil(result.recheck)                                   // A = B → no recheck
+        XCTAssertEqual(IPFixOutcome.unchangedNextSteps.count, 3)
+        XCTAssertTrue(IPFixOutcome.unchangedNextSteps.joined().contains("PPPoE/WAN"))
+        XCTAssertTrue(IPFixOutcome.unchangedNextSteps.joined().contains("VPN"))
+        XCTAssertTrue(IPFixOutcome.unchangedNextSteps.joined().contains("birkaç saat sonra"))
+    }
+
+    // 4. Network did not come back (45 s) → `on` called again + error; interface up
+    func testNetworkTimeoutRestoresInterface() async {
+        let clock = TestClock()
+        let start = clock.now
+        let runner = FakeCommandRunner()
+        let ips = SequencedIPs(["1.1.1.1", nil])
+        let result = await fixer(runner: runner, ips: ips, clock: clock, recheck: nil).run()
+        XCTAssertEqual(result.outcome, .networkTimeout)
+        XCTAssertFalse(result.outcome.isSuccess)
+        XCTAssertGreaterThanOrEqual(clock.now.timeIntervalSince(start), IPBanFixer.networkWaitTimeout)
+        XCTAssertLessThan(clock.now.timeIntervalSince(start), IPBanFixer.networkWaitTimeout + 10)
+        XCTAssertEqual(runner.commands.last, .setAirportPower(en0, on: true))
+        XCTAssertEqual(runner.commands.filter { $0 == .setAirportPower(en0, on: true) }.count, 2)   // normal power-on + restore
+        // one attempt every 3 s: initial A + ~15 attempts
+        XCTAssertGreaterThanOrEqual(ips.callCount, 15)
+    }
+
+    // 6. Cancellation → chain stopped, interface up
+    func testCancellationStopsChainAndRestores() async throws {
+        let clock = TestClock()
+        let runner = FakeCommandRunner()
+        let fixer = fixer(runner: runner, ips: SequencedIPs(["1.1.1.1", "2.2.2.2"]), clock: clock,
+                          sleeper: FakeSleeper(clock: clock, blocking: true), recheck: check(.ipOk))
+        let task = Task { await fixer.run() }
+        // cancel while Wi-Fi is off (during the 3 s wait)
+        for _ in 0..<200 where !runner.commands.contains(.setAirportPower(en0, on: false)) {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        task.cancel()
+        let result = await task.value
+        XCTAssertEqual(result.outcome, .cancelled)
+        XCTAssertEqual(result.outcome.message, "Düzeltme iptal edildi. Arayüz açık bırakıldı.")
+        XCTAssertEqual(runner.commands.suffix(2), [.setAirportPower(en0, on: false), .setAirportPower(en0, on: true)])
+        XCTAssertNil(result.newIP)
+    }
+
+    func testEthernetUsesDHCPWithoutTouchingWiFi() async {
+        let clock = TestClock()
+        let runner = FakeCommandRunner(responder: FakeCommandRunner.ethernet())
+        let result = await fixer(runner: runner, ips: SequencedIPs(["1.1.1.1", "2.2.2.2"]), clock: clock,
+                                 recheck: check(.cidOk)).run()
+        XCTAssertEqual(result.outcome, .resolved(old: "1.1.1.1", new: "2.2.2.2"))
+        XCTAssertEqual(runner.commands, [.routeGetDefault, .airportPowerStatus(en0), .renewDHCP(en0)])
+    }
+
+    func testAdminDeclinedIsReportedHonestly() async {
+        let clock = TestClock()
+        let runner = FakeCommandRunner(responder: FakeCommandRunner.ethernet(dhcpStatus: 1))
+        let result = await fixer(runner: runner, ips: SequencedIPs(["1.1.1.1"]), clock: clock, recheck: nil).run()
+        XCTAssertEqual(result.outcome, .failed(.adminDeclined))
+        XCTAssertFalse(runner.commands.contains { if case .setAirportPower = $0 { return true }; return false })
+    }
+
+    func testChangedIPWithOtherResultsIsNotCalledResolved() async {
+        for (status, expected) in [(BanStatus.cidBanned, "sunucu CID'yi banlamış"), (.unreachable, "doğrulanamadı")] {
+            let clock = TestClock()
+            let result = await fixer(runner: FakeCommandRunner(), ips: SequencedIPs(["1.1.1.1", "2.2.2.2"]),
+                                     clock: clock, recheck: check(status)).run()
+            XCTAssertEqual(result.outcome, .changedUnverified(old: "1.1.1.1", new: "2.2.2.2", status: status))
+            XCTAssertTrue(result.outcome.message.contains(expected), result.outcome.message)
+            XCTAssertFalse(result.outcome.message.contains("Çözüldü"))
+        }
+    }
+
+    func testNoPublicIPOrRouteStopsBeforeAnyInterfaceCommand() async {
+        let clock = TestClock()
+        let runner = FakeCommandRunner()
+        let noIP = await fixer(runner: runner, ips: SequencedIPs([nil]), clock: clock, recheck: nil).run()
+        XCTAssertEqual(noIP.outcome, .failed(.publicIPUnavailable))
+        XCTAssertEqual(runner.commands, [])
+
+        let noRoute = FakeCommandRunner { command in
+            command == .routeGetDefault ? CommandOutput(status: 1, output: "route: writing to routing socket: not in table")
+                                        : CommandOutput(status: 0, output: "")
+        }
+        let result = await fixer(runner: noRoute, ips: SequencedIPs(["1.1.1.1"]), clock: clock, recheck: nil).run()
+        XCTAssertEqual(result.outcome, .failed(.noDefaultRoute))
+        XCTAssertEqual(noRoute.commands, [.routeGetDefault])
+    }
+}
+
+final class BanFixSafetyTests: XCTestCase {
+    // 7. Concurrent second fix → lock refused; 60 s interval
+    func testLockRejectsConcurrentAndEnforcesSixtySeconds() async {
+        let lock = BanFixLock()
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        let first = await lock.acquire(now: t0)
+        let concurrent = await lock.acquire(now: t0.addingTimeInterval(1))
+        await lock.release()
+        let tooSoon = await lock.acquire(now: t0.addingTimeInterval(59))
+        let later = await lock.acquire(now: t0.addingTimeInterval(60))
+        XCTAssertTrue(first)
+        XCTAssertFalse(concurrent)
+        XCTAssertFalse(tooSoon)
+        XCTAssertTrue(later)
+    }
+
+    // 8. No command outside the allowlist can be produced
+    func testAllowlistAcceptsOnlyFixedCommands() {
+        let en0 = NetworkInterfaceName("en0")!
+        let all: [NetworkCommand] = [.routeGetDefault, .airportPowerStatus(en0), .setAirportPower(en0, on: false),
+                                     .setAirportPower(en0, on: true), .renewDHCP(en0)]
+        for command in all {
+            XCTAssertTrue(CommandAllowlist.isAllowed(command.argv), "\(command.argv)")
+        }
+        XCTAssertEqual(NetworkCommand.renewDHCP(en0).argv,
+                       ["/usr/bin/osascript", "-e", "do shell script \"/usr/sbin/ipconfig set en0 DHCP\" with administrator privileges"])
+        for bad in [["/bin/sh", "-c", "networksetup -setairportpower en0 off"],
+                    ["/usr/sbin/networksetup", "-setairportpower", "en0", "off; rm -rf /"],
+                    ["/usr/sbin/networksetup", "-setairportpower", "en0;ls", "off"],
+                    ["/usr/sbin/networksetup", "-setdnsservers", "Wi-Fi", "1.1.1.1"],
+                    ["/sbin/route", "add", "default", "10.0.0.1"],
+                    ["/usr/bin/osascript", "-e", "do shell script \"rm -rf /\" with administrator privileges"],
+                    ["/usr/bin/osascript", "-e", "do shell script \"/usr/sbin/ipconfig set en0 DHCP; id\" with administrator privileges"],
+                    ["networksetup", "-setairportpower", "en0", "off"],
+                    []] {
+            XCTAssertFalse(CommandAllowlist.isAllowed(bad), "\(bad)")
+        }
+        for injected in ["en0; rm -rf /", "en0 DHCP", "../en0", "EN0", "en", "en0\"", "$(id)", "wifi0x"] {
+            XCTAssertNil(NetworkInterfaceName(injected), injected)
+        }
+    }
+
+    func testRunnerRefusesNonAllowlistedArgvAndNoServerCommandsExist() async {
+        // §17.9.5/12: there are no client-side server commands such as banid/removeid.
+        let en0 = NetworkInterfaceName("en0")!
+        let argvs = [NetworkCommand.routeGetDefault, .airportPowerStatus(en0), .setAirportPower(en0, on: true),
+                     .setAirportPower(en0, on: false), .renewDHCP(en0)].map { $0.argv.joined(separator: " ") }
+        for word in ["banid", "removeid", "removeip", "addip", "writeid", "writeip", "rcon", "amx_unban"] {
+            XCTAssertFalse(argvs.contains { $0.contains(word) }, word)
+        }
+    }
+
+    func testDefaultRouteAndWiFiDetectionParsing() {
+        let route = DefaultRoute.parse(FakeCommandRunner.routeOutput)
+        XCTAssertEqual(route?.interface.value, "en0")
+        XCTAssertEqual(route?.gateway, "192.0.2.1")
+        XCTAssertEqual(route?.routerURL, URL(string: "http://192.0.2.1"))
+        XCTAssertNil(DefaultRoute.parse("route: writing to routing socket: not in table"))
+        XCTAssertNil(DefaultRoute.parse("interface: en0; rm\n"))
+        XCTAssertTrue(AirportPowerStatus.isWiFi(CommandOutput(status: 0, output: "Wi-Fi Power (en0): On")))
+        XCTAssertFalse(AirportPowerStatus.isWiFi(CommandOutput(status: 10, output: "en5 is not a Wi-Fi interface.")))
+    }
+
+    func testFixButtonVisibility() {
+        XCTAssertEqual(FixKind.forStatus(.ipBanned), .ipBan)
+        XCTAssertEqual(FixKind.forStatus(.cidBanned), .cidBan)
+        XCTAssertEqual(FixKind.forStatus(.unreachable), .unreachable)
+        for status in [BanStatus.ipOk, .cidOk, .cidNotApplicable, .cidUnknown, .unknown] {
+            XCTAssertNil(FixKind.forStatus(status), status.rawValue)
+        }
+        XCTAssertNil(FixKind.forStatus(nil))
+    }
+
+    func testGameTrackerLink() {
+        XCTAssertEqual(GameTrackerLink.url(host: "51.68.190.91", port: 27015)?.absoluteString,
+                       "https://www.gametracker.com/server_info/51.68.190.91:27015/")
+        XCTAssertNil(GameTrackerLink.url(host: "evil.com/x", port: 27015))
+    }
+}
+
+/// §17.9.1 appeal text, §17.9.2 classification.
+final class AppealTextTests: XCTestCase {
+    private let checkedAt = Date(timeIntervalSince1970: 1_793_000_000)   // 2026-10-26T07:33:20Z
+
+    private func input(_ check: BanCheck) -> AppealInput {
+        AppealInput(serverLabel: "POLIGON RPG", host: "51.68.190.91", port: 27015, checkedAt: checkedAt,
+                    playerName: "TestOyuncu", cid: "d9de0eb4419608a8423241430581e91c",
+                    publicIP: "198.51.100.10", gamedir: "valve", check: check)
+    }
+
+    func testAppealContainsAllRequiredFields() {
+        let check = BanCheck(status: .ipBanned, checkedAt: checkedAt,
+                             detail: "ipBanned: You have been banned from this server.")
+        let text = AppealText.make(input(check), timeZone: TimeZone(identifier: "Europe/Istanbul")!)
+        let utc = ISO8601DateFormatter().string(from: checkedAt)
+        for field in ["POLIGON RPG", "51.68.190.91:27015",                       // server name + host:port
+                      "(yerel)", "\(utc) (UTC)",                                // local time + UTC
+                      "TestOyuncu",                                   // player name
+                      "d9de0eb4419608a8423241430581e91c",                       // CID (32 hex)
+                      "198.51.100.10",                                         // egress IP
+                      "gamedir valve", "Xash3D FWGS",                           // gamedir/client
+                      "ipBanned: You have been banned from this server.",       // raw reply
+                      "engine IP (getchallenge)",                               // check type
+                      "yanlışlıkla banlandım, kaldırır mısınız?",                // §17.3 template
+                      "Ban süreliyse bitiş zamanını ve gerekçesini"] {           // timed-ban question
+            XCTAssertTrue(text.contains(field), "eksik alan: \(field)")
+        }
+        XCTAssertTrue(text.contains("26.10.2026 10:33:20 (yerel)"), text)        // Istanbul UTC+3
+        XCTAssertEqual(AppealText.adminChecklist.count, 7)
+        for (index, item) in AppealText.adminChecklist.enumerated() {
+            XCTAssertTrue(text.contains("\(index + 1). \(item)"), item)
+        }
+        for command in ["listid", "listip", "removeid <id> + writeid", "removeip <ip> + writeip", "amx_unban <ip>",
+                        "AMXBans", "sv_filterban"] {
+            XCTAssertTrue(text.contains(command), command)
+        }
+        // The checklist is at the end of the text.
+        XCTAssertTrue(text.hasSuffix(AppealText.adminChecklist.last!))
+    }
+
+    func testCheckTypeByClassification() {
+        XCTAssertTrue(AppealText.make(input(BanCheck(status: .cidBanned, checkedAt: checkedAt,
+                                                     detail: "ipOk → cidBanned: errormsg You are banned")))
+            .contains("Kontrol türü: engine CID (connect 49)"))
+        XCTAssertTrue(AppealText.make(input(BanCheck(status: .cidUnknown, checkedAt: checkedAt,
+                                                     detail: "ipOk → cidUnknown: errormsg Server rejected")))
+            .contains("Kontrol türü: bilinmiyor (plugin/SQL olabilir)"))
+    }
+
+    func testCIDUnknownRejectionIsUnverifiedTypeWithRawText() {
+        let rejected = BanCheck(status: .cidUnknown, checkedAt: checkedAt,
+                                detail: "ipOk → cidUnknown: disconnect Kicked by console")
+        XCTAssertEqual(BanClassification.classify(rejected), .rejectedUnknownType(raw: "disconnect Kicked by console"))
+        XCTAssertEqual(BanClassification.unverifiedText, "Ban türü doğrulanamadı (plugin/SQL olabilir)")
+        let silent = BanCheck(status: .cidUnknown, checkedAt: checkedAt, detail: "ipOk → cidUnknown")
+        XCTAssertEqual(BanClassification.classify(silent), .unknown)
+        XCTAssertEqual(BanClassification.classify(BanCheck(status: .ipBanned, checkedAt: checkedAt, detail: "")), .engineIP)
+        XCTAssertEqual(BanClassification.classify(BanCheck(status: .cidBanned, checkedAt: checkedAt, detail: "")), .engineCID)
+        XCTAssertEqual(BanClassification.classify(BanCheck(status: .unreachable, checkedAt: checkedAt, detail: "")), .notBan)
+    }
+}
+
+/// §17.10.5: IP range ban; fake runner/IP, no network.
+final class RangeBanTests: XCTestCase {
+    private func check(_ status: BanStatus) -> BanCheck {
+        BanCheck(status: status, checkedAt: Date(timeIntervalSince1970: 1_793_000_000), detail: "")
+    }
+
+    private func sequenced(_ old: String, _ new: String) -> SequencedIPs { SequencedIPs([old, new]) }
+
+    private func run(_ old: String, _ new: String) async -> IPFixOutcome {
+        let clock = TestClock()
+        let ips = sequenced(old, new)
+        let banned = check(.ipBanned)
+        let fixer = IPBanFixer(runner: FakeCommandRunner(), sleeper: FakeSleeper(clock: clock), now: { clock.now },
+                               fetchPublicIP: { try ips.next() }, recheck: { banned }, progress: { _ in })
+        return await fixer.run().outcome
+    }
+
+    func testSameSlash16StillBannedIsRangeBannedWithThreeSuggestions() async {
+        let result = await run("198.51.100.10", "198.51.100.12")
+        XCTAssertEqual(result, .rangeBanned(old: "198.51.100.10", new: "198.51.100.12", cidr: "198.51.0.0/16"))
+        XCTAssertEqual(result.message, "IP aralığı banı (198.51.0.0/16)")
+        XCTAssertFalse(result.isSuccess)
+        XCTAssertEqual(IPFixOutcome.rangeBannedSuggestions.count, 3)
+        XCTAssertFalse(IPFixOutcome.rangeBannedSuggestions.joined().lowercased().contains("ip yenile "))
+        XCTAssertTrue(IPFixOutcome.rangeBannedSuggestions[0].hasPrefix("IP yenilemek işe yaramaz"))
+        XCTAssertTrue(IPFixOutcome.rangeBannedSuggestions[1].contains("mobil hotspot"))
+        XCTAssertTrue(IPFixOutcome.rangeBannedSuggestions[2].contains("aralık banını kaldırmasını"))
+    }
+
+    func testDifferentSlash16StillBannedIsNotRange() async {
+        let result = await run("198.51.100.10", "88.230.1.2")
+        XCTAssertEqual(result, .stillBanned(old: "198.51.100.10", new: "88.230.1.2"))
+        XCTAssertTrue(IPFixOutcome.outOfRangeText.contains("aralık dışı"))
+        XCTAssertTrue(IPFixOutcome.outOfRangeText.contains("CID/plugin"))
+    }
+
+    func testSameSlash24ButDifferentSlash16IsNotRangeAndHelper() {
+        // The same /24 text cannot be in a different /16; even with an equal /24, a different /16 is not a range ban (different byte layout).
+        XCTAssertNil(IPRange.sharedWideRange("10.1.2.3", "10.2.2.9"))
+        XCTAssertEqual(IPRange.ranges(for: "10.1.2.3")?.narrow, "10.1.2.0/24")
+        XCTAssertEqual(IPRange.ranges(for: "10.2.2.9")?.narrow, "10.2.2.0/24")
+        XCTAssertEqual(IPRange.sharedWideRange("10.1.2.3", "10.1.200.9"), "10.1.0.0/16")
+    }
+
+    func testIPv6Slash48() async {
+        XCTAssertEqual(IPRange.ranges(for: "2a02:1234:5678:9abc::1")?.narrow, "2a02:1234:5678:9abc::/64")
+        XCTAssertEqual(IPRange.ranges(for: "2a02:1234:5678:9abc::1")?.wide, "2a02:1234:5678::/48")
+        let same = await run("2a02:1234:5678:1::1", "2a02:1234:5678:2::7")
+        XCTAssertEqual(same, .rangeBanned(old: "2a02:1234:5678:1::1", new: "2a02:1234:5678:2::7", cidr: "2a02:1234:5678::/48"))
+        let diff = await run("2a02:1234:5678:1::1", "2a02:1234:9999:1::1")
+        XCTAssertEqual(diff, .stillBanned(old: "2a02:1234:5678:1::1", new: "2a02:1234:9999:1::1"))
+    }
+
+    func testParseFailureShowsNoRangeAndDoesNotCrash() async {
+        XCTAssertNil(IPRange.ranges(for: "not-an-ip"))
+        XCTAssertNil(IPRange.displayText(for: ""))
+        XCTAssertNil(IPRange.sharedWideRange("garbage", "1.2.3.4"))
+        let result = await run("garbage", "1.2.3.4")
+        XCTAssertEqual(result, .stillBanned(old: "garbage", new: "1.2.3.4"))
+        XCTAssertEqual(IPRange.displayText(for: "198.51.100.10"), "Aralık: 198.51.100.0/24 · 198.51.0.0/16")
+    }
+
+    func testAppealContainsRangeLine() {
+        let checkedAt = Date(timeIntervalSince1970: 1_793_000_000)
+        let base = AppealInput(serverLabel: "S", host: "51.68.190.91", port: 27015, checkedAt: checkedAt,
+                               playerName: "P", cid: "d9de0eb4419608a8423241430581e91c", publicIP: "198.51.100.12",
+                               gamedir: "valve", check: check(.ipBanned))
+        XCTAssertFalse(AppealText.make(base).contains("Muhtemel aralık banı"))
+        var ranged = base
+        ranged.rangeBan = RangeBanInfo(cidr: "198.51.0.0/16", oldIP: "198.51.100.10", newIP: "198.51.100.12")
+        let text = AppealText.make(ranged)
+        XCTAssertTrue(text.contains("Muhtemel aralık banı: 198.51.0.0/16 (eski IP: 198.51.100.10, yeni IP: 198.51.100.12)"))
+        XCTAssertTrue(text.contains("listip çıktısında"))
+    }
+}
