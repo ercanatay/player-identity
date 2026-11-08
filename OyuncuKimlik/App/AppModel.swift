@@ -12,6 +12,8 @@ struct AppDependencies {
     var now: @Sendable () -> Date
     /// §13 ban kontrolü UDP taşıyıcısı (testlerde sahte).
     var udpTransport: any UDPTransport
+    /// §15.6 `xash3d` süreci tespiti (testlerde sahte).
+    var gameProcessDetector: any GameProcessDetecting
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -22,7 +24,8 @@ struct AppDependencies {
                                snapshotStore: SnapshotStore(fileURL: paths.snapshotFile),
                                defaults: .standard,
                                now: { Date() },
-                               udpTransport: BSDUDPTransport())
+                               udpTransport: BSDUDPTransport(),
+                               gameProcessDetector: SystemGameProcessDetector())
     }
 }
 
@@ -32,6 +35,7 @@ struct AppDependencies {
 final class AppModel {
     static let dataRootDefaultsKey = "dataRoot"
     static let banCheckDefaultsKey = "banCheckEnabled"
+    static let recentNamesDefaultsKey = "recentNames"
 
     private(set) var dataRoot: URL
     private(set) var gamedirs: [String] = []
@@ -52,6 +56,27 @@ final class AppModel {
     /// Ayarlar > "Ban kontrolü" (varsayılan açık, UserDefaults'ta saklanır). Kapalıyken ban paketi gönderilmez.
     var banCheckEnabled: Bool {
         didSet { deps.defaults.set(banCheckEnabled, forKey: Self.banCheckDefaultsKey) }
+    }
+
+    // MARK: §15 ad/model düzenleme
+    /// Etkin değerlerin kaynakları (§15.2).
+    private(set) var configSources = ConfigSources()
+    /// `<gamedir>/models/player/` klasör adları; okunamazsa `nil`.
+    private(set) var availableModels: [String]?
+    /// Taslak değerler; diske yalnız Uygula ile yazılır.
+    var nameDraft = ""
+    var modelDraft = ""
+    private(set) var recentNames: [String]
+    private(set) var isApplying = false
+    private(set) var applyStatus: ApplyStatus?
+    /// `xash3d` süreci açık mı (yenilemede ve Uygula'da kontrol edilir).
+    private(set) var isGameRunning = false
+    /// Uygula sonrası kayıt "Kaydedilmedi" olur; Kaydet ile sıfırlanır.
+    private var appliedSinceSave = false
+
+    enum ApplyStatus: Equatable {
+        case success(String)
+        case failure(EditMessage)
     }
 
     @ObservationIgnored private let deps: AppDependencies
@@ -77,11 +102,13 @@ final class AppModel {
         selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
         servers = snapshot?.servers ?? []
         banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
+        recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
     }
 
     // MARK: Türetilmiş durum
 
     var hasUnsavedChanges: Bool {
+        if appliedSinceSave { return true }
         guard let snapshot = snapshotState.snapshot else { return editedWithoutSnapshot }
         return editableState != EditableState(snapshot: snapshot)
     }
@@ -117,12 +144,21 @@ final class AppModel {
         let loader = ProfileLoader(fileSystem: deps.fileSystem, homeDirectory: deps.paths.home)
         let root = dataRoot
         let preferred = selectedGamedir
-        let profile = await Task.detached { loader.load(dataRoot: root, preferredGamedir: preferred) }.value
+        let detector = deps.gameProcessDetector
+        let (profile, gameRunning) = await Task.detached {
+            (loader.load(dataRoot: root, preferredGamedir: preferred), detector.isGameRunning())
+        }.value
         guard current == generation else { return }
         gamedirs = profile.gamedirs
         selectedGamedir = profile.selectedGamedir
         identity = profile.identity
+        // Düzenlenmemiş taslaklar yeni etkin değeri izler; kullanıcının taslağı korunur.
+        if nameDraft == config.name { nameDraft = profile.config.name }
+        if modelDraft == config.model { modelDraft = profile.config.model }
         config = profile.config
+        configSources = profile.configSources
+        availableModels = profile.models
+        isGameRunning = gameRunning
 
         if includeNetwork {
             // §13 ban kontrolü: diğer ağ adımlarıyla paralel; yenileme iptaliyle birlikte iptal edilir.
@@ -236,6 +272,89 @@ final class AppModel {
         if snapshotState.snapshot == nil { editedWithoutSnapshot = true }
     }
 
+    // MARK: Ad/model düzenleme (§15)
+
+    var modelOptions: [ModelOption] {
+        PlayerOptions.modelOptions(available: availableModels ?? [], current: config.model)
+    }
+
+    var nameOptions: [String] {
+        PlayerOptions.nameOptions(current: config.name, saved: snapshotState.snapshot?.displayName, recent: recentNames)
+    }
+
+    /// Model listesi yoksa "Elle gir…" sunulur (§15.3).
+    var allowsManualModelEntry: Bool {
+        (availableModels ?? []).isEmpty
+    }
+
+    /// Yazılacak ad; taslak etkin değerden farklı değilse `nil`.
+    var pendingName: String? {
+        let trimmed = nameDraft.trimmingCharacters(in: .whitespaces)
+        return trimmed == config.name ? nil : nameDraft
+    }
+
+    var pendingModel: String? {
+        modelDraft == config.model ? nil : modelDraft
+    }
+
+    /// Yalnız değişen alan doğrulanır.
+    var nameError: EditMessage? {
+        guard let pendingName else { return nil }
+        return PlayerValueValidator.normalizedName(pendingName) == nil ? .nameInvalid : nil
+    }
+
+    var modelError: EditMessage? {
+        guard let pendingModel else { return nil }
+        return PlayerValueValidator.isValidModel(pendingModel) ? nil : .modelInvalid
+    }
+
+    var canApply: Bool {
+        !isApplying && identity != nil && selectedGamedir != nil
+            && (pendingName != nil || pendingModel != nil)
+            && nameError == nil && modelError == nil
+    }
+
+    /// Taslakları seçili gamedir'e yazar, ardından dosyaları yeniden okur (ağ isteği yok).
+    @discardableResult
+    func apply() -> Task<Void, Never>? {
+        guard canApply, let gamedir = selectedGamedir else { return nil }
+        let gamedirURL = dataRoot.appendingPathComponent(gamedir, isDirectory: true)
+        let name = pendingName
+        let model = pendingModel
+        let writer = PlayerConfigWriter(detector: deps.gameProcessDetector)
+        isApplying = true
+        applyStatus = nil
+        return Task {
+            let result = await Task.detached { () -> Result<ApplyOutcome, EditMessage> in
+                do {
+                    return .success(try writer.apply(gamedir: gamedirURL, name: name, model: model))
+                } catch let error as EditMessage {
+                    return .failure(error)
+                } catch {
+                    return .failure(.writeFailed)
+                }
+            }.value
+            isApplying = false
+            switch result {
+            case .success(let outcome):
+                var text = "Uygulandı · \(TimeText.format(deps.now()))"
+                if !outcome.changedFiles.isEmpty { text += " · " + outcome.summary }
+                applyStatus = .success(text)
+                appliedSinceSave = true
+                isGameRunning = false
+                if let name, let normalized = PlayerValueValidator.normalizedName(name) {
+                    recentNames = PlayerOptions.updatedRecentNames(recentNames, adding: normalized)
+                    deps.defaults.set(recentNames, forKey: Self.recentNamesDefaultsKey)
+                    nameDraft = normalized
+                }
+                await startRefresh(includeNetwork: isRefreshing).value
+            case .failure(let error):
+                applyStatus = .failure(error)
+                if error == .gameRunning { isGameRunning = true }
+            }
+        }
+    }
+
     // MARK: Kaydet (§5)
 
     /// Yalnızca `profile.json` yazılır.
@@ -259,6 +378,7 @@ final class AppModel {
         snapshotState = .loaded(snapshot)
         servers = snapshot.servers
         editedWithoutSnapshot = false
+        appliedSinceSave = false
         saveErrorMessage = nil
         reevaluate()
     }

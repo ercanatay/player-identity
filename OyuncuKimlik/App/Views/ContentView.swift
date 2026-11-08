@@ -8,6 +8,10 @@ struct ContentView: View {
     @State private var sheet: SheetMode?
     @State private var copiedKey: String?
     @State private var showsSuggestions = false
+    @State private var showsNewName = false
+    @State private var newNameText = ""
+    @State private var showsManualModel = false
+    @State private var manualModelText = ""
 
     enum SheetMode: Identifiable {
         case add
@@ -43,6 +47,16 @@ struct ContentView: View {
         }
         .sheet(item: $sheet) { mode in
             sheetView(mode)
+        }
+        .alert("Yeni ad", isPresented: $showsNewName) {
+            TextField("Kullanıcı adı", text: $newNameText)
+            Button("Tamam") { model.nameDraft = newNameText }
+            Button("Vazgeç", role: .cancel) {}
+        }
+        .alert("Model adı", isPresented: $showsManualModel) {
+            TextField("Oyuncu modeli", text: $manualModelText)
+            Button("Tamam") { model.modelDraft = manualModelText }
+            Button("Vazgeç", role: .cancel) {}
         }
         .alert("Kayıt yazılamadı", isPresented: Binding(
             get: { model.saveErrorMessage != nil },
@@ -133,13 +147,74 @@ struct ContentView: View {
 
     private var profileCard: some View {
         Card(title: "Profil") {
-            FieldRow(title: "Kullanıcı adı") {
-                Text(model.config.name.isEmpty ? "—" : model.config.name)
-                    .textSelection(.enabled)
+            if model.isGameRunning {
+                // §15.7 oyun açık uyarı bandı
+                Label(EditMessage.gameRunning.text, systemImage: StatusLevel.orange.symbolName)
+                    .foregroundStyle(.orange)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.15)))
             }
+            FieldRow(title: "Kullanıcı adı") {
+                Menu {
+                    ForEach(model.nameOptions, id: \.self) { option in
+                        Button(option) { model.nameDraft = option }
+                    }
+                    Divider()
+                    Button("Yeni ad…") {
+                        newNameText = model.nameDraft
+                        showsNewName = true
+                    }
+                } label: {
+                    Text(model.nameDraft.isEmpty ? "—" : model.nameDraft)
+                }
+                .fixedSize()
+                .accessibilityLabel("Kullanıcı adı: \(model.nameDraft)")
+                sourceNote(model.configSources.name)
+            }
+            if let error = model.nameError { fieldError(error) }
             FieldRow(title: "Oyuncu modeli") {
-                Text(model.config.model.isEmpty ? "—" : model.config.model)
-                    .textSelection(.enabled)
+                Menu {
+                    ForEach(model.modelOptions, id: \.self) { option in
+                        Button(option.label) { model.modelDraft = option.value }
+                    }
+                    if model.allowsManualModelEntry {
+                        Divider()
+                        Button("Elle gir…") {
+                            manualModelText = model.modelDraft
+                            showsManualModel = true
+                        }
+                    }
+                } label: {
+                    Text(model.modelDraft.isEmpty ? "—" : model.modelDraft)
+                }
+                .fixedSize()
+                .accessibilityLabel("Oyuncu modeli: \(model.modelDraft)")
+                sourceNote(model.configSources.model)
+            }
+            if let error = model.modelError { fieldError(error) }
+            HStack(spacing: 12) {
+                Spacer().frame(width: 130)
+                Button {
+                    model.apply()
+                } label: {
+                    HStack(spacing: 6) {
+                        if model.isApplying { ProgressView().controlSize(.small) }
+                        Text("Uygula")
+                    }
+                }
+                .keyboardShortcut(.return, modifiers: .command)
+                .disabled(!model.canApply)
+                .help("Uygula (⌘⏎)")
+                switch model.applyStatus {
+                case .success(let text)?:
+                    Text(text).font(.callout).foregroundStyle(.secondary)
+                case .failure(let error)?:
+                    Text(error.text).font(.callout).foregroundStyle(.red)
+                case nil:
+                    EmptyView()
+                }
+                Spacer(minLength: 0)
             }
             FieldRow(title: "Ham kimlik") {
                 Text(identityValue?.rawIDHex ?? "—")
@@ -175,6 +250,22 @@ struct ContentView: View {
                 Button("Klasör Seç…", action: chooseDataRoot)
             }
         }
+    }
+
+    @ViewBuilder
+    private func sourceNote(_ source: ConfigFileKind?) -> some View {
+        if let source {
+            Text(source.note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func fieldError(_ error: EditMessage) -> some View {
+        Text(error.text)
+            .font(.caption)
+            .foregroundStyle(.red)
+            .padding(.leading, 142)
     }
 
     private var identityValue: Identity? {

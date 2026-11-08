@@ -65,6 +65,22 @@ Durum her zaman ikon **ve** metinle gösterilir. Gerekçeler pencerenin altında
 aynı ikonları kullanır: host geçersizse kırmızı (genel durumu etkilemez), CID kayıttan farklıysa veya kayıtlı CID
 boşsa turuncu, eşitse yeşil. Sunucu CID'si kayda, satır bir Yenile ile kontrol edildikten sonra yazılır.
 
+## Ad ve model düzenleme (v1.3)
+Uygulamanın tek yazma istisnası: seçili gamedir'deki `config.cfg` ve (varsa) `userconfig.cfg` içindeki
+`name` / `model` satırları.
+- **Etkin değer:** `userconfig.cfg` motor tarafından `config.cfg`'den sonra çalıştırıldığı için anahtar oradaysa
+  o kazanır; profil kartında kaynak notu görünür (`config.cfg` veya `userconfig.cfg (config.cfg'yi ezer)`).
+- **Dropdown'lar:** model listesi `<gamedir>/models/player/` klasör adlarından (alfabetik; listede olmayan mevcut
+  model "(mevcut)" ile başta; klasör yoksa "Elle gir…"). Ad listesi: mevcut ad, kayıttaki ad, son kullanılan 10 ad
+  (UserDefaults `recentNames`) ve "Yeni ad…".
+- **Uygula (⌘⏎):** yalnız değişen anahtarlar yazılır; anahtar iki dosyada da varsa ikisi de aynı değere getirilir,
+  hiçbirinde yoksa `config.cfg` sonuna eklenir. Anahtarın tüm geçişleri güncellenir, dosyanın geri kalanı bayt bayt
+  ve satır sonu stiliyle korunur. Yazma atomiktir; her değişen dosyanın önceki hâli `<dosya>.appbak` olarak saklanır
+  (oyunun `config.cfg.bak` dosyasına dokunulmaz). `xash3d` süreci açıksa yazma reddedilir ve uyarı bandı görünür.
+- **Doğrulama:** ad 1–31 karakter ve ≤ 31 bayt (UTF-8), `"` `\` satır sonu ve kontrol karakteri yok; model 1–32
+  karakter, yalnız `A-Z a-z 0-9 _ -`. Geçersizse Uygula devre dışıdır.
+- Uygula sonrası dosyalar yeniden okunur ve kayıt "Kaydedilmedi" olur; Kaydet yeni ad/modeli `profile.json`'a yazar.
+
 ## Ne yapmalı? (v1.2)
 Her gerekçenin altında gri, küçük bir `→ öneri` satırı görünür (kullanıcının atabileceği somut adım).
 Üst bardaki durum etiketine (örn. "Kritik hata") tıklanınca **Ne yapmalı?** penceresi açılır: o anki tüm

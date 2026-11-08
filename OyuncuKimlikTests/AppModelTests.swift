@@ -81,7 +81,8 @@ final class AppModelTests: XCTestCase {
     private func json(_ ip: String) -> String { #"{"ip":"\#(ip)"}"# }
 
     private func makeModel(script: HTTPScript, lan: [LocalAddress]? = nil,
-                           udp: FakeUDPTransport = FakeServer.healthy(), clock: TestClock? = nil) -> AppModel {
+                           udp: FakeUDPTransport = FakeServer.healthy(), clock: TestClock? = nil,
+                           game: FakeGameDetector = FakeGameDetector()) -> AppModel {
         let now: @Sendable () -> Date
         if let clock {
             now = { clock.now }
@@ -96,7 +97,8 @@ final class AppModelTests: XCTestCase {
             snapshotStore: SnapshotStore(fileURL: snapshotURL),
             defaults: defaults,
             now: now,
-            udpTransport: udp))
+            udpTransport: udp,
+            gameProcessDetector: game))
     }
 
     private func writeGame(name: String = "Oyuncu", model: String = "gordon", idFile: String? = "10331C2DCE4C91DB") throws {
@@ -414,5 +416,116 @@ final class AppModelTests: XCTestCase {
         XCTAssertNotNil(model.servers.first?.banCheck)          // yalnız etiket değişti
         model.updateServer(id: id, with: ServerDraft(label: "A2", host: "51.68.190.91"))
         XCTAssertNil(model.servers.first?.banCheck)
+    }
+
+    // MARK: Ad/model düzenleme (§15)
+
+    private var valveDir: URL { dataRoot.appendingPathComponent("valve", isDirectory: true) }
+
+    func testDropdownsSourcesAndApplyFlow() async throws {
+        try writeGame(idFile: "0123456789ABCDEF")
+        try temp.write("\(rootPath)/valve/userconfig.cfg", "name \"Oyuncu\"\n")
+        try temp.write("\(rootPath)/valve/config.cfg.bak", "oyun yedeği\n")
+        for name in ["gordon", "barney", "gina"] { _ = try temp.makeDirectory("\(rootPath)/valve/models/player/\(name)") }
+        let game = FakeGameDetector()
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), game: game)
+        await model.refresh().value
+        model.save()
+        XCTAssertFalse(model.hasUnsavedChanges)
+
+        XCTAssertEqual(model.configSources, ConfigSources(name: .userconfig, model: .config))
+        XCTAssertEqual(model.modelOptions.map(\.value), ["barney", "gina", "gordon"])
+        XCTAssertFalse(model.allowsManualModelEntry)
+        XCTAssertEqual(model.nameOptions, ["Oyuncu"])
+        XCTAssertEqual(model.nameDraft, "Oyuncu")
+        XCTAssertFalse(model.canApply)                      // değişiklik yok
+
+        model.nameDraft = "Yeni \"Ad"
+        XCTAssertEqual(model.nameError, .nameInvalid)
+        XCTAssertFalse(model.canApply)
+        model.nameDraft = "  Yeni Ad "
+        model.modelDraft = "gina"
+        XCTAssertNil(model.nameError)
+        XCTAssertTrue(model.canApply)
+
+        await model.apply()?.value
+        guard case .success(let text)? = model.applyStatus else { return XCTFail("\(String(describing: model.applyStatus))") }
+        XCTAssertTrue(text.hasPrefix("Uygulandı · "))
+        XCTAssertTrue(text.hasSuffix(" · config.cfg + userconfig.cfg"))
+        XCTAssertEqual(model.config, PlayerConfig(name: "Yeni Ad", model: "gina"))
+        XCTAssertEqual(model.configSources.name, .userconfig)
+        XCTAssertEqual(model.nameDraft, "Yeni Ad")
+        XCTAssertFalse(model.canApply)
+        XCTAssertTrue(model.hasUnsavedChanges)              // Uygula → "Kaydedilmedi"
+        XCTAssertEqual(model.recentNames.first, "Yeni Ad")
+        XCTAssertEqual(defaults.stringArray(forKey: AppModel.recentNamesDefaultsKey), ["Yeni Ad"])
+        XCTAssertTrue(model.nameOptions.contains("Oyuncu"))  // kayıttaki ad seçenekte kalır
+
+        let config = try String(contentsOf: valveDir.appendingPathComponent("config.cfg"), encoding: .utf8)
+        let user = try String(contentsOf: valveDir.appendingPathComponent("userconfig.cfg"), encoding: .utf8)
+        XCTAssertEqual(config, "name \"Yeni Ad\"\nmodel \"gina\"\n")
+        XCTAssertEqual(user, "name \"Yeni Ad\"\n")
+        XCTAssertEqual(try String(contentsOf: valveDir.appendingPathComponent("config.cfg.bak"), encoding: .utf8), "oyun yedeği\n")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: valveDir.appendingPathComponent("config.cfg.appbak").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: valveDir.appendingPathComponent("userconfig.cfg.appbak").path))
+
+        model.save()
+        XCTAssertFalse(model.hasUnsavedChanges)
+        let saved = try XCTUnwrap(SnapshotStore(fileURL: snapshotURL).load().snapshot)
+        XCTAssertEqual(saved.displayName, "Yeni Ad")
+        XCTAssertEqual(saved.model, "gina")
+    }
+
+    func testApplyRefusedWhileGameRunning() async throws {
+        try writeGame()
+        let game = FakeGameDetector(running: true)
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), game: game)
+        await model.refresh().value
+        XCTAssertTrue(model.isGameRunning)                  // uyarı bandı
+        let before = try Data(contentsOf: valveDir.appendingPathComponent("config.cfg"))
+        model.modelDraft = "barney"
+        await model.apply()?.value
+        XCTAssertEqual(model.applyStatus, .failure(.gameRunning))
+        XCTAssertEqual(try Data(contentsOf: valveDir.appendingPathComponent("config.cfg")), before)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: valveDir.appendingPathComponent("config.cfg.appbak").path))
+        XCTAssertEqual(model.config.model, "gordon")
+
+        game.isRunning = false
+        await model.apply()?.value
+        XCTAssertEqual(model.config.model, "barney")
+        XCTAssertFalse(model.isGameRunning)
+    }
+
+    func testManualModelEntryWhenFolderMissingAndGamedirSwitchReloads() async throws {
+        try writeGame()
+        _ = try temp.makeDirectory("\(rootPath)/gearbox/models/player/beret")
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")))
+        await model.refresh().value
+        XCTAssertNil(model.availableModels)
+        XCTAssertTrue(model.allowsManualModelEntry)
+        XCTAssertEqual(model.modelOptions.map(\.label), ["gordon (mevcut)"])
+
+        await model.selectGamedir("gearbox")?.value
+        XCTAssertEqual(model.availableModels, ["beret"])
+        XCTAssertEqual(model.modelOptions.map(\.label), ["helmet (mevcut)", "beret"])
+        XCTAssertEqual(model.modelDraft, "helmet")
+        XCTAssertEqual(model.nameDraft, "Kutu")
+        model.modelDraft = "bad model"
+        XCTAssertEqual(model.modelError, .modelInvalid)
+        XCTAssertFalse(model.canApply)
+    }
+
+    func testApplyWritesToSelectedGamedirAndReportsMissingConfig() async throws {
+        try writeGame()
+        try temp.write("\(rootPath)/bshift/.xash_id", "0000000000000000")   // config.cfg yok
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")))
+        await model.refresh().value
+        await model.selectGamedir("bshift")?.value
+        model.nameDraft = "Ad"
+        await model.apply()?.value
+        XCTAssertEqual(model.applyStatus, .failure(.configMissing))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dataRoot.appendingPathComponent("bshift/config.cfg").path))
+        XCTAssertEqual(try String(contentsOf: valveDir.appendingPathComponent("config.cfg"), encoding: .utf8),
+                       "name \"Oyuncu\"\nmodel \"gordon\"\n")
     }
 }

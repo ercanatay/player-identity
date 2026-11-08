@@ -118,3 +118,28 @@ enum FakeServer {
         FakeUDPTransport(clock: clock, responder: scripted())
     }
 }
+
+/// Enjekte edilebilir oyun süreci tespiti (§15.6).
+final class FakeGameDetector: GameProcessDetecting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var running: Bool
+    private var checks = 0
+
+    init(running: Bool = false) {
+        self.running = running
+    }
+
+    var isRunning: Bool {
+        get { lock.withLock { running } }
+        set { lock.withLock { running = newValue } }
+    }
+
+    var checkCount: Int { lock.withLock { checks } }
+
+    func isGameRunning() -> Bool {
+        lock.withLock {
+            checks += 1
+            return running
+        }
+    }
+}

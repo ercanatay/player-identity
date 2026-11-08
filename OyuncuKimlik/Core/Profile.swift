@@ -6,6 +6,10 @@ struct LocalProfile: Sendable, Equatable {
     var selectedGamedir: String?
     var identity: Result<Identity, IdentityError>
     var config: PlayerConfig
+    /// §15.2 etkin değer kaynakları.
+    var configSources = ConfigSources()
+    /// §15.3 model listesi; klasör okunamazsa `nil`.
+    var models: [String]? = nil
 }
 
 /// Veri kökü ve seçili gamedir'i doğrulayıp kimlik ve config'i okur. Salt okunur.
@@ -24,8 +28,12 @@ struct ProfileLoader: Sendable {
         }
         let gamedirURL = selected.map { dataRoot.appendingPathComponent($0, isDirectory: true) }
         let identity = IdentityReader(fileSystem: fileSystem, homeDirectory: homeDirectory).read(gamedir: gamedirURL)
-        let config = gamedirURL.map { ConfigReader(fileSystem: fileSystem).read(gamedir: $0) } ?? PlayerConfig()
-        return LocalProfile(gamedirs: gamedirs, selectedGamedir: selected, identity: identity, config: config)
+        let effective = gamedirURL.map { ConfigReader(fileSystem: fileSystem).readEffective(gamedir: $0) }
+        let models = gamedirURL.flatMap { ModelCatalog.load(gamedir: $0, fileSystem: fileSystem) }
+        return LocalProfile(gamedirs: gamedirs, selectedGamedir: selected, identity: identity,
+                            config: effective?.config ?? PlayerConfig(),
+                            configSources: effective?.sources ?? ConfigSources(),
+                            models: models)
     }
 }
 
