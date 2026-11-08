@@ -218,3 +218,26 @@ project.yml       XcodeGen spec
 - Notifications/timers, periodic background refresh.
 - A domain name can be entered as host but is not resolved; CIDs are computed for IP addresses only (a domain-name
   row is shown red as an invalid server address).
+
+## Install (local build)
+
+```bash
+xcodegen generate
+xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
+  -destination 'platform=macOS' -configuration Release -derivedDataPath .build-release build
+ditto .build-release/Build/Products/Release/PlayerIdentity.app /Applications/PlayerIdentity.app
+codesign --force --deep --sign - /Applications/PlayerIdentity.app
+open /Applications/PlayerIdentity.app
+```
+
+The app is ad-hoc signed (not notarized). On first launch macOS may ask for confirmation:
+right-click → **Open**, or allow it in **System Settings → Privacy & Security**.
+
+## Design spec
+
+The full design/behaviour specification (Turkish) is in [`docs/spec.md`](docs/spec.md).
+It is the single source of truth for behaviour, status colours, localization keys and acceptance criteria.
+
+## License
+
+[MIT](LICENSE) © 2026 Test Player
