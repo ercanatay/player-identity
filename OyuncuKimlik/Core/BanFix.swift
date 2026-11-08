@@ -180,11 +180,43 @@ enum FixFailure: Sendable, Equatable {
     }
 }
 
+// MARK: - IP aralığı (§17.10)
+
+enum IPRange {
+    /// Dar (`/24` | `/64`) ve geniş (`/16` | `/48`) aralık; ayrıştırılamazsa `nil`.
+    static func ranges(for ip: String) -> (narrow: String, wide: String)? {
+        switch ServerAddress.parse(ip) {
+        case .ipv4(let b)?: return (cidr(.ipv4, b, 24), cidr(.ipv4, b, 16))
+        case .ipv6(let b)?: return (cidr(.ipv6, b, 64), cidr(.ipv6, b, 48))
+        default: return nil
+        }
+    }
+
+    /// Gösterim metni: `Aralık: 198.51.100.0/24 · 198.51.0.0/16`.
+    static func displayText(for ip: String) -> String? {
+        ranges(for: ip).map { "Aralık: \($0.narrow) · \($0.wide)" }
+    }
+
+    /// İki IP aynı ailede ve aynı geniş aralıktaysa (IPv4 `/16`, IPv6 `/48`) o CIDR.
+    static func sharedWideRange(_ a: String, _ b: String) -> String? {
+        guard let ra = ranges(for: a), let rb = ranges(for: b), ra.wide == rb.wide else { return nil }
+        return ra.wide
+    }
+
+    private static func cidr(_ family: AddressFamily, _ bytes: [UInt8], _ prefix: Int) -> String {
+        var masked = bytes
+        for i in 0..<masked.count where i >= prefix / 8 { masked[i] = 0 }
+        return "\(IPText.string(family: family, bytes: masked) ?? "")/\(prefix)"
+    }
+}
+
 enum IPFixOutcome: Sendable, Equatable {
     /// A ≠ B ve yeniden kontrol IP engeli göstermiyor.
     case resolved(old: String, new: String)
     /// A ≠ B ama hâlâ `ipBanned`.
     case stillBanned(old: String, new: String)
+    /// A ≠ B, hâlâ `ipBanned` ve aynı `/16` (IPv6 `/48`): aralık banı (§17.10).
+    case rangeBanned(old: String, new: String, cidr: String)
     /// A = B.
     case ipUnchanged(ip: String, routerURL: URL?)
     /// A ≠ B ama sonuç doğrulanamadı (yeniden kontrol yok/başka sonuç).
@@ -206,6 +238,8 @@ enum IPFixOutcome: Sendable, Equatable {
             return "Çözüldü: IP değişti (\(old) → \(new)), ban kalktı."
         case .stillBanned:
             return "Yeni IP de banlı olabilir (subnet/aralık banı) veya sunucu tüm aralığı engelliyor."
+        case .rangeBanned(_, _, let cidr):
+            return "IP aralığı banı (\(cidr))"
         case .ipUnchanged:
             return "IP değişmedi."
         case .changedUnverified(let old, let new, let status):
@@ -228,6 +262,16 @@ enum IPFixOutcome: Sendable, Equatable {
         "VPN kullanın.",
         "Ban süreli olabilir: birkaç saat sonra yeniden deneyin.",
     ]
+
+    /// `rangeBanned` önerileri (§17.10.3); "IP yenile" önerisi yoktur.
+    static let rangeBannedSuggestions = [
+        "IP yenilemek işe yaramaz; aynı aralıktasınız.",
+        "Farklı ağ dene: mobil hotspot (tethering) veya çıkışı farklı aralıkta olan VPN.",
+        "Sunucu yöneticisinden aralık banını kaldırmasını iste (itiraz metni aralık bilgisini içerir).",
+    ]
+
+    /// Farklı aralıkta yeni IP de banlıysa (§17.10.2).
+    static let outOfRangeText = "Yeni IP de banlı; aralık dışı olduğu için CID/plugin banı olabilir."
 
     /// `stillBanned` için olası nedenler, sırayla (§17.9.3). Otomatik çözüm önerilmez.
     static let stillBannedReasons = [
@@ -332,7 +376,11 @@ struct IPBanFixer: Sendable {
                 recheckResult = check
                 switch check?.status {
                 case .ipBanned?:
-                    outcome = .stillBanned(old: oldIP, new: ip)
+                    if let cidr = IPRange.sharedWideRange(oldIP, ip) {
+                        outcome = .rangeBanned(old: oldIP, new: ip, cidr: cidr)
+                    } else {
+                        outcome = .stillBanned(old: oldIP, new: ip)
+                    }
                 case .ipOk?, .cidOk?, .cidNotApplicable?:
                     outcome = .resolved(old: oldIP, new: ip)
                 default:
@@ -367,7 +415,7 @@ private extension IPFixOutcome {
     /// Ağ yenilemesi tamamlandı ve IP karşılaştırıldı (arayüz zaten açık).
     var isComparison: Bool {
         switch self {
-        case .resolved, .stillBanned, .ipUnchanged, .changedUnverified: return true
+        case .resolved, .stillBanned, .rangeBanned, .ipUnchanged, .changedUnverified: return true
         case .networkTimeout, .failed, .cancelled: return false
         }
     }
@@ -471,6 +519,14 @@ struct AppealInput: Sendable, Equatable {
     var publicIP: String
     var gamedir: String
     var check: BanCheck
+    /// §17.10.4: aralık banı şüphesi (yalnız `rangeBanned` sonrası dolar).
+    var rangeBan: RangeBanInfo?
+}
+
+struct RangeBanInfo: Sendable, Equatable {
+    var cidr: String
+    var oldIP: String
+    var newIP: String
 }
 
 enum AppealText {
@@ -493,6 +549,10 @@ enum AppealText {
         utc.timeZone = TimeZone(identifier: "UTC")
         let classification = BanClassification.classify(input.check)
         let raw = input.check.detail.isEmpty ? input.check.status.rawValue : input.check.detail
+        let rangeLine = input.rangeBan.map {
+            "\nMuhtemel aralık banı: \($0.cidr) (eski IP: \($0.oldIP), yeni IP: \($0.newIP))"
+            + "\nLütfen listip çıktısında bu aralığa ait bir girdi arayın (ör. \($0.cidr))."
+        } ?? ""
         let checklist = adminChecklist.enumerated().map { "  \($0.offset + 1). \($0.element)" }.joined(separator: "\n")
         return """
         Merhaba, yanlışlıkla banlandım, kaldırır mısınız?
@@ -504,7 +564,7 @@ enum AppealText {
         Çıkış IP'si: \(input.publicIP)
         İstemci: Xash3D FWGS, protokol 49, gamedir \(input.gamedir)
         Sunucu cevabı: \(raw)
-        Kontrol türü: \(classification.checkTypeText)
+        Kontrol türü: \(classification.checkTypeText)\(rangeLine)
 
         Ban süreliyse bitiş zamanını ve gerekçesini paylaşabilir misiniz?
 

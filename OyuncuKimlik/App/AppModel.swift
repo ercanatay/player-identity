@@ -565,10 +565,14 @@ final class AppModel {
     func appealText(for id: UUID) -> String? {
         guard let entry = servers.first(where: { $0.id == id }), let check = entry.banCheck else { return nil }
         let cid = (try? identity?.get().rawID).flatMap { CIDCalculator.cid(rawID: $0, host: entry.host) } ?? "bilinmiyor"
+        var rangeBan: RangeBanInfo?
+        if case .finished(.rangeBanned(let old, let new, let cidr), _)? = fixSession?.phase, fixSession?.id == id {
+            rangeBan = RangeBanInfo(cidr: cidr, oldIP: old, newIP: new)
+        }
         return AppealText.make(AppealInput(serverLabel: entry.label, host: entry.host, port: entry.port,
                                            checkedAt: check.checkedAt, playerName: config.name, cid: cid,
                                            publicIP: publicIP ?? "bilinmiyor", gamedir: selectedGamedir ?? "—",
-                                           check: check))
+                                           check: check, rangeBan: rangeBan))
     }
 
     func serverPageURL(for id: UUID) -> URL? {

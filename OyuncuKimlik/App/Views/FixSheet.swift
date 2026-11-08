@@ -102,7 +102,16 @@ struct FixSheet: View {
                 Spacer()
                 retryAndClose
             }
+        case .rangeBanned:
+            Text("Öneriler").font(.headline)
+            numbered(IPFixOutcome.rangeBannedSuggestions)
+            HStack {
+                appealButtons
+                Spacer()
+                retryAndClose
+            }
         case .stillBanned:
+            Text(IPFixOutcome.outOfRangeText).fixedSize(horizontal: false, vertical: true)
             Text("Olası nedenler").font(.headline)
             numbered(IPFixOutcome.stillBannedReasons)
             HStack {

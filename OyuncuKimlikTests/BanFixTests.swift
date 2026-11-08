@@ -292,3 +292,79 @@ final class AppealTextTests: XCTestCase {
         XCTAssertEqual(BanClassification.classify(BanCheck(status: .unreachable, checkedAt: checkedAt, detail: "")), .notBan)
     }
 }
+
+/// §17.10.5: IP aralığı (range) banı; sahte yürütücü/IP, ağa çıkmaz.
+final class RangeBanTests: XCTestCase {
+    private func check(_ status: BanStatus) -> BanCheck {
+        BanCheck(status: status, checkedAt: Date(timeIntervalSince1970: 1_793_000_000), detail: "")
+    }
+
+    private func sequenced(_ old: String, _ new: String) -> SequencedIPs { SequencedIPs([old, new]) }
+
+    private func run(_ old: String, _ new: String) async -> IPFixOutcome {
+        let clock = TestClock()
+        let ips = sequenced(old, new)
+        let banned = check(.ipBanned)
+        let fixer = IPBanFixer(runner: FakeCommandRunner(), sleeper: FakeSleeper(clock: clock), now: { clock.now },
+                               fetchPublicIP: { try ips.next() }, recheck: { banned }, progress: { _ in })
+        return await fixer.run().outcome
+    }
+
+    func testSameSlash16StillBannedIsRangeBannedWithThreeSuggestions() async {
+        let result = await run("198.51.100.10", "198.51.100.12")
+        XCTAssertEqual(result, .rangeBanned(old: "198.51.100.10", new: "198.51.100.12", cidr: "198.51.0.0/16"))
+        XCTAssertEqual(result.message, "IP aralığı banı (198.51.0.0/16)")
+        XCTAssertFalse(result.isSuccess)
+        XCTAssertEqual(IPFixOutcome.rangeBannedSuggestions.count, 3)
+        XCTAssertFalse(IPFixOutcome.rangeBannedSuggestions.joined().lowercased().contains("ip yenile "))
+        XCTAssertTrue(IPFixOutcome.rangeBannedSuggestions[0].hasPrefix("IP yenilemek işe yaramaz"))
+        XCTAssertTrue(IPFixOutcome.rangeBannedSuggestions[1].contains("mobil hotspot"))
+        XCTAssertTrue(IPFixOutcome.rangeBannedSuggestions[2].contains("aralık banını kaldırmasını"))
+    }
+
+    func testDifferentSlash16StillBannedIsNotRange() async {
+        let result = await run("198.51.100.10", "88.230.1.2")
+        XCTAssertEqual(result, .stillBanned(old: "198.51.100.10", new: "88.230.1.2"))
+        XCTAssertTrue(IPFixOutcome.outOfRangeText.contains("aralık dışı"))
+        XCTAssertTrue(IPFixOutcome.outOfRangeText.contains("CID/plugin"))
+    }
+
+    func testSameSlash24ButDifferentSlash16IsNotRangeAndHelper() {
+        // Aynı /24 metni farklı /16'da olamaz; /24 eşit olsa da /16 farklıysa range değil (farklı bayt düzeni).
+        XCTAssertNil(IPRange.sharedWideRange("10.1.2.3", "10.2.2.9"))
+        XCTAssertEqual(IPRange.ranges(for: "10.1.2.3")?.narrow, "10.1.2.0/24")
+        XCTAssertEqual(IPRange.ranges(for: "10.2.2.9")?.narrow, "10.2.2.0/24")
+        XCTAssertEqual(IPRange.sharedWideRange("10.1.2.3", "10.1.200.9"), "10.1.0.0/16")
+    }
+
+    func testIPv6Slash48() async {
+        XCTAssertEqual(IPRange.ranges(for: "2a02:1234:5678:9abc::1")?.narrow, "2a02:1234:5678:9abc::/64")
+        XCTAssertEqual(IPRange.ranges(for: "2a02:1234:5678:9abc::1")?.wide, "2a02:1234:5678::/48")
+        let same = await run("2a02:1234:5678:1::1", "2a02:1234:5678:2::7")
+        XCTAssertEqual(same, .rangeBanned(old: "2a02:1234:5678:1::1", new: "2a02:1234:5678:2::7", cidr: "2a02:1234:5678::/48"))
+        let diff = await run("2a02:1234:5678:1::1", "2a02:1234:9999:1::1")
+        XCTAssertEqual(diff, .stillBanned(old: "2a02:1234:5678:1::1", new: "2a02:1234:9999:1::1"))
+    }
+
+    func testParseFailureShowsNoRangeAndDoesNotCrash() async {
+        XCTAssertNil(IPRange.ranges(for: "not-an-ip"))
+        XCTAssertNil(IPRange.displayText(for: ""))
+        XCTAssertNil(IPRange.sharedWideRange("garbage", "1.2.3.4"))
+        let result = await run("garbage", "1.2.3.4")
+        XCTAssertEqual(result, .stillBanned(old: "garbage", new: "1.2.3.4"))
+        XCTAssertEqual(IPRange.displayText(for: "198.51.100.10"), "Aralık: 198.51.100.0/24 · 198.51.0.0/16")
+    }
+
+    func testAppealContainsRangeLine() {
+        let checkedAt = Date(timeIntervalSince1970: 1_793_000_000)
+        let base = AppealInput(serverLabel: "S", host: "51.68.190.91", port: 27015, checkedAt: checkedAt,
+                               playerName: "P", cid: "d9de0eb4419608a8423241430581e91c", publicIP: "198.51.100.12",
+                               gamedir: "valve", check: check(.ipBanned))
+        XCTAssertFalse(AppealText.make(base).contains("Muhtemel aralık banı"))
+        var ranged = base
+        ranged.rangeBan = RangeBanInfo(cidr: "198.51.0.0/16", oldIP: "198.51.100.10", newIP: "198.51.100.12")
+        let text = AppealText.make(ranged)
+        XCTAssertTrue(text.contains("Muhtemel aralık banı: 198.51.0.0/16 (eski IP: 198.51.100.10, yeni IP: 198.51.100.12)"))
+        XCTAssertTrue(text.contains("listip çıktısında"))
+    }
+}

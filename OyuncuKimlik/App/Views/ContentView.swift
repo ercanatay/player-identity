@@ -320,6 +320,14 @@ struct ContentView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            if let ip = model.publicIP, let range = IPRange.displayText(for: ip) {
+                FieldRow(title: "Aralık") {
+                    Text(range)
+                        .font(.body.monospaced())
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("publicIPRange")
+                }
+            }
             FieldRow(title: "Yerel IP'ler") {
                 if model.lanAddresses.isEmpty {
                     Text(model.lastChecked == nil ? "—" : MessageCode.lanIPMissing.text)
