@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & test
+    runs-on: macos-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
+            -destination 'platform=macOS' -derivedDataPath .build build
+
+      - name: Test
+        run: |
+          xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
+            -destination 'platform=macOS' -derivedDataPath .build test

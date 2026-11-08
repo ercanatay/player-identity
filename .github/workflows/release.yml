@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish
+    runs-on: macos-27
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (Release)
+        run: |
+          xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
+            -destination 'platform=macOS' -configuration Release \
+            -derivedDataPath .build-release build
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          APP=.build-release/Build/Products/Release/PlayerIdentity.app
+          ZIP="PlayerIdentity-${GITHUB_REF_NAME#v}-macos.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+          shasum -a 256 "$ZIP" > SHA256SUMS.txt
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ZIP" SHA256SUMS.txt \
+            --title "PlayerIdentity ${GITHUB_REF_NAME#v}" \
+            --verify-tag \
+            --notes "Automated release for ${GITHUB_REF_NAME}. See CHANGELOG/README for details. Ad-hoc signed build: right-click → Open on first launch."

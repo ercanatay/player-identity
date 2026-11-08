@@ -1,5 +1,7 @@
 # Player Identity (macOS)
 
+[![CI](https://github.com/ercanatay/player-identity/actions/workflows/ci.yml/badge.svg)](https://github.com/ercanatay/player-identity/actions/workflows/ci.yml)
+
 A SwiftUI app that shows the identity data of the Xash3D FWGS game client in a single window (player name,
 player model, raw identity, public/local IPs, per-server CIDs), keeps an on-disk record (snapshot) via **Save**,
 and on **Refresh** re-reads everything, compares it with the record and summarizes the result with a single
