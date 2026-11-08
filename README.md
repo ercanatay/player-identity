@@ -65,6 +65,13 @@ Durum her zaman ikon **ve** metinle gösterilir. Gerekçeler pencerenin altında
 aynı ikonları kullanır: host geçersizse kırmızı (genel durumu etkilemez), CID kayıttan farklıysa veya kayıtlı CID
 boşsa turuncu, eşitse yeşil. Sunucu CID'si kayda, satır bir Yenile ile kontrol edildikten sonra yazılır.
 
+## Ne yapmalı? (v1.2)
+Her gerekçenin altında gri, küçük bir `→ öneri` satırı görünür (kullanıcının atabileceği somut adım).
+Üst bardaki durum etiketine (örn. "Kritik hata") tıklanınca **Ne yapmalı?** penceresi açılır: o anki tüm
+gerekçelerin önerileri numaralı listelenir; **Kopyala** listeyi düz metin olarak panoya yazar. Gerekçe yoksa
+etiket tıklanmaz. Öneri metinleri tek merkezi eşlemededir (`OyuncuKimlik/Core/Suggestions.swift`); yeni bir
+gerekçe kodu eklenip önerisi yazılmazsa derleme kırılır. Durum/renk mantığı önerilerden etkilenmez.
+
 ## Ban kontrolü (v1.1)
 Her Yenile'de, geçerli IP'li her sunucu satırı için UDP ile tek kontrol üçlüsü yapılır (yeniden deneme yok,
 oyuna girilmez):

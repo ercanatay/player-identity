@@ -7,6 +7,7 @@ struct ContentView: View {
 
     @State private var sheet: SheetMode?
     @State private var copiedKey: String?
+    @State private var showsSuggestions = false
 
     enum SheetMode: Identifiable {
         case add
@@ -58,14 +59,31 @@ struct ContentView: View {
     private var topBar: some View {
         HStack(spacing: 12) {
             if let report = model.report {
-                Label {
+                let statusLabel = Label {
                     Text(report.overall.label).font(.title3.bold())
                 } icon: {
                     Image(systemName: report.overall.symbolName)
                         .foregroundStyle(report.overall.color)
                         .font(.title2)
                 }
-                .accessibilityElement(children: .combine)
+                if report.reasons.isEmpty {
+                    statusLabel
+                        .accessibilityElement(children: .combine)
+                } else {
+                    // §14.2/2: etikete tıklayınca "Ne yapmalı?" popover'ı.
+                    Button {
+                        showsSuggestions = true
+                    } label: {
+                        statusLabel
+                    }
+                    .buttonStyle(.plain)
+                    .help("Ne yapmalı?")
+                    .accessibilityLabel(report.overall.label)
+                    .accessibilityHint("Ne yapmalı?")
+                    .popover(isPresented: $showsSuggestions, arrowEdge: .bottom) {
+                        SuggestionsPopover(reasons: report.reasons)
+                    }
+                }
             } else {
                 Text(model.isRefreshing ? "Kontrol ediliyor…" : "Henüz kontrol edilmedi")
                     .font(.title3)
@@ -306,14 +324,23 @@ struct ContentView: View {
         if let reasons = model.report?.reasons, !reasons.isEmpty {
             Card(title: "Gerekçeler") {
                 ForEach(Array(reasons.enumerated()), id: \.offset) { _, reason in
-                    Label {
-                        Text(reason.message)
-                    } icon: {
-                        Image(systemName: reason.severity.symbolName)
-                            .foregroundStyle(reason.severity.color)
+                    // §14.2/1: birincil mesaj + ikincil "→ öneri" (gri, küçük).
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label {
+                            Text(reason.message)
+                        } icon: {
+                            Image(systemName: reason.severity.symbolName)
+                                .foregroundStyle(reason.severity.color)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(reason.severity.label): \(reason.message)")
+
+                        Text(SuggestionText.secondaryLine(for: reason.code))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, 28)
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(reason.severity.label): \(reason.message)")
                 }
             }
         }
@@ -427,5 +454,34 @@ struct BanColumn: View {
     private func tooltip(_ check: BanCheck) -> String {
         let time = "Son kontrol: \(TimeText.format(check.checkedAt))"
         return check.detail.isEmpty ? time : "\(time)\n\(check.detail)"
+    }
+}
+
+/// "Ne yapmalı?" popover'ı (§14.2/2): gerekçelerin önerileri numaralı liste + "Kopyala".
+struct SuggestionsPopover: View {
+    let reasons: [StatusReason]
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Ne yapmalı?").font(.headline)
+            ForEach(Array(SuggestionText.numberedLines(for: reasons).enumerated()), id: \.offset) { _, line in
+                Text(line)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            HStack {
+                Spacer()
+                if copied {
+                    Text("Kopyalandı").font(.caption).foregroundStyle(.secondary)
+                }
+                Button("Kopyala") {
+                    Pasteboard.copy(SuggestionText.plainText(for: reasons))
+                    copied = true
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 440)
     }
 }
