@@ -48,6 +48,9 @@ struct ContentView: View {
         .sheet(item: $sheet) { mode in
             sheetView(mode)
         }
+        .sheet(item: $model.fixSession) { session in
+            FixSheet(model: model, initialSession: session)
+        }
         .alert("Yeni ad", isPresented: $showsNewName) {
             TextField("Kullanıcı adı", text: $newNameText)
             Button("Tamam") { model.nameDraft = newNameText }
@@ -377,7 +380,8 @@ struct ContentView: View {
                                       copied: copiedKey == entry.id.uuidString,
                                       onCopy: { copy($0, key: entry.id.uuidString) },
                                       onEdit: { sheet = .edit(entry.id) },
-                                      onDelete: { model.deleteServer(id: entry.id) })
+                                      onDelete: { model.deleteServer(id: entry.id) },
+                                      onFix: model.fixKind(for: entry.id) == nil ? nil : { model.beginFix(entry.id) })
                         if entry.id != model.servers.last?.id { Divider() }
                     }
                 }
@@ -454,6 +458,8 @@ struct ServerRowView: View {
     let onCopy: (String) -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    /// §17.1: yalnız `ipBanned` / `cidBanned` / `unreachable` satırlarında.
+    var onFix: (() -> Void)? = nil
 
     @State private var hovering = false
 
@@ -476,13 +482,19 @@ struct ServerRowView: View {
                     Text("\(entry.host):\(String(entry.port))")
                         .font(.body.monospaced())
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .fixedSize()
                 }
                 HStack(spacing: 8) {
                     Text("Son kontrol: \(TimeText.format(entry.lastCheckedAt))")
                     if let message = status?.message {
                         Text(message.text)
                     }
-                    if let banMessage = entry.banCheck?.status.messageCode {
+                    if let check = entry.banCheck,
+                       case .rejectedUnknownType(let raw) = BanClassification.classify(check) {
+                        // §17.9.2: sunucu reddetti, tür bilinmiyor → ham cevap görünür.
+                        Text("\(BanClassification.unverifiedText): \(raw)")
+                    } else if let banMessage = entry.banCheck?.status.messageCode {
                         Text(banMessage.text)
                     }
                 }
@@ -492,7 +504,14 @@ struct ServerRowView: View {
 
             Spacer(minLength: 8)
 
-            BanColumn(check: entry.banCheck)
+            VStack(alignment: .leading, spacing: 4) {
+                BanColumn(check: entry.banCheck)
+                if let onFix {
+                    // §17.7: ban ikonunun yanında/altında "Düzelt".
+                    Button("Düzelt", action: onFix)
+                        .controlSize(.small)
+                }
+            }
 
             if let cid = status?.currentCID {
                 Button {

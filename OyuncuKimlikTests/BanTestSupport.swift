@@ -147,3 +147,92 @@ final class FakeGameDetector: GameProcessDetecting, @unchecked Sendable {
         }
     }
 }
+
+/// §17 sahte komut yürütücüsü: gerçek komut çalıştırmaz; çağrıları kaydeder, allowlist'i uygular.
+final class FakeCommandRunner: CommandRunning, @unchecked Sendable {
+    typealias Responder = @Sendable (NetworkCommand) -> CommandOutput
+
+    private let lock = NSLock()
+    private var recorded: [NetworkCommand] = []
+    private let responder: Responder
+
+    init(responder: @escaping Responder = FakeCommandRunner.wifi()) {
+        self.responder = responder
+    }
+
+    var commands: [NetworkCommand] { lock.withLock { recorded } }
+
+    func run(_ command: NetworkCommand) async throws -> CommandOutput {
+        guard CommandAllowlist.isAllowed(command.argv) else { throw CommandError.notAllowed }
+        lock.withLock { recorded.append(command) }
+        return responder(command)
+    }
+
+    static let routeOutput = """
+       route to: default
+    destination: default
+           mask: default
+        gateway: 192.0.2.1
+      interface: en0
+          flags: <UP,GATEWAY,DONE,STATIC,PRCLONING,GLOBAL>
+    """
+
+    /// `en0` Wi-Fi arayüzü; tüm komutlar başarılı.
+    static func wifi() -> Responder {
+        { command in
+            switch command {
+            case .routeGetDefault: return CommandOutput(status: 0, output: routeOutput)
+            case .airportPowerStatus: return CommandOutput(status: 0, output: "Wi-Fi Power (en0): On\n")
+            case .setAirportPower, .renewDHCP: return CommandOutput(status: 0, output: "")
+            }
+        }
+    }
+
+    /// `en0` Ethernet; DHCP komutunun çıkış kodu verilebilir (1 = yönetici onayı reddedildi).
+    static func ethernet(dhcpStatus: Int32 = 0) -> Responder {
+        { command in
+            switch command {
+            case .routeGetDefault: return CommandOutput(status: 0, output: routeOutput)
+            case .airportPowerStatus: return CommandOutput(status: 10, output: "en0 is not a Wi-Fi interface.\n** Error: Error obtaining wireless information.\n")
+            case .setAirportPower: return CommandOutput(status: 0, output: "")
+            case .renewDHCP: return CommandOutput(status: dhcpStatus, output: dhcpStatus == 0 ? "" : "User canceled. (-128)")
+            }
+        }
+    }
+}
+
+/// Saati anında ilerleten bekleme; `blocking` ise gerçekten bekler (iptal testleri).
+struct FakeSleeper: Sleeping {
+    let clock: TestClock
+    var blocking = false
+
+    func sleep(seconds: TimeInterval) async throws {
+        try Task.checkCancellation()
+        if blocking { try await Task.sleep(for: .seconds(30)) }
+        clock.advance(seconds)
+        await Task.yield()
+    }
+}
+
+/// Sırayla genel IP döndüren sağlayıcı; `nil` = başarısız deneme, liste bitince son değer tekrarlanır.
+final class SequencedIPs: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String?]
+    private var calls = 0
+
+    init(_ values: [String?]) {
+        self.values = values
+    }
+
+    var callCount: Int { lock.withLock { calls } }
+
+    func next() throws -> String {
+        let value: String? = lock.withLock {
+            calls += 1
+            if values.count > 1 { return values.removeFirst() }
+            return values.first ?? nil
+        }
+        guard let value else { throw PublicIPError.unavailable }
+        return value
+    }
+}

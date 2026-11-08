@@ -78,11 +78,15 @@ final class ModelPreviewTests: XCTestCase {
         XCTAssertEqual(ModelPreview.load(gamedir: gamedir, model: "multi").image?.pixelWidth, 6)
     }
 
-    func testUppercaseExtensionIsNotMatched() throws {
-        // Spec'in doğrulanmış sayımıyla uyumlu (valve'de `gman.BMP` → yer tutucu): uzantı `.bmp` olarak eşlenir.
+    func testUppercaseExtensionIsMatched() throws {
+        // §16.2 (v1.5): uzantıda da harf duyarsız → `gman.BMP` bulunur ve decode edilir.
         try temp.write("valve/models/player/gman/gman.BMP", BMPFixture.paletted(width: 4, height: 5))
-        XCTAssertNil(ModelPreviewLocator.imageURL(gamedir: gamedir, model: "gman"))
-        XCTAssertEqual(ModelPreview.load(gamedir: gamedir, model: "gman"), .placeholder)
+        try temp.write("valve/models/player/mixed/b.Bmp", BMPFixture.paletted(width: 4, height: 5))
+        try temp.write("valve/models/player/mixed/A.BMP", BMPFixture.paletted(width: 7, height: 5))
+        XCTAssertEqual(ModelPreviewLocator.imageURL(gamedir: gamedir, model: "gman")?.lastPathComponent, "gman.BMP")
+        XCTAssertEqual(ModelPreview.load(gamedir: gamedir, model: "gman").image?.pixelWidth, 4)
+        XCTAssertEqual(ModelPreviewLocator.imageURL(gamedir: gamedir, model: "mixed")?.lastPathComponent, "A.BMP")
+        XCTAssertNil(ModelPreviewLocator.imageURL(gamedir: gamedir, model: "mixed2"))
     }
 
     func testCacheReusesDecodeUntilMtimeChanges() async throws {
@@ -123,7 +127,7 @@ final class ModelPreviewTests: XCTestCase {
         AppPaths().defaultDataRoot
     }
 
-    func testRealBarneyDecodesAndGmanIsPlaceholder() throws {
+    func testRealBarneyAndGmanDecode() throws {
         let valve = realRoot.appendingPathComponent("valve", isDirectory: true)
         let barney = ModelPreviewLocator.folder(gamedir: valve, model: "barney")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: barney.path), "gerçek valve/barney yok")
@@ -133,11 +137,14 @@ final class ModelPreviewTests: XCTestCase {
 
         let gman = ModelPreviewLocator.folder(gamedir: valve, model: "gman")
         try XCTSkipUnless(FileManager.default.fileExists(atPath: gman.path), "gerçek valve/gman yok")
-        XCTAssertEqual(ModelPreview.load(gamedir: valve, model: "gman"), .placeholder)
+        // `gman.BMP` (büyük uzantı) bulunur ve decode edilir (§16.2, v1.5).
+        let gmanImage = try XCTUnwrap(ModelPreview.load(gamedir: valve, model: "gman").image)
+        XCTAssertEqual(gmanImage.url.pathExtension, "BMP")
+        XCTAssertGreaterThan(gmanImage.pixelWidth, 0)
     }
 
     func testRealCoverageCounts() throws {
-        for (gamedir, expectedImages, expectedTotal) in [("valve", 13, 14), ("gearbox", 15, 15)] {
+        for (gamedir, expectedImages, expectedTotal) in [("valve", 14, 14), ("gearbox", 15, 15)] {
             let url = realRoot.appendingPathComponent(gamedir, isDirectory: true)
             guard let models = ModelCatalog.load(gamedir: url) else {
                 throw XCTSkip("gerçek \(gamedir)/models/player yok")
@@ -173,7 +180,9 @@ final class ModelPreviewModelTests: XCTestCase {
             defaults: defaults,
             now: { Date(timeIntervalSince1970: 1_793_000_000) },
             udpTransport: FakeServer.healthy(),
-            gameProcessDetector: FakeGameDetector()))
+            gameProcessDetector: FakeGameDetector(),
+            commandRunner: FakeCommandRunner(),
+            sleeper: FakeSleeper(clock: TestClock())))
 
         await model.refresh().value
         await model.waitForPreviews()

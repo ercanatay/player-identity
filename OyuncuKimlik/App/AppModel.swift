@@ -14,6 +14,9 @@ struct AppDependencies {
     var udpTransport: any UDPTransport
     /// §15.6 `xash3d` süreci tespiti (testlerde sahte).
     var gameProcessDetector: any GameProcessDetecting
+    /// §17 Düzelt: allowlist'li ağ komutu yürütücüsü ve bekleme (testlerde sahte; gerçek komut çalışmaz).
+    var commandRunner: any CommandRunning
+    var sleeper: any Sleeping
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -25,7 +28,9 @@ struct AppDependencies {
                                defaults: .standard,
                                now: { Date() },
                                udpTransport: BSDUDPTransport(),
-                               gameProcessDetector: SystemGameProcessDetector())
+                               gameProcessDetector: SystemGameProcessDetector(),
+                               commandRunner: ProcessCommandRunner(),
+                               sleeper: TaskSleeper())
     }
 }
 
@@ -74,6 +79,33 @@ final class AppModel {
     /// Uygula sonrası kayıt "Kaydedilmedi" olur; Kaydet ile sıfırlanır.
     private var appliedSinceSave = false
 
+    // MARK: §17 Düzelt
+    struct FixSession: Identifiable, Equatable {
+        /// Sunucu satırı kimliği.
+        let id: UUID
+        let kind: FixKind
+        var phase: FixPhase = .ready
+        /// Kilit reddi, yeniden kontrol sonucu gibi tek satırlık bilgi.
+        var note: String?
+    }
+
+    enum FixPhase: Equatable {
+        case ready
+        case running(FixProgress)
+        case finished(IPFixOutcome, at: Date)
+    }
+
+    /// Açık Düzelt sayfası (sheet).
+    var fixSession: FixSession?
+    /// Düzelt sonrası kayıt "Kaydedilmedi" olur.
+    private var fixedSinceSave = false
+    @ObservationIgnored private let fixLock = BanFixLock()
+    @ObservationIgnored private var fixTask: Task<Void, Never>?
+
+    static let fixLockedText = "Başka bir düzeltme sürüyor veya son 60 sn içinde yapıldı; biraz sonra tekrar deneyin."
+    static let banCheckDisabledText = "Ban kontrolü Ayarlar'da kapalı; yeniden kontrol yapılmadı."
+    static let recheckThrottledText = "Bu sunucu son 10 sn içinde kontrol edildi; biraz sonra tekrar deneyin."
+
     // MARK: §16 model önizleme
     /// Seçili gamedir'in model önizlemeleri; yüklenmemiş model sözlükte yoktur (iskelet görünüm).
     private(set) var modelPreviews: [String: ModelPreview] = [:]
@@ -116,7 +148,7 @@ final class AppModel {
     // MARK: Türetilmiş durum
 
     var hasUnsavedChanges: Bool {
-        if appliedSinceSave { return true }
+        if appliedSinceSave || fixedSinceSave { return true }
         guard let snapshot = snapshotState.snapshot else { return editedWithoutSnapshot }
         return editableState != EditableState(snapshot: snapshot)
     }
@@ -407,6 +439,143 @@ final class AppModel {
         }
     }
 
+    // MARK: Düzelt (§17)
+
+    /// Satırın Düzelt türü; düğme yalnız `ipBanned` / `cidBanned` / `unreachable` için görünür.
+    func fixKind(for id: UUID) -> FixKind? {
+        FixKind.forStatus(servers.first { $0.id == id }?.banCheck?.status)
+    }
+
+    /// Yalnız sayfayı açar; hiçbir komut çalıştırmaz.
+    func beginFix(_ id: UUID) {
+        guard let kind = fixKind(for: id) else { return }
+        fixSession = FixSession(id: id, kind: kind)
+    }
+
+    var isFixRunning: Bool {
+        if case .running? = fixSession?.phase { return true }
+        return false
+    }
+
+    private func banRequest(for id: UUID) -> BanCheckRequest? {
+        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
+        return BanCheckRunner.requests(servers: [entry], rawID: try? identity?.get().rawID, name: config.name).first
+    }
+
+    /// IP ban akışı (§17.2). Onay sayfasındaki "Başlat" ile çağrılır.
+    @discardableResult
+    func startIPFix() -> Task<Void, Never>? {
+        guard let session = fixSession, session.kind == .ipBan, !isFixRunning else { return nil }
+        let id = session.id
+        let request = banRequest(for: id)
+        let enabled = banCheckEnabled
+        let checker = BanChecker(transport: deps.udpTransport, now: deps.now)
+        let scheduler = banScheduler
+        let sleeper = deps.sleeper
+        let now = deps.now
+        let client = deps.publicIPClient
+        let lock = fixLock
+        let fixer = IPBanFixer(
+            runner: deps.commandRunner,
+            sleeper: sleeper,
+            now: now,
+            fetchPublicIP: { try await client.fetch() },
+            recheck: {
+                guard enabled, let request else { return nil }
+                // 10 sn kısıtı: izin gelene kadar beklenir (en çok 10 sn).
+                while !(await scheduler.reserve(request.endpoint.key, now: now())) {
+                    do { try await sleeper.sleep(seconds: 1) } catch { return nil }
+                }
+                return try? await checker.check(request)
+            },
+            progress: { [weak self] progress in await self?.setFixProgress(progress, for: id) })
+        fixSession?.note = nil
+        let task = Task {
+            guard await lock.acquire(now: now()) else {
+                fixSession?.note = Self.fixLockedText
+                return
+            }
+            fixSession?.phase = .running(.renewingIP)
+            let result = await fixer.run()
+            await lock.release()
+            applyFixResult(result, serverID: id, request: request)
+        }
+        fixTask = task
+        return task
+    }
+
+    func cancelFix() {
+        fixTask?.cancel()
+    }
+
+    private func setFixProgress(_ progress: FixProgress, for id: UUID) {
+        guard fixSession?.id == id, case .running? = fixSession?.phase else { return }
+        fixSession?.phase = .running(progress)
+    }
+
+    private func applyFixResult(_ result: IPBanFixer.Result, serverID: UUID, request: BanCheckRequest?) {
+        if let newIP = result.newIP {
+            publicIP = newIP
+            fixedSinceSave = true
+        }
+        if let check = result.recheck, let request,
+           let index = servers.firstIndex(where: { $0.id == serverID }),
+           servers[index].host == request.host, servers[index].port == request.port {
+            servers[index].banCheck = check
+            fixedSinceSave = true
+        }
+        reevaluate()
+        if fixSession?.id == serverID {
+            fixSession?.phase = .finished(result.outcome, at: deps.now())
+        }
+    }
+
+    /// "Yeniden kontrol et" (§17.3, §17.4): yalnız ban kontrolü; ağ komutu yok.
+    @discardableResult
+    func recheckServer(_ id: UUID) -> Task<Void, Never>? {
+        guard banCheckEnabled else {
+            fixSession?.note = Self.banCheckDisabledText
+            return nil
+        }
+        guard let request = banRequest(for: id), !isFixRunning else { return nil }
+        let checker = BanChecker(transport: deps.udpTransport, now: deps.now)
+        let scheduler = banScheduler
+        let now = deps.now
+        let task = Task {
+            guard await scheduler.reserve(request.endpoint.key, now: now()) else {
+                fixSession?.note = Self.recheckThrottledText
+                return
+            }
+            let previous = fixSession?.phase
+            fixSession?.phase = .running(.rechecking)
+            let check = try? await checker.check(request)
+            fixSession?.phase = previous ?? .ready
+            guard let check, let index = servers.firstIndex(where: { $0.id == id }),
+                  servers[index].host == request.host, servers[index].port == request.port else { return }
+            servers[index].banCheck = check
+            fixedSinceSave = true
+            reevaluate()
+            fixSession?.note = "Yeniden kontrol: \(check.status.label) · \(TimeText.format(check.checkedAt))"
+        }
+        fixTask = task
+        return task
+    }
+
+    /// İtiraz metni (§17.9.1); satırda ban sonucu yoksa `nil`.
+    func appealText(for id: UUID) -> String? {
+        guard let entry = servers.first(where: { $0.id == id }), let check = entry.banCheck else { return nil }
+        let cid = (try? identity?.get().rawID).flatMap { CIDCalculator.cid(rawID: $0, host: entry.host) } ?? "bilinmiyor"
+        return AppealText.make(AppealInput(serverLabel: entry.label, host: entry.host, port: entry.port,
+                                           checkedAt: check.checkedAt, playerName: config.name, cid: cid,
+                                           publicIP: publicIP ?? "bilinmiyor", gamedir: selectedGamedir ?? "—",
+                                           check: check))
+    }
+
+    func serverPageURL(for id: UUID) -> URL? {
+        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
+        return GameTrackerLink.url(host: entry.host, port: entry.port)
+    }
+
     // MARK: Kaydet (§5)
 
     /// Yalnızca `profile.json` yazılır.
@@ -431,6 +600,7 @@ final class AppModel {
         servers = snapshot.servers
         editedWithoutSnapshot = false
         appliedSinceSave = false
+        fixedSinceSave = false
         saveErrorMessage = nil
         reevaluate()
     }

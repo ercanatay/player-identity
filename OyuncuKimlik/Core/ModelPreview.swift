@@ -4,9 +4,8 @@ import ImageIO
 
 /// §16 Model önizleme: `<gamedir>/models/player/<model>/` içindeki ilk `.bmp`. Salt okunur.
 ///
-/// Dosya seçimi: uzantısı `.bmp` olan normal dosyalar; ad karşılaştırması ve alfabetik sıralama
-/// büyük/küçük harf duyarsızdır (ör. `Robo.bmp`, `TMCM.bmp` bulunur). Spec'in doğrulanmış sayımına
-/// (valve 13/14, `gman` yok) uygun olarak uzantı `.bmp` biçiminde eşlenir.
+/// Dosya seçimi (§16.2, v1.5): uzantısı `.bmp` olan normal dosyalar; arama **dosya adı ve uzantıda**
+/// büyük/küçük harf duyarsızdır (ör. `Robo.bmp`, `TMCM.bmp`, `gman.BMP` bulunur), alfabetik ilk seçilir.
 enum ModelPreviewLocator {
     static let fileExtension = "bmp"
 
@@ -20,7 +19,7 @@ enum ModelPreviewLocator {
         guard !model.isEmpty, !model.contains("/"),
               let entries = try? fileSystem.contentsOfDirectory(folder(gamedir: gamedir, model: model)) else { return nil }
         return entries
-            .filter { $0.pathExtension == fileExtension && fileSystem.isRegularFile($0) }
+            .filter { $0.pathExtension.lowercased() == fileExtension && fileSystem.isRegularFile($0) }
             .sorted { lhs, rhs in
                 let a = lhs.lastPathComponent.lowercased(), b = rhs.lastPathComponent.lowercased()
                 return a == b ? lhs.lastPathComponent < rhs.lastPathComponent : a < b

@@ -81,12 +81,32 @@ Uygulamanın tek yazma istisnası: seçili gamedir'deki `config.cfg` ve (varsa) 
   karakter, yalnız `A-Z a-z 0-9 _ -`. Geçersizse Uygula devre dışıdır.
 - Uygula sonrası dosyalar yeniden okunur ve kayıt "Kaydedilmedi" olur; Kaydet yeni ad/modeli `profile.json`'a yazar.
 
+## Düzelt (v1.5)
+Sunucu satırında ban ikonunun altında **Düzelt** düğmesi yalnız `IP ban`, `CID ban` ve `Erişilemiyor` durumlarında
+görünür. Düzelt bir unban değildir; uygulama "çözüldü" ifadesini yalnız IP gerçekten değişip yeniden kontrol IP
+engeli göstermediğinde kullanır.
+- **IP ban:** onay sayfası (mevcut IP, adımlar, 5–20 sn kesinti, risk) → "Başlat" ile: eski IP alınır, varsayılan
+  arayüz bulunur (`route get default`); Wi-Fi ise `networksetup -setairportpower <if> off` → 3 sn → `on`, Ethernet ise
+  `ipconfig set <if> DHCP` (macOS yönetici diyaloğu). Ağ 45 sn beklenir (3 sn'de bir genel IP), yeni IP karşılaştırılır
+  ve IP değiştiyse o sunucu yeniden kontrol edilir. Hata, iptal veya zaman aşımında Wi-Fi her durumda yeniden açılır.
+  IP değişmezse router arayüzü/VPN/bekleme önerilir; yeni IP de banlıysa üç olası neden ve itiraz metni gösterilir.
+- **CID ban:** ağ komutu yok. Açıklama, "Unban mesajını kopyala" (sunucu, saat yerel+UTC, ad, CID, çıkış IP'si,
+  istemci, ham cevap, kontrol türü ve admin kontrol listesiyle itiraz metni), "Sunucu sayfasını aç" (GameTracker) ve
+  "Yeniden kontrol et".
+- **Erişilemiyor:** yalnız yeniden kontrol ve sunucu sayfası.
+- `cidUnknown` + `errormsg`/`disconnect` cevabı satırda "Ban türü doğrulanamadı (plugin/SQL olabilir)" ve ham cevapla
+  gösterilir.
+- **Güvenlik:** aynı anda tek Düzelt, iki başlatma arası en az 60 sn, iptal edilebilir. Komutlar sabit bir allowlist'ten
+  üretilir (arayüz adı sistem çıktısından okunur ve doğrulanır; kullanıcı girdisi komuta girmez, kabuk kullanılmaz).
+  Parola yalnız macOS diyaloğunda girilir. Sunucu komutu (banid/removeid vb.) hiçbir akışta çalıştırılmaz.
+  Düzelt sonrası satırın ban durumu güncellenir ve kayıt "Kaydedilmedi" olur.
+
 ## Model önizleme (v1.4)
 Model dropdown'ının her satırında 20×24 küçük resim, profil kartında seçili model için 56×68 önizleme (8 pt köşe,
 koyu `#1B2432` zemin, 1 px çerçeve; ipucunda kaynak dosya yolu) gösterilir.
-- **Kaynak:** `<gamedir>/models/player/<model>/` içindeki uzantısı `.bmp` olan ilk dosya (ad büyük/küçük harf
-  duyarsız, alfabetik; ör. `Robo.bmp`, `TMCM.bmp`). Görsel yoksa veya bozuksa SF Symbol `person.crop.square`
-  yer tutucusu kullanılır; hata mesajı gösterilmez. Uzantısı `.BMP` olan dosya eşlenmez (valve'de `gman`).
+- **Kaynak:** `<gamedir>/models/player/<model>/` içindeki ilk `.bmp` dosyası; arama dosya adı ve uzantıda büyük/küçük
+  harf duyarsız, alfabetik (ör. `Robo.bmp`, `TMCM.bmp`, `gman.BMP`). Görsel yoksa veya bozuksa SF Symbol
+  `person.crop.square` yer tutucusu kullanılır; hata mesajı gösterilmez.
 - Görseller ImageIO ile decode edilir, oran korunur, yüksek kaliteli interpolasyonla çizilir; 3B render yoktur.
 - **Önbellek:** yalnız bellekte, (gamedir, model, dosya mtime) anahtarıyla; yükleme arka planda yapılır, liste hemen
   açılır (yüklenmeyen satırda koyu boş kutu). Gamedir değişince liste ve görseller yenilenir. Dosyalar salt okunur.

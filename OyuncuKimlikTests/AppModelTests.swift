@@ -82,7 +82,8 @@ final class AppModelTests: XCTestCase {
 
     private func makeModel(script: HTTPScript, lan: [LocalAddress]? = nil,
                            udp: FakeUDPTransport = FakeServer.healthy(), clock: TestClock? = nil,
-                           game: FakeGameDetector = FakeGameDetector()) -> AppModel {
+                           game: FakeGameDetector = FakeGameDetector(),
+                           runner: FakeCommandRunner = FakeCommandRunner()) -> AppModel {
         let now: @Sendable () -> Date
         if let clock {
             now = { clock.now }
@@ -98,7 +99,9 @@ final class AppModelTests: XCTestCase {
             defaults: defaults,
             now: now,
             udpTransport: udp,
-            gameProcessDetector: game))
+            gameProcessDetector: game,
+            commandRunner: runner,
+            sleeper: FakeSleeper(clock: clock ?? TestClock())))
     }
 
     private func writeGame(name: String = "Oyuncu", model: String = "gordon", idFile: String? = "10331C2DCE4C91DB") throws {
@@ -527,5 +530,113 @@ final class AppModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: dataRoot.appendingPathComponent("bshift/config.cfg").path))
         XCTAssertEqual(try String(contentsOf: valveDir.appendingPathComponent("config.cfg"), encoding: .utf8),
                        "name \"Oyuncu\"\nmodel \"gordon\"\n")
+    }
+
+    // MARK: Düzelt (§17)
+
+    private final class BanSwitch: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = true
+        var banned: Bool {
+            get { lock.withLock { value } }
+            set { lock.withLock { value = newValue } }
+        }
+    }
+
+    private func switchableIPBanServer(_ banSwitch: BanSwitch, clock: TestClock) -> FakeUDPTransport {
+        let healthy = FakeServer.scripted()
+        return FakeUDPTransport(clock: clock) { endpoint, packet in
+            if banSwitch.banned, FakeServer.isGetChallenge(packet) {
+                return [FakeReply(bytes: FakeServer.oobText("lYou have been banned from this server.\n"))]
+            }
+            return healthy(endpoint, packet)
+        }
+    }
+
+    func testIPFixFlowUpdatesRowMarksUnsavedAndLocks() async throws {
+        try writeGame(idFile: "0123456789ABCDEF")
+        let clock = TestClock()
+        let banSwitch = BanSwitch()
+        let runner = FakeCommandRunner()
+        let script = HTTPScript(bodies: [1: json("1.1.1.1"), 2: json("1.1.1.1")], defaultBody: json("2.2.2.2"))
+        let model = makeModel(script: script, udp: switchableIPBanServer(banSwitch, clock: clock), clock: clock, runner: runner)
+        model.addServer(ServerDraft(label: "POLIGON RPG", host: "51.68.190.91"))
+        await model.refresh().value
+        model.save()
+        let id = try XCTUnwrap(model.servers.first?.id)
+        XCTAssertEqual(model.servers.first?.banCheck?.status, .ipBanned)
+        XCTAssertEqual(model.fixKind(for: id), .ipBan)
+        XCTAssertFalse(model.hasUnsavedChanges)
+
+        model.beginFix(id)                                   // yalnız sayfa açılır; komut yok
+        XCTAssertEqual(model.fixSession?.phase, .ready)
+        XCTAssertEqual(runner.commands, [])
+
+        banSwitch.banned = false                             // yeni IP ile ban kalkmış gibi
+        await model.startIPFix()?.value
+        guard case .finished(let outcome, _)? = model.fixSession?.phase else {
+            return XCTFail("\(String(describing: model.fixSession))")
+        }
+        XCTAssertEqual(outcome, .resolved(old: "1.1.1.1", new: "2.2.2.2"))
+        XCTAssertEqual(model.publicIP, "2.2.2.2")
+        XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)
+        XCTAssertNil(model.fixKind(for: id))                 // ban kalktı → Düzelt gizlenir
+        XCTAssertTrue(model.hasUnsavedChanges)               // §17.2/7
+        let en0 = NetworkInterfaceName("en0")!
+        XCTAssertEqual(runner.commands, [.routeGetDefault, .airportPowerStatus(en0),
+                                         .setAirportPower(en0, on: false), .setAirportPower(en0, on: true)])
+
+        // 60 sn dolmadan yeniden deneme → kilit reddeder, komut çalışmaz.
+        model.fixSession?.phase = .ready
+        await model.startIPFix()?.value
+        XCTAssertEqual(model.fixSession?.note, AppModel.fixLockedText)
+        XCTAssertEqual(runner.commands.count, 4)
+    }
+
+    func testCIDBanFixRunsNoNetworkCommands() async throws {
+        try writeGame(idFile: "0123456789ABCDEF")
+        let clock = TestClock()
+        let runner = FakeCommandRunner()
+        let udp = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
+            connect: FakeReply(bytes: FakeServer.oobText("errormsg\nYou are banned (CID)\n"))))
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp, clock: clock, runner: runner)
+        model.addServer(ServerDraft(label: "CID Sunucu", host: "5.161.189.195"))
+        await model.refresh().value
+        let id = try XCTUnwrap(model.servers.first?.id)
+        XCTAssertEqual(model.fixKind(for: id), .cidBan)
+
+        model.beginFix(id)
+        XCTAssertEqual(model.fixSession?.kind, .cidBan)
+        XCTAssertNil(model.startIPFix())                     // CID akışında IP yenileme yok
+        let appeal = try XCTUnwrap(model.appealText(for: id))
+        let rawID = try XCTUnwrap(try model.identity?.get().rawID)
+        XCTAssertTrue(appeal.contains(CIDCalculator.cid(rawID: rawID, host: "5.161.189.195")!))
+        XCTAssertTrue(appeal.contains("Kontrol türü: engine CID (connect 49)"))
+        XCTAssertTrue(appeal.contains("203.0.113.7"))
+        XCTAssertEqual(model.serverPageURL(for: id)?.absoluteString,
+                       "https://www.gametracker.com/server_info/5.161.189.195:27015/")
+
+        // Yeniden kontrol: 10 sn kısıtı, sonra yalnız ban kontrolü (ağ komutu yok).
+        let packetsBefore = udp.sentCount
+        model.recheckServer(id)
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(model.fixSession?.note, AppModel.recheckThrottledText)
+        clock.advance(11)
+        await model.recheckServer(id)?.value
+        XCTAssertGreaterThan(udp.sentCount, packetsBefore)
+        XCTAssertTrue(model.fixSession?.note?.hasPrefix("Yeniden kontrol: CID ban") ?? false)
+        XCTAssertEqual(runner.commands, [])
+    }
+
+    func testFixNotOfferedForOtherStatuses() async throws {
+        try writeGame()
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")))
+        model.addServer(ServerDraft(label: "Ok", host: "5.161.189.195"))
+        await model.refresh().value
+        let id = try XCTUnwrap(model.servers.first?.id)
+        XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)
+        XCTAssertNil(model.fixKind(for: id))
+        model.beginFix(id)
+        XCTAssertNil(model.fixSession)
     }
 }
