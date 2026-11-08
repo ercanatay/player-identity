@@ -76,7 +76,7 @@ final class LocalIPFilterTests: XCTestCase {
                              bytes: [0xFE, 0xBF] + [UInt8](repeating: 0, count: 13) + [1], isLoopback: false),
             InterfaceAddress(interface: "en0", family: .ipv6,
                              bytes: [0x20, 0x01, 0x0D, 0xB8] + [UInt8](repeating: 0, count: 11) + [5], isLoopback: false),
-            InterfaceAddress(interface: "en0", family: .ipv4, bytes: [192, 168, 2, 156], isLoopback: false),
+            InterfaceAddress(interface: "en0", family: .ipv4, bytes: [192, 0, 2, 10], isLoopback: false),
             InterfaceAddress(interface: "en1", family: .ipv4, bytes: [10, 0, 0, 2], isLoopback: false),
         ]
         let result = LocalIPFilter.filter(entries).map(\.display)

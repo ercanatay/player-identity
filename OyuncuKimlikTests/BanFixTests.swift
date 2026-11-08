@@ -237,7 +237,7 @@ final class AppealTextTests: XCTestCase {
 
     private func input(_ check: BanCheck) -> AppealInput {
         AppealInput(serverLabel: "POLIGON RPG", host: "51.68.190.91", port: 27015, checkedAt: checkedAt,
-                    playerName: "TestPlayer", cid: "d9de0eb4419608a8423241430581e91c",
+                    playerName: "TestOyuncu", cid: "d9de0eb4419608a8423241430581e91c",
                     publicIP: "198.51.100.10", gamedir: "valve", check: check)
     }
 
@@ -248,7 +248,7 @@ final class AppealTextTests: XCTestCase {
         let utc = ISO8601DateFormatter().string(from: checkedAt)
         for field in ["POLIGON RPG", "51.68.190.91:27015",                       // sunucu adı + host:port
                       "(yerel)", "\(utc) (UTC)",                                // yerel saat + UTC
-                      "TestPlayer",                                   // oyuncu adı
+                      "TestOyuncu",                                   // oyuncu adı
                       "d9de0eb4419608a8423241430581e91c",                       // CID (32 hex)
                       "198.51.100.10",                                         // çıkış IP'si
                       "gamedir valve", "Xash3D FWGS",                           // gamedir/istemci

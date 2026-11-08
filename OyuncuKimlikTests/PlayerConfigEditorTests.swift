@@ -109,11 +109,11 @@ final class PlayerValueValidatorTests: XCTestCase {
     func testNameEmptyTrimAndForbiddenCharacters() {
         XCTAssertNil(PlayerValueValidator.normalizedName(""))
         XCTAssertNil(PlayerValueValidator.normalizedName("   "))
-        XCTAssertEqual(PlayerValueValidator.normalizedName("  Test  "), "Test")
+        XCTAssertEqual(PlayerValueValidator.normalizedName("  TestOyuncu  "), "TestOyuncu")
         for bad in ["a\"b", "a\\b", "a\nb", "a\rb", "a\u{07}b", "a\u{1B}b", "ad\n"] {
             XCTAssertNil(PlayerValueValidator.normalizedName(bad), bad.debugDescription)
         }
-        XCTAssertEqual(PlayerValueValidator.normalizedName("TestPlayer"), "TestPlayer")
+        XCTAssertEqual(PlayerValueValidator.normalizedName("TestOyuncu"), "TestOyuncu")
     }
 
     func testModelRules() {

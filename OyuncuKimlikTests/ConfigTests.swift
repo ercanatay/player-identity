@@ -23,8 +23,8 @@ final class ConfigTests: XCTestCase {
     }
 
     func testSpacesInsideQuotesPreserved() {
-        let config = ConfigParser.parse("name \"  Test   Atay \"\r\nmodel \"gordon\"\r\n")
-        XCTAssertEqual(config.name, "  Test   Atay ")
+        let config = ConfigParser.parse("name \"  Test   Oyuncu \"\r\nmodel \"gordon\"\r\n")
+        XCTAssertEqual(config.name, "  Test   Oyuncu ")
         XCTAssertEqual(config.model, "gordon")
     }
 

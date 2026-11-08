@@ -4,8 +4,7 @@ Xash3D FWGS oyun istemcisinin kimlik verilerini (kullanıcı adı, oyuncu modeli
 sunucuya özel CID'ler) tek pencerede gösteren, "Kaydet" ile diske kayıt (snapshot) tutan ve "Yenile" ile
 verileri yeniden okuyup kayıtla karşılaştırarak sonucu tek bir durum ikonuyla özetleyen SwiftUI uygulaması.
 
-Uygulama **salt okunurdur**: oyun dosyalarını (`.xash_id`, `config.cfg`) değiştirmez, silmez, oluşturmaz.
-Yazdığı tek dosya kendi kaydıdır.
+Uygulama oyun dosyalarını **değiştirmez**; tek istisna ad/model düzenlemedir: yalnız `config.cfg` ve (varsa) `userconfig.cfg` içindeki `name`/`model` satırları yazılır. Ayrıca kendi kaydını (`profile.json`) ve `*.appbak` yedeklerini oluşturur.
 
 ## Gereksinimler
 macOS 14+, Xcode (Swift 6), [XcodeGen](https://github.com/yonaskolb/XcodeGen). Harici bağımlılık yok.
@@ -16,7 +15,7 @@ xcodegen generate
 xcodebuild -project OyuncuKimlik.xcodeproj -scheme OyuncuKimlik -destination 'platform=macOS' -derivedDataPath .build build
 xcodebuild -project OyuncuKimlik.xcodeproj -scheme OyuncuKimlik -destination 'platform=macOS' -derivedDataPath .build test
 ```
-Testler ağa ve kullanıcının gerçek dosyalarına bağımlı değildir (geçici klasör fixture'ları + sahte HTTP istemcisi).
+Testler ağa ve kullanıcının gerçek dosyalarına bağımlı değildir (geçici klasör fixture'ları + sahte HTTP istemcisi). Toplam **176** test.
 
 ## Çalıştırma
 ```sh
@@ -28,6 +27,12 @@ Ad-hoc imzalıdır; App Sandbox ve hardened runtime kapalıdır. Açılışta bi
 |---|---|
 | ⌘R | Yenile (yenileme sürerken basılırsa önceki iptal edilir, en son istek kazanır) |
 | ⌘S | Kaydet |
+
+## Özellikler (öne çıkanlar)
+- Ban kontrolü (IP/CID) ve sunucu satırında **Düzelt** akışı (ayrıntı: aşağıdaki bölümler).
+- Model önizleme: dropdown ve profil kartında BMP küçük resim.
+- Gerekçe başına "ne yapmalı" önerileri ve panoya kopyalama.
+- Ad/model dropdown'ları ve **Uygula** ile `config.cfg` / `userconfig.cfg` güncelleme.
 
 ## Veri kaynakları
 - **Kimlik dosyası** (öncelik sırası): `~/.config/.xash_id` → `~/.local/.xash_id` → `~/.xash_id` → `<gamedir>/.xash_id`.
