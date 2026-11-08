@@ -123,7 +123,10 @@ struct ModelPopUpButton: NSViewRepresentable {
             let item = NSMenuItem(title: option.label, action: nil, keyEquivalent: "")
             item.image = thumbnails[option.value]
             // macOS 27+ hides menu item images by default; the thumbnail must always be visible.
-            if #available(macOS 27.0, *) { item.preferredImageVisibility = .visible }
+            if #available(macOS 27.0, *) {
+                // KVC keeps the build compatible with older SDKs (property exists on macOS 27+).
+                item.setValue(NSNumber(value: 1), forKey: "preferredImageVisibility")
+            }
             item.representedObject = option.value
             item.state = option.value == title ? .on : .off
             menu.addItem(item)
