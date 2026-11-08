@@ -11,15 +11,18 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
     /// Kayıtlı CID; yeni sunucu eklenince boş.
     var cid: String
     var lastCheckedAt: Date?
+    /// §13.4: opsiyonel; eski kayıtlarda yoktur (şema 1 geriye uyumlu).
+    var banCheck: BanCheck?
 
     init(id: UUID = UUID(), label: String, host: String, port: Int = ServerEntry.defaultPort,
-         cid: String = "", lastCheckedAt: Date? = nil) {
+         cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil) {
         self.id = id
         self.label = label
         self.host = host
         self.port = port
         self.cid = cid
         self.lastCheckedAt = lastCheckedAt
+        self.banCheck = banCheck
     }
 }
 

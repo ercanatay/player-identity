@@ -23,6 +23,10 @@ struct OyuncuKimlikApp: App {
                     .keyboardShortcut("s", modifiers: .command)
             }
         }
+
+        Settings {
+            SettingsView(model: appDelegate.model)
+        }
     }
 }
 

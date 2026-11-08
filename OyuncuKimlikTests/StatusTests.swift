@@ -169,6 +169,60 @@ final class StatusTests: XCTestCase {
         XCTAssertEqual(cid, CIDCalculator.cid(rawID: rawID, host: "2001:db8::1"))
     }
 
+    // MARK: Ban (§13.3)
+
+    private func reportWithBan(_ status: BanStatus) -> StatusReport {
+        var (current, snapshot) = matchingPair()
+        current.servers[0].banCheck = BanCheck(status: status, checkedAt: Date(timeIntervalSince1970: 0), detail: "")
+        snapshot.servers[0].banCheck = nil   // ban sonucu kayıtla karşılaştırılmaz
+        return StatusEvaluator.evaluate(current: current, snapshot: .loaded(snapshot))
+    }
+
+    func testBanResultsTurnOverallRedWithReason() {
+        for (status, code, text) in [(BanStatus.ipBanned, MessageCode.ipBanned, "Sunucu bu IP'yi banlamış."),
+                                     (.cidBanned, .cidBanned, "Sunucu bu CID'yi banlamış.")] {
+            let report = reportWithBan(status)
+            XCTAssertEqual(report.overall, .red)
+            XCTAssertEqual(report.reasons, [StatusReason(severity: .red, code: code)])
+            XCTAssertEqual(report.reasons.first?.message, text)
+            XCTAssertEqual(report.server(serverID)?.ban?.status, status)
+            XCTAssertEqual(report.server(serverID)?.level, .green)   // CID satır durumu ayrı
+            XCTAssertEqual(report.server(serverID)?.displayLevel, .red)  // satır ikonu ban'ı yansıtır
+            XCTAssertEqual(report.server(serverID)?.displayMessage, code)
+        }
+    }
+
+    func testUnreachableAndUnknownAreOrange() {
+        XCTAssertEqual(reportWithBan(.unreachable).overall, .orange)
+        XCTAssertEqual(reportWithBan(.unreachable).server(serverID)?.displayLevel, .orange)
+        XCTAssertEqual(reportWithBan(.unreachable).reasons.first?.message, "Sunucuya erişilemedi (yanıt yok).")
+        for status in [BanStatus.unknown, .cidUnknown, .ipOk] {
+            let report = reportWithBan(status)
+            XCTAssertEqual(report.overall, .orange)
+            XCTAssertEqual(report.reasons.map(\.code), [.banUnknown])
+            XCTAssertEqual(report.reasons.first?.message, "Ban durumu belirlenemedi.")
+        }
+    }
+
+    func testNoBanIsGreen() {
+        for status in [BanStatus.cidOk, .cidNotApplicable] {
+            XCTAssertEqual(reportWithBan(status).overall, .green)
+            XCTAssertEqual(reportWithBan(status).reasons, [])
+            XCTAssertEqual(reportWithBan(status).server(serverID)?.displayLevel, .green)
+        }
+        XCTAssertEqual(MessageCode.cidNotApplicable.text, "CID kontrolü bu sunucuda uygulanamaz.")
+    }
+
+    func testBanLabels() {
+        XCTAssertEqual(BanStatus.ipBanned.label, "IP ban")
+        XCTAssertEqual(BanStatus.cidBanned.label, "CID ban")
+        XCTAssertEqual(BanStatus.cidOk.label, "Engel yok")
+        XCTAssertEqual(BanStatus.cidNotApplicable.label, "Engel yok")
+        XCTAssertEqual(BanStatus.unreachable.label, "Erişilemiyor")
+        XCTAssertEqual(BanStatus.unknown.label, "Belirsiz")
+        XCTAssertEqual(BanStatus.cidUnknown.label, "Belirsiz")
+    }
+
     func testStatusPresentation() {
         XCTAssertEqual(StatusLevel.green.symbolName, "checkmark.circle.fill")
         XCTAssertEqual(StatusLevel.orange.symbolName, "exclamationmark.triangle.fill")

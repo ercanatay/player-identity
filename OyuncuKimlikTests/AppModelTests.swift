@@ -80,15 +80,23 @@ final class AppModelTests: XCTestCase {
 
     private func json(_ ip: String) -> String { #"{"ip":"\#(ip)"}"# }
 
-    private func makeModel(script: HTTPScript, lan: [LocalAddress]? = nil) -> AppModel {
-        AppModel(dependencies: AppDependencies(
+    private func makeModel(script: HTTPScript, lan: [LocalAddress]? = nil,
+                           udp: FakeUDPTransport = FakeServer.healthy(), clock: TestClock? = nil) -> AppModel {
+        let now: @Sendable () -> Date
+        if let clock {
+            now = { clock.now }
+        } else {
+            now = { Date(timeIntervalSince1970: 1_793_000_000) }
+        }
+        return AppModel(dependencies: AppDependencies(
             paths: AppPaths(home: home),
             fileSystem: LocalFileSystem(),
             localIPProvider: FixedLocalIPProvider(addresses: lan ?? self.lan),
             publicIPClient: PublicIPClient(http: ScriptedHTTPClient(script: script)),
             snapshotStore: SnapshotStore(fileURL: snapshotURL),
             defaults: defaults,
-            now: { Date(timeIntervalSince1970: 1_793_000_000) }))
+            now: now,
+            udpTransport: udp))
     }
 
     private func writeGame(name: String = "Oyuncu", model: String = "gordon", idFile: String? = "10331C2DCE4C91DB") throws {
@@ -299,5 +307,112 @@ final class AppModelTests: XCTestCase {
         model.save()
         XCTAssertEqual(model.report?.overall, .green)
         XCTAssertNotNil(SnapshotStore(fileURL: snapshotURL).load().snapshot)
+    }
+
+    // MARK: Ban kontrolü (§13)
+
+    func testBanCheckEnabledByDefaultAndPersists() {
+        let model = makeModel(script: HTTPScript(defaultBody: nil))
+        XCTAssertTrue(model.banCheckEnabled)
+        model.banCheckEnabled = false
+        XCTAssertEqual(defaults.object(forKey: AppModel.banCheckDefaultsKey) as? Bool, false)
+        XCTAssertFalse(makeModel(script: HTTPScript(defaultBody: nil)).banCheckEnabled)
+    }
+
+    func testBanCheckDisabledSendsNoUDPPackets() async throws {
+        try writeGame()
+        defaults.set(false, forKey: AppModel.banCheckDefaultsKey)
+        let udp = FakeServer.healthy()
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
+        model.addServer(ServerDraft(label: "A", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "B", host: "5.161.189.195"))
+        await model.refresh().value
+        XCTAssertEqual(udp.sentCount, 0)
+        XCTAssertEqual(udp.sessionCount, 0)
+        XCTAssertTrue(model.servers.allSatisfy { $0.banCheck == nil })
+    }
+
+    func testBanResultTurnsOverallRedAndIsSaved() async throws {
+        try writeGame(idFile: "0123456789ABCDEF")
+        let udp = FakeUDPTransport(responder: FakeServer.scripted(
+            challenge: FakeReply(bytes: FakeServer.oobText("lYou are banned from this server\n"))))
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
+        model.addServer(ServerDraft(label: "Ban", host: "51.68.190.91"))
+        await model.refresh().value
+        let id = try XCTUnwrap(model.servers.first?.id)
+        XCTAssertEqual(model.servers.first?.banCheck?.status, .ipBanned)
+        XCTAssertEqual(model.rowStatus(id)?.ban?.status, .ipBanned)
+        XCTAssertEqual(model.report?.overall, .red)
+        XCTAssertEqual(model.report?.reasons.first { $0.code == .ipBanned }?.message, "Sunucu bu IP'yi banlamış.")
+
+        model.save()
+        let text = try String(contentsOf: snapshotURL, encoding: .utf8)
+        XCTAssertTrue(text.contains("\"banCheck\""))
+        XCTAssertTrue(text.contains("\"ipBanned\""))
+        let reopened = makeModel(script: HTTPScript(defaultBody: nil))
+        XCTAssertEqual(reopened.servers.first?.banCheck?.status, .ipBanned)
+    }
+
+    func testHealthyServerIsGreenWithEngelYok() async throws {
+        try writeGame(idFile: "0123456789ABCDEF")
+        let udp = FakeServer.healthy()
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
+        model.addServer(ServerDraft(label: "Ok", host: "5.161.189.195"))
+        await model.refresh().value
+        model.save()
+        XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)
+        XCTAssertEqual(model.servers.first?.banCheck?.status.label, "Engel yok")
+        XCTAssertEqual(model.report?.overall, .green)
+        // connect paketindeki uuid satırın CID'i, name profildeki ad.
+        let connect = String(decoding: try XCTUnwrap(udp.sentPackets.last).dropFirst(4), as: UTF8.self)
+        let rawID = try XCTUnwrap(try model.identity?.get().rawID)
+        XCTAssertTrue(connect.contains("uuid=\(CIDCalculator.cid(rawID: rawID, host: "5.161.189.195")!);"))
+        XCTAssertTrue(connect.hasSuffix("\"name=Oyuncu\"\n"))
+    }
+
+    func testUnreachableServerIsOrange() async throws {
+        try writeGame(idFile: "0123456789ABCDEF")
+        let udp = FakeUDPTransport { _, _ in [] }
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
+        model.addServer(ServerDraft(label: "Kapalı", host: "5.161.189.195"))
+        await model.refresh().value
+        model.save()
+        XCTAssertEqual(model.servers.first?.banCheck?.status, .unreachable)
+        XCTAssertEqual(model.report?.overall, .orange)
+        XCTAssertEqual(model.report?.reasons.map(\.code), [.unreachable])
+    }
+
+    func testSameServerNotCheckedAgainWithinTenSeconds() async throws {
+        try writeGame()
+        let clock = TestClock()
+        let udp = FakeServer.healthy(clock: clock)
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp, clock: clock)
+        model.addServer(ServerDraft(label: "A", host: "5.161.189.195"))
+        await model.refresh().value
+        let afterFirst = udp.sentCount
+        XCTAssertEqual(afterFirst, 3)
+        let firstCheck = model.servers.first?.banCheck
+
+        clock.advance(5)
+        await model.refresh().value
+        XCTAssertEqual(udp.sentCount, afterFirst)               // 10 sn dolmadı → paket yok
+        XCTAssertEqual(model.servers.first?.banCheck, firstCheck) // önceki sonuç korunur
+
+        clock.advance(6)
+        await model.refresh().value
+        XCTAssertEqual(udp.sentCount, afterFirst * 2)
+    }
+
+    func testEditingHostClearsBanResult() async throws {
+        try writeGame()
+        let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")))
+        model.addServer(ServerDraft(label: "A", host: "5.161.189.195"))
+        await model.refresh().value
+        let id = try XCTUnwrap(model.servers.first?.id)
+        XCTAssertNotNil(model.servers.first?.banCheck)
+        model.updateServer(id: id, with: ServerDraft(label: "A2", host: "5.161.189.195"))
+        XCTAssertNotNil(model.servers.first?.banCheck)          // yalnız etiket değişti
+        model.updateServer(id: id, with: ServerDraft(label: "A2", host: "51.68.190.91"))
+        XCTAssertNil(model.servers.first?.banCheck)
     }
 }

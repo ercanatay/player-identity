@@ -10,6 +10,8 @@ struct AppDependencies {
     var snapshotStore: SnapshotStore
     var defaults: UserDefaults
     var now: @Sendable () -> Date
+    /// §13 ban kontrolü UDP taşıyıcısı (testlerde sahte).
+    var udpTransport: any UDPTransport
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -19,7 +21,8 @@ struct AppDependencies {
                                publicIPClient: PublicIPClient(),
                                snapshotStore: SnapshotStore(fileURL: paths.snapshotFile),
                                defaults: .standard,
-                               now: { Date() })
+                               now: { Date() },
+                               udpTransport: BSDUDPTransport())
     }
 }
 
@@ -28,6 +31,7 @@ struct AppDependencies {
 @Observable
 final class AppModel {
     static let dataRootDefaultsKey = "dataRoot"
+    static let banCheckDefaultsKey = "banCheckEnabled"
 
     private(set) var dataRoot: URL
     private(set) var gamedirs: [String] = []
@@ -45,10 +49,15 @@ final class AppModel {
     private(set) var isRefreshing = false
     private(set) var lastChecked: Date?
     var saveErrorMessage: String?
+    /// Ayarlar > "Ban kontrolü" (varsayılan açık, UserDefaults'ta saklanır). Kapalıyken ban paketi gönderilmez.
+    var banCheckEnabled: Bool {
+        didSet { deps.defaults.set(banCheckEnabled, forKey: Self.banCheckDefaultsKey) }
+    }
 
     @ObservationIgnored private let deps: AppDependencies
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private let banScheduler = BanCheckScheduler()
     /// Kayıt yokken kullanıcı değişikliği yaptı mı.
     private var editedWithoutSnapshot = false
 
@@ -67,6 +76,7 @@ final class AppModel {
         }
         selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
         servers = snapshot?.servers ?? []
+        banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
     }
 
     // MARK: Türetilmiş durum
@@ -115,6 +125,15 @@ final class AppModel {
         config = profile.config
 
         if includeNetwork {
+            // §13 ban kontrolü: diğer ağ adımlarıyla paralel; yenileme iptaliyle birlikte iptal edilir.
+            let banRequests = banCheckEnabled
+                ? BanCheckRunner.requests(servers: servers, rawID: try? profile.identity.get().rawID,
+                                          name: profile.config.name)
+                : []
+            let checker = BanChecker(transport: deps.udpTransport, now: deps.now)
+            let scheduler = banScheduler
+            async let banResults = BanCheckRunner.run(banRequests, checker: checker, scheduler: scheduler)
+
             // 3. Yerel IP
             let provider = deps.localIPProvider
             let lan = await Task.detached { provider.localAddresses() }.value
@@ -132,6 +151,15 @@ final class AppModel {
             }
             guard current == generation else { return }
             publicIP = ip
+
+            let bans = await banResults
+            guard current == generation else { return }
+            for request in banRequests {
+                guard let check = bans[request.serverID],
+                      let index = servers.firstIndex(where: { $0.id == request.serverID }),
+                      servers[index].host == request.host, servers[index].port == request.port else { continue }
+                servers[index].banCheck = check
+            }
 
             let now = deps.now()
             lastChecked = now
@@ -187,6 +215,9 @@ final class AppModel {
               let index = servers.firstIndex(where: { $0.id == id }) else { return }
         if servers[index].host != draft.trimmedHost {
             servers[index].lastCheckedAt = nil
+        }
+        if servers[index].host != draft.trimmedHost || servers[index].port != port {
+            servers[index].banCheck = nil
         }
         servers[index].label = draft.trimmedLabel
         servers[index].host = draft.trimmedHost

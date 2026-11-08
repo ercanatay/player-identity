@@ -335,7 +335,7 @@ struct ServerRowView: View {
         HStack(alignment: .top, spacing: 12) {
             Group {
                 if let status {
-                    StatusIcon(level: status.level, help: status.message?.text)
+                    StatusIcon(level: status.displayLevel, help: status.displayMessage?.text)
                 } else {
                     Image(systemName: "circle.dashed")
                         .foregroundStyle(.secondary)
@@ -356,12 +356,17 @@ struct ServerRowView: View {
                     if let message = status?.message {
                         Text(message.text)
                     }
+                    if let banMessage = entry.banCheck?.status.messageCode {
+                        Text(banMessage.text)
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 8)
+
+            BanColumn(check: entry.banCheck)
 
             if let cid = status?.currentCID {
                 Button {
@@ -393,5 +398,34 @@ struct ServerRowView: View {
             Button("Düzenle", action: onEdit)
             Button("Sil", role: .destructive, action: onDelete)
         }
+    }
+}
+
+/// §13.3 ban kolonu: ikon + metin; son kontrol zamanı tooltip'te.
+struct BanColumn: View {
+    let check: BanCheck?
+
+    var body: some View {
+        if let check {
+            Label {
+                Text(check.status.label)
+            } icon: {
+                Image(systemName: check.status.symbolName)
+                    .foregroundStyle(check.status.level == .orange ? Color.secondary : check.status.level.color)
+            }
+            .frame(minWidth: 120, alignment: .leading)
+            .help(tooltip(check))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Ban: \(check.status.label)")
+        } else {
+            Text("—")
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 120, alignment: .leading)
+        }
+    }
+
+    private func tooltip(_ check: BanCheck) -> String {
+        let time = "Son kontrol: \(TimeText.format(check.checkedAt))"
+        return check.detail.isEmpty ? time : "\(time)\n\(check.detail)"
     }
 }

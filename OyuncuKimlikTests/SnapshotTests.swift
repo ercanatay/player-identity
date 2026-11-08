@@ -102,4 +102,24 @@ final class SnapshotTests: XCTestCase {
         let dir = try temp.makeDirectory("profile.json")   // dosya yerine klasör
         XCTAssertEqual(SnapshotStore(fileURL: dir).load(), .corrupt)
     }
+
+    func testBanCheckRoundtripAndOldRecordsWithoutIt() throws {
+        var snapshot = Self.sample()
+        snapshot.servers[0].banCheck = BanCheck(status: .ipOk, checkedAt: Date(timeIntervalSince1970: 1_793_000_030), detail: "")
+        let data = try SnapshotStore.makeEncoder().encode(snapshot)
+        let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let servers = try XCTUnwrap(object["servers"] as? [[String: Any]])
+        let ban = try XCTUnwrap(servers[0]["banCheck"] as? [String: Any])
+        XCTAssertEqual(ban["status"] as? String, "ipOk")
+        XCTAssertEqual(ban["detail"] as? String, "")
+        XCTAssertNotNil(ban["checkedAt"] as? String)
+        XCTAssertNil(servers[1]["banCheck"])
+        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        XCTAssertEqual(SnapshotStore.decode(data), .loaded(snapshot))
+
+        // banCheck alanı olmayan eski kayıt okunur.
+        let old = SnapshotStore.decode(try SnapshotStore.makeEncoder().encode(Self.sample()))
+        XCTAssertNil(old.snapshot?.servers[0].banCheck)
+        XCTAssertNotNil(old.snapshot)
+    }
 }

@@ -65,8 +65,30 @@ Durum her zaman ikon **ve** metinle gösterilir. Gerekçeler pencerenin altında
 aynı ikonları kullanır: host geçersizse kırmızı (genel durumu etkilemez), CID kayıttan farklıysa veya kayıtlı CID
 boşsa turuncu, eşitse yeşil. Sunucu CID'si kayda, satır bir Yenile ile kontrol edildikten sonra yazılır.
 
+## Ban kontrolü (v1.1)
+Her Yenile'de, geçerli IP'li her sunucu satırı için UDP ile tek kontrol üçlüsü yapılır (yeniden deneme yok,
+oyuna girilmez):
+1. **A2S_INFO** — sunucu ayakta mı; yanıt yoksa "Erişilemiyor".
+2. **getchallenge** — yanıtta `banned` geçiyorsa "IP ban"; challenge gelirse IP engeli yok.
+3. **connect 49** (yalnız challenge alındıysa) — satırın CID'iyle el sıkışma; `client_connect` gelince hemen durur.
+
+Adım başına 4 sn, toplam en fazla 12 sn; aynı sunucuya iki kontrol arası en az 10 sn; yenileme iptal edilince
+kontrol de iptal edilir.
+
+| Ban kolonu | Anlam | Genel duruma etkisi |
+|---|---|---|
+| IP ban / CID ban | Sunucu bu IP'yi / CID'yi banlamış | Kırmızı + gerekçe |
+| Engel yok | IP engeli yok; CID el sıkışması başarılı veya CID kontrolü bu sunucuda uygulanamaz | — |
+| Erişilemiyor / Belirsiz | Yanıt yok / sonuç belirlenemedi | Turuncu + gerekçe |
+
+Sonuç satırın `banCheck` alanına (`status`, `checkedAt`, `detail`) yazılır ve Kaydet ile `profile.json`'a girer
+(şema 1; bu alanı olmayan eski kayıtlar okunur). Satır üzerine gelince ipucunda son kontrol zamanı ve ayrıntı görünür.
+**Oyuncu Kimlik > Ayarlar… > Ban kontrolü** anahtarı (varsayılan açık, UserDefaults `banCheckEnabled`) kapalıyken
+hiçbir UDP paketi gönderilmez; önceki sonuçlar gösterilmeye devam eder.
+
 ## Bilinen sınırlar (V1 kapsamı dışı)
-- Kimlik dosyalarını yazma/değiştirme, sunucuya bağlanma, oyunu başlatma.
+- Kimlik dosyalarını yazma/değiştirme, oyunu başlatma, oyuna girme (spawn). Ban kontrolü dışında sunucuya paket
+  gönderilmez.
 - Çoklu profil, iCloud senkronizasyonu, App Store dağıtımı, sandbox, otomatik güncelleme.
 - IPv6 sunucu satırları için özel arayüz (CID mantığı aynıdır).
 - Bildirim/uyarı zamanlayıcıları, arka planda periyodik yenileme.
