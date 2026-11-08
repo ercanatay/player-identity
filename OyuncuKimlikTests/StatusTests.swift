@@ -155,6 +155,20 @@ final class StatusTests: XCTestCase {
         XCTAssertEqual(report.overall, .green)
     }
 
+    func testIPv6ServerRowUsesSameCIDLogic() throws {
+        let (initial, _) = matchingPair()
+        var current = initial
+        let v6 = ServerEntry(label: "V6", host: "2001:db8::1")
+        current.servers = [v6]
+        let report = StatusEvaluator.evaluate(current: current, snapshot: .missing)
+        let row = try XCTUnwrap(report.server(v6.id))
+        XCTAssertEqual(row.level, .orange)   // kayıtlı CID yok
+        let cid = try XCTUnwrap(row.currentCID)
+        XCTAssertEqual(cid.count, 32)
+        XCTAssertTrue(cid.allSatisfy { "0123456789abcdef".contains($0) })
+        XCTAssertEqual(cid, CIDCalculator.cid(rawID: rawID, host: "2001:db8::1"))
+    }
+
     func testStatusPresentation() {
         XCTAssertEqual(StatusLevel.green.symbolName, "checkmark.circle.fill")
         XCTAssertEqual(StatusLevel.orange.symbolName, "exclamationmark.triangle.fill")

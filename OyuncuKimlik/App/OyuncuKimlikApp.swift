@@ -11,6 +11,18 @@ struct OyuncuKimlikApp: App {
         }
         .defaultSize(width: 900, height: 760)
         .windowResizability(.contentMinSize)
+        .commands {
+            // §6: Yenile düğmesi yenileme sırasında devre dışıdır; ⌘R ise her zaman çalışır ve
+            // yenileme sürerken basılırsa önceki iptal edilir, en son istek kazanır.
+            CommandGroup(before: .toolbar) {
+                Button("Yenile") { appDelegate.model.refresh() }
+                    .keyboardShortcut("r", modifiers: .command)
+            }
+            CommandGroup(replacing: .saveItem) {
+                Button("Kaydet") { appDelegate.model.save() }
+                    .keyboardShortcut("s", modifiers: .command)
+            }
+        }
     }
 }
 

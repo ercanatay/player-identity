@@ -100,14 +100,14 @@ struct ContentView: View {
                 }
             }
             .disabled(model.isRefreshing)
-            .keyboardShortcut("r", modifiers: .command)
+            .help("Yenile (⌘R)")
 
             Button {
                 model.save()
             } label: {
                 Label("Kaydet", systemImage: "square.and.arrow.down")
             }
-            .keyboardShortcut("s", modifiers: .command)
+            .help("Kaydet (⌘S)")
         }
     }
 
