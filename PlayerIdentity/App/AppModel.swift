@@ -102,9 +102,9 @@ final class AppModel {
     @ObservationIgnored private let fixLock = BanFixLock()
     @ObservationIgnored private var fixTask: Task<Void, Never>?
 
-    static let fixLockedText = "Başka bir düzeltme sürüyor veya son 60 sn içinde yapıldı; biraz sonra tekrar deneyin."
-    static let banCheckDisabledText = "Ban kontrolü Ayarlar'da kapalı; yeniden kontrol yapılmadı."
-    static let recheckThrottledText = "Bu sunucu son 10 sn içinde kontrol edildi; biraz sonra tekrar deneyin."
+    static var fixLockedText: String { L10n.text(.fixLocked) }
+    static var banCheckDisabledText: String { L10n.text(.fixBanCheckDisabled) }
+    static var recheckThrottledText: String { L10n.text(.fixRecheckThrottled) }
 
     // MARK: §16 model preview
     /// Model previews of the selected gamedir; models not loaded yet are absent (skeleton view).
@@ -421,7 +421,7 @@ final class AppModel {
             isApplying = false
             switch result {
             case .success(let outcome):
-                var text = "Uygulandı · \(TimeText.format(deps.now()))"
+                var text = L10n.format(.profileApplied, TimeText.format(deps.now()))
                 if !outcome.changedFiles.isEmpty { text += " · " + outcome.summary }
                 applyStatus = .success(text)
                 appliedSinceSave = true
@@ -555,7 +555,7 @@ final class AppModel {
             servers[index].banCheck = check
             fixedSinceSave = true
             reevaluate()
-            fixSession?.note = "Yeniden kontrol: \(check.status.label) · \(TimeText.format(check.checkedAt))"
+            fixSession?.note = L10n.format(.fixRecheckResult, check.status.label, TimeText.format(check.checkedAt))
         }
         fixTask = task
         return task
@@ -564,14 +564,14 @@ final class AppModel {
     /// Appeal text (§17.9.1); `nil` if the row has no ban result.
     func appealText(for id: UUID) -> String? {
         guard let entry = servers.first(where: { $0.id == id }), let check = entry.banCheck else { return nil }
-        let cid = (try? identity?.get().rawID).flatMap { CIDCalculator.cid(rawID: $0, host: entry.host) } ?? "bilinmiyor"
+        let cid = (try? identity?.get().rawID).flatMap { CIDCalculator.cid(rawID: $0, host: entry.host) } ?? L10n.text(.appealUnknown)
         var rangeBan: RangeBanInfo?
         if case .finished(.rangeBanned(let old, let new, let cidr), _)? = fixSession?.phase, fixSession?.id == id {
             rangeBan = RangeBanInfo(cidr: cidr, oldIP: old, newIP: new)
         }
         return AppealText.make(AppealInput(serverLabel: entry.label, host: entry.host, port: entry.port,
                                            checkedAt: check.checkedAt, playerName: config.name, cid: cid,
-                                           publicIP: publicIP ?? "bilinmiyor", gamedir: selectedGamedir ?? "—",
+                                           publicIP: publicIP ?? L10n.text(.appealUnknown), gamedir: selectedGamedir ?? "—",
                                            check: check, rangeBan: rangeBan))
     }
 
@@ -596,7 +596,7 @@ final class AppModel {
         do {
             try deps.snapshotStore.save(snapshot)
         } catch {
-            saveErrorMessage = "Kayıt yazılamadı: \(error.localizedDescription)"
+            saveErrorMessage = L10n.format(.saveFailed, error.localizedDescription)
             return
         }
         deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)

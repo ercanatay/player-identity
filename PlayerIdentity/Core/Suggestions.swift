@@ -3,50 +3,32 @@ import Foundation
 /// §14 "To-dos / suggestions": an action the user can take for each reason code.
 /// Single central mapping; the `switch` is exhaustive, so adding a new code breaks the build.
 extension MessageCode {
-    var suggestion: String {
+    var suggestion: String { L10n.text(suggestionKey) }
+
+    var suggestionKey: L10nKey {
         switch self {
-        // §14.3 (verbatim)
-        case .ipBanned:
-            return "IP'nizi değiştirin: modemi/routerı 5 dakika kapatıp açın; IP değişmezse VPN kullanın. Ban süreli olabilir, birkaç saat sonra tekrar deneyin. Kalıcıysa sunucu yöneticisinden kaldırmasını isteyin."
-        case .cidBanned:
-            return "IP değiştirmek yetmez, bu CID (authid) engelli. Sunucu yöneticisinden kaldırmasını isteyin. Bu kimlik bu makinede paylaşımlı üretildiği için başka bir istemcinin banı da size yansıyabilir."
-        case .unreachable:
-            return "Sunucu kapalı olabilir veya UDP erişimi engellenmiştir. GameTracker sayfasından sunucunun canlı olduğunu doğrulayın; güvenlik duvarı/VPN'yi kontrol edin."
-        case .banUnknown:
-            return "Sunucu bu tür sorgulara yanıt vermiyor olabilir. Birkaç dakika sonra Yenile'ye basın; sorun sürerse sunucu yöneticisine danışın."
-        case .cidNotApplicable:
-            return "Bu sunucu eski oyun protokolünü kullanıyor; CID banı burada test edilemez. IP ban sonucu geçerlidir."
-        case .identityMissing:
-            return "Oyunu bir kez başlatıp kapatın; kimlik dosyası otomatik oluşur, sonra Yenile'ye basın."
-        case .identityInvalid:
-            return "Kimlik dosyası bozulmuş. Dosyayı silin, oyunu bir kez açıp kapatın; yeniden oluşturulur."
-        case .publicIPFailed:
-            return "İnternet bağlantısını kontrol edin. VPN/güvenlik duvarı bu isteği engelliyor olabilir."
-        case .snapshotMissing:
-            return "Doğrulama yapılabilmesi için Kaydet'e basarak referans kaydı oluşturun."
-        case .snapshotCorrupt:
-            return "Kayıt dosyası okunamıyor. Kaydet'e basarak yeni kayıt oluşturun."
-        case .rawIDZero:
-            return "Bu sürümde beklenen durum: kimlik donanımdan üretilmiyor. Ban riski taşır, çünkü aynı CID tüm benzer kurulumlarda geçerli."
-        case .nameChanged:
-            return "Oyundaki isim değişmiş. Bilinçli yaptıysanız Kaydet'e basın, aksi hâlde oyun ayarlarını kontrol edin."
-        case .modelChanged:
-            return "Oyuncu modeli değişmiş. Bilinçli yaptıysanız Kaydet'e basın."
-        case .publicIPChanged:
-            return "IP'niz değişmiş (dinamik IP'de normal). Doğru değer buysa Kaydet'e basın."
-        case .lanIPChanged:
-            return "Yerel ağ değişmiş (Wi-Fi/Ethernet geçişi olabilir). Bilinçliyse Kaydet'e basın."
-        case .serverCIDChanged:
-            return "Sunucu CID'si kayıttan farklı; kimlik kaynağı değişmiş olabilir. Yenile'den sonra Kaydet'e basın."
-        case .invalidHost:
-            return "Adresi IP:port biçiminde girin (örn. 51.68.190.91:27015)."
+        // §14.3 (verbatim Turkish values)
+        case .ipBanned: return .suggestionIPBanned
+        case .cidBanned: return .suggestionCIDBanned
+        case .unreachable: return .suggestionUnreachable
+        case .banUnknown: return .suggestionBanUnknown
+        case .cidNotApplicable: return .suggestionCIDNotApplicable
+        case .identityMissing: return .suggestionIdentityMissing
+        case .identityInvalid: return .suggestionIdentityInvalid
+        case .publicIPFailed: return .suggestionPublicIPFailed
+        case .snapshotMissing: return .suggestionSnapshotMissing
+        case .snapshotCorrupt: return .suggestionSnapshotCorrupt
+        case .rawIDZero: return .suggestionRawIDZero
+        case .nameChanged: return .suggestionNameChanged
+        case .modelChanged: return .suggestionModelChanged
+        case .publicIPChanged: return .suggestionPublicIPChanged
+        case .lanIPChanged: return .suggestionLanIPChanged
+        case .serverCIDChanged: return .suggestionServerCIDChanged
+        case .invalidHost: return .suggestionInvalidHost
         // Codes not in §14.3, derived from the §7.2 conditions (their texts are not in the spec).
-        case .lanIPMissing:
-            return "Ağ bağlantısını (Wi-Fi/Ethernet) kontrol edin, sonra Yenile'ye basın."
-        case .nameEmpty:
-            return "Oyunda bir oyuncu adı belirleyin, oyunu kapatıp Yenile'ye basın."
-        case .modelEmpty:
-            return "Oyunda bir oyuncu modeli seçin, oyunu kapatıp Yenile'ye basın."
+        case .lanIPMissing: return .suggestionLanIPMissing
+        case .nameEmpty: return .suggestionNameEmpty
+        case .modelEmpty: return .suggestionModelEmpty
         }
     }
 }

@@ -19,11 +19,11 @@ enum BanStatus: String, Codable, Sendable, CaseIterable {
     /// §13.3 display text.
     var label: String {
         switch self {
-        case .ipBanned: return "IP ban"
-        case .cidBanned: return "CID ban"
-        case .cidOk, .cidNotApplicable: return "Engel yok"
-        case .unreachable: return "Erişilemiyor"
-        case .unknown, .cidUnknown, .ipOk: return "Belirsiz"
+        case .ipBanned: return L10n.text(.banStatusIPBanned)
+        case .cidBanned: return L10n.text(.banStatusCIDBanned)
+        case .cidOk, .cidNotApplicable: return L10n.text(.banStatusNoBlock)
+        case .unreachable: return L10n.text(.banStatusUnreachable)
+        case .unknown, .cidUnknown, .ipOk: return L10n.text(.banStatusUnknown)
         }
     }
 

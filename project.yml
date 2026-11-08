@@ -1,6 +1,7 @@
 name: PlayerIdentity
 options:
   bundleIdPrefix: tr.ercanatay
+  developmentLanguage: en
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -21,22 +22,21 @@ targets:
     platform: macOS
     sources:
       - path: PlayerIdentity
+    info:
+      path: PlayerIdentity/Info.plist
+      properties:
+        CFBundleLocalizations: [en, tr]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity
         PRODUCT_NAME: PlayerIdentity
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Oyuncu Kimlik
+        INFOPLIST_KEY_CFBundleDisplayName: Player Identity
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
-        DEVELOPMENT_LANGUAGE: tr
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    scheme:
-      testTargets:
-        - PlayerIdentityTests
-      gatherCoverageData: false
   PlayerIdentityTests:
     type: bundle.unit-test
     platform: macOS
@@ -48,3 +48,18 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity.tests
         GENERATE_INFOPLIST_FILE: YES
+schemes:
+  PlayerIdentity:
+    build:
+      targets:
+        PlayerIdentity: all
+        PlayerIdentityTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      # Existing tests assert the Turkish source texts; LocalizationTests switch languages explicitly.
+      language: tr
+      targets:
+        - PlayerIdentityTests

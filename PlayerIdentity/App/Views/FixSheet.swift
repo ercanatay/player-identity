@@ -34,7 +34,7 @@ struct FixSheet: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.title3.bold())
             if let entry {
-                Text("\(entry.label) · \(entry.host):\(String(entry.port))")
+                Text(verbatim: "\(entry.label) · \(entry.host):\(String(entry.port))")
                     .font(.callout.monospaced())
                     .foregroundStyle(.secondary)
             }
@@ -43,9 +43,9 @@ struct FixSheet: View {
 
     private var title: String {
         switch session.kind {
-        case .ipBan: return "IP banını düzelt"
-        case .cidBan: return "CID banı"
-        case .unreachable: return "Sunucuya erişilemiyor"
+        case .ipBan: return L10n.text(.fixTitleIPBan)
+        case .cidBan: return L10n.text(.fixTitleCIDBan)
+        case .unreachable: return L10n.text(.fixTitleUnreachable)
         }
     }
 
@@ -56,28 +56,23 @@ struct FixSheet: View {
         switch session.phase {
         case .ready:
             VStack(alignment: .leading, spacing: 8) {
-                LabeledContent("Mevcut genel IP") {
+                LabeledContent(L10n.text(.fixCurrentIP)) {
                     Text(model.publicIP ?? "—").font(.body.monospaced())
                 }
-                Text("Yapılacaklar").font(.headline)
-                numbered([
-                    "Mevcut genel IP kaydedilir.",
-                    "Varsayılan ağ arayüzü bulunur (route get default).",
-                    "Wi-Fi ise Wi-Fi 3 sn kapatılıp açılır; Ethernet ise DHCP yenilenir (macOS yönetici onayı ister).",
-                    "Ağ en çok 45 sn beklenir; yeni genel IP alınır.",
-                    "IP değiştiyse bu sunucu için ban yeniden kontrol edilir.",
-                ])
-                Text("Tahmini kesinti: 5–20 sn.").font(.callout)
-                Text("Risk: IP değişimi garanti değildir; ISS statik IP, CGNAT veya router PPPoE oturumu IP'yi koruyabilir. Kesinti sırasında diğer bağlantılar kopabilir. Yönetici parolası yalnız macOS diyaloğunda istenir; uygulama parolayı görmez ve saklamaz.")
+                Text(L10n.text(.fixStepsTitle)).font(.headline)
+                numbered([L10nKey.fixIPBanStep1, .fixIPBanStep2, .fixIPBanStep3, .fixIPBanStep4, .fixIPBanStep5]
+                    .map(L10n.text))
+                Text(L10n.text(.fixOutage)).font(.callout)
+                Text(L10n.text(.fixRisk))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 Spacer()
-                Button("Vazgeç", role: .cancel) { model.fixSession = nil }
+                Button(L10n.text(.actionCancel), role: .cancel) { model.fixSession = nil }
                     .keyboardShortcut(.cancelAction)
-                Button("Başlat") { model.startIPFix() }
+                Button(L10n.text(.actionStart)) { model.startIPFix() }
                     .keyboardShortcut(.defaultAction)
             }
         case .running(let progress):
@@ -89,7 +84,7 @@ struct FixSheet: View {
 
     @ViewBuilder
     private func ipResult(_ outcome: IPFixOutcome, at date: Date) -> some View {
-        Text("\(outcome.message) · \(TimeText.format(date))")
+        Text(outcome.message + " · " + TimeText.format(date))
             .foregroundStyle(outcome.isSuccess ? Color.green : Color.red)
             .fixedSize(horizontal: false, vertical: true)
         switch outcome {
@@ -97,13 +92,13 @@ struct FixSheet: View {
             numbered(IPFixOutcome.unchangedNextSteps)
             HStack {
                 if let routerURL {
-                    Button("Router arayüzünü aç") { NSWorkspace.shared.open(routerURL) }
+                    Button(L10n.text(.fixOpenRouter)) { NSWorkspace.shared.open(routerURL) }
                 }
                 Spacer()
                 retryAndClose
             }
         case .rangeBanned:
-            Text("Öneriler").font(.headline)
+            Text(L10n.text(.fixSuggestionsTitle)).font(.headline)
             numbered(IPFixOutcome.rangeBannedSuggestions)
             HStack {
                 appealButtons
@@ -112,7 +107,7 @@ struct FixSheet: View {
             }
         case .stillBanned:
             Text(IPFixOutcome.outOfRangeText).fixedSize(horizontal: false, vertical: true)
-            Text("Olası nedenler").font(.headline)
+            Text(L10n.text(.fixPossibleCausesTitle)).font(.headline)
             numbered(IPFixOutcome.stillBannedReasons)
             HStack {
                 appealButtons
@@ -130,11 +125,11 @@ struct FixSheet: View {
 
     private var retryAndClose: some View {
         HStack {
-            Button("Yeniden dene") {
+            Button(L10n.text(.actionRetry)) {
                 model.fixSession?.phase = .ready
                 model.fixSession?.note = nil
             }
-            Button("Kapat") { model.fixSession = nil }
+            Button(L10n.text(.actionClose)) { model.fixSession = nil }
                 .keyboardShortcut(.defaultAction)
         }
     }
@@ -143,7 +138,7 @@ struct FixSheet: View {
 
     @ViewBuilder
     private var cidBanContent: some View {
-        Text("CID banı yerel olarak kaldırılamaz; ban sunucu tarafındadır. Yöneticinin doğru sistemi temizlemesi için aşağıdaki itiraz metnini gönderin.")
+        Text(L10n.text(.fixCIDBanExplanation))
             .fixedSize(horizontal: false, vertical: true)
         if let text = model.appealText(for: session.id) {
             ScrollView {
@@ -161,10 +156,10 @@ struct FixSheet: View {
         }
         HStack {
             appealButtons
-            Button("Yeniden kontrol et") { model.recheckServer(session.id) }
+            Button(L10n.text(.actionRecheck)) { model.recheckServer(session.id) }
                 .disabled(model.isFixRunning)
             Spacer()
-            Button("Kapat") { model.fixSession = nil }
+            Button(L10n.text(.actionClose)) { model.fixSession = nil }
                 .keyboardShortcut(.defaultAction)
         }
     }
@@ -178,11 +173,11 @@ struct FixSheet: View {
             runningView(progress, cancellable: false)
         }
         HStack {
-            Button("Yeniden kontrol et") { model.recheckServer(session.id) }
+            Button(L10n.text(.actionRecheck)) { model.recheckServer(session.id) }
                 .disabled(model.isFixRunning)
             serverPageButton
             Spacer()
-            Button("Kapat") { model.fixSession = nil }
+            Button(L10n.text(.actionClose)) { model.fixSession = nil }
                 .keyboardShortcut(.defaultAction)
         }
     }
@@ -191,7 +186,7 @@ struct FixSheet: View {
 
     private var appealButtons: some View {
         HStack {
-            Button(copied ? "Kopyalandı" : "Unban mesajını kopyala") {
+            Button(L10n.text(copied ? .actionCopied : .fixCopyAppeal)) {
                 if let text = model.appealText(for: session.id) {
                     Pasteboard.copy(text)
                     copied = true
@@ -204,8 +199,8 @@ struct FixSheet: View {
     @ViewBuilder
     private var serverPageButton: some View {
         if let url = model.serverPageURL(for: session.id) {
-            Button("Sunucu sayfasını aç") { NSWorkspace.shared.open(url) }
-                .help("Yöneticiye ulaş: \(url.absoluteString)")
+            Button(L10n.text(.fixOpenServerPage)) { NSWorkspace.shared.open(url) }
+                .help(L10n.format(.fixContactAdmin, url.absoluteString))
         }
     }
 
@@ -215,7 +210,7 @@ struct FixSheet: View {
             Text(progress.text)
             Spacer()
             if cancellable {
-                Button("İptal") { model.cancelFix() }
+                Button(L10n.text(.actionAbort)) { model.cancelFix() }
             }
         }
     }
@@ -223,7 +218,7 @@ struct FixSheet: View {
     private func numbered(_ items: [String]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                Text("\(index + 1). \(item)")
+                Text(verbatim: "\(index + 1). \(item)")
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

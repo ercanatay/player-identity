@@ -51,21 +51,21 @@ struct ContentView: View {
         .sheet(item: $model.fixSession) { session in
             FixSheet(model: model, initialSession: session)
         }
-        .alert("Yeni ad", isPresented: $showsNewName) {
-            TextField("Kullanıcı adı", text: $newNameText)
-            Button("Tamam") { model.nameDraft = newNameText }
-            Button("Vazgeç", role: .cancel) {}
+        .alert(L10n.text(.alertNewNameTitle), isPresented: $showsNewName) {
+            TextField(L10n.text(.profileName), text: $newNameText)
+            Button(L10n.text(.actionOK)) { model.nameDraft = newNameText }
+            Button(L10n.text(.actionCancel), role: .cancel) {}
         }
-        .alert("Model adı", isPresented: $showsManualModel) {
-            TextField("Oyuncu modeli", text: $manualModelText)
-            Button("Tamam") { model.modelDraft = manualModelText }
-            Button("Vazgeç", role: .cancel) {}
+        .alert(L10n.text(.alertManualModelTitle), isPresented: $showsManualModel) {
+            TextField(L10n.text(.profileModel), text: $manualModelText)
+            Button(L10n.text(.actionOK)) { model.modelDraft = manualModelText }
+            Button(L10n.text(.actionCancel), role: .cancel) {}
         }
-        .alert("Kayıt yazılamadı", isPresented: Binding(
+        .alert(L10n.text(.alertSaveFailedTitle), isPresented: Binding(
             get: { model.saveErrorMessage != nil },
             set: { if !$0 { model.saveErrorMessage = nil } }
         )) {
-            Button("Tamam", role: .cancel) {}
+            Button(L10n.text(.actionOK), role: .cancel) {}
         } message: {
             Text(model.saveErrorMessage ?? "")
         }
@@ -94,27 +94,27 @@ struct ContentView: View {
                         statusLabel
                     }
                     .buttonStyle(.plain)
-                    .help("Ne yapmalı?")
+                    .help(L10n.text(.topbarWhatToDo))
                     .accessibilityLabel(report.overall.label)
-                    .accessibilityHint("Ne yapmalı?")
+                    .accessibilityHint(L10n.text(.topbarWhatToDo))
                     .popover(isPresented: $showsSuggestions, arrowEdge: .bottom) {
                         SuggestionsPopover(reasons: report.reasons)
                     }
                 }
             } else {
-                Text(model.isRefreshing ? "Kontrol ediliyor…" : "Henüz kontrol edilmedi")
+                Text(L10n.text(model.isRefreshing ? .topbarChecking : .topbarNotChecked))
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
 
-            Text("Son kontrol: \(TimeText.format(model.lastChecked))")
+            Text(L10n.format(.topbarLastCheck, TimeText.format(model.lastChecked)))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
 
             Spacer()
 
             if model.hasUnsavedChanges {
-                Text("Kaydedilmedi")
+                Text(L10n.text(.topbarUnsaved))
                     .font(.caption.bold())
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
@@ -131,25 +131,25 @@ struct ContentView: View {
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
-                    Text("Yenile")
+                    Text(L10n.text(.actionRefresh))
                 }
             }
             .disabled(model.isRefreshing)
-            .help("Yenile (⌘R)")
+            .help(L10n.text(.helpRefresh))
 
             Button {
                 model.save()
             } label: {
-                Label("Kaydet", systemImage: "square.and.arrow.down")
+                Label(L10n.text(.actionSave), systemImage: "square.and.arrow.down")
             }
-            .help("Kaydet (⌘S)")
+            .help(L10n.text(.helpSave))
         }
     }
 
     // MARK: Profile card
 
     private var profileCard: some View {
-        Card(title: "Profil") {
+        Card(title: L10n.text(.profileTitle)) {
             if model.isGameRunning {
                 // §15.7 game-running warning banner
                 Label(EditMessage.gameRunning.text, systemImage: StatusLevel.orange.symbolName)
@@ -158,13 +158,13 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.15)))
             }
-            FieldRow(title: "Kullanıcı adı") {
+            FieldRow(title: L10n.text(.profileName)) {
                 Menu {
                     ForEach(model.nameOptions, id: \.self) { option in
                         Button(option) { model.nameDraft = option }
                     }
                     Divider()
-                    Button("Yeni ad…") {
+                    Button(L10n.text(.profileNewName)) {
                         newNameText = model.nameDraft
                         showsNewName = true
                     }
@@ -172,11 +172,11 @@ struct ContentView: View {
                     Text(model.nameDraft.isEmpty ? "—" : model.nameDraft)
                 }
                 .fixedSize()
-                .accessibilityLabel("Kullanıcı adı: \(model.nameDraft)")
+                .accessibilityLabel(L10n.format(.a11yProfileName, model.nameDraft))
                 sourceNote(model.configSources.name)
             }
             if let error = model.nameError { fieldError(error) }
-            FieldRow(title: "Oyuncu modeli") {
+            FieldRow(title: L10n.text(.profileModel)) {
                 ModelPopUpButton(
                     title: model.modelDraft,
                     options: model.modelOptions,
@@ -211,12 +211,12 @@ struct ContentView: View {
                 } label: {
                     HStack(spacing: 6) {
                         if model.isApplying { ProgressView().controlSize(.small) }
-                        Text("Uygula")
+                        Text(L10n.text(.actionApply))
                     }
                 }
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!model.canApply)
-                .help("Uygula (⌘⏎)")
+                .help(L10n.text(.helpApply))
                 switch model.applyStatus {
                 case .success(let text)?:
                     Text(text).font(.callout).foregroundStyle(.secondary)
@@ -227,23 +227,23 @@ struct ContentView: View {
                 }
                 Spacer(minLength: 0)
             }
-            FieldRow(title: "Ham kimlik") {
+            FieldRow(title: L10n.text(.profileRawID)) {
                 Text(identityValue?.rawIDHex ?? "—")
                     .font(.body.monospaced())
                     .textSelection(.enabled)
             }
-            FieldRow(title: "Kimlik kaynağı") {
+            FieldRow(title: L10n.text(.profileIdentitySource)) {
                 let path = identityValue?.source.url.path
                 Text(path.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? "—")
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(path ?? "")
             }
-            FieldRow(title: "Gamedir") {
+            FieldRow(title: L10n.text(.profileGamedir)) {
                 if gamedirOptions.isEmpty {
-                    Text("Gamedir bulunamadı").foregroundStyle(.secondary)
+                    Text(L10n.text(.profileNoGamedir)).foregroundStyle(.secondary)
                 } else {
-                    Picker("Gamedir", selection: Binding(
+                    Picker(L10n.text(.profileGamedir), selection: Binding(
                         get: { model.selectedGamedir ?? "" },
                         set: { model.selectGamedir($0) }
                     )) {
@@ -253,12 +253,12 @@ struct ContentView: View {
                     .fixedSize()
                 }
             }
-            FieldRow(title: "Veri kökü") {
+            FieldRow(title: L10n.text(.profileDataRoot)) {
                 Text((model.dataRoot.path as NSString).abbreviatingWithTildeInPath)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(model.dataRoot.path)
-                Button("Klasör Seç…", action: chooseDataRoot)
+                Button(L10n.text(.profileChooseFolder), action: chooseDataRoot)
             }
         }
     }
@@ -297,8 +297,8 @@ struct ContentView: View {
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = false
         panel.directoryURL = model.dataRoot
-        panel.prompt = "Seç"
-        panel.message = "Oyun veri kökü klasörünü seçin"
+        panel.prompt = L10n.text(.profilePanelPrompt)
+        panel.message = L10n.text(.profilePanelMessage)
         if panel.runModal() == .OK, let url = panel.url {
             model.setDataRoot(url)
         }
@@ -307,28 +307,28 @@ struct ContentView: View {
     // MARK: Network card
 
     private var networkCard: some View {
-        Card(title: "Ağ") {
-            FieldRow(title: "Genel IP") {
+        Card(title: L10n.text(.networkTitle)) {
+            FieldRow(title: L10n.text(.networkPublicIP)) {
                 if let ip = model.publicIP {
                     Text(ip)
                         .font(.title2.monospaced())
                         .textSelection(.enabled)
                     copyButton(text: ip, key: "publicIP")
                 } else {
-                    Text(model.lastChecked == nil ? "—" : "Alınamadı")
+                    Text(model.lastChecked == nil ? "—" : L10n.text(.networkUnavailable))
                         .font(.title2)
                         .foregroundStyle(.secondary)
                 }
             }
             if let ip = model.publicIP, let range = IPRange.displayText(for: ip) {
-                FieldRow(title: "Aralık") {
+                FieldRow(title: L10n.text(.networkRange)) {
                     Text(range)
                         .font(.body.monospaced())
                         .textSelection(.enabled)
                         .accessibilityIdentifier("publicIPRange")
                 }
             }
-            FieldRow(title: "Yerel IP'ler") {
+            FieldRow(title: L10n.text(.networkLocalIPs)) {
                 if model.lanAddresses.isEmpty {
                     Text(model.lastChecked == nil ? "—" : MessageCode.lanIPMissing.text)
                         .foregroundStyle(.secondary)
@@ -353,10 +353,10 @@ struct ContentView: View {
             Image(systemName: "doc.on.doc")
         }
         .buttonStyle(.borderless)
-        .help("Kopyala")
-        .accessibilityLabel("Kopyala")
+        .help(L10n.text(.actionCopy))
+        .accessibilityLabel(L10n.text(.actionCopy))
         if copiedKey == key {
-            Text("Kopyalandı").font(.caption).foregroundStyle(.secondary)
+            Text(L10n.text(.actionCopied)).font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -372,10 +372,10 @@ struct ContentView: View {
     // MARK: Servers
 
     private var serversCard: some View {
-        Card(title: "Sunucular") {
+        Card(title: L10n.text(.serversTitle)) {
             if model.servers.isEmpty {
                 VStack(spacing: 8) {
-                    Text("Henüz sunucu eklenmedi").foregroundStyle(.secondary)
+                    Text(L10n.text(.serversEmpty)).foregroundStyle(.secondary)
                     addServerButton
                 }
                 .frame(maxWidth: .infinity)
@@ -402,7 +402,7 @@ struct ContentView: View {
         Button {
             sheet = .add
         } label: {
-            Label("Sunucu Ekle", systemImage: "plus")
+            Label(L10n.text(.serverAdd), systemImage: "plus")
         }
     }
 
@@ -410,7 +410,7 @@ struct ContentView: View {
     private func sheetView(_ mode: SheetMode) -> some View {
         switch mode {
         case .add:
-            ServerFormSheet(title: "Sunucu Ekle", confirmTitle: "Ekle",
+            ServerFormSheet(title: L10n.text(.serverAdd), confirmTitle: L10n.text(.actionAdd),
                             onConfirm: { draft in
                                 model.addServer(draft)
                                 sheet = nil
@@ -418,7 +418,7 @@ struct ContentView: View {
                             onCancel: { sheet = nil })
         case .edit(let id):
             if let entry = model.servers.first(where: { $0.id == id }) {
-                ServerFormSheet(title: "Sunucuyu Düzenle", confirmTitle: "Tamam", draft: ServerDraft(entry: entry),
+                ServerFormSheet(title: L10n.text(.serverEditTitle), confirmTitle: L10n.text(.actionOK), draft: ServerDraft(entry: entry),
                                 onConfirm: { draft in
                                     model.updateServer(id: id, with: draft)
                                     sheet = nil
@@ -433,7 +433,7 @@ struct ContentView: View {
     @ViewBuilder
     private var reasonsSection: some View {
         if let reasons = model.report?.reasons, !reasons.isEmpty {
-            Card(title: "Gerekçeler") {
+            Card(title: L10n.text(.reasonsTitle)) {
                 ForEach(Array(reasons.enumerated()), id: \.offset) { _, reason in
                     // §14.2/1: primary message + secondary "→ suggestion" (gray, small).
                     VStack(alignment: .leading, spacing: 2) {
@@ -444,7 +444,7 @@ struct ContentView: View {
                                 .foregroundStyle(reason.severity.color)
                         }
                         .accessibilityElement(children: .combine)
-                        .accessibilityLabel("\(reason.severity.label): \(reason.message)")
+                        .accessibilityLabel(L10n.format(.a11yReason, reason.severity.label, reason.message))
 
                         Text(SuggestionText.secondaryLine(for: reason.code))
                             .font(.caption)
@@ -479,7 +479,7 @@ struct ServerRowView: View {
                 } else {
                     Image(systemName: "circle.dashed")
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("Kontrol edilmedi")
+                        .accessibilityLabel(L10n.text(.serverNotChecked))
                 }
             }
             .frame(width: 18)
@@ -487,21 +487,21 @@ struct ServerRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 12) {
                     Text(entry.label).fontWeight(.medium)
-                    Text("\(entry.host):\(String(entry.port))")
+                    Text(verbatim: "\(entry.host):\(String(entry.port))")
                         .font(.body.monospaced())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .fixedSize()
                 }
                 HStack(spacing: 8) {
-                    Text("Son kontrol: \(TimeText.format(entry.lastCheckedAt))")
+                    Text(L10n.format(.topbarLastCheck, TimeText.format(entry.lastCheckedAt)))
                     if let message = status?.message {
                         Text(message.text)
                     }
                     if let check = entry.banCheck,
                        case .rejectedUnknownType(let raw) = BanClassification.classify(check) {
                         // §17.9.2: server rejected, type unknown → the raw reply is shown.
-                        Text("\(BanClassification.unverifiedText): \(raw)")
+                        Text(BanClassification.unverifiedText + ": " + raw)
                     } else if let banMessage = entry.banCheck?.status.messageCode {
                         Text(banMessage.text)
                     }
@@ -516,7 +516,7 @@ struct ServerRowView: View {
                 BanColumn(check: entry.banCheck)
                 if let onFix {
                     // §17.7: "Fix" next to/below the ban icon.
-                    Button("Düzelt", action: onFix)
+                    Button(L10n.text(.actionFix), action: onFix)
                         .controlSize(.small)
                 }
             }
@@ -525,12 +525,12 @@ struct ServerRowView: View {
                 Button {
                     onCopy(cid)
                 } label: {
-                    Text(copied ? "Kopyalandı" : cid)
+                    Text(copied ? L10n.text(.actionCopied) : cid)
                         .font(.body.monospaced())
                         .frame(minWidth: 290, alignment: .trailing)
                 }
                 .buttonStyle(.plain)
-                .help("Kopyalamak için tıklayın")
+                .help(L10n.text(.serverCopyHint))
             } else {
                 Text("—").foregroundStyle(.secondary)
             }
@@ -539,8 +539,8 @@ struct ServerRowView: View {
                 Image(systemName: "minus.circle")
             }
             .buttonStyle(.borderless)
-            .help("Sil")
-            .accessibilityLabel("Sil")
+            .help(L10n.text(.actionDelete))
+            .accessibilityLabel(L10n.text(.actionDelete))
             .opacity(hovering ? 1 : 0)
             .disabled(!hovering)
         }
@@ -548,8 +548,8 @@ struct ServerRowView: View {
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
-            Button("Düzenle", action: onEdit)
-            Button("Sil", role: .destructive, action: onDelete)
+            Button(L10n.text(.actionEdit), action: onEdit)
+            Button(L10n.text(.actionDelete), role: .destructive, action: onDelete)
         }
     }
 }
@@ -569,7 +569,7 @@ struct BanColumn: View {
             .frame(minWidth: 120, alignment: .leading)
             .help(tooltip(check))
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Ban: \(check.status.label)")
+            .accessibilityLabel(L10n.format(.a11yBan, check.status.label))
         } else {
             Text("—")
                 .foregroundStyle(.secondary)
@@ -578,7 +578,7 @@ struct BanColumn: View {
     }
 
     private func tooltip(_ check: BanCheck) -> String {
-        let time = "Son kontrol: \(TimeText.format(check.checkedAt))"
+        let time = L10n.format(.topbarLastCheck, TimeText.format(check.checkedAt))
         return check.detail.isEmpty ? time : "\(time)\n\(check.detail)"
     }
 }
@@ -590,7 +590,7 @@ struct SuggestionsPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Ne yapmalı?").font(.headline)
+            Text(L10n.text(.topbarWhatToDo)).font(.headline)
             ForEach(Array(SuggestionText.numberedLines(for: reasons).enumerated()), id: \.offset) { _, line in
                 Text(line)
                     .fixedSize(horizontal: false, vertical: true)
@@ -599,9 +599,9 @@ struct SuggestionsPopover: View {
             HStack {
                 Spacer()
                 if copied {
-                    Text("Kopyalandı").font(.caption).foregroundStyle(.secondary)
+                    Text(L10n.text(.actionCopied)).font(.caption).foregroundStyle(.secondary)
                 }
-                Button("Kopyala") {
+                Button(L10n.text(.actionCopy)) {
                     Pasteboard.copy(SuggestionText.plainText(for: reasons))
                     copied = true
                 }

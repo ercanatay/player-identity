@@ -105,9 +105,9 @@ struct ServerDraft: Sendable, Equatable {
 
         var text: String {
             switch self {
-            case .labelEmpty: return "Etiket boş olamaz."
-            case .hostEmpty: return "Host boş olamaz."
-            case .portInvalid: return "Port 1–65535 arasında bir sayı olmalı."
+            case .labelEmpty: return L10n.text(.serverProblemLabelEmpty)
+            case .hostEmpty: return L10n.text(.serverProblemHostEmpty)
+            case .portInvalid: return L10n.text(.serverProblemPortInvalid)
             }
         }
     }

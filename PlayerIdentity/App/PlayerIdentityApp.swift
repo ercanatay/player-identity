@@ -7,7 +7,7 @@ struct PlayerIdentityApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        Window("Oyuncu Kimlik Kartı", id: "main") {
+        Window(L10n.text(.appWindowTitle), id: "main") {
             ContentView(model: appDelegate.model)
         }
         .defaultSize(width: 900, height: 760)
@@ -16,11 +16,11 @@ struct PlayerIdentityApp: App {
             // §6: the Refresh button is disabled while refreshing; ⌘R always works and,
             // if pressed during a refresh, cancels the previous one so the latest request wins.
             CommandGroup(before: .toolbar) {
-                Button("Yenile") { appDelegate.model.refresh() }
+                Button(L10n.text(.actionRefresh)) { appDelegate.model.refresh() }
                     .keyboardShortcut("r", modifiers: .command)
             }
             CommandGroup(replacing: .saveItem) {
-                Button("Kaydet") { appDelegate.model.save() }
+                Button(L10n.text(.actionSave)) { appDelegate.model.save() }
                     .keyboardShortcut("s", modifiers: .command)
             }
         }
@@ -53,10 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard model.hasUnsavedChanges else { return .terminateNow }
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Kaydetmeden çık?"
-        alert.informativeText = "Kaydedilmemiş değişiklikler kaybolacak."
-        alert.addButton(withTitle: "Kaydetmeden Çık")
-        alert.addButton(withTitle: "Vazgeç")
+        alert.messageText = L10n.text(.quitTitle)
+        alert.informativeText = L10n.text(.quitMessage)
+        alert.addButton(withTitle: L10n.text(.quitConfirm))
+        alert.addButton(withTitle: L10n.text(.actionCancel))
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 }

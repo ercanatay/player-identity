@@ -20,14 +20,14 @@ enum StatusLevel: Int, Sendable, Comparable, CaseIterable {
     /// §7.4 label.
     var label: String {
         switch self {
-        case .green: return "Tümü tamam"
-        case .orange: return "Dikkat"
-        case .red: return "Kritik hata"
+        case .green: return L10n.text(.statusGreenTitle)
+        case .orange: return L10n.text(.statusOrangeTitle)
+        case .red: return L10n.text(.statusRedTitle)
         }
     }
 }
 
-/// Message codes and texts (§10 verbatim). `lanIPMissing`, `nameEmpty`, `modelEmpty` exist as conditions
+/// Message codes; texts are localized (`error.*` keys, Turkish values verbatim from §10). `lanIPMissing`, `nameEmpty`, `modelEmpty` exist as conditions
 /// in §7.2 but have no text in §10; their texts are derived from the §7.2 wording.
 enum MessageCode: String, Sendable, CaseIterable {
     case identityMissing
@@ -52,28 +52,30 @@ enum MessageCode: String, Sendable, CaseIterable {
     case banUnknown
     case cidNotApplicable
 
-    var text: String {
+    var text: String { L10n.text(textKey) }
+
+    var textKey: L10nKey {
         switch self {
-        case .identityMissing: return "Kimlik dosyası bulunamadı. Oyun bir kez açıldıktan sonra tekrar deneyin."
-        case .identityInvalid: return "Kimlik dosyası geçersiz: 16 karakterlik hex bekleniyordu."
-        case .publicIPFailed: return "Genel IP alınamadı. İnternet bağlantısını kontrol edin."
-        case .snapshotMissing: return "Kayıt yok. Doğrulama için Kaydet'e basın."
-        case .snapshotCorrupt: return "Kayıt dosyası okunamadı; yeni kayıt oluşturabilirsiniz."
-        case .rawIDZero: return "Kimlik donanımdan türetilmemiş (paylaşımlı kimlik)."
-        case .nameChanged: return "Kullanıcı adı kayıttan farklı."
-        case .modelChanged: return "Oyuncu modeli kayıttan farklı."
-        case .publicIPChanged: return "Genel IP kayıttan farklı."
-        case .lanIPChanged: return "Yerel IP listesi kayıttan farklı."
-        case .serverCIDChanged: return "Sunucu CID'si kayıttan farklı."
-        case .invalidHost: return "Sunucu adresi geçersiz."
-        case .lanIPMissing: return "Yerel IP bulunamadı."
-        case .nameEmpty: return "Kullanıcı adı boş."
-        case .modelEmpty: return "Oyuncu modeli boş."
-        case .ipBanned: return "Sunucu bu IP'yi banlamış."
-        case .cidBanned: return "Sunucu bu CID'yi banlamış."
-        case .unreachable: return "Sunucuya erişilemedi (yanıt yok)."
-        case .banUnknown: return "Ban durumu belirlenemedi."
-        case .cidNotApplicable: return "CID kontrolü bu sunucuda uygulanamaz."
+        case .identityMissing: return .errorIdentityMissing
+        case .identityInvalid: return .errorIdentityInvalid
+        case .publicIPFailed: return .errorPublicIPFailed
+        case .snapshotMissing: return .errorSnapshotMissing
+        case .snapshotCorrupt: return .errorSnapshotCorrupt
+        case .rawIDZero: return .errorRawIDZero
+        case .nameChanged: return .errorNameChanged
+        case .modelChanged: return .errorModelChanged
+        case .publicIPChanged: return .errorPublicIPChanged
+        case .lanIPChanged: return .errorLanIPChanged
+        case .serverCIDChanged: return .errorServerCIDChanged
+        case .invalidHost: return .errorInvalidHost
+        case .lanIPMissing: return .errorLanIPMissing
+        case .nameEmpty: return .errorNameEmpty
+        case .modelEmpty: return .errorModelEmpty
+        case .ipBanned: return .errorIPBanned
+        case .cidBanned: return .errorCIDBanned
+        case .unreachable: return .errorUnreachable
+        case .banUnknown: return .errorBanUnknown
+        case .cidNotApplicable: return .errorCIDNotApplicable
         }
     }
 }

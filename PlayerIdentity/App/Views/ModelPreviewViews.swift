@@ -84,11 +84,11 @@ struct ModelPreviewView: View {
         .accessibilityLabel(accessibilityText)
     }
 
-    private var accessibilityText: String {
+    var accessibilityText: String {
         switch preview {
-        case .image?: return "Model önizlemesi: \(modelName)"
-        case .placeholder?: return "Model önizlemesi yok: \(modelName)"
-        case nil: return "Model önizlemesi yükleniyor: \(modelName)"
+        case .image?: return L10n.format(.a11yPreviewImage, modelName)
+        case .placeholder?: return L10n.format(.a11yPreviewPlaceholder, modelName)
+        case nil: return L10n.format(.a11yPreviewLoading, modelName)
         }
     }
 }
@@ -103,7 +103,7 @@ struct ModelPopUpButton: NSViewRepresentable {
     let onSelect: (String) -> Void
     let onManualEntry: () -> Void
 
-    static let manualEntryTitle = "Elle gir…"
+    static var manualEntryTitle: String { L10n.text(.profileModelManualEntry) }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -135,7 +135,7 @@ struct ModelPopUpButton: NSViewRepresentable {
             menu.addItem(manual)
         }
         button.menu = menu
-        button.setAccessibilityLabel("Oyuncu modeli: \(title)")
+        button.setAccessibilityLabel(L10n.format(.a11yProfileModel, title))
     }
 
     @MainActor

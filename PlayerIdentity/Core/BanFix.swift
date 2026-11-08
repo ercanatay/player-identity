@@ -157,9 +157,9 @@ enum FixProgress: Sendable, Equatable {
 
     var text: String {
         switch self {
-        case .renewingIP: return "IP yenileniyor…"
-        case .waitingForNetwork: return "Ağ bekleniyor…"
-        case .rechecking: return "Yeniden kontrol ediliyor…"
+        case .renewingIP: return L10n.text(.fixProgressRenewingIP)
+        case .waitingForNetwork: return L10n.text(.fixProgressWaitingForNetwork)
+        case .rechecking: return L10n.text(.fixProgressRechecking)
         }
     }
 }
@@ -172,10 +172,10 @@ enum FixFailure: Sendable, Equatable {
 
     var text: String {
         switch self {
-        case .publicIPUnavailable: return "Genel IP alınamadı; düzeltme başlatılmadı."
-        case .noDefaultRoute: return "Varsayılan ağ arayüzü bulunamadı; düzeltme başlatılmadı."
-        case .commandFailed: return "Ağ komutu başarısız oldu. Arayüz açık bırakıldı."
-        case .adminDeclined: return "Yönetici onayı verilmedi veya DHCP yenilenemedi."
+        case .publicIPUnavailable: return L10n.text(.fixFailurePublicIPUnavailable)
+        case .noDefaultRoute: return L10n.text(.fixFailureNoDefaultRoute)
+        case .commandFailed: return L10n.text(.fixFailureCommandFailed)
+        case .adminDeclined: return L10n.text(.fixFailureAdminDeclined)
         }
     }
 }
@@ -192,9 +192,9 @@ enum IPRange {
         }
     }
 
-    /// Display text, e.g. `<range label>: 198.51.100.0/24 · 198.51.0.0/16`.
+    /// Display text, e.g. `Range: 198.51.100.0/24 · 198.51.0.0/16`.
     static func displayText(for ip: String) -> String? {
-        ranges(for: ip).map { "Aralık: \($0.narrow) · \($0.wide)" }
+        ranges(for: ip).map { L10n.format(.networkRangeValue, $0.narrow, $0.wide) }
     }
 
     /// The CIDR if both IPs are in the same family and the same wide range (IPv4 `/16`, IPv6 `/48`).
@@ -235,50 +235,45 @@ enum IPFixOutcome: Sendable, Equatable {
     var message: String {
         switch self {
         case .resolved(let old, let new):
-            return "Çözüldü: IP değişti (\(old) → \(new)), ban kalktı."
+            return L10n.format(.fixOutcomeResolved, old, new)
         case .stillBanned:
-            return "Yeni IP de banlı olabilir (subnet/aralık banı) veya sunucu tüm aralığı engelliyor."
+            return L10n.text(.fixOutcomeStillBanned)
         case .rangeBanned(_, _, let cidr):
-            return "IP aralığı banı (\(cidr))"
+            return L10n.format(.fixOutcomeRangeBanned, cidr)
         case .ipUnchanged:
-            return "IP değişmedi."
+            return L10n.text(.fixOutcomeIPUnchanged)
         case .changedUnverified(let old, let new, let status):
             if status == .cidBanned {
-                return "IP değişti (\(old) → \(new)); IP engeli görünmüyor ama sunucu CID'yi banlamış."
+                return L10n.format(.fixOutcomeChangedCIDBanned, old, new)
             }
-            return "IP değişti (\(old) → \(new)); ban durumu doğrulanamadı."
+            return L10n.format(.fixOutcomeChangedUnverified, old, new)
         case .networkTimeout:
-            return "Ağ 45 sn içinde geri gelmedi. Arayüz açık bırakıldı; bağlantıyı kontrol edin."
+            return L10n.text(.fixOutcomeNetworkTimeout)
         case .failed(let failure):
             return failure.text
         case .cancelled:
-            return "Düzeltme iptal edildi. Arayüz açık bırakıldı."
+            return L10n.text(.fixOutcomeCancelled)
         }
     }
 
     /// Next steps for `ipUnchanged` (§17.2/5).
-    static let unchangedNextSteps = [
-        "Router arayüzünü açın; oradan PPPoE/WAN bağlantısını yeniden kurun.",
-        "VPN kullanın.",
-        "Ban süreli olabilir: birkaç saat sonra yeniden deneyin.",
-    ]
+    static var unchangedNextSteps: [String] {
+        [L10n.text(.fixUnchangedStep1), L10n.text(.fixUnchangedStep2), L10n.text(.fixUnchangedStep3)]
+    }
 
     /// `rangeBanned` suggestions (§17.10.3); there is no "renew IP" suggestion.
-    static let rangeBannedSuggestions = [
-        "IP yenilemek işe yaramaz; aynı aralıktasınız.",
-        "Farklı ağ dene: mobil hotspot (tethering) veya çıkışı farklı aralıkta olan VPN.",
-        "Sunucu yöneticisinden aralık banını kaldırmasını iste (itiraz metni aralık bilgisini içerir).",
-    ]
+    static var rangeBannedSuggestions: [String] {
+        [L10n.text(.fixRangeBannedSuggestion1), L10n.text(.fixRangeBannedSuggestion2),
+         L10n.text(.fixRangeBannedSuggestion3)]
+    }
 
     /// When the new IP in a different range is banned too (§17.10.2).
-    static let outOfRangeText = "Yeni IP de banlı; aralık dışı olduğu için CID/plugin banı olabilir."
+    static var outOfRangeText: String { L10n.text(.fixOutOfRange) }
 
     /// Possible causes for `stillBanned`, in order (§17.9.3). No automatic fix is suggested.
-    static let stillBannedReasons = [
-        "Aralık/subnet banı (IP banları kabadır, CGNAT havuzunu bile yakalayabilir).",
-        "Plugin/SQL banı (IP'den bağımsız).",
-        "sv_filterban davranışı.",
-    ]
+    static var stillBannedReasons: [String] {
+        [L10n.text(.fixStillBannedCause1), L10n.text(.fixStillBannedCause2), L10n.text(.fixStillBannedCause3)]
+    }
 }
 
 // MARK: - IP ban fixer (§17.2)
@@ -469,7 +464,7 @@ enum BanClassification: Sendable, Equatable {
     case notBan
     case unknown
 
-    static let unverifiedText = "Ban türü doğrulanamadı (plugin/SQL olabilir)"
+    static var unverifiedText: String { L10n.text(.banUnverified) }
 
     static func classify(_ check: BanCheck) -> BanClassification {
         switch check.status {
@@ -493,9 +488,9 @@ enum BanClassification: Sendable, Equatable {
     /// Check type in the appeal text (§17.9.1).
     var checkTypeText: String {
         switch self {
-        case .engineIP: return "engine IP (getchallenge)"
-        case .engineCID: return "engine CID (connect 49)"
-        case .rejectedUnknownType, .notBan, .unknown: return "bilinmiyor (plugin/SQL olabilir)"
+        case .engineIP: return L10n.text(.appealCheckTypeEngineIP)
+        case .engineCID: return L10n.text(.appealCheckTypeEngineCID)
+        case .rejectedUnknownType, .notBan, .unknown: return L10n.text(.appealCheckTypeUnknown)
         }
     }
 }
@@ -530,15 +525,10 @@ struct RangeBanInfo: Sendable, Equatable {
 }
 
 enum AppealText {
-    static let adminChecklist = [
-        "listid ve listip ile kaydı bulun.",
-        "Motor ID banı ise: removeid <id> + writeid.",
-        "Motor IP banı ise: removeip <ip> + writeip.",
-        "AMXX ise: amx_unban <ip> (yalnız IP) veya ban-manager menüsü.",
-        "SQL/AMXBans ise: panelden/DB'den silin.",
-        "sv_filterban değerini kontrol edin.",
-        "Sunucuyu yeniden başlatın, listid/listip ile doğrulayın ve oyuncuyu tekrar bağlanmaya çağırın.",
-    ]
+    static var adminChecklist: [String] {
+        [L10nKey.appealChecklistFind, .appealChecklistRemoveid, .appealChecklistRemoveip, .appealChecklistAmxx,
+         .appealChecklistSQL, .appealChecklistFilterban, .appealChecklistRestart].map(L10n.text)
+    }
 
     static func make(_ input: AppealInput, timeZone: TimeZone = .current) -> String {
         let local = DateFormatter()
@@ -549,27 +539,27 @@ enum AppealText {
         utc.timeZone = TimeZone(identifier: "UTC")
         let classification = BanClassification.classify(input.check)
         let raw = input.check.detail.isEmpty ? input.check.status.rawValue : input.check.detail
-        let rangeLine = input.rangeBan.map {
-            "\nMuhtemel aralık banı: \($0.cidr) (eski IP: \($0.oldIP), yeni IP: \($0.newIP))"
-            + "\nLütfen listip çıktısında bu aralığa ait bir girdi arayın (ör. \($0.cidr))."
-        } ?? ""
-        let checklist = adminChecklist.enumerated().map { "  \($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-        return """
-        Merhaba, yanlışlıkla banlandım, kaldırır mısınız?
-
-        Sunucu: \(input.serverLabel) (\(input.host):\(input.port))
-        Kontrol zamanı: \(local.string(from: input.checkedAt)) (yerel) / \(utc.string(from: input.checkedAt)) (UTC)
-        Oyuncu adı: \(input.playerName)
-        CID (uuid): \(input.cid)
-        Çıkış IP'si: \(input.publicIP)
-        İstemci: Xash3D FWGS, protokol 49, gamedir \(input.gamedir)
-        Sunucu cevabı: \(raw)
-        Kontrol türü: \(classification.checkTypeText)\(rangeLine)
-
-        Ban süreliyse bitiş zamanını ve gerekçesini paylaşabilir misiniz?
-
-        Yönetici için kontrol listesi:
-        \(checklist)
-        """
+        let rangeLines = input.rangeBan.map {
+            [L10n.format(.appealRangeBan, $0.cidr, $0.oldIP, $0.newIP), L10n.format(.appealRangeBanHint, $0.cidr)]
+        } ?? []
+        let checklist = adminChecklist.enumerated().map { "  \($0.offset + 1). \($0.element)" }
+        let lines: [String] = [
+            L10n.text(.appealGreeting),
+            "",
+            L10n.format(.appealServer, input.serverLabel, input.host, String(input.port)),
+            L10n.format(.appealCheckedAt, local.string(from: input.checkedAt), utc.string(from: input.checkedAt)),
+            L10n.format(.appealPlayerName, input.playerName),
+            L10n.format(.appealCID, input.cid),
+            L10n.format(.appealPublicIP, input.publicIP),
+            L10n.format(.appealClient, input.gamedir),
+            L10n.format(.appealServerReply, raw),
+            L10n.format(.appealCheckType, classification.checkTypeText),
+        ] + rangeLines + [
+            "",
+            L10n.text(.appealTimedBan),
+            "",
+            L10n.text(.appealChecklistTitle),
+        ] + checklist
+        return lines.joined(separator: "\n")
     }
 }

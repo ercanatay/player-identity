@@ -6,7 +6,7 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Toggle("Ban kontrolü", isOn: $model.banCheckEnabled)
+            Toggle(L10n.text(.settingsBanCheck), isOn: $model.banCheckEnabled)
         }
         .padding(20)
         .frame(width: 320)

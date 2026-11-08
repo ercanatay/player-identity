@@ -24,9 +24,9 @@ struct ServerFormSheet: View {
             Text(title).font(.title3.bold())
 
             Form {
-                TextField("Etiket", text: $draft.label)
-                TextField("Host (IP veya alan adı)", text: $draft.host)
-                TextField("Port", text: $draft.portText)
+                TextField(L10n.text(.serverFormLabel), text: $draft.label)
+                TextField(L10n.text(.serverFormHost), text: $draft.host)
+                TextField(L10n.text(.serverFormPort), text: $draft.portText)
             }
 
             if attempted, !draft.problems.isEmpty {
@@ -41,7 +41,7 @@ struct ServerFormSheet: View {
 
             HStack {
                 Spacer()
-                Button("Vazgeç", role: .cancel, action: onCancel)
+                Button(L10n.text(.actionCancel), role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Button(confirmTitle) {
                     attempted = true

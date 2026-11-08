@@ -19,7 +19,9 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination
 xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build test
 ```
 The `.xcodeproj` is generated and not tracked in git. Tests never touch the network or the user's real files
-(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **193** tests.
+(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **206** tests.
+The scheme runs tests with the Turkish test language (most assertions compare the Turkish source texts);
+`LocalizationTests` switch languages explicitly.
 
 ## Run
 ```sh
@@ -27,6 +29,12 @@ open .build/Build/Products/Debug/PlayerIdentity.app
 ```
 Ad-hoc signed; App Sandbox and hardened runtime are disabled. Bundle id: `tr.ercanatay.playeridentity`.
 One refresh runs at launch.
+
+Start in a specific language (see [Localization](#localization)):
+```sh
+open -n .build/Build/Products/Debug/PlayerIdentity.app --args -AppleLanguages '(en)'
+open -n .build/Build/Products/Debug/PlayerIdentity.app --args -AppleLanguages '(tr)'
+```
 
 | Shortcut | Action |
 |---|---|
@@ -164,13 +172,42 @@ opens a popover listing the suggestions for all current reasons; **Copy** puts t
 text. All suggestion texts live in one exhaustive mapping (`PlayerIdentity/Core/Suggestions.swift`); adding a reason
 code without a suggestion breaks the build.
 
+## Localization
+- **Languages:** Turkish (`tr`, the source texts) and English (`en`). App name: tr "Oyuncu Kimlik Kartı",
+  en "Player Identity" (`InfoPlist.strings`: `CFBundleDisplayName`, `CFBundleName`).
+- **Default:** the system language; any unsupported language falls back to English (`developmentRegion: en`,
+  `CFBundleLocalizations: [en, tr]`). Override per launch with `-AppleLanguages '(en)'` or `'(tr)'`.
+- **Keys:** English, `area.item` form, e.g. `status.green.title`, `error.identityMissing`, `suggestion.ipBanned`,
+  `fix.ipBan.step1`, `appeal.checklist.removeid`, `profile.model`, `network.range`, `server.add`, `a11y.ban`.
+  Every user-visible text goes through them: buttons, labels, titles, errors, suggestions, confirmations, sheets,
+  empty states, tooltips, menu commands, accessibility labels, the ban appeal text and the admin checklist.
+- **Code access:** `L10n.text(.statusGreenTitle)` / `L10n.format(.topbarLastCheck, time)`. Keys are cases of the
+  generated `L10nKey` enum, so a typo does not compile. Tests can resolve another language with
+  `L10n.$bundle.withValue(L10n.languageBundle("en")!) { … }`.
+- **Single source:** `tools/l10n_keys.py` holds every key with its Turkish and English value and generates
+  `PlayerIdentity/Core/L10nKey.swift` and `PlayerIdentity/Resources/<lang>.lproj/{Localizable,InfoPlist}.strings`.
+  Do not edit the generated files by hand.
+- **Checks (`LocalizationTests`):** every key has a non-empty value in every language and no table has extra keys;
+  placeholders match across languages; English values contain no Turkish letters; Turkish values match the spec
+  texts verbatim; English follows the glossary; language selection and fallback; accessibility labels; a source
+  scan that fails on user-facing string literals in `PlayerIdentity/App` and `PlayerIdentity/Core`.
+
+### Adding a language
+1. Add a column for the new language to each entry in `tools/l10n_keys.py` (and to `INFOPLIST`), and write it
+   out in `main()` like `tr`/`en`.
+2. Run `python3 tools/l10n_keys.py` to generate `PlayerIdentity/Resources/<lang>.lproj/`.
+3. Add the language code to `CFBundleLocalizations` in `project.yml`, then run `xcodegen generate`.
+4. Add the language to `LocalizationTests.languages` and run the tests.
+
 ## Project layout
 ```
 PlayerIdentity/
   App/            PlayerIdentityApp, AppModel, Views/
-  Core/           identity, config, CID, network, snapshot, status, ban check, fix, migration
+  Core/           identity, config, CID, network, snapshot, status, ban check, fix, migration, L10n
+  Resources/      tr.lproj, en.lproj (Localizable.strings, InfoPlist.strings; generated)
   Assets.xcassets
 PlayerIdentityTests/
+tools/            l10n_keys.py (localization source of truth)
 project.yml       XcodeGen spec
 ```
 

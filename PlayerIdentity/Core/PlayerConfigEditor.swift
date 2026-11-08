@@ -12,11 +12,11 @@ enum EditMessage: String, Error, Sendable, CaseIterable {
 
     var text: String {
         switch self {
-        case .nameInvalid: return "Kullanıcı adı 1–31 karakter olmalı; tırnak ve satır sonu kullanılamaz."
-        case .modelInvalid: return "Model adı yalnız harf, rakam, alt çizgi ve tire içerebilir."
-        case .gameRunning: return "Oyun açık. Değişiklikler çıkışta ezilir; önce oyunu kapatın."
-        case .writeFailed: return "Dosya yazılamadı. Yedekten geri yüklemek için tekrar deneyin."
-        case .configMissing: return "config.cfg bulunamadı; seçili gamedir doğru mu?"
+        case .nameInvalid: return L10n.text(.editNameInvalid)
+        case .modelInvalid: return L10n.text(.editModelInvalid)
+        case .gameRunning: return L10n.text(.editGameRunning)
+        case .writeFailed: return L10n.text(.editWriteFailed)
+        case .configMissing: return L10n.text(.editConfigMissing)
         }
     }
 }
@@ -64,7 +64,7 @@ enum PlayerOptions {
     static func modelOptions(available: [String], current: String) -> [ModelOption] {
         var options = available.map { ModelOption(value: $0, label: $0) }
         if !current.isEmpty, !available.contains(current) {
-            options.insert(ModelOption(value: current, label: "\(current) (mevcut)"), at: 0)
+            options.insert(ModelOption(value: current, label: L10n.format(.profileModelCurrent, current)), at: 0)
         }
         return options
     }

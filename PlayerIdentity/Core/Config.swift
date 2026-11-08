@@ -59,8 +59,8 @@ enum ConfigFileKind: String, Sendable, Equatable, CaseIterable {
     /// Source note shown in the UI.
     var note: String {
         switch self {
-        case .config: return "config.cfg"
-        case .userconfig: return "userconfig.cfg (config.cfg'yi ezer)"
+        case .config: return L10n.text(.profileSourceConfig)
+        case .userconfig: return L10n.text(.profileSourceUserconfig)
         }
     }
 }
