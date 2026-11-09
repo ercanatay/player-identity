@@ -38,6 +38,12 @@ struct PlayerIdentityApp: App {
         .defaultSize(width: 760, height: 480)
         .keyboardShortcut("y", modifiers: .command)
 
+        // §38 ban matrix (servers × ban types, CSV export, copy).
+        Window(L10n.text(.banMatrixTitle), id: "banMatrix") {
+            BanMatrixView(model: appDelegate.model)
+        }
+        .defaultSize(width: 860, height: 420)
+
         Settings {
             SettingsView(model: appDelegate.model)
                 .id(appDelegate.model.appLanguage)

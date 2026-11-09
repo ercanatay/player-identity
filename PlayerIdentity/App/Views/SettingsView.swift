@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Settings: General (§13.1 ban check, §23 notifications) and Updates (§27.3, §28.2).
 struct SettingsView: View {
@@ -74,9 +75,63 @@ struct GeneralSettingsView: View {
                         .accessibilityIdentifier("loginItemError")
                 }
             }
+            Divider()
+            DiagnosticsSettingsRow(model: model)
         }
         .padding(20)
         .onAppear { model.refreshLoginItemStatus() }
+    }
+}
+
+/// §41 "Teşhis paketi oluştur…": ZIP via NSSavePanel; the note says what is masked.
+struct DiagnosticsSettingsRow: View {
+    @Bindable var model: AppModel
+    @State private var message: String?
+    @State private var isError = false
+    @State private var isWorking = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Button(L10n.text(.diagnosticsCreate), action: create)
+                    .disabled(isWorking)
+                    .accessibilityIdentifier("diagnosticsCreate")
+                if isWorking { ProgressView().controlSize(.small) }
+            }
+            Text(L10n.text(.diagnosticsNote))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 480, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            if let message {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(isError ? Color.red : Color.secondary)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("diagnosticsMessage")
+            }
+        }
+    }
+
+    private func create() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.zip]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = DiagnosticsBundle.defaultFileName(now: model.now)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        isWorking = true
+        Task {
+            let data = await model.diagnosticsArchive()
+            do {
+                try data.write(to: url, options: .atomic)
+                message = L10n.format(.diagnosticsSaved, url.path)
+                isError = false
+            } catch {
+                message = L10n.format(.diagnosticsFailed, error.localizedDescription)
+                isError = true
+            }
+            isWorking = false
+        }
     }
 }
 

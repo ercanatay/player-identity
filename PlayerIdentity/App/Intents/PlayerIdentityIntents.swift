@@ -2,7 +2,7 @@ import AppIntents
 import Foundation
 
 // §41 App Intents / Shortcuts: "Check server ban", "Show my CID", "Refresh".
-// Titles are localization keys; the texts are added with the UI part (Localizable.strings).
+// Titles are keys of Localizable.strings (system language); spoken/shown results use the app language (L10n).
 
 /// Where the intents read their data (the live record by default; tests replace it).
 enum IntentEnvironment {
@@ -112,8 +112,10 @@ struct CheckServerBanIntent: AppIntent {
         self.server = server
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<String> {
-        .result(value: try await IntentRunner.checkBan(server))
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
+        let status = try await IntentRunner.checkBan(server)
+        let label = BanStatus(rawValue: status)?.label ?? status
+        return .result(value: status, dialog: IntentDialog(stringLiteral: L10n.format(.intentDialogBan, server.label, label)))
     }
 }
 
@@ -129,8 +131,9 @@ struct ShowCIDIntent: AppIntent {
         self.server = server
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<String> {
-        .result(value: try await IntentRunner.cid(server))
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
+        let cid = try await IntentRunner.cid(server)
+        return .result(value: cid, dialog: IntentDialog(stringLiteral: L10n.format(.intentDialogCID, server.label, cid)))
     }
 }
 
@@ -143,8 +146,25 @@ struct RefreshIntent: AppIntent {
     init() {}
 
     @MainActor
-    func perform() async throws -> some IntentResult & ReturnsValue<String> {
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
         await model.refresh().value
-        return .result(value: model.report.map { HistoryTransitions.levelName($0.overall) } ?? "")
+        let level = model.report?.overall
+        let text = L10n.format(.intentDialogRefresh, level?.label ?? L10n.text(.topbarNotChecked))
+        return .result(value: level.map(HistoryTransitions.levelName) ?? "", dialog: IntentDialog(stringLiteral: text))
+    }
+}
+
+/// Shortcuts and Siri (3 shortcuts). Phrases are keys of `AppShortcuts.strings` (tr/en).
+struct PlayerIdentityShortcuts: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(intent: CheckServerBanIntent(),
+                    phrases: ["intent.phrase.checkBan \(.applicationName)", "intent.phrase.checkBanShort \(.applicationName)"],
+                    shortTitle: LocalizedStringResource("intent.short.checkBan"), systemImageName: "shield.lefthalf.filled")
+        AppShortcut(intent: ShowCIDIntent(),
+                    phrases: ["intent.phrase.showCID \(.applicationName)"],
+                    shortTitle: LocalizedStringResource("intent.short.showCID"), systemImageName: "person.text.rectangle")
+        AppShortcut(intent: RefreshIntent(),
+                    phrases: ["intent.phrase.refresh \(.applicationName)"],
+                    shortTitle: LocalizedStringResource("intent.short.refresh"), systemImageName: "arrow.clockwise")
     }
 }

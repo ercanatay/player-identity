@@ -4,6 +4,7 @@ import SwiftUI
 /// Single-window UI (§8).
 struct ContentView: View {
     @Bindable var model: AppModel
+    @Environment(\.openWindow) private var openWindow
 
     @State private var sheet: SheetMode?
     @State private var copiedKey: String?
@@ -387,6 +388,7 @@ struct ContentView: View {
                     }
                 }
             }
+            InterfacesSection(report: model.interfaceReport, publicIP: model.publicIP)
         }
     }
 
@@ -427,7 +429,16 @@ struct ContentView: View {
                 .padding(.vertical, 8)
             } else {
                 ServerSectionsView(model: model, copiedKey: copiedKey, makeActions: rowActions)
-                addServerButton
+                HStack {
+                    addServerButton
+                    // §38 ban matrix window
+                    Button {
+                        openWindow(id: "banMatrix")
+                    } label: {
+                        Label(L10n.text(.banMatrixOpen), systemImage: "tablecells")
+                    }
+                    .accessibilityIdentifier("openBanMatrix")
+                }
             }
         }
     }

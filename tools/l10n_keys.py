@@ -444,12 +444,112 @@ KEYS = [
     ("languageTurkish", "language.tr", "Türkçe", "Türkçe"),
     ("languageEnglish", "language.en", "English", "English"),
     ("settingsLanguageNote", "settings.language.note", "Uygulama adı (Dock ve menü çubuğu) sistem diline bağlıdır; buradan değişmez.", "The app name (Dock and menu bar) follows the system language and does not change here."),
+
+    # v2.2: appeal tracking (§36)
+    ("appealTimeline", "appeal.timeline", "Zaman çizelgesi", "Timeline"),
+    ("appealPostpone", "appeal.postpone", "Takip tarihini ertele", "Postpone follow-up"),
+    ("appealPostponeOneDay", "appeal.postpone.oneDay", "+1 gün", "+1 day"),
+    ("appealPostponeThreeDays", "appeal.postpone.threeDays", "+3 gün", "+3 days"),
+    ("appealReminderTitle", "appeal.reminder.title", "İtiraz takibi: %@", "Appeal follow-up: %@"),
+    ("appealReminderBody", "appeal.reminder.body", "Takip tarihi geldi (%@). İtiraz durumu: %@.", "The follow-up date has come (%@). Appeal status: %@."),
+    ("historyKindNote", "history.kind.note", "Not değişti", "Note changed"),
+
+    # v2.2: interfaces and VPN (§37)
+    ("networkInterfaces", "network.interfaces", "Arayüzler", "Interfaces"),
+    ("networkInterfacesEmpty", "network.interfaces.empty", "Arayüz bulunamadı.", "No interfaces found."),
+    ("networkInterfaceActive", "network.interface.active", "Aktif", "Active"),
+    ("networkInterfaceInactive", "network.interface.inactive", "Pasif", "Inactive"),
+    ("networkInterfaceVPN", "network.interface.vpn", "VPN", "VPN"),
+    ("networkInterfaceEgress", "network.interface.egress", "Çıkış arayüzü", "Egress interface"),
+    ("networkEgress", "network.egress", "Çıkış", "Egress"),
+    ("networkVPN", "network.vpn", "VPN durumu", "VPN status"),
+    ("networkVPNActive", "network.vpn.active", "VPN aktif", "VPN active"),
+    ("networkVPNNone", "network.vpn.none", "VPN yok", "No VPN"),
+    ("networkVPNWarning", "network.vpn.warning", "VPN aktif — ban sonucu VPN çıkışına aittir.", "VPN active — the ban result belongs to the VPN exit."),
+
+    # v2.2: ban matrix (§38)
+    ("banMatrixTitle", "banMatrix.title", "Ban matrisi", "Ban Matrix"),
+    ("banMatrixOpen", "banMatrix.open", "Ban matrisi…", "Ban Matrix…"),
+    ("banMatrixServer", "banMatrix.server", "Sunucu", "Server"),
+    ("banMatrixAddress", "banMatrix.address", "Adres", "Address"),
+    ("banMatrixIPBan", "banMatrix.ipBan", "IP banı", "IP ban"),
+    ("banMatrixCIDBan", "banMatrix.cidBan", "CID banı", "CID ban"),
+    ("banMatrixRange", "banMatrix.range", "Aralık", "Range"),
+    ("banMatrixLastCheck", "banMatrix.lastCheck", "Son kontrol", "Last check"),
+    ("banMatrixCellBanned", "banMatrix.cell.banned", "Ban var", "Banned"),
+    ("banMatrixCellClear", "banMatrix.cell.clear", "Yok", "Clear"),
+    ("banMatrixCellUnknown", "banMatrix.cell.unknown", "Belirsiz", "Unknown"),
+    ("banMatrixCellNotApplicable", "banMatrix.cell.notApplicable", "Uygulanamaz", "Not applicable"),
+    ("banMatrixCount", "banMatrix.count", "%@ sunucu · %@ banlı", "%@ servers · %@ banned"),
+    ("banMatrixEmpty", "banMatrix.empty", "Henüz sunucu yok.", "No servers yet."),
+    ("banMatrixExportCSV", "banMatrix.exportCSV", "CSV dışa aktar…", "Export CSV…"),
+    ("exportSaved", "export.saved", "Dışa aktarıldı: %@", "Exported: %@"),
+    ("exportFailed", "export.failed", "Dışa aktarılamadı: %@", "Could not export: %@"),
+
+    # v2.2: ping/uptime charts (§39)
+    ("metricsTitle", "metrics.title", "Ping ve uptime (son 24 saat)", "Ping and uptime (last 24 hours)"),
+    ("metricsUptime", "metrics.uptime", "Son 24 saat uptime: %@", "Uptime, last 24 hours: %@"),
+    ("metricsNoData", "metrics.noData", "Son 24 saatte veri yok.", "No data in the last 24 hours."),
+    ("metricsPing", "metrics.ping", "Ping (ms)", "Ping (ms)"),
+    ("metricsPlayers", "metrics.players", "Oyuncular", "Players"),
+    ("metricsTime", "metrics.time", "Saat", "Time"),
+
+    # v2.2: ban list URL (§40)
+    ("banListTitle", "banList.title", "Ban listesi", "Ban list"),
+    ("banListField", "banList.field", "URL şablonu", "URL template"),
+    ("banListHint", "banList.hint", "Örn. https://panel.example.com/bans?q={cid} · yer tutucular: {cid}, {ip}, {host}, {port}", "E.g. https://panel.example.com/bans?q={cid} · placeholders: {cid}, {ip}, {host}, {port}"),
+    ("banListSearch", "banList.search", "Ban listesinde ara", "Search Ban List"),
+    ("banListErrorEmpty", "banList.error.empty", "URL şablonu girin.", "Enter a URL template."),
+    ("banListErrorHTTPS", "banList.error.https", "Adres https:// ile başlamalı.", "The address must start with https://."),
+    ("banListErrorPlaceholder", "banList.error.placeholder", "En az bir yer tutucu gerekli: {cid}, {ip}, {host} veya {port}.", "At least one placeholder is required: {cid}, {ip}, {host} or {port}."),
+    ("banListErrorUnknown", "banList.error.unknown", "Bilinmeyen yer tutucu: {%@}", "Unknown placeholder: {%@}"),
+    ("banListErrorInvalid", "banList.error.invalid", "Geçerli bir URL değil.", "Not a valid URL."),
+    ("banListErrorMissing", "banList.error.missing", "Bu sunucu için {%@} değeri henüz yok; önce Yenile'ye basın.", "There is no {%@} value for this server yet; press Refresh first."),
+
+    # v2.2: diagnostics package (§41)
+    ("diagnosticsCreate", "diagnostics.create", "Teşhis paketi oluştur…", "Create Diagnostics Package…"),
+    ("diagnosticsNote", "diagnostics.note", "ZIP; sürüm ve sistem bilgisi, maskelenmiş kayıt (IP adresleri ve ev klasörü gizlenir), son geçmiş ve metrik satırları ile güncelleme durumunu içerir. Oyun dosyaları eklenmez.", "ZIP with version and system info, the masked record (IP addresses and the home folder are hidden), recent history and metrics lines and the update state. No game files are included."),
+    ("diagnosticsSaved", "diagnostics.saved", "Teşhis paketi kaydedildi: %@", "Diagnostics package saved: %@"),
+    ("diagnosticsFailed", "diagnostics.failed", "Teşhis paketi kaydedilemedi: %@", "Could not save the diagnostics package: %@"),
+
+    # v2.2: App Intents / Shortcuts (§41); keys are referenced by LocalizedStringResource in the intents
+    ("intentCheckBanTitle", "intent.checkBan.title", "Sunucu banını kontrol et", "Check Server Ban"),
+    ("intentShowCIDTitle", "intent.showCID.title", "CID'imi göster", "Show My CID"),
+    ("intentRefreshTitle", "intent.refresh.title", "Yenile", "Refresh"),
+    ("intentCheckBanShort", "intent.short.checkBan", "Ban kontrolü", "Ban Check"),
+    ("intentShowCIDShort", "intent.short.showCID", "CID'im", "My CID"),
+    ("intentRefreshShort", "intent.short.refresh", "Durumu yenile", "Refresh Status"),
+    ("intentServerType", "intent.server.type", "Sunucu", "Server"),
+    ("intentParameterServer", "intent.parameter.server", "Sunucu", "Server"),
+    ("intentDialogBan", "intent.dialog.ban", "%@: %@", "%@: %@"),
+    ("intentDialogCID", "intent.dialog.cid", "%@ için CID: %@", "CID for %@: %@"),
+    ("intentDialogRefresh", "intent.dialog.refresh", "Durum: %@", "Status: %@"),
+    ("intentErrorNoRecord", "intent.error.noRecord", "Kayıt yok. Uygulamada Yenile ve Kaydet'e basın.", "No record. Press Refresh and Save in the app."),
+    ("intentErrorNoServers", "intent.error.noServers", "Kayıtta sunucu yok.", "The record has no servers."),
+    ("intentErrorServerNotFound", "intent.error.serverNotFound", "Sunucu bulunamadı.", "Server not found."),
+    ("intentErrorAmbiguous", "intent.error.ambiguous", "Birden fazla sunucu eşleşti; sunucuyu seçin.", "More than one server matches; choose the server."),
+    ("intentErrorIdentityMissing", "intent.error.identityMissing", "Kimlik dosyası bulunamadı; CID hesaplanamıyor.", "No identity file was found; the CID cannot be computed."),
+    ("intentErrorResolution", "intent.error.resolution", "Sunucu adresi çözümlenemedi.", "The server address could not be resolved."),
 ]
 
 INFOPLIST = {
     "tr": {"CFBundleDisplayName": "Oyuncu Kimlik Kartı", "CFBundleName": "Oyuncu Kimlik Kartı"},
     "en": {"CFBundleDisplayName": "Player Identity", "CFBundleName": "Player Identity"},
 }
+
+
+# §41 Siri / Shortcuts phrases (AppShortcuts.strings). The key is the phrase written in the code,
+# with `${applicationName}` for `\(.applicationName)`.
+SHORTCUT_PHRASES = [
+    ("intent.phrase.checkBan ${applicationName}",
+     "${applicationName} ile sunucu banını kontrol et", "Check server ban with ${applicationName}"),
+    ("intent.phrase.checkBanShort ${applicationName}",
+     "${applicationName} ban kontrolü", "${applicationName} ban check"),
+    ("intent.phrase.showCID ${applicationName}",
+     "${applicationName} ile CID'imi göster", "Show my CID with ${applicationName}"),
+    ("intent.phrase.refresh ${applicationName}",
+     "${applicationName} durumunu yenile", "Refresh ${applicationName}"),
+]
 
 
 def escape(text):
@@ -485,6 +585,9 @@ def main():
         info = ["/* Generated by tools/l10n_keys.py — do not edit by hand. */", ""]
         info += [f'"{k}" = "{escape(v)}";' for k, v in INFOPLIST[lang].items()]
         write(f"PlayerIdentity/Resources/{lang}.lproj/InfoPlist.strings", "\n".join(info) + "\n")
+        phrases = ["/* Generated by tools/l10n_keys.py — do not edit by hand. */", ""]
+        phrases += [f'"{key}" = "{escape(p[index - 1])}";' for p in SHORTCUT_PHRASES for key in [p[0]]]
+        write(f"PlayerIdentity/Resources/{lang}.lproj/AppShortcuts.strings", "\n".join(phrases) + "\n")
     print(f"{len(KEYS)} keys")
 
 

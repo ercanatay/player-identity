@@ -390,6 +390,7 @@ final class AppModel {
         isRefreshing = false
         reevaluate()
         if includeNetwork { recordRefreshHistory() }
+        checkAppealReminders()
     }
 
     /// Recomputes the status from current data without network requests (§8). No evaluation before the first full refresh.
@@ -525,7 +526,34 @@ final class AppModel {
 
     func markAppealsNotified(_ ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
-        servers = AppealReminder.markNotified(ids, in: servers, at: deps.now())
+        let now = deps.now()
+        servers = AppealReminder.markNotified(ids, in: servers, at: now)
+        // The reminder must not come back after a relaunch: `notifiedAt` goes straight into the saved record
+        // (only for appeals already saved with the same follow-up date). It is not an "unsaved" change.
+        guard var saved = snapshotState.snapshot else { return }
+        var changed = false
+        for index in saved.servers.indices where ids.contains(saved.servers[index].id) {
+            guard let stored = saved.servers[index].appeal,
+                  stored.followUpAt == servers.first(where: { $0.id == saved.servers[index].id })?.appeal?.followUpAt else { continue }
+            saved.servers[index].appeal?.notifiedAt = now
+            changed = changed || stored.notifiedAt != now
+        }
+        guard changed, (try? deps.snapshotStore.save(saved)) != nil else { return }
+        snapshotState = .loaded(saved)
+    }
+
+    /// §36: posts "İtiraz takibi: <server>" once per follow-up date (launch, refresh, menu bar timer).
+    @discardableResult
+    func checkAppealReminders() -> Task<Void, Never>? {
+        let due = dueAppealReminders()
+        guard !due.isEmpty else { return nil }
+        let contents = due.compactMap { item in
+            servers.first { $0.id == item.serverID }?.appeal.map { AppealReminderText.content(for: item, status: $0.status) }
+        }
+        markAppealsNotified(Set(due.map(\.serverID)))
+        let dispatcher = notificationDispatcher
+        let enabled = notificationsEnabled
+        return Task { await dispatcher.handle(contents, enabled: enabled) }
     }
 
     // MARK: §38 ban matrix
@@ -714,6 +742,7 @@ final class AppModel {
     /// Called once by the app (not in tests): starts the 30-minute refresh if the menu bar mode is on.
     func activateBackgroundTasks() {
         backgroundTasksActive = true
+        checkAppealReminders()
         if menuBarEnabled { startMenuBarRefresh() }
     }
 
@@ -740,8 +769,11 @@ final class AppModel {
         guard let delay = MenuBarRefreshSchedule.delay(lastRefresh: lastChecked, now: deps.now(), enabled: menuBarEnabled) else {
             return nil
         }
-        guard delay <= 0 else { return delay }
-        if !isRefreshing { refresh() }
+        guard delay <= 0 else {
+            checkAppealReminders()
+            return delay
+        }
+        if !isRefreshing { refresh() }   // the refresh checks the reminders when it finishes
         return MenuBarRefreshSchedule.interval
     }
 

@@ -216,6 +216,81 @@ final class UIEvidenceTests: XCTestCase {
                    size: CGSize(width: 900, height: 420), name: "v2-history-appeal")
     }
 
+    /// v2.2 screens (§36–§41): interfaces/VPN, ban matrix + CSV, appeal timeline + postpone, ban list field,
+    /// ping/player charts, diagnostics in Settings.
+    func testRenderV22Screens() async throws {
+        let env = try TestAppEnvironment()
+        let clock = env.clock
+        let udp = FakeUDPTransport(clock: clock) { endpoint, packet in
+            switch endpoint.address {
+            case TestAddresses.v4("192.0.2.30"):
+                return FakeServer.scripted(challenge: FakeReply(bytes: FakeServer.oob(0x6C, Array("You are banned".utf8))))(endpoint, packet)
+            case TestAddresses.v4("192.0.2.40"):
+                return FakeServer.scripted(connect: FakeReply(bytes: FakeServer.oobText("errormsg\nKicked by plugin\n")))(endpoint, packet)
+            default:
+                return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))(endpoint, packet)
+            }
+        }
+        let records: [InterfaceRecord] = [
+            InterfaceFixture.link("en0"), InterfaceFixture.v4("en0", "192.0.2.11"), InterfaceFixture.v6("en0", "2001:db8::10"),
+            InterfaceFixture.link("en1", up: false), InterfaceFixture.v4("en1", "192.0.2.10", up: false),
+            InterfaceFixture.link("utun4"), InterfaceFixture.v4("utun4", "10.8.0.2"),
+            InterfaceFixture.link("bridge100"), InterfaceFixture.v4("bridge100", "192.0.2.64"),
+        ]
+        let model = env.makeModel(udp: udp) { deps in
+            deps.interfaceReporter = InterfaceReporter(lister: FakeInterfaceLister(records), egress: FakeEgressRoute("utun4"))
+        }
+        model.addServer(ServerDraft(label: "POLIGON RPG", host: "192.0.2.10"))
+        model.addServer(ServerDraft(label: "Zombie TR", host: "192.0.2.30"))
+        model.addServer(ServerDraft(label: "Plugin EU", host: "192.0.2.40"))
+        model.addServer(ServerDraft(label: "Surf, Classic", host: "192.0.2.50"))
+        await model.refresh().value
+        let ids = model.servers.map(\.id)
+        XCTAssertEqual(model.interfaceReport?.isVPNActive, true)
+
+        // Appeal with a timeline and a passed follow-up date; a ban list template.
+        let sent = clock.now.addingTimeInterval(-6 * 86_400)
+        model.saveAppeal(Appeal(sentAt: sent, channel: .discord, followUpAt: clock.now.addingTimeInterval(-86_400),
+                                summary: "IP ban; CID unchanged."), for: ids[1])
+        clock.advance(60)
+        model.saveAppeal(try XCTUnwrap(model.servers[1].appeal?.moved(to: .answered)), for: ids[1])
+        model.setBanListURL("https://panel.example.com/bans?q={cid}&ip={ip}", for: ids[1])
+
+        try render(ContentView(model: model), size: CGSize(width: 1000, height: 1400), name: "v22-main")
+
+        let history = [HistoryEntry(ts: clock.now, kind: .fixAttempt, serverID: ids[1], host: "192.0.2.30",
+                                    old: "198.51.100.7", new: "198.51.23.9", note: "rangeBanned")]
+        let rows = BanMatrix.rows(servers: model.servers, rangeBans: BanMatrix.rangeBans(from: history))
+        try render(BanMatrixView(model: model, fixedRows: rows), size: CGSize(width: 900, height: 330), name: "v22-ban-matrix")
+        try render(BanMatrixView(model: model, fixedRows: []), size: CGSize(width: 900, height: 200), name: "v22-ban-matrix-empty")
+        try Data(CSV.encode(BanMatrixText.table(rows)).utf8)
+            .write(to: directory.appendingPathComponent("v22-ban-matrix-\(language).csv"))
+
+        // 24 h of samples every 30 minutes: ping wave, players, two offline checks.
+        let samples: [MetricSample] = (0..<48).map { index in
+            let ts = clock.now.addingTimeInterval(-Double(47 - index) * 1800)
+            let offline = index == 20 || index == 21
+            return MetricSample(ts: ts, serverID: ids[1], host: "192.0.2.30", online: !offline,
+                                ping: offline ? nil : 35 + (index * 7) % 40, players: offline ? nil : 4 + (index * 5) % 22,
+                                maxPlayers: 32, map: "zm_dust")
+        }
+        try render(ServerDetailSheet(model: model, serverID: ids[1], onClose: {}, metrics: samples, maxContentHeight: 1400),
+                   size: CGSize(width: 620, height: 1250), name: "v22-details")
+        try render(MetricsSection(samples: [], serverID: ids[0], now: clock.now).padding(20),
+                   size: CGSize(width: 620, height: 130), name: "v22-metrics-empty")
+        model.setBanListURL("", for: ids[2])
+        try render(ServerDetailSheet(model: model, serverID: ids[2], onClose: {}, metrics: [], maxContentHeight: 1400),
+                   size: CGSize(width: 620, height: 760), name: "v22-details-empty")
+        try render(ServerDetailSheet(model: model, serverID: ids[2], onClose: {}, metrics: [], maxContentHeight: 1400,
+                                     banListDraft: "http://panel.example.com/bans?q={steamid}"),
+                   size: CGSize(width: 620, height: 760), name: "v22-banlist-invalid")
+        try render(GeneralSettingsView(model: model), size: CGSize(width: 600, height: 480), name: "v22-settings-general")
+
+        let zip = await model.diagnosticsArchive(appInfo: DiagnosticsAppInfo(version: "2.2.0", build: "22", osVersion: "Version 26.1",
+                                                                            architecture: "arm64", language: language))
+        try zip.write(to: directory.appendingPathComponent("v22-diagnostics-\(language).zip"))
+    }
+
     private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)

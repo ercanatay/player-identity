@@ -43,7 +43,7 @@ struct AppealDraft: Equatable {
     }
 }
 
-/// §32 row details: notes (at most 2000 characters) and the appeal record.
+/// Row details: notes (§32), appeal + timeline + postpone (§32, §36), ping/uptime charts (§39), ban list URL (§40).
 struct ServerDetailSheet: View {
     @Bindable var model: AppModel
     let serverID: UUID
@@ -53,13 +53,24 @@ struct ServerDetailSheet: View {
     @State private var draft: AppealDraft?
     @State private var appealError: String?
     @State private var copied = false
+    @State private var banListText: String
+    @State private var banListError: String?
+    @State private var samples: [MetricSample]
+    private let fixedSamples: [MetricSample]?
+    private let maxContentHeight: CGFloat
 
-    init(model: AppModel, serverID: UUID, onClose: @escaping () -> Void, editingAppeal: AppealDraft? = nil) {
+    init(model: AppModel, serverID: UUID, onClose: @escaping () -> Void, editingAppeal: AppealDraft? = nil,
+         metrics: [MetricSample]? = nil, maxContentHeight: CGFloat = 620, banListDraft: String? = nil) {
+        self.maxContentHeight = maxContentHeight
         self.model = model
         self.serverID = serverID
         self.onClose = onClose
-        _note = State(initialValue: model.servers.first { $0.id == serverID }?.note ?? "")
+        let entry = model.servers.first { $0.id == serverID }
+        _note = State(initialValue: entry?.note ?? "")
         _draft = State(initialValue: editingAppeal)
+        _banListText = State(initialValue: banListDraft ?? entry?.banListURL ?? "")
+        _samples = State(initialValue: metrics ?? [])
+        fixedSamples = metrics
     }
 
     private var entry: ServerEntry? { model.servers.first { $0.id == serverID } }
@@ -69,23 +80,74 @@ struct ServerDetailSheet: View {
             Text(L10n.format(.serverDetailsTitle, entry?.label ?? ""))
                 .font(.title3.bold())
 
-            notesSection
-            Divider()
-            appealSection
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    notesSection
+                    Divider()
+                    appealSection
+                    Divider()
+                    banListSection
+                    Divider()
+                    MetricsSection(samples: samples, serverID: serverID, now: model.now)
+                }
+                .padding(.trailing, 8)
+            }
+            .frame(maxHeight: maxContentHeight)
 
             HStack {
                 Spacer()
                 Button(L10n.text(.actionCancel), role: .cancel, action: onClose)
                     .keyboardShortcut(.cancelAction)
-                Button(L10n.text(.actionOK)) {
-                    if model.setNote(note, for: serverID) == nil { onClose() }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!ServerNote.isValid(note) || draft != nil)
+                Button(L10n.text(.actionOK), action: confirm)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!ServerNote.isValid(note) || draft != nil)
             }
         }
         .padding(20)
-        .frame(width: 560)
+        .frame(width: 620)
+        .task {
+            if fixedSamples == nil { samples = await model.loadMetrics() }
+        }
+    }
+
+    /// Note and ban list URL are applied together; an invalid URL keeps the sheet open.
+    private func confirm() {
+        if let error = model.setBanListURL(banListText, for: serverID) {
+            banListError = BanListText.error(error)
+            return
+        }
+        if model.setNote(note, for: serverID) == nil { onClose() }
+    }
+
+    // MARK: Ban list (§40)
+
+    private var banListSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.text(.banListTitle)).font(.headline)
+            TextField(L10n.text(.banListField), text: $banListText)
+                .textFieldStyle(.roundedBorder)
+                .font(.callout.monospaced())
+                .accessibilityIdentifier("banListField")
+                .onChange(of: banListText) { banListError = nil }
+            Text(L10n.text(.banListHint)).font(.caption).foregroundStyle(.secondary)
+            if let problem = Self.validationText(banListText) ?? banListError {
+                Text(problem).font(.callout).foregroundStyle(.red).accessibilityIdentifier("banListError")
+            }
+            Button(L10n.text(.banListSearch)) {
+                if let error = model.setBanListURL(banListText, for: serverID) ?? model.openBanList(for: serverID) {
+                    banListError = BanListText.error(error)
+                }
+            }
+            .disabled(banListText.trimmingCharacters(in: .whitespaces).isEmpty || Self.validationText(banListText) != nil)
+            .accessibilityIdentifier("banListSearch")
+        }
+    }
+
+    /// Live validation while typing; empty = no template (no error).
+    static func validationText(_ template: String) -> String? {
+        guard !template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        if case .failure(let error) = BanListTemplate.validate(template) { return BanListText.error(error) }
+        return nil
     }
 
     // MARK: Notes
@@ -168,6 +230,22 @@ struct ServerDetailSheet: View {
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            timeline(appeal)
+            if appeal.status.isOpen {
+                // §36 "Takip tarihini ertele"
+                HStack(spacing: 8) {
+                    Text(L10n.text(.appealPostpone)).foregroundStyle(.secondary)
+                    Button(L10n.text(.appealPostponeOneDay)) {
+                        appealError = model.postponeFollowUp(byDays: 1, for: serverID)?.text
+                    }
+                    .accessibilityIdentifier("postponeOneDay")
+                    Button(L10n.text(.appealPostponeThreeDays)) {
+                        appealError = model.postponeFollowUp(byDays: 3, for: serverID)?.text
+                    }
+                    .accessibilityIdentifier("postponeThreeDays")
+                }
+                .controlSize(.small)
+            }
             HStack {
                 Button(L10n.text(.appealEdit)) { draft = AppealDraft(appeal, now: model.now) }
                 Button(L10n.text(.appealRemove), role: .destructive) {
@@ -176,6 +254,27 @@ struct ServerDetailSheet: View {
                 copyAppealButton
             }
         }
+    }
+
+    /// §36 timeline: Sent → Answered → … with dates.
+    private func timeline(_ appeal: Appeal) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L10n.text(.appealTimeline)).font(.caption.bold()).foregroundStyle(.secondary)
+            ForEach(Array(appeal.timeline.enumerated()), id: \.offset) { index, event in
+                HStack(spacing: 8) {
+                    Image(systemName: index == appeal.timeline.count - 1 ? "largecircle.fill.circle" : "circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(index == appeal.timeline.count - 1 ? Color.accentColor : Color.secondary)
+                        .accessibilityHidden(true)
+                    AppealStatusBadge(status: event.status)
+                    Text(verbatim: DateFormatter.localizedString(from: event.at, dateStyle: .medium, timeStyle: .short))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("appealTimeline")
     }
 
     /// The §17.9.1 unban message (only when the row has a ban result).

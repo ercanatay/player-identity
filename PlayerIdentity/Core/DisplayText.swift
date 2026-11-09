@@ -47,8 +47,7 @@ enum HistoryText {
         case .fixAttempt: return L10n.text(.historyKindFixAttempt)
         case .appUpdateAvailable: return L10n.text(.historyKindAppUpdateAvailable)
         case .appeal: return L10n.text(.historyKindAppeal)
-        // §36: localized in part 2 (no new texts in part 1); the raw kind is shown until then.
-        case .note: return kind.rawValue
+        case .note: return L10n.text(.historyKindNote)
         }
     }
 
@@ -124,5 +123,68 @@ enum LoginItemText {
         case .registerFailed(let detail): return L10n.format(.settingsLaunchAtLoginOnFailed, detail)
         case .unregisterFailed(let detail): return L10n.format(.settingsLaunchAtLoginOffFailed, detail)
         }
+    }
+}
+
+/// §40 ban list template errors.
+enum BanListText {
+    static func error(_ error: BanListTemplateError) -> String {
+        switch error {
+        case .empty: return L10n.text(.banListErrorEmpty)
+        case .notHTTPS: return L10n.text(.banListErrorHTTPS)
+        case .noPlaceholder: return L10n.text(.banListErrorPlaceholder)
+        case .unknownPlaceholder(let name): return L10n.format(.banListErrorUnknown, name)
+        case .invalidURL: return L10n.text(.banListErrorInvalid)
+        case .missingValue(let placeholder): return L10n.format(.banListErrorMissing, placeholder.rawValue)
+        }
+    }
+}
+
+/// §38 matrix cell and export texts.
+enum BanMatrixText {
+    static func cell(_ cell: BanMatrixCell) -> String {
+        switch cell {
+        case .banned: return L10n.text(.banMatrixCellBanned)
+        case .clear: return L10n.text(.banMatrixCellClear)
+        case .unknown: return L10n.text(.banMatrixCellUnknown)
+        case .notApplicable: return L10n.text(.banMatrixCellNotApplicable)
+        case .none: return "—"
+        }
+    }
+
+    static var header: [String] {
+        [L10n.text(.banMatrixServer), L10n.text(.banMatrixAddress), L10n.text(.banMatrixIPBan),
+         L10n.text(.banMatrixCIDBan), L10n.text(.banMatrixRange), L10n.text(.banMatrixLastCheck)]
+    }
+
+    /// Export row: label, host:port, IP ban, CID ban, range, last check; "Ban type unverified" goes into the CID cell.
+    static func row(_ row: BanMatrixRow, timeZone: TimeZone = .current) -> [String] {
+        let host = row.host.contains(":") ? "[\(row.host)]" : row.host
+        var cid = cell(row.cidBan)
+        if row.unverified { cid = BanClassification.unverifiedText }
+        return [row.label, "\(host):\(row.port)", cell(row.ipBan), cid, row.range ?? "—", lastCheck(row.lastCheck, timeZone: timeZone)]
+    }
+
+    static func lastCheck(_ date: Date?, timeZone: TimeZone = .current) -> String {
+        guard let date else { return "—" }
+        let formatter = DateFormatter()
+        formatter.timeZone = timeZone
+        formatter.dateStyle = .short
+        formatter.timeStyle = .medium
+        return formatter.string(from: date)
+    }
+
+    static func table(_ rows: [BanMatrixRow]) -> [[String]] {
+        BanMatrix.table(rows, header: header) { self.row($0) }
+    }
+}
+
+/// §36 follow-up reminder notification.
+enum AppealReminderText {
+    static func content(for due: AppealReminder.Due, status: AppealStatus) -> NotificationContent {
+        let date = DateFormatter.localizedString(from: due.followUpAt, dateStyle: .medium, timeStyle: .none)
+        return NotificationContent(key: "appealReminder|\(due.serverID.uuidString)|\(Int(due.followUpAt.timeIntervalSince1970))",
+                                   title: L10n.format(.appealReminderTitle, due.label),
+                                   body: L10n.format(.appealReminderBody, date, status.label))
     }
 }
