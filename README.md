@@ -21,7 +21,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination
 xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build test
 ```
 The `.xcodeproj` is generated and not tracked in git. Tests never touch the network or the user's real files
-(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **279** tests.
+(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **328** tests.
 The scheme runs tests with the Turkish test language (most assertions compare the Turkish source texts);
 `LocalizationTests` switch languages explicitly.
 
@@ -237,6 +237,12 @@ move `PlayerIdentity.app` to `/Applications`. Release builds since **v1.1.0** ar
 **Developer ID Application: Rigicon, Inc.**, notarized by Apple and stapled, so they open without a Gatekeeper
 warning. Each release lists the SHA-256 of the zip (`SHA256SUMS.txt`). A release built without the signing secrets is
 marked "not notarized" in its notes; open that one with right-click → **Open** on first launch.
+
+### What's new in v1.2.0
+- Automatic update: the app reads the release feed, downloads the zip, checks its SHA-256 against `SHA256SUMS.txt`,
+  verifies the code signature and Team ID, and installs it. A failed install rolls back to the current version.
+- Downgrade: install an older release from the history; your data is backed up first and can be restored.
+- 328 tests.
 
 ### What's new in v1.1.0
 - Hostnames as server addresses (DNS, 5-minute cache) with `host → IP` in the row.

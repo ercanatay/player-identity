@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 1.8 · Tarih: 2026-11-09 · Durum: uygulanacak (v1.7 → v1.8: §20–§26 sunucu bilgisi, DNS, geçmiş, bildirim, diff, güncelleme, imza)
+Sürüm: 1.9 · Tarih: 2026-11-09 · Durum: uygulanacak (v1.8 → v1.9: §27 otomatik güncelleme, §28 sürüm düşürme)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -809,3 +809,58 @@ TR değerleri, §10/§13.5/§14.3/§17'deki metinlerle **birebir aynı** olacak.
 - CI: sertifika ve notary kimliği **GitHub Secrets** (`BUILD_CERT_P12`, `BUILD_CERT_PASSWORD`, `NOTARY_APPLE_ID`/`NOTARY_PASSWORD`/`NOTARY_TEAM_ID` veya API key). Secret yoksa release adımı atlanır (build yine çalışır).
 - Release asset: imzalı+staple'lı `.zip` (+ SHA256). Notarize edilmemişse başlıkta "unsigned/ad-hoc" uyarısı.
 - Kabul: `codesign --verify --deep --strict` ✅, `spctl` accepted ✅, `stapler validate` ✅, indirilen zip ilk açılışta uyarısız açılır.
+
+---
+
+## 27. Otomatik güncelleme (v1.9)
+
+### 27.1 Akış
+1. **Feed:** `GET https://api.github.com/repos/ercanatay/player-identity/releases` (stable, `draft=false`, `prerelease=false`, semver sıralı).
+2. **Varlıklar:** `PlayerIdentity-<sürüm>-macos.zip` + `SHA256SUMS.txt` (satır: `<sha256>  <dosya adı>`).
+3. **İndirme:** yalnız **HTTPS**; `~/Library/Application Support/tr.ercanatay.playeridentity/updates/downloads/`.
+4. **Doğrulama (hepsi zorunlu):** boyut (asset.size) → SHA-256 (Sums dosyası) → zip açma (`ditto -x -k`) → `codesign --verify --deep --strict` → **TeamIdentifier `GJ3Y762WQ9`** → bundle id `tr.ercanatay.playeridentity` → sürüm = release sürümü.
+5. **Kurulum:** mevcut app `updates/backup/PlayerIdentity-<eski>.app`'e taşınır → yeni app yerine konur → karantina temizlenir → yeni app açılır, eski süreç kapanır.
+6. **Rollback:** kopyalama/açma başarısızsa yedek geri konur; hata kullanıcıya gösterilir.
+
+### 27.2 Zamanlama
+- Açılışta 24 saatte bir otomatik kontrol (mevcut §25 ile aynı sayaç), uygulama 6 saatten uzun açıksa 6 saatte bir tekrar.
+- Manuel: menü "Güncellemeleri Denetle…" + Ayarlar > Güncellemeler > "Şimdi denetle".
+- Otomatik **kurulum yok**; kullanıcı "Yükle" demeden indirme başlamaz (isteğe bağlı "otomatik indir" anahtarı varsayılan kapalı).
+
+### 27.3 Arayüz
+- Banner: "Yeni sürüm 1.2.0" · **Yükle** · "Sürüm notları" · "Yoksay".
+- Ayarlar > Güncellemeler: mevcut sürüm, son kontrol, "Şimdi denetle", durum satırı (denetleniyor/indiriliyor/doğrulanıyor/kuruluyor/hata), otomatik denetim anahtarı.
+- Kurulum sırasında ilerleme (yüzde + aşama) ve iptal; kurulum öncesi onay.
+
+### 27.4 Güvenlik
+- HTTPS zorunlu; HTTP yalnız `127.0.0.1` (test).
+- İmza/team/bundle/sürüm doğrulaması geçmezse **kurulum yok**; indirilen dosya silinir.
+- Rollback başarısızsa yedek yolu kullanıcıya gösterilir.
+- `/Applications` yazılamıyorsa yönetici onayı (tek seferlik `osascript ... with administrator privileges`) veya "uygulamayı Applications'a taşıyın" yönlendirmesi.
+
+### 27.5 Testler
+Sahte feed/indirici/dosya sistemi: mutlu yol; checksum uyuşmazlığı; boyut uyuşmazlığı; yanlış team; yanlış bundle; sürüm uyuşmazlığı; rollback; iptal; HTTP reddi; 24 saat/6 saat sayaç.
+
+---
+
+## 28. Sürüm düşürme (v1.9)
+
+### 28.1 Amaç
+Kullanıcı yeni sürümde sorun yaşarsa **önceki kararlı sürüme** dönebilsin; veri kaybı olmasın.
+
+### 28.2 Akış
+1. Ayarlar > Güncellemeler > **"Sürüm geçmişi"**: GitHub releases listesi (stable, son 20), mevcut sürüm işaretli; daha eski sürümlerde **"Bu sürüme dön"**.
+2. Onay sheet'i: hedef sürüm, uyarı ("eski sürüm yeni veriyi okuyamayabilir"), **"Önce veriyi yedekle"** (varsayılan açık).
+3. Veri yedeği: `updates/backups/data-<mevcut>-to-<hedef>-<ts>/` içine `profile.json`, `history.jsonl`, UserDefaults dışa aktarımı (`defaults export`), `snapshot-info.json`.
+4. Kurulum §27.1 adımlarıyla aynı (indirme+doğrulama+değiştirme), fark: hedef sürüm daha eski olabilir; sürüm eşitliği hedefe göre doğrulanır.
+5. Yeniden başlatma sonrası ilk açılışta: kayıt şeması desteklenmiyorsa **"Yedekten geri yükle"** önerilir; geri yükleme dosyaları yerine koyar ve uygulamayı yeniden başlatır.
+6. Aynı sürüme "dön" devre dışı; yükseltme ile aynı mekanizma.
+
+### 28.3 Kurallar
+- Sürüm düşürme yalnız **stable** sürümlere; prerelease/draft yok.
+- İmza/team/bundle doğrulaması aynı; eski sürümün imzasız olması kurulumu engeller.
+- Veri yedeği silinmez (kullanıcı "Yedekleri temizle" diyene kadar; en fazla 10 yedek, en eski silinir).
+- Geri yükleme yalnız kullanıcı onayıyla; otomatik veri değiştirme yok.
+
+### 28.4 Testler
+Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsuzluğunda geri yükleme akışı; aynı sürüm reddi; imza/team hatası; yedek budama (10).
