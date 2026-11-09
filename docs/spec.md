@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.0 · Tarih: 2026-11-09 · Durum: uygulanacak (v1.9 → v2.0: §29–§34 oyuna gir, menü çubuğu, gruplar, notlar/itiraz, paylaşım kartı, CLI)
+Sürüm: 2.1 · Tarih: 2026-11-09 · Durum: uygulanacak (v2.0 → v2.1: §35 dil seçici)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -918,3 +918,32 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 - JSON çıktısı kararlı alan adları (`schemaVersion: 1`).
 - Uygulama bundle'ına dahil: `PlayerIdentity.app/Contents/Helpers/playeridentityctl` (release build'te kopyalanır).
 - Testler: argüman ayrıştırma, JSON şeması, çıkış kodları, IPv6, stdin yok.
+
+---
+
+## 35. Dil seçici (TR/EN) (v2.1)
+
+### 35.1 Ayar
+- `appLanguage` tercihi (`UserDefaults`): `system` (varsayılan) · `tr` · `en`.
+- **Sistem** seçiliyken: `Locale.preferredLanguages.first`; `tr*` → Türkçe, diğer her şey → İngilizce.
+- Açık seçim sistem dilini ezer; geçersiz/bozuk değer `system` sayılır.
+
+### 35.2 Arayüz
+- Ayarlar > Genel'de **"Dil / Language"** açılır menüsü:
+  - `Sistem / System` (varsayılan, yanında o anki çözümleme ör. "Sistem (Türkçe)")
+  - `Türkçe`
+  - `English`
+- Seçenek etiketleri kendi dillerinde yazılır (Türkçe/English); "Sistem/System" aktif dile göre yerelleşir.
+- Değişiklik **anında** uygulanır (yeniden başlatma yok): görünür tüm metinler, menüler, bildirim metinleri, erişilebilirlik etiketleri ve hata/öneri metinleri yeni dilde.
+- Uygulama adı (menü çubuğu/Dock) **sistem diline** bağlıdır (InfoPlist); dil seçiciden değişmez — arayüzde not olarak belirtilir.
+
+### 35.3 Teknik
+- `L10n` çözümlemesi tercihi okur; seçili `.lproj` paketi önbelleklenir.
+- Dil değişiminde görünüm ağacı yeniden kurulur (kimlik anahtarı) ve açık pencereler tazelenir.
+- Menü çubuğu menüsü bir sonraki açılışta yeni dili kullanır (kabul edilebilir; pencere içi anında).
+
+### 35.4 Testler
+- Çözümleme matrisi: system+tr→tr, system+en→en, system+de→en, explicit tr/en, geçersiz değer→system.
+- Tercih kalıcılığı ve yeniden yükleme.
+- Dil değişince anahtar çözümlemesinin değişmesi (tr "Yenile" ↔ en "Refresh").
+- tr/en anahtar sayıları eşit; yeni anahtarlar dolu; sabit literal taraması 0.
