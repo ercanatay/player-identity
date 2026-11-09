@@ -71,6 +71,68 @@ final class UIEvidenceTests: XCTestCase {
         try render(SettingsView(model: model), size: CGSize(width: 320, height: 120), name: "settings")
     }
 
+    func testRenderUpdateScreens() async throws {
+        let env = try TestAppEnvironment()
+        let paths = AppPaths(home: env.home)
+        // A data backup with the supported schema, then a record this version cannot read → restore banner.
+        try env.temp.write("home/Library/Application Support/tr.ercanatay.playeridentity/profile.json", #"{"schemaVersion":1}"#)
+        try DataBackupStore(paths: paths, defaultsDomain: env.suiteName)
+            .create(from: "1.1.0", to: "2.0.0", now: env.clock.now, defaults: env.defaults)
+        try env.temp.write("home/Library/Application Support/tr.ercanatay.playeridentity/profile.json", #"{"schemaVersion":2}"#)
+
+        let (json, files) = UpdateControllerTests.feed(["1.2.0", "1.1.0", "1.0.0"])
+        let installed = try env.temp.makeDirectory("Applications").appendingPathComponent("PlayerIdentity.app")
+        try UpdateFixture.makeApp(at: installed, bundleID: UpdateInstaller.bundleID, version: "1.1.0", marker: "old")
+        let clock = env.clock
+        var deps = AppDependencies(
+            paths: paths, fileSystem: LocalFileSystem(), localIPProvider: FixedLocalIPProvider(addresses: []),
+            publicIPClient: PublicIPClient(http: ScriptedHTTPClient(script: HTTPScript(defaultBody: nil))),
+            snapshotStore: SnapshotStore(fileURL: paths.snapshotFile), defaults: env.defaults, now: { clock.now },
+            udpTransport: FakeServer.healthy(clock: clock), gameProcessDetector: FakeGameDetector(),
+            commandRunner: FakeCommandRunner(), sleeper: FakeSleeper(clock: clock), resolver: FakeAddressResolver())
+        deps.updateHTTP = ScriptedHTTPClient(script: HTTPScript(defaultBody: json))
+        deps.appVersion = "1.1.0"
+        deps.installedApp = installed
+        deps.updateDownloader = GatedDownloader(files: files)
+        deps.relauncher = FakeRelauncher()
+        deps.defaultsDomain = env.suiteName
+        let model = AppModel(dependencies: deps)
+        await model.checkForUpdates()?.value
+        XCTAssertNotNil(model.updates.restoreOffer)
+        XCTAssertEqual(model.availableUpdate?.version, "1.2.0")
+
+        try render(ContentView(model: model), size: CGSize(width: 900, height: 1000), name: "update-banner")
+
+        let newer = try XCTUnwrap(model.updates.history.first)
+        let older = try XCTUnwrap(model.updates.history.last)
+        try render(InstallConfirmSheet(updates: model.updates,
+                                       request: UpdateController.InstallRequest(release: newer, change: .upgrade)),
+                   size: CGSize(width: 520, height: 400), name: "update-confirm")
+        model.updates.request(older)
+        let downgrade = try XCTUnwrap(model.updates.pendingInstall)
+        try render(InstallConfirmSheet(updates: model.updates, request: downgrade),
+                   size: CGSize(width: 520, height: 480), name: "downgrade-confirm")
+        model.updates.cancelRequest()
+
+        try render(UpdateSettingsView(updates: model.updates), size: CGSize(width: 600, height: 600), name: "settings-updates")
+
+        // Install of 1.2.0 held at 42 % of the download → progress + cancel in Settings and in the banner.
+        model.updates.request(newer, origin: .banner)
+        let install = model.updates.confirmInstall()
+        for _ in 0..<50 where model.updates.status != .downloading(0.42) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertEqual(model.updates.status, .downloading(0.42))
+        try render(UpdateSettingsView(updates: model.updates), size: CGSize(width: 600, height: 600),
+                   name: "settings-updates-progress")
+        try render(UpdateBanner(updates: model.updates, update: try XCTUnwrap(model.availableUpdate)),
+                   size: CGSize(width: 1000, height: 50), name: "update-banner-progress")
+        model.updates.cancelInstall()
+        await install?.value
+        XCTAssertEqual(model.updates.status, .cancelled)
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "old")
+    }
+
     private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)
@@ -88,5 +150,20 @@ final class UIEvidenceTests: XCTestCase {
         hosting.cacheDisplay(in: hosting.bounds, to: rep)
         let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
         try png.write(to: directory.appendingPathComponent("\(name)-\(language).png"))
+    }
+}
+
+/// Serves the checksum file immediately and holds the zip download at 42 % until cancelled.
+private struct GatedDownloader: UpdateDownloading {
+    let files: [URL: Data]
+
+    func download(_ url: URL, to destination: URL, expectedSize: Int,
+                  progress: @escaping @Sendable (Double) async -> Void) async throws {
+        if url.lastPathComponent.hasSuffix(".zip") {
+            await progress(0.42)
+            try await Task.sleep(for: .seconds(60))
+        }
+        try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try (files[url] ?? Data()).write(to: destination)
     }
 }

@@ -27,8 +27,12 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let backup = model.updates.restoreOffer {
+                RestoreBanner(updates: model.updates, backup: backup)
+                Divider()
+            }
             if let update = model.availableUpdate {
-                UpdateBanner(update: update, onIgnore: model.ignoreUpdate)
+                UpdateBanner(updates: model.updates, update: update)
                 Divider()
             }
             topBar
@@ -50,6 +54,13 @@ struct ContentView: View {
             guard !AppModel.isRunningTests else { return }
             model.refresh()
             model.checkForUpdates()
+            model.updates.startPeriodicChecks()
+        }
+        .sheet(item: Binding(
+            get: { model.updates.pendingInstall?.origin == .banner ? model.updates.pendingInstall : nil },
+            set: { if $0 == nil { model.updates.cancelRequest() } })
+        ) { request in
+            InstallConfirmSheet(updates: model.updates, request: request)
         }
         .sheet(item: $model.applyPreview) { preview in
             ApplyPreviewSheet(preview: preview, onWrite: { model.confirmApply() }, onCancel: model.cancelApply)

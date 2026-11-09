@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -25,6 +26,14 @@ struct AppDependencies {
     var updateHTTP: (any HTTPClient)? = nil
     /// `CFBundleShortVersionString` of the running app.
     var appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+    /// §27 installer dependencies (real by default; the relauncher is a no-op that fails unless injected).
+    var installedApp: URL = Bundle.main.bundleURL
+    var updateDownloader: any UpdateDownloading = URLSessionUpdateDownloader()
+    var updateFileManager: any UpdateFileManaging = LocalUpdateFileManager()
+    var updateRunner: any UpdateCommandRunning = ProcessUpdateCommandRunner()
+    var relauncher: any AppRelaunching = UnavailableRelauncher()
+    /// UserDefaults domain exported into data backups (§28.2/3).
+    var defaultsDomain: String = UpdateInstaller.bundleID
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -41,7 +50,9 @@ struct AppDependencies {
                                sleeper: TaskSleeper(),
                                resolver: SystemAddressResolver(),
                                notifier: SystemNotifier(),
-                               updateHTTP: URLSessionHTTPClient())
+                               updateHTTP: URLSessionHTTPClient(),
+                               relauncher: OpenAndTerminateRelauncher(runner: ProcessUpdateCommandRunner(),
+                                                                      terminate: { await MainActor.run { NSApp.terminate(nil) } }))
     }
 }
 
@@ -78,12 +89,16 @@ final class AppModel {
         didSet { deps.defaults.set(notificationsEnabled, forKey: DefaultsKey.notificationsEnabled) }
     }
 
-    // MARK: §25 update check
+    // MARK: §25/§27/§28 updates
+    /// Release feed, banner, installer and data backups.
+    let updates: UpdateController
     /// Banner content: a newer, not ignored release.
-    private(set) var availableUpdate: AppUpdate?
+    var availableUpdate: AppUpdate? { updates.availableUpdate }
     /// Set after a manual check found no newer release (for the "up to date" alert).
-    var manualCheckUpToDate = false
-    @ObservationIgnored private var updateTask: Task<Void, Never>?
+    var manualCheckUpToDate: Bool {
+        get { updates.manualCheckUpToDate }
+        set { updates.manualCheckUpToDate = newValue }
+    }
 
     // MARK: §24 apply preview
     struct ApplyPreview: Identifiable, Equatable {
@@ -188,8 +203,15 @@ final class AppModel {
         servers = snapshot?.servers ?? []
         banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
         notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
-        availableUpdate = UpdateState(defaults: dependencies.defaults).banner(currentVersion: dependencies.appVersion)
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
+        updates = UpdateController(dependencies: dependencies)
+        updates.evaluateRestore(snapshot: loaded)
+        updates.onUpdateFound = { [weak self] version in
+            self?.recordHistory { recorder in
+                await recorder.recordUpdate(version: version)
+                return []
+            }
+        }
     }
 
     // MARK: Derived state
@@ -621,53 +643,19 @@ final class AppModel {
         applyPreview = nil
     }
 
-    // MARK: Update check (§25)
+    // MARK: Update check (§25, §27.2)
 
     /// Launch check (at most every 24 h) or manual check. Network errors are silent.
     @discardableResult
     func checkForUpdates(manual: Bool = false) -> Task<Void, Never>? {
-        guard let http = deps.updateHTTP else { return nil }
-        let defaults = deps.defaults
-        let initial = UpdateState(defaults: defaults)
-        let now = deps.now()
-        guard UpdateChecker.isDue(lastCheck: initial.lastCheck, now: now, manual: manual), updateTask == nil else { return nil }
-        let checker = UpdateChecker(http: http, currentVersion: deps.appVersion)
-        let current = deps.appVersion
-        let task = Task {
-            var state = initial
-            let result = await checker.check()
-            updateTask = nil
-            switch result {
-            case .failed:
-                return
-            case .upToDate:
-                state.lastCheck = now
-                state.latest = nil
-                manualCheckUpToDate = manual
-            case .available(let update):
-                state.lastCheck = now
-                state.latest = update
-                recordHistory { recorder in
-                    await recorder.recordUpdate(version: update.version)
-                    return []
-                }
-            }
-            state.save(to: defaults)
-            availableUpdate = state.banner(currentVersion: current)
-        }
-        updateTask = task
-        return task
+        updates.checkForUpdates(manual: manual)
     }
 
     var appVersion: String { deps.appVersion }
 
     /// "Yoksay": hides the banner for this version.
     func ignoreUpdate() {
-        guard let update = availableUpdate else { return }
-        var state = UpdateState(defaults: deps.defaults)
-        state.ignoredVersion = update.version
-        state.save(to: deps.defaults)
-        availableUpdate = nil
+        updates.ignoreUpdate()
     }
 
     // MARK: Fix (§17)

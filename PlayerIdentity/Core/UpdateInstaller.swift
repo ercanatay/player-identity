@@ -237,6 +237,13 @@ protocol AppRelaunching: Sendable {
     func relaunch(_ app: URL) async throws
 }
 
+/// Default when no relauncher is injected: reports failure, so an install is rolled back instead of leaving the
+/// old process running a replaced bundle.
+struct UnavailableRelauncher: AppRelaunching {
+    init() {}
+    func relaunch(_ app: URL) async throws { throw UpdateError.installFailed(rolledBack: false, backup: nil) }
+}
+
 struct OpenAndTerminateRelauncher: AppRelaunching {
     let runner: any UpdateCommandRunning
     let terminate: @Sendable () async -> Void
@@ -289,8 +296,23 @@ struct UpdateInstaller: Sendable {
         }
     }
 
+    /// A downloaded and fully verified release, staged and ready to replace the running app.
+    struct Prepared: Sendable, Equatable {
+        let release: AppRelease
+        let staged: URL
+        fileprivate let files: [URL]
+    }
+
     func install(_ release: AppRelease,
                  progress: @escaping @Sendable (InstallPhase) async -> Void = { _ in }) async throws -> Result {
+        let prepared = try await prepare(release, progress: progress)
+        return try await finish(prepared, progress: progress)
+    }
+
+    /// Download + size + SHA-256 + unzip + signature + team + bundle + version (§27.1/3–4). Nothing is replaced;
+    /// on any failure or cancellation the downloaded files are deleted.
+    func prepare(_ release: AppRelease,
+                 progress: @escaping @Sendable (InstallPhase) async -> Void = { _ in }) async throws -> Prepared {
         guard let zipAsset = release.zip, let sumsAsset = release.sums else { throw UpdateError.missingAsset }
         guard release.version != SemanticVersion(currentVersion) else { throw UpdateError.sameVersion }
         guard Self.isAllowedURL(zipAsset.downloadURL), Self.isAllowedURL(sumsAsset.downloadURL) else {
@@ -301,12 +323,9 @@ struct UpdateInstaller: Sendable {
         let staging = paths.updateStaging.appendingPathComponent(release.versionString, isDirectory: true)
         let zip = downloads.appendingPathComponent(zipAsset.name, isDirectory: false)
         let sums = downloads.appendingPathComponent(sumsAsset.name, isDirectory: false)
-        func cleanUp() {
-            try? fileManager.remove(zip)
-            try? fileManager.remove(sums)
-            try? fileManager.remove(staging)
-        }
-
+        let prepared = Prepared(release: release,
+                                staged: staging.appendingPathComponent(installedApp.lastPathComponent, isDirectory: true),
+                                files: [zip, sums, staging])
         do {
             // Download + size + SHA-256
             try fileManager.createDirectory(downloads)
@@ -324,31 +343,41 @@ struct UpdateInstaller: Sendable {
             try fileManager.createDirectory(staging)
             guard let zipPath = UpdatePath(zip), let stagingPath = UpdatePath(staging),
                   try await runner.run(.unzip(zipPath, into: stagingPath)).status == 0 else { throw UpdateError.unzipFailed }
-            let staged = staging.appendingPathComponent(installedApp.lastPathComponent, isDirectory: true)
-            guard fileManager.exists(staged), let stagedPath = UpdatePath(staged) else { throw UpdateError.appMissing }
-            try await verify(staged: stagedPath, appURL: staged, release: release)
+            guard fileManager.exists(prepared.staged), let stagedPath = UpdatePath(prepared.staged) else {
+                throw UpdateError.appMissing
+            }
+            try await verify(staged: stagedPath, appURL: prepared.staged, release: release)
             try Task.checkCancellation()
         } catch {
-            cleanUp()
+            discard(prepared)
             if error is CancellationError { throw UpdateError.cancelled }
             throw error
         }
+        return prepared
+    }
 
-        // Replace (not cancellable from here on: it either completes or rolls back)
+    /// Removes the downloaded and staged files of a prepared release.
+    func discard(_ prepared: Prepared) {
+        for url in prepared.files { try? fileManager.remove(url) }
+    }
+
+    /// Replace + quarantine removal + relaunch (§27.1/5–6). Not cancellable: it completes or rolls back.
+    func finish(_ prepared: Prepared,
+                progress: @escaping @Sendable (InstallPhase) async -> Void = { _ in }) async throws -> Result {
+        guard fileManager.exists(prepared.staged) else { throw UpdateError.appMissing }
         await progress(.installing)
-        let staged = staging.appendingPathComponent(installedApp.lastPathComponent, isDirectory: true)
         let backup = paths.updateAppBackups.appendingPathComponent("PlayerIdentity-\(currentVersion).app", isDirectory: true)
         do {
             try fileManager.createDirectory(paths.updateAppBackups)
-            try await replace(staged: staged, backup: backup)
+            try await replace(staged: prepared.staged, backup: backup)
         } catch let error as UpdateError {
-            cleanUp()
+            discard(prepared)
             throw error
         }
         if let target = UpdatePath(installedApp) {
             _ = try? await runner.run(.removeQuarantine(target))
         }
-        cleanUp()
+        discard(prepared)
 
         // Relaunch; if the new app cannot be opened, the previous one is put back (§27.1/6).
         await progress(.relaunching)
@@ -357,7 +386,7 @@ struct UpdateInstaller: Sendable {
         } catch {
             throw rollback(backup: backup)
         }
-        return Result(installed: installedApp, backup: backup, version: release.versionString)
+        return Result(installed: installedApp, backup: backup, version: prepared.release.versionString)
     }
 
     private func download(_ asset: ReleaseAsset, to destination: URL,

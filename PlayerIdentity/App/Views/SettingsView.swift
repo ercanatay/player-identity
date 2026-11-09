@@ -1,15 +1,130 @@
+import AppKit
 import SwiftUI
 
-/// Settings (§13.1, §23): "Ban check" and "Notifications" toggles, both on by default.
+/// Settings: General (§13.1 ban check, §23 notifications) and Updates (§27.3, §28.2).
 struct SettingsView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        Form {
-            Toggle(L10n.text(.settingsBanCheck), isOn: $model.banCheckEnabled)
-            Toggle(L10n.text(.settingsNotifications), isOn: $model.notificationsEnabled)
+        TabView {
+            Form {
+                Toggle(L10n.text(.settingsBanCheck), isOn: $model.banCheckEnabled)
+                Toggle(L10n.text(.settingsNotifications), isOn: $model.notificationsEnabled)
+            }
+            .padding(20)
+            .tabItem { Label(L10n.text(.settingsTabGeneral), systemImage: "gearshape") }
+
+            UpdateSettingsView(updates: model.updates)
+                .tabItem { Label(L10n.text(.settingsTabUpdates), systemImage: "arrow.down.circle") }
+        }
+        .frame(width: 600)
+    }
+}
+
+/// Settings > Updates: version, last check, switches, "Check Now", status/progress, version history.
+struct UpdateSettingsView: View {
+    @Bindable var updates: UpdateController
+    @State private var confirmsBackupRemoval = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                GridRow {
+                    Text(L10n.text(.updateCurrentVersion)).foregroundStyle(.secondary)
+                    Text(verbatim: updates.appVersion).monospacedDigit()
+                }
+                GridRow {
+                    Text(L10n.text(.updateLastCheck)).foregroundStyle(.secondary)
+                    Text(updates.lastCheck.map { DateFormatter.localizedString(from: $0, dateStyle: .medium, timeStyle: .short) }
+                         ?? L10n.text(.updateNever))
+                }
+            }
+            Toggle(L10n.text(.updateAutoCheck), isOn: $updates.preferences.autoCheck)
+            Toggle(L10n.text(.updateAutoDownload), isOn: $updates.preferences.autoDownload)
+            HStack {
+                Button(L10n.text(.updateCheckNow)) { updates.checkForUpdates(manual: true, announce: false) }
+                    .disabled(updates.status.isBusy)
+                Spacer()
+            }
+            UpdateStatusRow(updates: updates)
+                .frame(minHeight: 18, alignment: .leading)
+
+            Divider()
+            Text(L10n.text(.updateHistory)).font(.headline)
+            if updates.history.isEmpty {
+                Text(L10n.text(.updateHistoryEmpty)).foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(updates.history, id: \.tag) { release in
+                            VersionRow(updates: updates, release: release)
+                            Divider()
+                        }
+                    }
+                }
+                .frame(height: 220)
+            }
+
+            Divider()
+            HStack {
+                Text(L10n.format(.updateBackupsCount, String(updates.dataBackupCount))).foregroundStyle(.secondary)
+                Spacer()
+                Button(L10n.text(.updateBackupsClear)) { confirmsBackupRemoval = true }
+                    .disabled(updates.dataBackupCount == 0)
+            }
         }
         .padding(20)
-        .frame(width: 320)
+        .sheet(item: Binding(
+            get: { updates.pendingInstall?.origin == .settings ? updates.pendingInstall : nil },
+            set: { if $0 == nil { updates.cancelRequest() } })
+        ) { request in
+            InstallConfirmSheet(updates: updates, request: request)
+        }
+        .alert(L10n.text(.updateBackupsClearConfirm), isPresented: $confirmsBackupRemoval) {
+            Button(L10n.text(.actionCancel), role: .cancel) {}
+            Button(L10n.text(.actionDelete), role: .destructive) { updates.removeDataBackups() }
+        }
+    }
+}
+
+/// One stable release in the version history: current marked, "Install" for newer, "Revert" for older.
+private struct VersionRow: View {
+    @Bindable var updates: UpdateController
+    let release: AppRelease
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(verbatim: release.versionString)
+                .font(.body.monospacedDigit())
+                .fontWeight(updates.change(to: release) == nil ? .bold : .regular)
+                .frame(width: 70, alignment: .leading)
+            if let date = release.publishedAt {
+                Text(DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none))
+                    .foregroundStyle(.secondary)
+            }
+            if updates.change(to: release) == nil {
+                Text(L10n.text(.updateCurrentBadge))
+                    .font(.caption.bold())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.2)))
+            }
+            Spacer()
+            if let page = release.pageURL {
+                Button(L10n.text(.updateReleaseNotes)) { NSWorkspace.shared.open(page) }
+                    .buttonStyle(.link)
+            }
+            switch updates.change(to: release) {
+            case .downgrade?:
+                Button(L10n.text(.updateDowngrade)) { updates.request(release) }
+                    .disabled(!release.isInstallable || updates.status.isBusy)
+            case .upgrade?:
+                Button(L10n.text(.updateInstall)) { updates.request(release) }
+                    .disabled(!release.isInstallable || updates.status.isBusy)
+            case nil:
+                EmptyView()
+            }
+        }
+        .padding(.vertical, 6)
     }
 }

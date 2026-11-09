@@ -35,6 +35,7 @@ enum ReleaseFeed {
     static let historyLimit = 20
 
     /// Stable releases only (`draft == false`, `prerelease == false`, no pre-release suffix), newest first.
+    /// Accepts the `/releases` array and a single release object (`/releases/latest`).
     static func parse(_ data: Data) -> [AppRelease]? {
         struct Asset: Decodable {
             let name: String
@@ -50,7 +51,9 @@ enum ReleaseFeed {
             let published_at: String?
             let assets: [Asset]?
         }
-        guard let releases = try? JSONDecoder().decode([Release].self, from: data) else { return nil }
+        let decoder = JSONDecoder()
+        guard let releases = (try? decoder.decode([Release].self, from: data))
+            ?? (try? decoder.decode(Release.self, from: data)).map({ [$0] }) else { return nil }
         let dates = ISO8601DateFormatter()
         let parsed = releases.compactMap { release -> AppRelease? in
             guard release.draft != true, release.prerelease != true,
