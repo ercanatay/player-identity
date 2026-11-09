@@ -452,6 +452,7 @@ struct ContentView: View {
             fix: model.fixKind(for: id) == nil ? nil : { model.beginFix(id) },
             join: model.isGameAppInstalled ? { model.joinGame(id) } : nil,
             toggleFavorite: { model.setFavorite(!entry.favorite, for: id) },
+            toggleWatch: { model.setWatch(!entry.watch, for: id) },
             moveUp: model.canMoveServer(id: id, .up) ? { model.moveServer(id: id, .up) } : nil,
             moveDown: model.canMoveServer(id: id, .down) ? { model.moveServer(id: id, .down) } : nil,
             details: { sheet = .details(id) },

@@ -82,6 +82,8 @@ struct ServerDetailSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    watchSection
+                    Divider()
                     notesSection
                     Divider()
                     appealSection
@@ -117,6 +119,29 @@ struct ServerDetailSheet: View {
             return
         }
         if model.setNote(note, for: serverID) == nil { onClose() }
+    }
+
+    // MARK: Watching (§42)
+
+    private var watchSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(isOn: Binding(get: { entry?.watch ?? false }, set: { model.setWatch($0, for: serverID) })) {
+                Label(L10n.text(.watchToggleOn), systemImage: "bell.fill")
+            }
+            .toggleStyle(.switch)
+            .accessibilityIdentifier("detailWatchToggle")
+            Text(L10n.text(.watchDescription))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !model.menuBarEnabled {
+                Label(L10n.text(.watchBackgroundNote), systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityIdentifier("detailWatch")
     }
 
     // MARK: Ban list (§40)

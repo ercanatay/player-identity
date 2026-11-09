@@ -64,6 +64,11 @@ struct AppPaths: Sendable, Equatable {
         snapshotFile.deletingLastPathComponent().appendingPathComponent("metrics.jsonl", isDirectory: false)
     }
 
+    /// §42: `~/Library/Application Support/tr.ercanatay.playeridentity/watch-state.json`
+    var watchStateFile: URL {
+        snapshotFile.deletingLastPathComponent().appendingPathComponent("watch-state.json", isDirectory: false)
+    }
+
     /// Snapshot of the legacy bundle (§19.3): `~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json`.
     /// Only ever read by `DataMigration`; never written.
     var legacySnapshotFile: URL {

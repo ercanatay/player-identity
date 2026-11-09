@@ -11,6 +11,8 @@ struct ServerRowActions {
     /// §29: `nil` = Xash3D is not installed (the action is hidden).
     var join: (() -> Void)?
     var toggleFavorite: () -> Void = {}
+    /// §42 🔔 watch switch.
+    var toggleWatch: () -> Void = {}
     /// §31 ▲/▼; `nil` = the row cannot move in that direction.
     var moveUp: (() -> Void)?
     var moveDown: (() -> Void)?
@@ -35,9 +37,19 @@ struct ServerSectionsView: View {
                     .accessibilityIdentifier("filterBanned")
                 Toggle(L10n.text(.serversFilterFavorites), isOn: $model.serverFilter.onlyFavorites)
                     .accessibilityIdentifier("filterFavorites")
+                Toggle(L10n.text(.serversFilterWatched), isOn: $model.serverFilter.onlyWatched)
+                    .accessibilityIdentifier("filterWatched")
             }
             .toggleStyle(.checkbox)
             .font(.callout)
+            if model.hasWatchedServers, !model.menuBarEnabled {
+                // §42: no background checks without the menu bar mode.
+                Label(L10n.text(.watchBackgroundNote), systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .accessibilityIdentifier("watchBackgroundNote")
+            }
 
             if sections.isEmpty {
                 Text(L10n.text(.serversFilterEmpty))
@@ -168,6 +180,16 @@ struct ServerRowView: View {
                 Text(verbatim: "—").foregroundStyle(.secondary)
             }
 
+            Button(action: actions.toggleWatch) {
+                Image(systemName: entry.watch ? "bell.fill" : "bell")
+                    .foregroundStyle(entry.watch ? Color.accentColor : Color.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help(L10n.text(entry.watch ? .watchToggleOff : .watchToggleOn))
+            .accessibilityLabel(L10n.text(entry.watch ? .watchToggleOff : .watchToggleOn))
+            .accessibilityValue(entry.watch ? L10n.text(.watchBadge) : "")
+            .accessibilityIdentifier("watchToggle")
+
             if let join = actions.join {
                 Button(action: join) {
                     Image(systemName: "play.circle")
@@ -211,6 +233,7 @@ struct ServerRowView: View {
             Button(L10n.text(.shareCardCreate), action: actions.shareCard)
             Divider()
             Button(L10n.text(entry.favorite ? .serverFavoriteRemove : .serverFavoriteAdd), action: actions.toggleFavorite)
+            Button(L10n.text(entry.watch ? .watchToggleOff : .watchToggleOn), action: actions.toggleWatch)
             Button(L10n.text(.serverMoveUp)) { actions.moveUp?() }.disabled(actions.moveUp == nil)
             Button(L10n.text(.serverMoveDown)) { actions.moveDown?() }.disabled(actions.moveDown == nil)
             Divider()
@@ -222,6 +245,17 @@ struct ServerRowView: View {
     /// §32: note, appeal status and follow-up reminder; each opens the details.
     @ViewBuilder
     private var badges: some View {
+        if entry.watch {
+            // §42 small 🔔 badge of a watched row.
+            Label(L10n.text(.watchBadge), systemImage: "bell.fill")
+                .font(.caption.bold())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.accentColor.opacity(0.15)))
+                .foregroundStyle(Color.accentColor)
+                .fixedSize()
+                .accessibilityIdentifier("watchBadge")
+        }
         if !entry.note.isEmpty {
             Button(action: actions.details) {
                 Image(systemName: "note.text").foregroundStyle(.secondary)

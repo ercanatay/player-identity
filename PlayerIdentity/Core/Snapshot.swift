@@ -22,11 +22,13 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
     var appeal: Appeal?
     /// §40: ban list URL template (`https`, with `{cid}`/`{ip}`/`{host}`/`{port}`); absent in old records.
     var banListURL: String?
+    /// §42: notify about changes of this server (absent in old records → `false`).
+    var watch: Bool
 
     init(id: UUID = UUID(), label: String, host: String, port: Int = ServerEntry.defaultPort,
          cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil,
          group: String? = nil, favorite: Bool = false, order: Int = 0, note: String = "", appeal: Appeal? = nil,
-         banListURL: String? = nil) {
+         banListURL: String? = nil, watch: Bool = false) {
         self.id = id
         self.label = label
         self.host = host
@@ -40,10 +42,11 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         self.note = note
         self.appeal = appeal
         self.banListURL = banListURL
+        self.watch = watch
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal, banListURL
+        case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal, banListURL, watch
     }
 
     /// Fields added after schema 1 are optional when decoding (old records stay readable).
@@ -62,6 +65,7 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
         appeal = try container.decodeIfPresent(Appeal.self, forKey: .appeal)
         banListURL = try container.decodeIfPresent(String.self, forKey: .banListURL)
+        watch = try container.decodeIfPresent(Bool.self, forKey: .watch) ?? false
     }
 }
 

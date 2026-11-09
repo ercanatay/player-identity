@@ -50,6 +50,7 @@ struct EditableState: Sendable, Equatable {
         let note: String
         let appeal: Appeal?
         let banListURL: String?
+        let watch: Bool
     }
 
     let dataRoot: String
@@ -61,7 +62,7 @@ struct EditableState: Sendable, Equatable {
         self.gamedir = gamedir ?? ""
         self.servers = servers.map {
             Server(id: $0.id, label: $0.label, host: $0.host, port: $0.port, group: $0.group, favorite: $0.favorite,
-                   order: $0.order, note: $0.note, appeal: Self.comparable($0.appeal), banListURL: $0.banListURL)
+                   order: $0.order, note: $0.note, appeal: Self.comparable($0.appeal), banListURL: $0.banListURL, watch: $0.watch)
         }
     }
 

@@ -48,6 +48,11 @@ enum HistoryText {
         case .appUpdateAvailable: return L10n.text(.historyKindAppUpdateAvailable)
         case .appeal: return L10n.text(.historyKindAppeal)
         case .note: return L10n.text(.historyKindNote)
+        case .watchBanAppeared: return L10n.text(.historyKindWatchBanAppeared)
+        case .watchBanLifted: return L10n.text(.historyKindWatchBanLifted)
+        case .watchOffline: return L10n.text(.historyKindWatchOffline)
+        case .watchOnline: return L10n.text(.historyKindWatchOnline)
+        case .watchMapChanged: return L10n.text(.historyKindWatchMapChanged)
         }
     }
 
@@ -57,7 +62,7 @@ enum HistoryText {
         switch kind {
         case .banLifted where BanStatus(rawValue: raw)?.level == .orange:
             return L10n.text(.banStatusNoBlock)   // `ipOk`: the IP block is gone (CID not checked)
-        case .banAppeared, .banLifted:
+        case .banAppeared, .banLifted, .watchBanAppeared, .watchBanLifted:
             return BanStatus(rawValue: raw)?.label ?? raw
         case .refresh:
             return StatusLevel.allCases.first { HistoryTransitions.levelName($0) == raw }?.label ?? raw
@@ -72,6 +77,7 @@ enum HistoryText {
     static func note(_ entry: HistoryEntry) -> String? {
         guard let note = entry.note, !note.isEmpty else { return nil }
         if entry.kind == .appeal { return AppealChannel(rawValue: note)?.label ?? note }
+        if entry.kind == .watchOnline { return L10n.format(.historyWatchOnlineAfter, note) }
         guard entry.kind == .fixAttempt else { return note }
         let old = entry.old ?? "—"
         let new = entry.new ?? "—"

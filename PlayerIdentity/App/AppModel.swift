@@ -169,6 +169,10 @@ final class AppModel {
     // MARK: §31 list filter
     var serverFilter = ServerListFilter()
 
+    // MARK: §42 watched servers
+    /// Last observed state per server (baseline of the change detection), kept in `watch-state.json`.
+    @ObservationIgnored private var watchState: [UUID: WatchSnapshot] = [:]
+
     // MARK: §37 interfaces
     /// Interfaces and VPN state of the last full refresh; `nil` before it.
     private(set) var interfaceReport: InterfaceReport?
@@ -287,6 +291,7 @@ final class AppModel {
         notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
         menuBarEnabled = MenuBarPreferences(defaults: dependencies.defaults).showInMenuBar
+        watchState = WatchStateStore(fileURL: dependencies.paths.watchStateFile).load()
         appLanguage = AppLanguageSetting(defaults: dependencies.defaults)
         L10n.setting = AppLanguageSetting(defaults: dependencies.defaults)
         isGameAppInstalled = dependencies.gameAppLocator.locate() != nil
@@ -405,6 +410,7 @@ final class AppModel {
                 samples.append(MetricSample(check: check, serverID: request.serverID, host: request.host))
             }
             recordMetrics(samples)
+            evaluateWatch(banRequests.compactMap { request in bans[request.serverID].map { (request.serverID, $0) } })
 
             let now = deps.now()
             lastChecked = now
@@ -492,12 +498,54 @@ final class AppModel {
             model: config.model.isEmpty ? nil : config.model,
             servers: servers.map { HistoryObservation.Server(id: $0.id, host: $0.host, ban: $0.banCheck?.status) })
         let labels = serverLabels()
+        let watched = Set(servers.filter(\.watch).map(\.id))
         recordHistory { recorder in
             await recorder.observe(observation).compactMap { entry in
-                NotificationPlanner.content(for: entry, serverLabel: entry.serverID.flatMap { labels[$0] })
+                // §42: watched servers get the more detailed watch notifications instead.
+                if let id = entry.serverID, watched.contains(id), entry.kind == .banAppeared || entry.kind == .banLifted {
+                    return nil
+                }
+                return NotificationPlanner.content(for: entry, serverLabel: entry.serverID.flatMap { labels[$0] })
             }
         }
     }
+
+    // MARK: §42 watched servers
+
+    /// Compares the finished checks with the baselines; watched servers get history entries and notifications.
+    /// Every checked server's baseline is updated (turning watching on later starts from a known state).
+    private func evaluateWatch(_ checks: [(UUID, BanCheck)]) {
+        guard !checks.isEmpty else { return }
+        var entries: [HistoryEntry] = []
+        var contents: [NotificationContent] = []
+        for (id, check) in checks {
+            guard let entry = servers.first(where: { $0.id == id }) else { continue }
+            let (next, events) = WatchTransitions.evaluate(previous: watchState[id], check: check)
+            watchState[id] = next
+            guard entry.watch else { continue }
+            for event in events {
+                entries.append(WatchTransitions.historyEntry(event, server: entry, at: check.checkedAt))
+                contents.append(WatchNotificationText.content(for: event, server: entry))
+            }
+        }
+        try? WatchStateStore(fileURL: deps.paths.watchStateFile).save(watchState)
+        guard !entries.isEmpty else { return }
+        let written = entries
+        let notifications = contents
+        recordHistory { recorder in
+            for entry in written { await recorder.record(entry) }
+            return notifications
+        }
+    }
+
+    /// 🔔 "Bu sunucuyu izle"; saved with the record.
+    func setWatch(_ watch: Bool, for id: UUID) {
+        guard let index = servers.firstIndex(where: { $0.id == id }), servers[index].watch != watch else { return }
+        servers[index].watch = watch
+        markEdited()
+    }
+
+    var hasWatchedServers: Bool { servers.contains(where: \.watch) }
 
     // MARK: §40 ban list URL
 

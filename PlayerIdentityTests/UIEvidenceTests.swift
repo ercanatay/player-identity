@@ -310,6 +310,30 @@ final class UIEvidenceTests: XCTestCase {
     ```
     """
 
+    /// §42 watched servers: 🔔 switch + badge, "Watched only" filter + background note, detail section.
+    func testRenderWatchScreens() async throws {
+        let env = try TestAppEnvironment()
+        let model = env.makeModel(udp: FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(
+            info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))))
+        model.addServer(ServerDraft(label: "POLIGON RPG", host: "192.0.2.10", favorite: true))
+        model.addServer(ServerDraft(label: "Zombie TR", host: "192.0.2.30"))
+        model.addServer(ServerDraft(label: "Surf EU", host: "192.0.2.50"))
+        await model.refresh().value
+        let ids = model.servers.map(\.id)
+        model.setWatch(true, for: ids[0])
+        model.setWatch(true, for: ids[1])
+
+        try render(ContentView(model: model), size: CGSize(width: 1000, height: 1300), name: "watch-main")
+        model.serverFilter = ServerListFilter(onlyWatched: true)
+        try render(ContentView(model: model), size: CGSize(width: 1000, height: 1150), name: "watch-filter")
+        model.serverFilter = ServerListFilter()
+        try render(ServerDetailSheet(model: model, serverID: ids[1], onClose: {}, metrics: [], maxContentHeight: 1400),
+                   size: CGSize(width: 620, height: 900), name: "watch-details")
+        model.menuBarEnabled = true
+        try render(ServerDetailSheet(model: model, serverID: ids[2], onClose: {}, metrics: [], maxContentHeight: 1400),
+                   size: CGSize(width: 620, height: 860), name: "watch-details-off-menubar-on")
+    }
+
     private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)

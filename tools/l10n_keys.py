@@ -530,6 +530,31 @@ KEYS = [
     ("intentErrorAmbiguous", "intent.error.ambiguous", "Birden fazla sunucu eşleşti; sunucuyu seçin.", "More than one server matches; choose the server."),
     ("intentErrorIdentityMissing", "intent.error.identityMissing", "Kimlik dosyası bulunamadı; CID hesaplanamıyor.", "No identity file was found; the CID cannot be computed."),
     ("intentErrorResolution", "intent.error.resolution", "Sunucu adresi çözümlenemedi.", "The server address could not be resolved."),
+
+    # v2.3: watched servers (§42)
+    ("watchToggleOn", "watch.toggle.on", "Bu sunucuyu izle", "Watch This Server"),
+    ("watchToggleOff", "watch.toggle.off", "İzlemeyi bırak", "Stop Watching"),
+    ("watchBadge", "watch.badge", "İzleniyor", "Watching"),
+    ("watchSectionTitle", "watch.section.title", "İzleme", "Watching"),
+    ("watchDescription", "watch.description", "Ban başlayınca veya kalkınca, sunucu erişilemez olunca, 10 dakikadan uzun kesintiden sonra yeniden açılınca ve harita değişince bildirim gönderilir. İlk kontrol yalnız başlangıç durumunu kaydeder.", "You are notified when a ban appears or is lifted, when the server becomes unreachable, when it is back after an outage of more than 10 minutes and when the map changes. The first check only records the starting state."),
+    ("watchBackgroundNote", "watch.backgroundNote", "Menü çubuğu modu kapalıyken arka planda kontrol yapılmaz; değişiklikler yalnız yenilemede fark edilir.", "While the menu bar mode is off there are no background checks; changes are noticed only when refreshing."),
+    ("serversFilterWatched", "servers.filter.watched", "Yalnız izlenenler", "Watched only"),
+    ("historyKindWatchBanAppeared", "history.kind.watchBanAppeared", "İzleme: ban başladı", "Watch: ban detected"),
+    ("historyKindWatchBanLifted", "history.kind.watchBanLifted", "İzleme: ban kalktı", "Watch: ban lifted"),
+    ("historyKindWatchOffline", "history.kind.watchOffline", "İzleme: erişilemez", "Watch: unreachable"),
+    ("historyKindWatchOnline", "history.kind.watchOnline", "İzleme: yeniden çevrimiçi", "Watch: back online"),
+    ("historyKindWatchMapChanged", "history.kind.watchMapChanged", "İzleme: harita değişti", "Watch: map changed"),
+    ("historyWatchOnlineAfter", "history.watch.onlineAfter", "%@ dakika kesintiden sonra", "after an outage of %@ minutes"),
+    ("watchNotifyBanTitle", "watch.notify.ban.title", "İzlenen sunucuda ban: %@", "Ban on a watched server: %@"),
+    ("watchNotifyBanBody", "watch.notify.ban.body", "Tür: %@. Ayrıntılar için uygulamayı açın.", "Type: %@. Open the app for details."),
+    ("watchNotifyLiftedTitle", "watch.notify.lifted.title", "Ban kalktı: %@", "Ban lifted: %@"),
+    ("watchNotifyLiftedBody", "watch.notify.lifted.body", "Sunucu artık sizi engellemiyor.", "The server no longer blocks you."),
+    ("watchNotifyOfflineTitle", "watch.notify.offline.title", "Sunucu erişilemez: %@", "Server unreachable: %@"),
+    ("watchNotifyOfflineBody", "watch.notify.offline.body", "Son kontrolde yanıt vermedi.", "It did not answer the last check."),
+    ("watchNotifyOnlineTitle", "watch.notify.online.title", "Sunucu yeniden çevrimiçi: %@", "Server back online: %@"),
+    ("watchNotifyOnlineBody", "watch.notify.online.body", "%@ dakikalık kesintiden sonra yeniden yanıt veriyor.", "It answers again after an outage of %@ minutes."),
+    ("watchNotifyMapTitle", "watch.notify.map.title", "Harita değişti: %@", "Map changed: %@"),
+    ("watchNotifyMapBody", "watch.notify.map.body", "%@ → %@", "%@ → %@"),
 ]
 
 INFOPLIST = {

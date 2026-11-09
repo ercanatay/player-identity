@@ -12,14 +12,18 @@ struct ServerListFilter: Sendable, Equatable {
     var onlyBanned = false
     /// "Yalnız favoriler".
     var onlyFavorites = false
+    /// §42 "Yalnız izlenenler".
+    var onlyWatched = false
 
-    init(onlyBanned: Bool = false, onlyFavorites: Bool = false) {
+    init(onlyBanned: Bool = false, onlyFavorites: Bool = false, onlyWatched: Bool = false) {
         self.onlyBanned = onlyBanned
         self.onlyFavorites = onlyFavorites
+        self.onlyWatched = onlyWatched
     }
 
     func matches(_ entry: ServerEntry) -> Bool {
         if onlyFavorites, !entry.favorite { return false }
+        if onlyWatched, !entry.watch { return false }
         if onlyBanned {
             switch entry.banCheck?.status {
             case .ipBanned?, .cidBanned?: break
