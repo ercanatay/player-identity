@@ -19,4 +19,12 @@ jobs:
       - name: Build & run UI smoke test
         run: |
           xcodebuild test -project PlayerIdentity.xcodeproj -scheme PlayerIdentityUITests \
-            -destination 'platform=macOS' -derivedDataPath .build-ui
+            -destination 'platform=macOS' -derivedDataPath .build-ui \
+            -resultBundlePath .build-ui/TestResults.xcresult
+      - name: Upload UI test result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: .build-ui/TestResults.xcresult
+          retention-days: 7
