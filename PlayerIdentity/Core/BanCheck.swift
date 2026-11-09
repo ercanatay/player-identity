@@ -63,6 +63,8 @@ struct BanCheck: Codable, Sendable, Equatable {
     var status: BanStatus
     var checkedAt: Date
     var detail: String
+    /// §21: parsed A2S_INFO reply of step (a); optional, absent in older records.
+    var info: ServerInfo? = nil
 }
 
 // MARK: - UDP transport (DI)
@@ -229,11 +231,12 @@ struct BanChecker: Sendable {
     func check(_ request: BanCheckRequest) async throws -> BanCheck {
         let start = now()
         let overallDeadline = start.addingTimeInterval(Self.totalTimeout)
+        var info: ServerInfo?
         func result(_ status: BanStatus, _ trail: [BanStatus], _ serverText: String = "") -> BanCheck {
             var detail = trail.map(\.rawValue).joined(separator: " → ")
             let text = BanReplies.printable(serverText)
             if !text.isEmpty { detail += ": " + text }
-            return BanCheck(status: status, checkedAt: now(), detail: detail)
+            return BanCheck(status: status, checkedAt: now(), detail: detail, info: info)
         }
 
         guard let session = try? transport.makeSession(to: request.endpoint) else {
@@ -241,14 +244,25 @@ struct BanChecker: Sendable {
         }
         defer { session.close() }
 
-        // (a) A2S_INFO
+        // (a) A2S_INFO; its reply also yields the server info (§21), no extra query.
         let infoDeadline = min(start.addingTimeInterval(Self.stepTimeout), overallDeadline)
-        guard let infoReply = try await exchange(session, BanPackets.info(), until: infoDeadline, ignoreInfo: false) else {
+        var infoSentAt = now()
+        guard var infoReply = try await exchange(session, BanPackets.info(), until: infoDeadline, ignoreInfo: false) else {
             return result(.unreachable, [.unreachable])
         }
+        var infoReceivedAt = now()
         if case .challenge(let challenge) = BanReplies.classifyInfo(infoReply) {
             // The same packet is re-sent once with the challenge (a protocol step, not a retry).
-            _ = try await exchange(session, BanPackets.info(challenge: challenge), until: infoDeadline, ignoreInfo: false)
+            infoSentAt = now()
+            if let reply = try await exchange(session, BanPackets.info(challenge: challenge), until: infoDeadline,
+                                              ignoreInfo: false) {
+                infoReply = reply
+                infoReceivedAt = now()
+            }
+        }
+        if var parsed = ServerInfoParser.parse(infoReply) {
+            parsed.pingMillis = max(0, Int((infoReceivedAt.timeIntervalSince(infoSentAt) * 1000).rounded()))
+            info = parsed
         }
 
         // (b) getchallenge
@@ -337,11 +351,13 @@ enum BanCheckRunner {
         }
     }
 
-    /// Builds requests from rows; invalid host, local machine or invalid port → no check.
-    static func requests(servers: [ServerEntry], rawID: UInt64?, name: String) -> [BanCheckRequest] {
+    /// Builds requests from rows; invalid, unresolved or failed host, local machine or invalid port → no check.
+    /// Hostnames use their resolved address from `resolutions` (§20).
+    static func requests(servers: [ServerEntry], rawID: UInt64?, name: String,
+                         resolutions: [String: HostResolution] = [:]) -> [BanCheckRequest] {
         servers.compactMap { entry in
-            guard let address = ServerAddress.parse(entry.host), address != .localMachine,
-                  (1...65_535).contains(entry.port) else { return nil }
+            guard let address = HostAddressing.address(for: entry.host, in: resolutions), address != .localMachine,
+                  HostValidator.isValidPort(entry.port) else { return nil }
             return BanCheckRequest(serverID: entry.id,
                                    host: entry.host,
                                    port: entry.port,

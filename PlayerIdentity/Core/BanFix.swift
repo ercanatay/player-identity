@@ -231,6 +231,20 @@ enum IPFixOutcome: Sendable, Equatable {
         return false
     }
 
+    /// Stable identifier of the outcome (history `note`, §22).
+    var code: String {
+        switch self {
+        case .resolved: return "resolved"
+        case .stillBanned: return "stillBanned"
+        case .rangeBanned: return "rangeBanned"
+        case .ipUnchanged: return "ipUnchanged"
+        case .changedUnverified: return "changedUnverified"
+        case .networkTimeout: return "networkTimeout"
+        case .failed: return "failed"
+        case .cancelled: return "cancelled"
+        }
+    }
+
     /// Never falsely claims "resolved": only `resolved` uses that wording.
     var message: String {
         switch self {

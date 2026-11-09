@@ -73,12 +73,14 @@ enum SnapshotBuilder {
                      publicIP: String?,
                      lanIPs: [String],
                      checkedAt: Date?,
-                     servers: [ServerEntry]) -> Snapshot {
+                     servers: [ServerEntry],
+                     resolutions: [String: HostResolution] = [:]) -> Snapshot {
         let identityValue = try? identity?.get()
         let savedServers = servers.map { entry -> ServerEntry in
             var copy = entry
             if entry.lastCheckedAt != nil, let rawID = identityValue?.rawID {
-                copy.cid = CIDCalculator.cid(rawID: rawID, host: entry.host) ?? ""
+                copy.cid = HostAddressing.address(for: entry.host, in: resolutions)
+                    .map { CIDCalculator.cid(rawID: rawID, address: $0) } ?? ""
             } else {
                 copy.cid = ""
             }
@@ -101,12 +103,15 @@ struct ServerDraft: Sendable, Equatable {
     enum Problem: Sendable, Equatable, CaseIterable {
         case labelEmpty
         case hostEmpty
+        /// §20: neither an IP literal nor an RFC 1123 hostname.
+        case hostInvalid
         case portInvalid
 
         var text: String {
             switch self {
             case .labelEmpty: return L10n.text(.serverProblemLabelEmpty)
             case .hostEmpty: return L10n.text(.serverProblemHostEmpty)
+            case .hostInvalid: return L10n.text(.errorInvalidHost)
             case .portInvalid: return L10n.text(.serverProblemPortInvalid)
             }
         }
@@ -130,7 +135,7 @@ struct ServerDraft: Sendable, Equatable {
     var trimmedHost: String { host.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var port: Int? {
-        guard let value = Int(portText.trimmingCharacters(in: .whitespaces)), (1...65_535).contains(value) else {
+        guard let value = Int(portText.trimmingCharacters(in: .whitespaces)), HostValidator.isValidPort(value) else {
             return nil
         }
         return value
@@ -139,7 +144,11 @@ struct ServerDraft: Sendable, Equatable {
     var problems: [Problem] {
         var list: [Problem] = []
         if trimmedLabel.isEmpty { list.append(.labelEmpty) }
-        if trimmedHost.isEmpty { list.append(.hostEmpty) }
+        if trimmedHost.isEmpty {
+            list.append(.hostEmpty)
+        } else if HostValidator.classify(trimmedHost) == nil {
+            list.append(.hostInvalid)
+        }
         if port == nil { list.append(.portInvalid) }
         return list
     }

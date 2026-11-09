@@ -196,7 +196,8 @@ final class DataMigrationTests: XCTestCase {
             udpTransport: FakeServer.healthy(),
             gameProcessDetector: FakeGameDetector(),
             commandRunner: FakeCommandRunner(),
-            sleeper: FakeSleeper(clock: TestClock())))
+            sleeper: FakeSleeper(clock: TestClock()),
+            resolver: FakeAddressResolver()))
 
         let snapshot = try XCTUnwrap(model.snapshotState.snapshot)
         XCTAssertEqual(snapshot.displayName, "Legacy Player")

@@ -17,6 +17,8 @@ struct AppDependencies {
     /// §17 Fix: allowlisted network command runner and sleeper (fake in tests; no real command runs).
     var commandRunner: any CommandRunning
     var sleeper: any Sleeping
+    /// §20 hostname resolution (fake in tests; tests never hit DNS).
+    var resolver: any ServerAddressResolver
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -30,7 +32,8 @@ struct AppDependencies {
                                udpTransport: BSDUDPTransport(),
                                gameProcessDetector: SystemGameProcessDetector(),
                                commandRunner: ProcessCommandRunner(),
-                               sleeper: TaskSleeper())
+                               sleeper: TaskSleeper(),
+                               resolver: SystemAddressResolver())
     }
 }
 
@@ -123,11 +126,20 @@ final class AppModel {
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private let banScheduler = BanCheckScheduler()
+    /// §20: hostname resolutions keyed by normalized hostname (5-minute cache behind it).
+    private(set) var hostResolutions: [String: HostResolution] = [:]
+    @ObservationIgnored private let hostCache: HostResolutionCache
+    @ObservationIgnored private var resolveTask: Task<Void, Never>?
+    /// §22 history (`history.jsonl`); writes are chained so entries keep their order.
+    @ObservationIgnored private let history: HistoryRecorder
+    @ObservationIgnored private var historyTask: Task<Void, Never>?
     /// Whether the user made changes while there is no record.
     private var editedWithoutSnapshot = false
 
     init(dependencies: AppDependencies) {
         deps = dependencies
+        hostCache = HostResolutionCache(resolver: dependencies.resolver, now: dependencies.now)
+        history = HistoryRecorder(store: HistoryStore(fileURL: dependencies.paths.historyFile), now: dependencies.now)
         let loaded = dependencies.snapshotStore.load()
         snapshotState = loaded
         let snapshot = loaded.snapshot
@@ -203,10 +215,15 @@ final class AppModel {
         loadPreviews(resetting: gamedirChanged)
 
         if includeNetwork {
+            // §20: resolve hostnames first (cached); CIDs and ban checks use the resolved address.
+            let resolved = await hostCache.resolveAll(servers.map(\.host))
+            guard current == generation else { return }
+            hostResolutions.merge(resolved) { _, new in new }
+
             // §13 ban check: in parallel with the other network steps; cancelled together with the refresh.
             let banRequests = banCheckEnabled
                 ? BanCheckRunner.requests(servers: servers, rawID: try? profile.identity.get().rawID,
-                                          name: profile.config.name)
+                                          name: profile.config.name, resolutions: hostResolutions)
                 : []
             let checker = BanChecker(transport: deps.udpTransport, now: deps.now)
             let scheduler = banScheduler
@@ -247,6 +264,7 @@ final class AppModel {
         // 5–6. CIDs + comparison
         isRefreshing = false
         reevaluate()
+        if includeNetwork { recordRefreshHistory() }
     }
 
     /// Recomputes the status from current data without network requests (§8). No evaluation before the first full refresh.
@@ -257,8 +275,62 @@ final class AppModel {
                                    model: config.model,
                                    lanIPs: lanAddresses.map(\.display),
                                    publicIP: publicIP,
-                                   servers: servers)
+                                   servers: servers,
+                                   resolutions: hostResolutions)
         report = StatusEvaluator.evaluate(current: current, snapshot: snapshotState)
+    }
+
+    // MARK: Hostnames (§20)
+
+    /// Effective address of a server host (IP literal or resolved hostname).
+    func address(for entry: ServerEntry) -> ServerAddress? {
+        HostAddressing.address(for: entry.host, in: hostResolutions)
+    }
+
+    /// Resolves a newly entered hostname (cached), then re-evaluates. DNS only; no other network request.
+    private func resolveIfNeeded(_ host: String) {
+        guard case .hostname(let name)? = HostValidator.classify(host), hostResolutions[name] == nil else { return }
+        let cache = hostCache
+        let previous = resolveTask
+        resolveTask = Task {
+            await previous?.value
+            let resolution = await cache.resolve(name)
+            hostResolutions[name] = resolution
+            reevaluate()
+        }
+    }
+
+    /// For tests: waits until pending hostname resolutions finish.
+    func waitForResolutions() async {
+        await resolveTask?.value
+    }
+
+    // MARK: History (§22)
+
+    private func recordHistory(_ operation: @escaping @Sendable (HistoryRecorder) async -> Void) {
+        let recorder = history
+        let previous = historyTask
+        historyTask = Task.detached {
+            await previous?.value
+            await operation(recorder)
+        }
+    }
+
+    private func recordRefreshHistory() {
+        let observation = HistoryObservation(
+            ts: deps.now(),
+            overall: report?.overall,
+            publicIP: publicIP,
+            identity: try? identity?.get().rawIDHex,
+            name: config.name.isEmpty ? nil : config.name,
+            model: config.model.isEmpty ? nil : config.model,
+            servers: servers.map { HistoryObservation.Server(id: $0.id, host: $0.host, ban: $0.banCheck?.status) })
+        recordHistory { await $0.observe(observation) }
+    }
+
+    /// For tests: waits until queued history writes finish.
+    func waitForHistory() async {
+        await historyTask?.value
     }
 
     // MARK: User changes
@@ -286,6 +358,7 @@ final class AppModel {
         servers.append(ServerEntry(label: draft.trimmedLabel, host: draft.trimmedHost, port: port))
         markEdited()
         reevaluate()
+        resolveIfNeeded(draft.trimmedHost)
     }
 
     func updateServer(id: UUID, with draft: ServerDraft) {
@@ -302,6 +375,7 @@ final class AppModel {
         servers[index].port = port
         markEdited()
         reevaluate()
+        resolveIfNeeded(draft.trimmedHost)
     }
 
     func deleteServer(id: UUID) {
@@ -424,6 +498,13 @@ final class AppModel {
                 var text = L10n.format(.profileApplied, TimeText.format(deps.now()))
                 if !outcome.changedFiles.isEmpty { text += " · " + outcome.summary }
                 applyStatus = .success(text)
+                if !outcome.changedFiles.isEmpty {
+                    let entry = HistoryEntry(ts: deps.now(), kind: .apply,
+                                             new: [name.map { "name=\($0)" }, model.map { "model=\($0)" }]
+                                                .compactMap { $0 }.joined(separator: "; "),
+                                             note: outcome.summary)
+                    recordHistory { await $0.record(entry) }
+                }
                 appliedSinceSave = true
                 isGameRunning = false
                 if let name, let normalized = PlayerValueValidator.normalizedName(name) {
@@ -459,7 +540,8 @@ final class AppModel {
 
     private func banRequest(for id: UUID) -> BanCheckRequest? {
         guard let entry = servers.first(where: { $0.id == id }) else { return nil }
-        return BanCheckRunner.requests(servers: [entry], rawID: try? identity?.get().rawID, name: config.name).first
+        return BanCheckRunner.requests(servers: [entry], rawID: try? identity?.get().rawID, name: config.name,
+                                       resolutions: hostResolutions).first
     }
 
     /// IP ban flow (§17.2). Called by the Start button on the confirmation sheet.
@@ -496,9 +578,13 @@ final class AppModel {
                 return
             }
             fixSession?.phase = .running(.renewingIP)
+            let oldIP = publicIP
             let result = await fixer.run()
             await lock.release()
             applyFixResult(result, serverID: id, request: request)
+            let entry = HistoryEntry(ts: deps.now(), kind: .fixAttempt, serverID: id, host: request?.host,
+                                     old: oldIP, new: result.newIP, note: result.outcome.code)
+            recordHistory { await $0.record(entry) }
         }
         fixTask = task
         return task
@@ -564,7 +650,9 @@ final class AppModel {
     /// Appeal text (§17.9.1); `nil` if the row has no ban result.
     func appealText(for id: UUID) -> String? {
         guard let entry = servers.first(where: { $0.id == id }), let check = entry.banCheck else { return nil }
-        let cid = (try? identity?.get().rawID).flatMap { CIDCalculator.cid(rawID: $0, host: entry.host) } ?? L10n.text(.appealUnknown)
+        let rawID = try? identity?.get().rawID
+        let cid = rawID.flatMap { raw in address(for: entry).map { CIDCalculator.cid(rawID: raw, address: $0) } }
+            ?? L10n.text(.appealUnknown)
         var rangeBan: RangeBanInfo?
         if case .finished(.rangeBanned(let old, let new, let cidr), _)? = fixSession?.phase, fixSession?.id == id {
             rangeBan = RangeBanInfo(cidr: cidr, oldIP: old, newIP: new)
@@ -577,7 +665,7 @@ final class AppModel {
 
     func serverPageURL(for id: UUID) -> URL? {
         guard let entry = servers.first(where: { $0.id == id }) else { return nil }
-        return GameTrackerLink.url(host: entry.host, port: entry.port)
+        return GameTrackerLink.url(host: address(for: entry)?.text ?? entry.host, port: entry.port)
     }
 
     // MARK: Save (§5)
@@ -592,7 +680,8 @@ final class AppModel {
                                             publicIP: publicIP,
                                             lanIPs: lanAddresses.map(\.display),
                                             checkedAt: lastChecked,
-                                            servers: servers)
+                                            servers: servers,
+                                            resolutions: hostResolutions)
         do {
             try deps.snapshotStore.save(snapshot)
         } catch {

@@ -182,7 +182,8 @@ final class ModelPreviewModelTests: XCTestCase {
             udpTransport: FakeServer.healthy(),
             gameProcessDetector: FakeGameDetector(),
             commandRunner: FakeCommandRunner(),
-            sleeper: FakeSleeper(clock: TestClock())))
+            sleeper: FakeSleeper(clock: TestClock()),
+            resolver: FakeAddressResolver()))
 
         await model.refresh().value
         await model.waitForPreviews()

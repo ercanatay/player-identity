@@ -54,6 +54,11 @@ struct AppPaths: Sendable, Equatable {
             .appendingPathComponent("profile.json", isDirectory: false)
     }
 
+    /// §22: `~/Library/Application Support/tr.ercanatay.playeridentity/history.jsonl`
+    var historyFile: URL {
+        snapshotFile.deletingLastPathComponent().appendingPathComponent("history.jsonl", isDirectory: false)
+    }
+
     /// Snapshot of the legacy bundle (§19.3): `~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json`.
     /// Only ever read by `DataMigration`; never written.
     var legacySnapshotFile: URL {

@@ -83,7 +83,8 @@ final class AppModelTests: XCTestCase {
     private func makeModel(script: HTTPScript, lan: [LocalAddress]? = nil,
                            udp: FakeUDPTransport = FakeServer.healthy(), clock: TestClock? = nil,
                            game: FakeGameDetector = FakeGameDetector(),
-                           runner: FakeCommandRunner = FakeCommandRunner()) -> AppModel {
+                           runner: FakeCommandRunner = FakeCommandRunner(),
+                           resolver: FakeAddressResolver = FakeAddressResolver()) -> AppModel {
         let now: @Sendable () -> Date
         if let clock {
             now = { clock.now }
@@ -101,7 +102,8 @@ final class AppModelTests: XCTestCase {
             udpTransport: udp,
             gameProcessDetector: game,
             commandRunner: runner,
-            sleeper: FakeSleeper(clock: clock ?? TestClock())))
+            sleeper: FakeSleeper(clock: clock ?? TestClock()),
+            resolver: resolver))
     }
 
     private func writeGame(name: String = "Oyuncu", model: String = "gordon", idFile: String? = "10331C2DCE4C91DB") throws {
