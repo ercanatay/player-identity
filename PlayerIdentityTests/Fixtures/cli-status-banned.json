@@ -1,0 +1,36 @@
+{
+  "schemaVersion" : 1,
+  "savedAt" : "2026-11-09T10:00:00Z",
+  "gamedir" : "valve",
+  "dataRoot" : "/Users/example/Library/Application Support/Xash3D FWGS",
+  "displayName" : "Player",
+  "model" : "gordon",
+  "rawID" : "0000000000000000",
+  "identitySource" : "/Users/example/.config/.xash_id",
+  "network" : {
+    "publicIP" : "198.51.100.7",
+    "lanIPs" : ["en0 · 192.0.2.10"],
+    "checkedAt" : "2026-11-09T10:00:00Z"
+  },
+  "servers" : [
+    {
+      "id" : "1E390D91-9114-454E-A9B3-4AB1833ACD48",
+      "label" : "Example EU",
+      "host" : "192.0.2.20",
+      "port" : 27015,
+      "cid" : "8d0d4f1c3d7e3e0b5b1c9a4f2e6d7c80",
+      "lastCheckedAt" : "2026-11-09T10:00:00Z",
+      "banCheck" : { "status" : "ipBanned", "checkedAt" : "2026-11-09T10:00:00Z", "detail" : "ipBanned: You are banned" },
+      "group" : "Europe",
+      "favorite" : true,
+      "order" : 0
+    },
+    {
+      "id" : "5B1F0C8E-2D4A-4F6B-9C3E-7A8D9E0F1A2B",
+      "label" : "Old row",
+      "host" : "2001:db8::1",
+      "port" : 27016,
+      "cid" : ""
+    }
+  ]
+}

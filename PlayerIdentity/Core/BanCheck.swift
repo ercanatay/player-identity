@@ -219,18 +219,23 @@ struct BanChecker: Sendable {
     let transport: any UDPTransport
     let now: @Sendable () -> Date
     let qport: @Sendable () -> UInt16
+    /// Per-step timeout (4 s in the app; `playeridentityctl ban --timeout` changes it). Total = 3 steps.
+    let step: TimeInterval
+    var total: TimeInterval { step * 3 }
 
     init(transport: any UDPTransport,
          now: @escaping @Sendable () -> Date,
-         qport: @escaping @Sendable () -> UInt16 = { UInt16.random(in: 1...UInt16.max) }) {
+         qport: @escaping @Sendable () -> UInt16 = { UInt16.random(in: 1...UInt16.max) },
+         stepTimeout: TimeInterval = BanChecker.stepTimeout) {
         self.transport = transport
         self.now = now
         self.qport = qport
+        self.step = stepTimeout
     }
 
     func check(_ request: BanCheckRequest) async throws -> BanCheck {
         let start = now()
-        let overallDeadline = start.addingTimeInterval(Self.totalTimeout)
+        let overallDeadline = start.addingTimeInterval(total)
         var info: ServerInfo?
         func result(_ status: BanStatus, _ trail: [BanStatus], _ serverText: String = "") -> BanCheck {
             var detail = trail.map(\.rawValue).joined(separator: " → ")
@@ -245,7 +250,7 @@ struct BanChecker: Sendable {
         defer { session.close() }
 
         // (a) A2S_INFO; its reply also yields the server info (§21), no extra query.
-        let infoDeadline = min(start.addingTimeInterval(Self.stepTimeout), overallDeadline)
+        let infoDeadline = min(start.addingTimeInterval(step), overallDeadline)
         var infoSentAt = now()
         guard var infoReply = try await exchange(session, BanPackets.info(), until: infoDeadline, ignoreInfo: false) else {
             return result(.unreachable, [.unreachable])
@@ -266,7 +271,7 @@ struct BanChecker: Sendable {
         }
 
         // (b) getchallenge
-        let challengeDeadline = min(now().addingTimeInterval(Self.stepTimeout), overallDeadline)
+        let challengeDeadline = min(now().addingTimeInterval(step), overallDeadline)
         guard let challengeReply = try await exchange(session, BanPackets.getChallenge(),
                                                       until: challengeDeadline, ignoreInfo: true) else {
             return result(.unknown, [.unknown])
@@ -280,7 +285,7 @@ struct BanChecker: Sendable {
 
         // (c) connect handshake (only if a challenge was received and a CID exists)
         guard let cid = request.cid else { return result(.ipOk, [.ipOk]) }
-        let connectDeadline = min(now().addingTimeInterval(Self.stepTimeout), overallDeadline)
+        let connectDeadline = min(now().addingTimeInterval(step), overallDeadline)
         let packet = BanPackets.connect(challenge: challenge, cid: cid, qport: qport(), name: request.name)
         guard let connectReply = try await exchange(session, packet, until: connectDeadline, ignoreInfo: true) else {
             return result(.cidUnknown, [.ipOk, .cidUnknown])

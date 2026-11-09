@@ -44,7 +44,7 @@ final class DisplayTextTests: XCTestCase {
     func testHistoryTexts() throws {
         let t0 = Date(timeIntervalSince1970: 1_793_000_000)
         try inLanguage("tr") {
-            XCTAssertEqual(HistoryKind.allCases.map(HistoryText.kind).count, 10)
+            XCTAssertEqual(HistoryKind.allCases.map(HistoryText.kind).count, 11)   // §32 adds `appeal`
             XCTAssertEqual(HistoryText.kind(.banAppeared), "Ban başladı")
             XCTAssertEqual(HistoryText.change(HistoryEntry(ts: t0, kind: .banAppeared, old: nil, new: "ipBanned")), "IP ban")
             XCTAssertEqual(HistoryText.change(HistoryEntry(ts: t0, kind: .banLifted, old: "ipBanned", new: "ipOk")),

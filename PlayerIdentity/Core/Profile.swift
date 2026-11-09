@@ -44,6 +44,11 @@ struct EditableState: Sendable, Equatable {
         let label: String
         let host: String
         let port: Int
+        let group: String?
+        let favorite: Bool
+        let order: Int
+        let note: String
+        let appeal: Appeal?
     }
 
     let dataRoot: String
@@ -53,7 +58,10 @@ struct EditableState: Sendable, Equatable {
     init(dataRoot: String, gamedir: String?, servers: [ServerEntry]) {
         self.dataRoot = URL(fileURLWithPath: dataRoot, isDirectory: true).standardizedFileURL.path
         self.gamedir = gamedir ?? ""
-        self.servers = servers.map { Server(id: $0.id, label: $0.label, host: $0.host, port: $0.port) }
+        self.servers = servers.map {
+            Server(id: $0.id, label: $0.label, host: $0.host, port: $0.port, group: $0.group, favorite: $0.favorite,
+                   order: $0.order, note: $0.note, appeal: $0.appeal)
+        }
     }
 
     init(snapshot: Snapshot) {
@@ -120,15 +128,27 @@ struct ServerDraft: Sendable, Equatable {
     var label: String = ""
     var host: String = ""
     var portText: String = String(ServerEntry.defaultPort)
+    /// §31: existing or new group name (empty = no group) and favorite switch.
+    var group: String = ""
+    var favorite = false
 
-    init(label: String = "", host: String = "", portText: String = String(ServerEntry.defaultPort)) {
+    init(label: String = "", host: String = "", portText: String = String(ServerEntry.defaultPort),
+         group: String = "", favorite: Bool = false) {
         self.label = label
         self.host = host
         self.portText = portText
+        self.group = group
+        self.favorite = favorite
     }
 
     init(entry: ServerEntry) {
-        self.init(label: entry.label, host: entry.host, portText: String(entry.port))
+        self.init(label: entry.label, host: entry.host, portText: String(entry.port), group: entry.group ?? "",
+                  favorite: entry.favorite)
+    }
+
+    /// Group to store: an existing group with the same name keeps its spelling; empty → `nil`.
+    func resolvedGroup(existing: [String]) -> String? {
+        ServerOrganization.resolveGroup(group, existing: existing)
     }
 
     var trimmedLabel: String { label.trimmingCharacters(in: .whitespacesAndNewlines) }

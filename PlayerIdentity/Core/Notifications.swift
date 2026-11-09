@@ -88,7 +88,7 @@ enum NotificationPlanner {
         case .fixAttempt:
             return NotificationContent(key: key, title: L10n.text(.notifyFixAttemptTitle),
                                        body: L10n.format(.notifyServerBody, server, fixMessage ?? entry.note ?? ""))
-        case .refresh, .nameChanged, .modelChanged, .apply, .appUpdateAvailable:
+        case .refresh, .nameChanged, .modelChanged, .apply, .appUpdateAvailable, .appeal:
             return nil
         }
     }

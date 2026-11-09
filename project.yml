@@ -16,12 +16,23 @@ settings:
     ENABLE_APP_SANDBOX: NO
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     SWIFT_STRICT_CONCURRENCY: complete
+    # Shared by the app and the bundled CLI (§34).
+    MARKETING_VERSION: "1.2.1"
+    CURRENT_PROJECT_VERSION: "13"
 targets:
   PlayerIdentity:
     type: application
     platform: macOS
     sources:
       - path: PlayerIdentity
+    dependencies:
+      # §34: the CLI ships inside the app as Contents/Helpers/playeridentityctl.
+      - target: playeridentityctl
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Helpers
     info:
       path: PlayerIdentity/Info.plist
       properties:
@@ -53,9 +64,30 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Player Identity
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
-        MARKETING_VERSION: "1.2.1"
-        CURRENT_PROJECT_VERSION: "13"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  # §34 command-line helper; compiles the same Core sources as the app (no separate module).
+  playeridentityctl:
+    type: tool
+    platform: macOS
+    sources:
+      - path: PlayerIdentity/Core
+      - path: PlayerIdentity/CLI
+      - path: PlayerIdentityCLI
+    settings:
+      configs:
+        Release:
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: GJ3Y762WQ9
+          ENABLE_HARDENED_RUNTIME: YES
+          OTHER_CODE_SIGN_FLAGS: "--timestamp --options runtime"
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+      base:
+        PRODUCT_NAME: playeridentityctl
+        PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity.ctl
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
   PlayerIdentityTests:
     type: bundle.unit-test
     platform: macOS

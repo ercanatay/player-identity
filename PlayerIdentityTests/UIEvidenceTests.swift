@@ -18,6 +18,20 @@ final class UIEvidenceTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
+    /// §33 share card with the real app icon (labels as part 2 would pass them).
+    func testRenderShareCard() throws {
+        var rect = CGRect(x: 0, y: 0, width: 256, height: 256)
+        let icon = NSApplication.shared.applicationIconImage.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+        let content = ShareCardContent(serverName: "POLIGON RPG | Turkiye'nin en uzun sunucu adi denemesi 2026",
+                                       hostPort: "play.example.com:27015", cid: "d9de0eb4419608a8423241430581e91c",
+                                       playerName: "TestPlayer", dateText: "09.11.2026 13:45",
+                                       labels: ShareCardLabels(title: "Player Identity", server: "Server", cid: "CID",
+                                                               player: "Player", date: "Date"),
+                                       icon: icon)
+        let png = try XCTUnwrap(ShareCardRenderer.png(content))
+        try png.write(to: directory.appendingPathComponent("share-card.png"))
+    }
+
     func testRenderScreens() async throws {
         let env = try TestAppEnvironment()
         let clock = env.clock

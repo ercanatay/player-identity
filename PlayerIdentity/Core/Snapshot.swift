@@ -13,9 +13,17 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
     var lastCheckedAt: Date?
     /// §13.4: optional; absent in old records (schema 1 backward compatible).
     var banCheck: BanCheck?
+    /// §31: group name (`nil` = no group), favorite, user order. Absent in old records.
+    var group: String?
+    var favorite: Bool
+    var order: Int
+    /// §32: free-text note (at most 2000 characters) and appeal tracking. Absent in old records.
+    var note: String
+    var appeal: Appeal?
 
     init(id: UUID = UUID(), label: String, host: String, port: Int = ServerEntry.defaultPort,
-         cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil) {
+         cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil,
+         group: String? = nil, favorite: Bool = false, order: Int = 0, note: String = "", appeal: Appeal? = nil) {
         self.id = id
         self.label = label
         self.host = host
@@ -23,6 +31,32 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         self.cid = cid
         self.lastCheckedAt = lastCheckedAt
         self.banCheck = banCheck
+        self.group = group
+        self.favorite = favorite
+        self.order = order
+        self.note = note
+        self.appeal = appeal
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal
+    }
+
+    /// Fields added after schema 1 are optional when decoding (old records stay readable).
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        label = try container.decode(String.self, forKey: .label)
+        host = try container.decode(String.self, forKey: .host)
+        port = try container.decode(Int.self, forKey: .port)
+        cid = try container.decode(String.self, forKey: .cid)
+        lastCheckedAt = try container.decodeIfPresent(Date.self, forKey: .lastCheckedAt)
+        banCheck = try container.decodeIfPresent(BanCheck.self, forKey: .banCheck)
+        group = try container.decodeIfPresent(String.self, forKey: .group)
+        favorite = try container.decodeIfPresent(Bool.self, forKey: .favorite) ?? false
+        order = try container.decodeIfPresent(Int.self, forKey: .order) ?? 0
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+        appeal = try container.decodeIfPresent(Appeal.self, forKey: .appeal)
     }
 }
 

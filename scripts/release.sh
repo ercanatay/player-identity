@@ -65,6 +65,7 @@ xcodebuild "${build_args[@]}" clean build >"$DERIVED.log" 2>&1 || { tail -40 "$D
 
 APP="$DERIVED/Build/Products/Release/PlayerIdentity.app"
 [[ -d "$APP" ]] || fail "missing $APP"
+[[ -x "$APP/Contents/Helpers/playeridentityctl" ]] || fail "missing Contents/Helpers/playeridentityctl (§34)"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
 BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")
 log "Version $VERSION ($BUILD)"
@@ -75,8 +76,15 @@ ZIP="$OUTPUT_DIR/PlayerIdentity-$VERSION-macos.zip"
 
 if [[ "$MODE" == devid ]]; then
     log "Signing with Developer ID (hardened runtime, secure timestamp)"
-    sign_args=(--force --deep --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_IDENTITY")
-    [[ -n "${SIGN_KEYCHAIN:-}" ]] && sign_args+=(--keychain "$SIGN_KEYCHAIN")
+    keychain_sign=()
+    [[ -n "${SIGN_KEYCHAIN:-}" ]] && keychain_sign=(--keychain "$SIGN_KEYCHAIN")
+    # §34: nested helpers first (no entitlements), then the app itself; the app seal covers the signed helpers.
+    for helper in "$APP"/Contents/Helpers/*; do
+        [[ -f "$helper" ]] || continue
+        codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" ${keychain_sign[@]+"${keychain_sign[@]}"} "$helper"
+    done
+    sign_args=(--force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_IDENTITY")
+    sign_args+=(${keychain_sign[@]+"${keychain_sign[@]}"})
     codesign "${sign_args[@]}" "$APP"
     codesign --verify --deep --strict --verbose=2 "$APP"
     if codesign -d --entitlements - --xml "$APP" 2>/dev/null | grep -q "get-task-allow"; then

@@ -427,7 +427,9 @@ final class AppModel {
 
     func addServer(_ draft: ServerDraft) {
         guard draft.isValid, let port = draft.port else { return }
-        servers.append(ServerEntry(label: draft.trimmedLabel, host: draft.trimmedHost, port: port))
+        servers.append(ServerEntry(label: draft.trimmedLabel, host: draft.trimmedHost, port: port,
+                                   group: draft.resolvedGroup(existing: ServerOrganization.groups(servers)),
+                                   favorite: draft.favorite, order: ServerOrganization.nextOrder(servers)))
         markEdited()
         reevaluate()
         resolveIfNeeded(draft.trimmedHost)
@@ -445,9 +447,74 @@ final class AppModel {
         servers[index].label = draft.trimmedLabel
         servers[index].host = draft.trimmedHost
         servers[index].port = port
+        servers[index].group = draft.resolvedGroup(existing: ServerOrganization.groups(servers))
+        servers[index].favorite = draft.favorite
         markEdited()
         reevaluate()
         resolveIfNeeded(draft.trimmedHost)
+    }
+
+    // MARK: §31 groups, favorites, order
+
+    /// Existing group names (sorted) for the group picker.
+    var serverGroups: [String] { ServerOrganization.groups(servers) }
+
+    func serverSections(filter: ServerListFilter = ServerListFilter()) -> [ServerSection] {
+        ServerOrganization.sections(servers, filter: filter)
+    }
+
+    func setFavorite(_ favorite: Bool, for id: UUID) {
+        guard let index = servers.firstIndex(where: { $0.id == id }), servers[index].favorite != favorite else { return }
+        servers[index].favorite = favorite
+        markEdited()
+    }
+
+    func canMoveServer(id: UUID, _ direction: ServerMoveDirection) -> Bool {
+        ServerOrganization.canMove(id, direction, in: servers)
+    }
+
+    /// ▲/▼ inside the section; `order` is saved with the record.
+    func moveServer(id: UUID, _ direction: ServerMoveDirection) {
+        guard let moved = ServerOrganization.move(id, direction, in: servers) else { return }
+        servers = moved
+        markEdited()
+    }
+
+    // MARK: §32 notes and appeals
+
+    /// Sets the note (at most 2000 characters). Saved with the record.
+    @discardableResult
+    func setNote(_ note: String, for id: UUID) -> AppealEditError? {
+        switch ServerAnnotations.setNote(note, for: id, in: servers) {
+        case .success(let updated):
+            guard updated != servers else { return nil }
+            servers = updated
+            markEdited()
+            return nil
+        case .failure(let error):
+            return error
+        }
+    }
+
+    /// Adds, edits or removes (`nil`) the appeal; a change is recorded in the history (`appeal`).
+    @discardableResult
+    func saveAppeal(_ appeal: Appeal?, for id: UUID) -> AppealEditError? {
+        guard let old = servers.first(where: { $0.id == id }) else { return .serverNotFound }
+        switch ServerAnnotations.setAppeal(appeal, for: id, in: servers) {
+        case .success(let updated):
+            guard let entry = ServerAnnotations.historyEntry(old: old.appeal, new: appeal, server: old, now: deps.now()) else {
+                return nil
+            }
+            servers = updated
+            markEdited()
+            recordHistory { recorder in
+                await recorder.record(entry)
+                return []
+            }
+            return nil
+        case .failure(let error):
+            return error
+        }
     }
 
     func deleteServer(id: UUID) {

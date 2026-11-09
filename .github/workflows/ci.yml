@@ -38,3 +38,6 @@ jobs:
         run: |
           xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
             -destination 'platform=macOS' -derivedDataPath .build test
+
+      - name: CLI smoke (§34)
+        run: scripts/cli-smoke.sh

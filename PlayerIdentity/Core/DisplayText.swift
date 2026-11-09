@@ -46,6 +46,8 @@ enum HistoryText {
         case .apply: return L10n.text(.historyKindApply)
         case .fixAttempt: return L10n.text(.historyKindFixAttempt)
         case .appUpdateAvailable: return L10n.text(.historyKindAppUpdateAvailable)
+        // §32: localized in part 2 (no new texts in part 1); the raw kind is shown until then.
+        case .appeal: return kind.rawValue
         }
     }
 

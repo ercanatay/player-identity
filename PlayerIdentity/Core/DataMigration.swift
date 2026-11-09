@@ -6,6 +6,8 @@ enum DefaultsKey {
     static let banCheckEnabled = "banCheckEnabled"
     static let recentNames = "recentNames"
     static let notificationsEnabled = "notificationsEnabled"
+    /// §30 menu bar mode (default off).
+    static let showInMenuBar = "showInMenuBar"
 }
 
 /// One-time migration from the legacy `tr.ercanatay.oyuncukimlik` bundle (§19.3).
