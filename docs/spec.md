@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 1.9 · Tarih: 2026-11-09 · Durum: uygulanacak (v1.8 → v1.9: §27 otomatik güncelleme, §28 sürüm düşürme)
+Sürüm: 2.0 · Tarih: 2026-11-09 · Durum: uygulanacak (v1.9 → v2.0: §29–§34 oyuna gir, menü çubuğu, gruplar, notlar/itiraz, paylaşım kartı, CLI)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -864,3 +864,57 @@ Kullanıcı yeni sürümde sorun yaşarsa **önceki kararlı sürüme** dönebil
 
 ### 28.4 Testler
 Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsuzluğunda geri yükleme akışı; aynı sürüm reddi; imza/team hatası; yedek budama (10).
+
+---
+
+## 29. Oyuna gir (connect) (v2.0)
+
+- Sunucu satırında **"Oyuna gir"** (yalnız macOS + Xash3D kuruluysa; değilse gizli).
+- Komut: `/usr/bin/open -a <Xash3D.app> --args -game <gamedir> +connect <host>:<port>`; hostname ise çözümlenen IP kullanılır.
+- Oyun zaten çalışıyorsa **uyarı**: "Oyun açık; yeni bağlantı mevcut oyunu kapatır" + onay.
+- `-game` profil gamedir'inden; ek argüman ayarı yok (V1).
+- Hata: uygulama bulunamadı → "Xash3D bulunamadı. /Applications/Xash3D-FWGS.app gerekli."
+- Testler: komut üretimi (IPv4/IPv6/hostname), uygulama yolu bulunamadı, oyun çalışıyor uyarısı, iptal.
+
+## 30. Menü çubuğu + açılışta başlat (v2.0)
+
+- `NSStatusItem`: durum ikonu (yeşil/turuncu/kırmızı), menüde: durum metni, **Yenile**, **Ayarlar**, **Göster**, **Çık**.
+- Arka planda **30 dk**'da bir yenileme (yalnız menü çubuğu modu açıksa); oyun sunucularına giden sorgular mevcut limitlere tabi.
+- Ayarlar > Genel: **"Menü çubuğunda göster"** (varsayılan kapalı), **"Açılışta başlat"** (`SMAppService.mainApp`, varsayılan kapalı; kayıt hatası kullanıcıya gösterilir).
+- Menü çubuğu modunda Dock ikonu gizlenmez (V1); pencere kapanınca uygulama çıkmaz.
+- Testler: durum→ikon/başlık eşlemesi, 30 dk sayaç, login item kayıt/çıkarma (protokol enjekte), hata metni.
+
+## 31. Sunucu grupları ve favoriler (v2.0)
+
+- `ServerEntry`: `group: String?` (varsayılan yok), `favorite: Bool`, `order: Int`.
+- UI: gruplara göre bölümler (grup adı sıralı; grupsuzlar "Diğer"), favoriler üstte yıldızla; **"Yalnız banlıları göster"** ve **"Yalnız favoriler"** filtreleri.
+- Sunucu ekle/düzenle sheet'inde grup seçimi (mevcut gruplar + yeni grup adı) ve favori anahtarı.
+- Sıralama: satır içi ▲/▼ (sürükle-bırak V1 dışı); `order` kalıcı.
+- Testler: gruplama/sıralama, filtreler, yeni grup, kayıt geriye uyumu (alanlar opsiyonel).
+
+## 32. Notlar + itiraz takibi (v2.0)
+
+- `ServerEntry`: `note: String` (en fazla 2000 karakter), `appeal: Appeal?`
+- `Appeal`: `sentAt: Date`, `channel: String` (Discord/Telegram/forum/e-posta/diğer), `status: sent|answered|rejected|accepted`, `followUpAt: Date?`, `summary: String`.
+- UI: satır detayında **Notlar** ve **İtiraz** bölümü; itiraz kaydı ekle/düzenle; durum rozeti; `followUpAt` geçmişse satırda 🔔 hatırlatma.
+- İtiraz metni kopyalama mevcut §17.9.1 akışını kullanır; kaydedince geçmişe `appeal` olayı düşer.
+- Testler: not doğrulama/uzunluk, itiraz CRUD, durum geçişleri, takip tarihi, geçmiş kaydı, geriye uyum.
+
+## 33. CID paylaşım kartı (PNG) (v2.0)
+
+- Satır menüsünde **"Paylaşım kartı oluştur"**: 1200×630 PNG; içerik: uygulama ikonu, sunucu adı/host:port, CID (monospace), kullanıcı adı, tarih-saat, **QR** (CID metni).
+- "Panoya kopyala" ve "Diske kaydet" (NSSavePanel). Arka plan marka rengi, TR/EN etiketler.
+- Testler: kart üretimi (boyut, boş değil), QR üretimi, uzun isim kısaltma, eksik alanlarda çökme yok.
+
+## 34. CLI yardımcısı (`playeridentityctl`) (v2.0)
+
+- `project.yml`'a **commandLineTool** hedefi; `PlayerIdentity/Core` kaynaklarını uygulamayla paylaşır (kopya derleme, ayrı modül yok).
+- Komutlar:
+  - `cid <ip> [--raw-id <hex>] [--json]`
+  - `ban <host:port> [--cid <hex>] [--json] [--timeout 4]`
+  - `status [--json]` — snapshot'tan özet (sürüm, rawID, sunucular, ban durumları)
+  - `--version`
+- Çıkış kodları: 0 başarı; 1 kullanım hatası; 2 ağ/çözümleme hatası; 3 ban var.
+- JSON çıktısı kararlı alan adları (`schemaVersion: 1`).
+- Uygulama bundle'ına dahil: `PlayerIdentity.app/Contents/Helpers/playeridentityctl` (release build'te kopyalanır).
+- Testler: argüman ayrıştırma, JSON şeması, çıkış kodları, IPv6, stdin yok.

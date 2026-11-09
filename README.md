@@ -21,7 +21,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination
 xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build test
 ```
 The `.xcodeproj` is generated and not tracked in git. Tests never touch the network or the user's real files
-(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **328** tests.
+(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **387** tests.
 The scheme runs tests with the Turkish test language (most assertions compare the Turkish source texts);
 `LocalizationTests` switch languages explicitly.
 
@@ -237,6 +237,18 @@ move `PlayerIdentity.app` to `/Applications`. Release builds since **v1.1.0** ar
 **Developer ID Application: Rigicon, Inc.**, notarized by Apple and stapled, so they open without a Gatekeeper
 warning. Each release lists the SHA-256 of the zip (`SHA256SUMS.txt`). A release built without the signing secrets is
 marked "not notarized" in its notes; open that one with right-click → **Open** on first launch.
+
+### What's new in v2.0.0
+- **Join game**: start the game directly on the selected server from the app (with the server address).
+- **Menu bar** item and **launch at login** (open at startup), so the status is visible without opening the window.
+- **Server groups and favorites**: organize servers into groups, pin favorites to the top.
+- **Notes and appeal tracking**: keep notes per server and track ban appeals until the outcome.
+- **CID share card**: export a card with the player CID for sharing.
+- **`playeridentityctl` CLI** (bundled in the app), for example:
+  - `playeridentityctl status` — current player and server state
+  - `playeridentityctl cid 192.0.2.10` — CID of a server (add `--raw-id` for the raw value, `--json` for JSON)
+  - `playeridentityctl ban 192.0.2.10:27015 --cid <32-hex> --timeout 10` — ban check of a server
+- 387 tests.
 
 ### What's new in v1.2.1
 - Clean quit during an update: the relaunch no longer asks "Quit without saving?" (the pre-install snapshot is already taken).
