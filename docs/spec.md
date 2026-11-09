@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 1.7 · Tarih: 2026-11-08 · Durum: uygulanacak (v1.6 → v1.7: §18 i18n TR/EN, §19 İngilizce kod tabanı + veri göçü)
+Sürüm: 1.8 · Tarih: 2026-11-09 · Durum: uygulanacak (v1.7 → v1.8: §20–§26 sunucu bilgisi, DNS, geçmiş, bildirim, diff, güncelleme, imza)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -750,3 +750,62 @@ TR değerleri, §10/§13.5/§14.3/§17'deki metinlerle **birebir aynı** olacak.
 4. TR ve EN ile açılışta tüm metinler doğru dilde.
 5. Kaynak ağacında Türkçe tanımlayıcı/yorum kalmaz (yerelleştirme dosyaları hariç).
 6. Mevcut 182 test güncellenerek geçer.
+
+---
+
+## 20. Sunucu adresi: hostname + DNS (v1.8)
+
+- Sunucu `host` alanı IPv4, IPv6 veya **hostname** olabilir (RFC 1123; ≤253 karakter).
+- Çözümleme: `getaddrinfo` (A ve AAAA). Sıra: **ilk IPv4**, yoksa ilk IPv6. Sonuç **5 dk** önbelleklenir; `port` değişmez.
+- Etkin adres satırda gösterilir (`host → 1.2.3.4`); CID ve ban kontrolü **çözümlenen IP** ile yapılır.
+- Çözümlenemezse: satır `invalidHost`; genel durum bozulmaz. Ağ hatası ile "böyle bir ad yok" ayrılır.
+- Testler: sahte çözümleyici; A+AAAA, yalnız AAAA, boş, NXDOMAIN, önbellek TTL, port doğrulama.
+
+## 21. Sunucu bilgisi (A2S_INFO) (v1.8)
+
+- Ban kontrolünün (a) adımındaki A2S_INFO yanıtı ayrıştırılır: **isim, harita, oyuncu/maks, ping (RTT)**.
+- GoldSrc `0x6D` ve Source `0x49` biçimleri; `0x41` challenge akışı korunur.
+- Satırda: `harita · 9/26 · 42 ms`; isim tooltip'te. Bilgi yoksa gizlenir (hata değil).
+- Bozuk/eksik yanıtta çökme yok; alanlar tek tek opsiyonel.
+- Testler: iki biçim, eksik alan, UTF-8/latin1 isim, challenge, aşırı büyük paket.
+
+## 22. Kontrol geçmişi (v1.8)
+
+- `~/Library/Application Support/tr.ercanatay.playeridentity/history.jsonl` — **append-only** JSONL.
+- Olaylar: `refresh`, `ipChanged`, `banAppeared`, `banLifted`, `identityChanged`, `nameChanged`, `modelChanged`, `apply`, `fixAttempt`, `appUpdateAvailable`.
+- Her kayıt: `{ts, kind, serverID?, host?, old?, new?, note?}`. Aynı durum tekrarında **yeni kayıt yok** (durum geçişi bazlı).
+- Saklama: son **5000** kayıt veya **90 gün** (hangisi önce dolarsa); yazma atomik değilse satır bazlı ekleme + bozuk satır toleransı.
+- UI: "Geçmiş" penceresi; sunucuya/türe göre filtre, en yeni üstte, **Markdown/JSON dışa aktarma**.
+- Testler: ekleme, geçiş dedupe, bozuk satır toleransı, saklama budama, filtre, dışa aktarma.
+
+## 23. Bildirimler (v1.8)
+
+- `UNUserNotificationCenter`; izin yalnız ilk bildirimden önce istenir.
+- Bildirim üreten geçişler: `banAppeared`, `banLifted`, `ipChanged`, `identityChanged`, `fixAttempt` sonucu.
+- İlk çalıştırmada ve durum değişmediğinde bildirim yok; aynı olay 10 dk içinde tekrar bildirilmez.
+- Ayarlar > "Bildirimler" anahtarı (varsayılan açık). Kapalıyken hiçbir bildirim gönderilmez.
+- Testler: geçiş→bildirim eşlemesi (protokol enjekte), dedupe, ayar kapalı, ilk çalıştırma.
+
+## 24. Uygula öncesi diff (v1.8)
+
+- Ad/model **Uygula**'ya basınca önce **önizleme sheet'i**: her dosya için değişecek satırlar (`-`/`+`, satır numarası, dosya adı).
+- Değişiklik yoksa Uygula devre dışı; diff boşsa sheet açılmaz.
+- "Yaz" onayı olmadan hiçbir dosya yazılmaz; iptal hiçbir şey değiştirmez.
+- Testler: LF/CRLF diff, çoklu geçiş, anahtar ekleme, değişiklik yok, iptal.
+
+## 25. Güncelleme kontrolü (v1.8)
+
+- Açılışta en fazla **24 saatte bir** ve menüden elle: `GET https://api.github.com/repos/ercanatay/player-identity/releases/latest`.
+- `tag_name` semver'i `CFBundleShortVersionString` ile karşılaştırılır (prerelease yok sayılır).
+- Yeni sürüm varsa üstte **tek satır banner**: sürüm + "İndir" (release sayfası) + "Yoksay".
+- Ağ hatası sessiz; kullanıcıya hata gösterilmez. Otomatik indirme/kurulum yok.
+- Testler: semver karşılaştırma (1.10 > 1.9), API hatası, 24 saat önbellek, yoksay.
+
+## 26. Developer ID imza + notarize (v1.8)
+
+- Sertifika: **Developer ID Application: Rigicon, Inc. (GJ3Y762WQ9)**; `--options runtime`, `--timestamp`.
+- Entitlements: sandbox kapalı; ağ istemci/sunucu, dosya okuma (kullanıcı seçimli) yeterli; `get-task-allow` yok.
+- Notarize: `xcrun notarytool submit --wait` → `xcrun stapler staple` → `spctl -a -vv` **accepted**.
+- CI: sertifika ve notary kimliği **GitHub Secrets** (`BUILD_CERT_P12`, `BUILD_CERT_PASSWORD`, `NOTARY_APPLE_ID`/`NOTARY_PASSWORD`/`NOTARY_TEAM_ID` veya API key). Secret yoksa release adımı atlanır (build yine çalışır).
+- Release asset: imzalı+staple'lı `.zip` (+ SHA256). Notarize edilmemişse başlıkta "unsigned/ad-hoc" uyarısı.
+- Kabul: `codesign --verify --deep --strict` ✅, `spctl` accepted ✅, `stapler validate` ✅, indirilen zip ilk açılışta uyarısız açılır.

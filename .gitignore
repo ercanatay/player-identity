@@ -5,3 +5,5 @@ DerivedData/
 .DS_Store
 __pycache__/
 .build-release/
+dist/
+.build-release.log

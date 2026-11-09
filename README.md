@@ -29,7 +29,8 @@ The scheme runs tests with the Turkish test language (most assertions compare th
 ```sh
 open .build/Build/Products/Debug/PlayerIdentity.app
 ```
-Ad-hoc signed; App Sandbox and hardened runtime are disabled. Bundle id: `tr.ercanatay.playeridentity`.
+Debug builds are ad-hoc signed (no hardened runtime); release builds are signed with Developer ID and notarized
+(see [Signing and notarization](#signing-and-notarization)). App Sandbox is off. Bundle id: `tr.ercanatay.playeridentity`.
 One refresh runs at launch.
 
 Start in a specific language (see [Localization](#localization)):
@@ -228,14 +229,45 @@ project.yml       XcodeGen spec
 - Multiple profiles, iCloud sync, App Store distribution, sandbox, auto-update.
 - Dedicated UI for IPv6 server rows (the CID logic is the same).
 - Notifications/timers, periodic background refresh.
-- A domain name can be entered as host but is not resolved; CIDs are computed for IP addresses only (a domain-name
-  row is shown red as an invalid server address).
 
 ## Download
 
-Grab the latest build from [Releases](https://github.com/ercanatay/player-identity/releases/latest):
-unzip, move `PlayerIdentity.app` to `/Applications`, then right-click → **Open** on first launch
-(the build is ad-hoc signed, not notarized).
+Grab the latest build from [Releases](https://github.com/ercanatay/player-identity/releases/latest), unzip it and
+move `PlayerIdentity.app` to `/Applications`. Release builds since **v1.1.0** are signed with
+**Developer ID Application: Rigicon, Inc.**, notarized by Apple and stapled, so they open without a Gatekeeper
+warning. Each release lists the SHA-256 of the zip (`SHA256SUMS.txt`). A release built without the signing secrets is
+marked "not notarized" in its notes; open that one with right-click → **Open** on first launch.
+
+### What's new in v1.1.0
+- Hostnames as server addresses (DNS, 5-minute cache) with `host → IP` in the row.
+- Server info from A2S_INFO: map, players/max and ping.
+- History window (⌘Y) with filters and JSON/Markdown export.
+- Preview of the exact lines before **Apply** writes them.
+- Update check against GitHub Releases with a banner (**Download** / **Ignore**).
+- Notifications for ban/IP/identity changes and fix results (Settings > Notifications).
+- Developer ID signing, hardened runtime and notarization.
+
+## Signing and notarization
+`scripts/release.sh` builds the Release configuration and then:
+1. signs with `codesign --force --deep --options runtime --timestamp` using the Developer ID identity of team
+   `GJ3Y762WQ9` and `PlayerIdentity/PlayerIdentity.entitlements` (no sandbox, no `get-task-allow`);
+2. zips the app and submits it with `xcrun notarytool submit --wait` (App Store Connect API key);
+3. staples the ticket and checks `stapler validate`, `spctl -a -vv` and `codesign --verify --deep --strict`;
+4. writes `dist/PlayerIdentity-<version>-macos.zip`, `dist/SHA256SUMS.txt` and `dist/release-status.txt`.
+
+Without a Developer ID identity it produces an ad-hoc build instead. Secrets come only from the environment:
+`ASC_KEY_PATH`, `ASC_KEY_ID`, `ASC_ISSUER_ID` (notarization), optional `SIGN_IDENTITY`, `SIGN_KEYCHAIN`,
+`APPLE_TEAM_ID`.
+
+```sh
+ASC_KEY_PATH=~/path/AuthKey_XXXX.p8 ASC_KEY_ID=XXXX ASC_ISSUER_ID=… scripts/release.sh
+```
+
+The tag-driven workflow `.github/workflows/release.yml` runs the same script. It imports the certificate into a
+temporary keychain from the repository secrets `APPLE_DEVID_CERT_P12` (base64) and `APPLE_DEVID_CERT_PASSWORD`,
+notarizes with `APPLE_ASC_KEY_P8` (base64 or PEM), `APPLE_ASC_KEY_ID`, `APPLE_ASC_ISSUER_ID` and `APPLE_TEAM_ID`,
+verifies the zip and publishes it with `gh release create`. If the secrets are missing it publishes an ad-hoc build
+and says "not notarized" in the release notes.
 
 ## Install (local build)
 
@@ -244,11 +276,11 @@ xcodegen generate
 xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
   -destination 'platform=macOS' -configuration Release -derivedDataPath .build-release build
 ditto .build-release/Build/Products/Release/PlayerIdentity.app /Applications/PlayerIdentity.app
-codesign --force --deep --sign - /Applications/PlayerIdentity.app
 open /Applications/PlayerIdentity.app
 ```
 
-The app is ad-hoc signed (not notarized). On first launch macOS may ask for confirmation:
+Without the Developer ID certificate, build with `CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ENABLE_HARDENED_RUNTIME=NO`
+(or run `scripts/release.sh`, which falls back to ad-hoc). A local ad-hoc build is not notarized: on first launch
 right-click → **Open**, or allow it in **System Settings → Privacy & Security**.
 
 ## Design spec
