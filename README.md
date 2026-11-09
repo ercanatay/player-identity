@@ -21,7 +21,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination
 xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build test
 ```
 The `.xcodeproj` is generated and not tracked in git. Tests never touch the network or the user's real files
-(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **394** tests.
+(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **440** tests.
 The scheme runs tests with the Turkish test language (most assertions compare the Turkish source texts);
 `LocalizationTests` switch languages explicitly.
 
@@ -237,6 +237,16 @@ move `PlayerIdentity.app` to `/Applications`. Release builds since **v1.1.0** ar
 **Developer ID Application: Rigicon, Inc.**, notarized by Apple and stapled, so they open without a Gatekeeper
 warning. Each release lists the SHA-256 of the zip (`SHA256SUMS.txt`). A release built without the signing secrets is
 marked "not notarized" in its notes; open that one with right-click → **Open** on first launch.
+
+### What's new in v2.2.0
+- **Appeal tracking**: follow ban appeals with a timeline and reminders.
+- **Interfaces / VPN**: shows every network interface and VPN status.
+- **Ban matrix**: per-server view of IP, range and CID bans.
+- **Ping / uptime charts**: server ping and uptime graphs.
+- **Ban list URL**: load the server ban list from a URL.
+- **Diagnostics bundle**: export a diagnostics package for support.
+- **Keyboard shortcuts**: quick actions from the keyboard.
+- 440 tests.
 
 ### What's new in v2.1.0
 - **Language selector**: choose System, Türkçe or English in Settings; the interface switches immediately, without restarting the app.

@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.1 · Tarih: 2026-11-09 · Durum: uygulanacak (v2.0 → v2.1: §35 dil seçici)
+Sürüm: 2.2 · Tarih: 2026-11-09 · Durum: uygulanacak (v2.1 → v2.2: §36–§41 itiraz takibi, arayüz/VPN, ban matrisi, metrikler, ban listesi, altyapı)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -947,3 +947,51 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 - Tercih kalıcılığı ve yeniden yükleme.
 - Dil değişince anahtar çözümlemesinin değişmesi (tr "Yenile" ↔ en "Refresh").
 - tr/en anahtar sayıları eşit; yeni anahtarlar dolu; sabit literal taraması 0.
+
+---
+
+## 36. İtiraz takibi + hatırlatma (v2.2)
+
+- `Appeal`'e `events: [{status, at}]` eklenir; durum değişiminde olay yazılır (en fazla 20).
+- `followUpAt` geldiğinde **bir kez** bildirim: "İtiraz takibi: <sunucu>". `notifiedAt` ile tekrar engellenir.
+- Kontrol anları: açılış, elle/otomatik yenileme, menü çubuğu 30 dk döngüsü.
+- UI: detayda **zaman çizelgesi** (Gönderildi → Yanıtlandı → …) ve "Takip tarihini ertele (+1 gün, +3 gün)".
+- Not değişiklikleri geçmişe `note` olayı olarak düşer (eski → yeni, 500 karakter kısaltma).
+- Testler: olay ekleme/sınır, bildirim bir kez, erteleme, not geçmişi, kapalı bildirim ayarı.
+
+## 37. Arayüzler ve VPN tespiti (v2.2)
+
+- Ağ kartı: **Arayüzler** listesi (`en0`, `en1`, `utun*`, `bridge*`), IPv4/IPv6, durum (aktif/pasif) ve **VPN** işareti.
+- VPN tespiti: `utun*` arayüzü varsa ve varsayılan rota onu kullanıyorsa "VPN aktif"; değilse "VPN yok".
+- Çıkış IP'si tek (NAT) olduğundan arayüz başına ayrı genel IP iddiası yok; "Çıkış: <IP> · <arayüz>" gösterilir.
+- Ban testi **her zaman çıkış IP'siyle** yapılır; VPN açıksa arayüzde uyarı: "VPN aktif — ban sonucu VPN çıkışına aittir."
+- Testler: sahte arayüz listesi, VPN var/yok, IPv6 link-local hariç, çıkış arayüzü seçimi.
+
+## 38. Ban matrisi (v2.2)
+
+- Pencere/sheet: satırlar sunucular; sütunlar **IP ban**, **CID ban**, **Aralık**, **Son kontrol**; ikon + metin.
+- "Ban türü doğrulanamadı" satırı ayrı işaretlenir; erişilemeyen satır "—".
+- **CSV dışa aktar** (RFC 4180 kaçışı), **panoya kopyala**.
+- Testler: matris üretimi, sıralama (banlılar üstte), CSV kaçışı (virgül/tırnak/satır sonu), boş durum.
+
+## 39. Ping/uptime geçmişi (v2.2)
+
+- `metrics.jsonl`: `{ts, serverID, host, online, ping, players, maxPlayers, map}` — her başarılı/başarısız kontrolde bir kayıt.
+- Saklama: **30 gün** ve sunucu başına en fazla **5000** örnek; budama otomatik.
+- UI: sunucu detayında **grafikler** (Swift Charts): ping (ms), oyuncu sayısı; üstte "son 24 saat uptime %".
+- Testler: kayıt/okuma, budama, uptime hesabı (online/total), boş seri, CSV/JSON dışa aktarma, bozuk satır toleransı.
+
+## 40. Ban listesi sorgusu (v2.2)
+
+- Sunucu başına **ban listesi URL şablonu** (`banListURL`), örn. `https://panel.example.com/bans?q={cid}`.
+- Yer tutucular: `{cid}`, `{ip}`, `{host}`, `{port}`; `https` zorunlu; en az bir yer tutucu.
+- "Ban listesinde ara" → varsayılan tarayıcıda açar (URL encode). **Kazıma/otomatik okuma yok** (paneller kırılgan).
+- Testler: şablon doğrulama, yer tutucu doldurma/encode, https zorunlu, eksik alan.
+
+## 41. Altyapı paketi (v2.2)
+
+- **Homebrew cask:** repoda `Casks/player-identity.rb`; `version`/`sha256` release asset'inden; `binary` ile `playeridentityctl` bağlanır. CI release adımı cask dosyasını güncel sha ile commit eder (opsiyonel, secret gerektirmez).
+- **Teşhis paketi:** ZIP: `app-info.json` (sürüm, build, OS, mimari), `snapshot.redacted.json` (IP'ler maskeli), `history.tail.jsonl`, `metrics.tail.jsonl`, `update-state.json`; NSSavePanel.
+- **App Intents / Kısayollar:** "Sunucu banını kontrol et", "CID'imi göster", "Yenile" — `AppIntents` ile; Siri/Kısayollar. (V1: 3 intent)
+- **UI smoke testi:** XCUITest ile açılış + Ayarlar > Güncellemeler görünürlüğü (CI'da koşmaz, yerel etiketli).
+- Testler: cask şablonu (Ruby sözdizimi lint), teşhis zip içeriği + redaksiyon, intent parametre çözümleme.
