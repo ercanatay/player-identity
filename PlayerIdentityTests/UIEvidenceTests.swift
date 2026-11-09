@@ -122,6 +122,12 @@ final class UIEvidenceTests: XCTestCase {
         try render(InstallConfirmSheet(updates: model.updates,
                                        request: UpdateController.InstallRequest(release: newer, change: .upgrade)),
                    size: CGSize(width: 520, height: 400), name: "update-confirm")
+        let rich = AppRelease(version: newer.version, versionString: newer.versionString, tag: newer.tag,
+                              pageURL: newer.pageURL, notes: Self.sampleNotes, publishedAt: newer.publishedAt,
+                              zip: newer.zip, sums: newer.sums)
+        try render(InstallConfirmSheet(updates: model.updates,
+                                       request: UpdateController.InstallRequest(release: rich, change: .upgrade)),
+                   size: CGSize(width: 520, height: 520), name: "update-confirm-notes")
         model.updates.request(older)
         let downgrade = try XCTUnwrap(model.updates.pendingInstall)
         try render(InstallConfirmSheet(updates: model.updates, request: downgrade),
@@ -291,9 +297,23 @@ final class UIEvidenceTests: XCTestCase {
         try zip.write(to: directory.appendingPathComponent("v22-diagnostics-\(language).zip"))
     }
 
+    private static let sampleNotes = """
+    ## PlayerIdentity 2.2.1
+
+    **Signing:** Developer ID, notarized.
+    - Fixed `profile.json` migration
+    - See [release page](https://github.com/ercanatay/player-identity)
+
+    ### SHA-256
+    ```
+    shasum -a 256 PlayerIdentity-2.2.1-macos.zip
+    ```
+    """
+
     private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)
+        hosting.appearance = NSAppearance(named: .aqua) // deterministic light render (dark host paints white text on white)
         let window = NSWindow(contentRect: CGRect(x: -20_000, y: -20_000, width: size.width, height: size.height),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false

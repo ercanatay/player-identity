@@ -178,7 +178,7 @@ struct InstallConfirmSheet: View {
                 Text(L10n.format(.updateConfirmSize, UpdateStatusText.size(size))).foregroundStyle(.secondary)
             }
             ScrollView {
-                Text(release.notes.isEmpty ? L10n.text(.updateNotesEmpty) : release.notes)
+                ReleaseNotesText(notes: release.notes)
                     .font(.callout)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -271,5 +271,32 @@ private struct DiffLineRow: View {
         .font(.callout.monospaced())
         .padding(.vertical, 1)
         .background((removed ? Color.red : Color.green).opacity(0.08))
+    }
+}
+
+/// Release notes rendered from Markdown (headings, bold, code, links); empty body → localized placeholder.
+struct ReleaseNotesText: View {
+    let notes: String
+
+    var body: some View {
+        if notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            Text(L10n.text(.updateNotesEmpty))
+        } else {
+            Text(Self.styled(ReleaseNotesFormatter.attributed(notes)))
+        }
+    }
+
+    static func styled(_ input: AttributedString) -> AttributedString {
+        var out = input
+        for run in out.runs {
+            if run.presentationIntent != nil {
+                out[run.range].font = .headline
+            } else if run.inlinePresentationIntent?.contains(.code) == true {
+                out[run.range].font = .system(.body, design: .monospaced)
+            } else if run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true {
+                out[run.range].font = .callout.bold()
+            }
+        }
+        return out
     }
 }
