@@ -2,7 +2,7 @@ import Foundation
 
 // §34 `playeridentityctl`: argument parsing, commands and output. The tool is for terminals and scripts, so its
 // texts are English and not localized; JSON output has stable field names (`schemaVersion: 1`). It never reads
-// standard input and never writes any file.
+// standard input; the only file it writes is one §39 sample in `metrics.jsonl` after `ban` (`--no-metrics` turns it off).
 
 /// Exit codes (§34).
 enum CLIExit {
@@ -40,6 +40,11 @@ struct CLIContext: Sendable {
         return paths.snapshotFile
     }
 
+    /// `metrics.jsonl` next to the record (follows `PLAYERIDENTITYCTL_SNAPSHOT`).
+    var metricsURL: URL {
+        snapshotURL.deletingLastPathComponent().appendingPathComponent("metrics.jsonl", isDirectory: false)
+    }
+
     static func live(bundle: Bundle = .main,
                      environment: [String: String] = ProcessInfo.processInfo.environment) -> CLIContext {
         CLIContext(version: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0",
@@ -59,7 +64,7 @@ enum CLICommand: Sendable, Equatable {
     case help
     case version(json: Bool)
     case cid(host: String, rawID: UInt64?, json: Bool)
-    case ban(host: String, port: Int, cid: String?, json: Bool, timeout: TimeInterval)
+    case ban(host: String, port: Int, cid: String?, json: Bool, timeout: TimeInterval, recordMetrics: Bool = true)
     case status(json: Bool)
 }
 
@@ -94,7 +99,7 @@ enum CLIParser {
                 inlineValue = String(argument[argument.index(after: equals)...])
             }
             switch name {
-            case "--json", "--version", "--help", "-h":
+            case "--json", "--version", "--help", "-h", "--no-metrics":
                 guard inlineValue == nil else { return .failure(CLIUsageError(message: "\(name) takes no value")) }
                 flags.insert(name == "-h" ? "--help" : name)
             case "--raw-id", "--cid", "--timeout":
@@ -118,6 +123,9 @@ enum CLIParser {
             return .failure(CLIUsageError(message: "missing command"))
         }
         if flags.contains("--version") { return .failure(CLIUsageError(message: "--version takes no command")) }
+        if flags.contains("--no-metrics"), command != "ban" {
+            return .failure(CLIUsageError(message: "--no-metrics is only valid for ban"))
+        }
         let rest = Array(positionals.dropFirst())
         func allow(_ allowed: Set<String>) -> CLIUsageError? {
             options.keys.first { !allowed.contains($0) }.map { CLIUsageError(message: "\($0) is not valid for \(command)") }
@@ -157,7 +165,8 @@ enum CLIParser {
                 }
                 timeout = value
             }
-            return .success(.ban(host: target.host, port: target.port, cid: cid, json: json, timeout: timeout))
+            return .success(.ban(host: target.host, port: target.port, cid: cid, json: json, timeout: timeout,
+                                 recordMetrics: !flags.contains("--no-metrics")))
 
         case "status":
             if let error = allow([]) { return .failure(error) }
@@ -227,7 +236,9 @@ enum CLIRunner {
 
     commands:
       cid <ip> [--raw-id <hex>] [--json]                     CID for a server address
-      ban <host:port> [--cid <hex>] [--json] [--timeout 4]   ban check of one server
+      ban <host:port> [--cid <hex>] [--json] [--timeout 4] [--no-metrics]
+                                                             ban check of one server; an answering
+                                                             server adds a sample to metrics.jsonl
       status [--json]                                        summary of the saved record
       --version                                              print the version
 
@@ -254,8 +265,9 @@ enum CLIRunner {
             return CLIResult(exitCode: CLIExit.ok, stdout: "playeridentityctl \(context.version) (\(context.build))\n", stderr: "")
         case .cid(let host, let rawID, let json):
             return await cid(host: host, rawID: rawID, json: json, context: context)
-        case .ban(let host, let port, let cid, let json, let timeout):
-            return await ban(host: host, port: port, cid: cid, json: json, timeout: timeout, context: context)
+        case .ban(let host, let port, let cid, let json, let timeout, let recordMetrics):
+            return await ban(host: host, port: port, cid: cid, json: json, timeout: timeout, recordMetrics: recordMetrics,
+                             context: context)
         case .status(let json):
             return status(json: json, context: context)
         }
@@ -285,7 +297,7 @@ enum CLIRunner {
     // MARK: ban
 
     private static func ban(host: String, port: Int, cid: String?, json: Bool, timeout: TimeInterval,
-                            context: CLIContext) async -> CLIResult {
+                            recordMetrics: Bool, context: CLIContext) async -> CLIResult {
         let address: ServerAddress
         switch await resolve(host, context: context) {
         case .success(let resolved): address = resolved
@@ -303,6 +315,7 @@ enum CLIRunner {
         } catch {
             return failure("cancelled", "ban check cancelled", command: "ban", json: json, code: CLIExit.network)
         }
+        if recordMetrics { recordSample(check, host: host, port: port, snapshot: snapshot, context: context) }
         let banned = check.status == .ipBanned || check.status == .cidBanned
         let exitCode = banned ? CLIExit.banned : check.status == .unreachable ? CLIExit.network : CLIExit.ok
         let target = endpointText(address: address, host: host, port: port)
@@ -329,6 +342,16 @@ enum CLIRunner {
             lines.append("server: " + parts.joined(separator: " · "))
         }
         return CLIResult(exitCode: exitCode, stdout: lines.joined(separator: "\n") + "\n", stderr: "")
+    }
+
+    /// §39: a check that got an A2S answer adds a sample, under the saved server's id (or a stable id for
+    /// `host:port`). Writing errors never change the command result.
+    static func recordSample(_ check: BanCheck, host: String, port: Int, snapshot: Snapshot?, context: CLIContext) {
+        guard check.info != nil else { return }
+        let normalized = HostValidator.normalized(host)
+        let serverID = snapshot?.servers.first { HostValidator.normalized($0.host) == normalized && $0.port == port }?.id
+            ?? MetricSample.stableServerID(host: normalized, port: port)
+        _ = try? MetricsStore(fileURL: context.metricsURL).append([MetricSample(check: check, serverID: serverID, host: host)])
     }
 
     // MARK: status

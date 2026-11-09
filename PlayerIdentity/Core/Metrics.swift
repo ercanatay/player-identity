@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // MARK: - §39 Ping / uptime history
@@ -23,6 +24,15 @@ struct MetricSample: Codable, Sendable, Equatable {
         self.players = players
         self.maxPlayers = maxPlayers
         self.map = map
+    }
+
+    /// Stable id for a server that is not in the record (CLI checks): MD5 of `host:port` as a UUID.
+    static func stableServerID(host: String, port: Int) -> UUID {
+        var bytes = Array(Insecure.MD5.hash(data: Data("\(host):\(port)".utf8)))
+        bytes[6] = (bytes[6] & 0x0F) | 0x30   // version 3 (name-based, MD5)
+        bytes[8] = (bytes[8] & 0x3F) | 0x80   // RFC 4122 variant
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 
     /// Sample of a finished ban check: online unless the server did not answer at all.
@@ -75,8 +85,37 @@ struct MetricsStore: Sendable {
         return data
     }
 
-    func append(_ samples: [MetricSample]) throws {
-        guard !samples.isEmpty else { return }
+    /// Dedupe key: one sample per server and second (the app, the fix flow and the CLI may check at once).
+    static func dedupeKey(_ sample: MetricSample) -> String {
+        "\(sample.serverID.uuidString)|\(Int(sample.ts.timeIntervalSince1970.rounded(.down)))"
+    }
+
+    /// Bytes read from the end of the file to find recent duplicates.
+    static let dedupeTailBytes = 64 * 1024
+
+    /// Appends the samples, skipping any whose server+second is already in the batch or at the end of the file.
+    /// Returns the samples written.
+    @discardableResult
+    func append(_ samples: [MetricSample]) throws -> [MetricSample] {
+        guard !samples.isEmpty else { return [] }
+        var seen = Set(recentTail().map(Self.dedupeKey))
+        let fresh = samples.filter { seen.insert(Self.dedupeKey($0)).inserted }
+        guard !fresh.isEmpty else { return [] }
+        try write(fresh)
+        return fresh
+    }
+
+    /// Samples in the last 64 KB of the file (a partial first line is skipped as corrupt).
+    private func recentTail() -> [MetricSample] {
+        guard let handle = try? FileHandle(forReadingFrom: fileURL) else { return [] }
+        defer { try? handle.close() }
+        guard let size = try? handle.seekToEnd() else { return [] }
+        let start = size > UInt64(Self.dedupeTailBytes) ? size - UInt64(Self.dedupeTailBytes) : 0
+        guard (try? handle.seek(toOffset: start)) != nil, let data = try? handle.readToEnd() else { return [] }
+        return Self.decodeLines(data)
+    }
+
+    private func write(_ samples: [MetricSample]) throws {
         var payload = Data()
         for sample in samples { payload.append(try Self.encodeLine(sample)) }
         let fileManager = FileManager.default
@@ -125,11 +164,11 @@ actor MetricsRecorder {
     func record(_ samples: [MetricSample]) {
         guard !samples.isEmpty else { return }
         var current = counts ?? Self.counts(of: (try? store.compact(now: now())) ?? store.load())
-        guard (try? store.append(samples)) != nil else {
+        guard let written = try? store.append(samples) else {
             counts = current
             return
         }
-        for sample in samples { current[sample.serverID, default: 0] += 1 }
+        for sample in written { current[sample.serverID, default: 0] += 1 }
         if current.values.contains(where: { $0 > MetricsRetention.maxSamplesPerServer }),
            let kept = try? store.compact(now: now()) {
             current = Self.counts(of: kept)

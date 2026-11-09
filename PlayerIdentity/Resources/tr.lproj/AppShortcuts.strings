@@ -3,4 +3,6 @@
 "intent.phrase.checkBan ${applicationName}" = "${applicationName} ile sunucu banını kontrol et";
 "intent.phrase.checkBanShort ${applicationName}" = "${applicationName} ban kontrolü";
 "intent.phrase.showCID ${applicationName}" = "${applicationName} ile CID'imi göster";
+"intent.phrase.showIdentity ${applicationName}" = "${applicationName} ile oyuncu kimliğimi göster";
 "intent.phrase.refresh ${applicationName}" = "${applicationName} durumunu yenile";
+"intent.phrase.refreshBans ${applicationName}" = "${applicationName} ile ban durumumu yenile";

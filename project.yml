@@ -113,7 +113,30 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity.tests
         GENERATE_INFOPLIST_FILE: YES
+  # §41 UI smoke test: local only (own scheme below; the PlayerIdentity scheme and CI do not run it).
+  PlayerIdentityUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: PlayerIdentityUITests
+    dependencies:
+      - target: PlayerIdentity
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: PlayerIdentity
 schemes:
+  PlayerIdentityUITests:
+    build:
+      targets:
+        PlayerIdentity: all
+        PlayerIdentityUITests: [test]
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - PlayerIdentityUITests
   PlayerIdentity:
     build:
       targets:

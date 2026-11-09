@@ -541,14 +541,21 @@ INFOPLIST = {
 # §41 Siri / Shortcuts phrases (AppShortcuts.strings). The key is the phrase written in the code,
 # with `${applicationName}` for `\(.applicationName)`.
 SHORTCUT_PHRASES = [
+    # Check server ban
     ("intent.phrase.checkBan ${applicationName}",
      "${applicationName} ile sunucu banını kontrol et", "Check server ban with ${applicationName}"),
     ("intent.phrase.checkBanShort ${applicationName}",
      "${applicationName} ban kontrolü", "${applicationName} ban check"),
+    # Show my CID
     ("intent.phrase.showCID ${applicationName}",
      "${applicationName} ile CID'imi göster", "Show my CID with ${applicationName}"),
+    ("intent.phrase.showIdentity ${applicationName}",
+     "${applicationName} ile oyuncu kimliğimi göster", "Show my player identity with ${applicationName}"),
+    # Refresh
     ("intent.phrase.refresh ${applicationName}",
      "${applicationName} durumunu yenile", "Refresh ${applicationName}"),
+    ("intent.phrase.refreshBans ${applicationName}",
+     "${applicationName} ile ban durumumu yenile", "Refresh my ban status with ${applicationName}"),
 ]
 
 

@@ -582,6 +582,10 @@ final class AppModelTests: XCTestCase {
         XCTAssertEqual(outcome, .resolved(old: "1.1.1.1", new: "2.2.2.2"))
         XCTAssertEqual(model.publicIP, "2.2.2.2")
         XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)
+        // §39: the refresh and the fix recheck each wrote a sample.
+        let samples = await model.loadMetrics()
+        XCTAssertEqual(samples.map(\.serverID), [id, id])
+        XCTAssertEqual(samples.last?.ts, model.servers.first?.banCheck?.checkedAt)
         XCTAssertNil(model.fixKind(for: id))                 // ban lifted → Fix hidden
         XCTAssertTrue(model.hasUnsavedChanges)               // §17.2/7
         let en0 = NetworkInterfaceName("en0")!

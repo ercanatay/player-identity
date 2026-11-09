@@ -131,7 +131,8 @@ final class InterfaceV22Tests: XCTestCase {
         XCTAssertEqual(shortcuts.count, 3)
         let phraseKeys = shortcuts.flatMap { ($0["phraseTemplates"] as? [[String: Any]] ?? []).compactMap { $0["key"] as? String } }
         let shortTitles = shortcuts.compactMap { ($0["shortTitle"] as? [String: Any])?["key"] as? String }
-        XCTAssertEqual(phraseKeys.count, 4)
+        XCTAssertEqual(phraseKeys.count, 6)                    // 2 phrases per shortcut
+        XCTAssertTrue(shortcuts.allSatisfy { ($0["phraseTemplates"] as? [Any])?.count == 2 })
 
         let keys = Set(L10nKey.allCases.map(\.rawValue))
         for key in shortTitles + ["intent.checkBan.title", "intent.showCID.title", "intent.refresh.title", "intent.server.type",
@@ -146,6 +147,14 @@ final class InterfaceV22Tests: XCTestCase {
             for (key, value) in phrases {
                 XCTAssertTrue(value.contains("${applicationName}"), "\(language) \(key)")
                 XCTAssertFalse(value.hasPrefix("intent."), "\(language) \(key)")
+            }
+            XCTAssertEqual(Set(phrases.values).count, 6, language)   // all different
+            let expected = language == "tr"
+                ? ["sunucu banını kontrol et", "ban kontrolü", "CID'imi göster", "oyuncu kimliğimi göster",
+                   "durumunu yenile", "ban durumumu yenile"]
+                : ["Check server ban", "ban check", "Show my CID", "Show my player identity", "Refresh ", "Refresh my ban status"]
+            for fragment in expected {
+                XCTAssertTrue(phrases.values.contains { $0.contains(fragment) }, "\(language): \(fragment)")
             }
         }
         try tr {

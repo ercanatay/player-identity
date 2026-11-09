@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model: AppModel
 
     override init() {
-        let dependencies = AppDependencies.live()
+        let dependencies = AppModel.isUITesting ? AppDependencies.uiTesting() : AppDependencies.live()
         // §19.3: one-time migration from the legacy bundle, before the snapshot is loaded.
         // Skipped in the test host so tests never touch the user's real data.
         if !AppModel.isRunningTests {

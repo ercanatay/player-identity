@@ -56,6 +56,47 @@ final class MetricsTests: XCTestCase {
         XCTAssertEqual(store.load().filter { $0.serverID == b }.count, 1)
     }
 
+    func testDedupeSameServerSameSecond() throws {
+        let first = MetricSample(ts: Self.t0 + 0.2, serverID: a, host: "h", online: true, ping: 10)
+        let sameSecond = MetricSample(ts: Self.t0 + 0.9, serverID: a, host: "h", online: true, ping: 11)
+        let otherServer = MetricSample(ts: Self.t0 + 0.5, serverID: b, host: "h", online: true)
+        let nextSecond = MetricSample(ts: Self.t0 + 1, serverID: a, host: "h", online: false)
+        XCTAssertEqual(try store.append([first, sameSecond, otherServer]), [first, otherServer])   // inside one batch
+        XCTAssertEqual(try store.append([sameSecond]), [])                                          // already in the file
+        XCTAssertEqual(try store.append([nextSecond]), [nextSecond])
+        XCTAssertEqual(store.load().count, 3)
+        XCTAssertEqual(MetricsStore.dedupeKey(first), MetricsStore.dedupeKey(sameSecond))
+        XCTAssertNotEqual(MetricsStore.dedupeKey(first), MetricsStore.dedupeKey(nextSecond))
+    }
+
+    func testRecorderCountsOnlyWrittenSamples() async throws {
+        let recorder = MetricsRecorder(store: store, now: { Self.t0 })
+        await recorder.record([sample(a, 0), sample(a, 0), sample(a, 0.5)])
+        XCTAssertEqual(store.load().count, 1)
+    }
+
+    func testStableServerIDForCLIChecks() {
+        let id = MetricSample.stableServerID(host: "51.68.190.91", port: 27015)
+        XCTAssertEqual(id, MetricSample.stableServerID(host: "51.68.190.91", port: 27015))
+        XCTAssertNotEqual(id, MetricSample.stableServerID(host: "51.68.190.91", port: 27016))
+        XCTAssertEqual(id.uuidString[id.uuidString.index(id.uuidString.startIndex, offsetBy: 14)], "3")   // version 3
+    }
+
+    @MainActor
+    func testFixRecheckWritesASample() async throws {
+        let env = try TestAppEnvironment()
+        let model = env.makeModel()
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
+        await model.refresh().value
+        let id = try XCTUnwrap(model.servers.first?.id)
+        env.clock.advance(11)                                   // past the 10 s throttle
+        await model.recheckServer(id)?.value
+        let samples = await model.loadMetrics()
+        XCTAssertEqual(samples.count, 2)
+        XCTAssertEqual(samples.map(\.serverID), [id, id])
+        XCTAssertTrue(samples.allSatisfy(\.online))
+    }
+
     func testUptimeAndSeries() {
         let now = Self.t0 + 86_400
         let samples = [sample(a, -10), sample(a, 3600), sample(a, 7200, online: false, ping: nil), sample(a, 10_800),

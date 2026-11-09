@@ -3,4 +3,6 @@
 "intent.phrase.checkBan ${applicationName}" = "Check server ban with ${applicationName}";
 "intent.phrase.checkBanShort ${applicationName}" = "${applicationName} ban check";
 "intent.phrase.showCID ${applicationName}" = "Show my CID with ${applicationName}";
+"intent.phrase.showIdentity ${applicationName}" = "Show my player identity with ${applicationName}";
 "intent.phrase.refresh ${applicationName}" = "Refresh ${applicationName}";
+"intent.phrase.refreshBans ${applicationName}" = "Refresh my ban status with ${applicationName}";

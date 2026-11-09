@@ -44,6 +44,31 @@ struct AppDependencies {
     /// §37: interfaces + egress interface (`getifaddrs` + route lookup; read-only, nothing is sent).
     var interfaceReporter = InterfaceReporter()
 
+    /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
+    static func uiTesting() -> AppDependencies {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("PlayerIdentityUITesting", isDirectory: true)
+        try? FileManager.default.removeItem(at: home)
+        try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let suite = UpdateInstaller.bundleID + ".uitesting"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        let paths = AppPaths(home: home)
+        var deps = AppDependencies(paths: paths,
+                                   fileSystem: LocalFileSystem(),
+                                   localIPProvider: SystemLocalIPProvider(),
+                                   publicIPClient: PublicIPClient(),
+                                   snapshotStore: SnapshotStore(fileURL: paths.snapshotFile),
+                                   defaults: defaults,
+                                   now: { Date() },
+                                   udpTransport: BSDUDPTransport(),
+                                   gameProcessDetector: SystemGameProcessDetector(),
+                                   commandRunner: ProcessCommandRunner(),
+                                   sleeper: TaskSleeper(),
+                                   resolver: SystemAddressResolver())
+        deps.defaultsDomain = suite
+        return deps
+    }
+
     static func live() -> AppDependencies {
         let paths = AppPaths()
         return AppDependencies(paths: paths,
@@ -1165,6 +1190,10 @@ final class AppModel {
             publicIP = newIP
             fixedSinceSave = true
         }
+        if let check = result.recheck, let request {
+            // §39: the fix recheck is a check too.
+            recordMetrics([MetricSample(check: check, serverID: serverID, host: request.host)])
+        }
         if let check = result.recheck, let request,
            let index = servers.firstIndex(where: { $0.id == serverID }),
            servers[index].host == request.host, servers[index].port == request.port {
@@ -1197,6 +1226,7 @@ final class AppModel {
             fixSession?.phase = .running(.rechecking)
             let check = try? await checker.check(request)
             fixSession?.phase = previous ?? .ready
+            if let check { recordMetrics([MetricSample(check: check, serverID: id, host: request.host)]) }
             guard let check, let index = servers.firstIndex(where: { $0.id == id }),
                   servers[index].host == request.host, servers[index].port == request.port else { return }
             servers[index].banCheck = check
@@ -1263,6 +1293,13 @@ final class AppModel {
 
     nonisolated static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            || NSClassFromString("XCTestCase") != nil
+            || NSClassFromString("XCTestCase") != nil || isUITesting
+    }
+
+    /// Launch argument of the UI smoke test: no network, a temporary home and a separate defaults domain.
+    nonisolated static let uiTestingArgument = "-PIUITesting"
+
+    nonisolated static var isUITesting: Bool {
+        ProcessInfo.processInfo.arguments.contains(uiTestingArgument)
     }
 }

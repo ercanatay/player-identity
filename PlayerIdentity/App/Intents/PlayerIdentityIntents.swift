@@ -154,17 +154,17 @@ struct RefreshIntent: AppIntent {
     }
 }
 
-/// Shortcuts and Siri (3 shortcuts). Phrases are keys of `AppShortcuts.strings` (tr/en).
+/// Shortcuts and Siri: 3 shortcuts, 6 phrases. Phrases are keys of `AppShortcuts.strings` (tr/en).
 struct PlayerIdentityShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: CheckServerBanIntent(),
                     phrases: ["intent.phrase.checkBan \(.applicationName)", "intent.phrase.checkBanShort \(.applicationName)"],
                     shortTitle: LocalizedStringResource("intent.short.checkBan"), systemImageName: "shield.lefthalf.filled")
         AppShortcut(intent: ShowCIDIntent(),
-                    phrases: ["intent.phrase.showCID \(.applicationName)"],
+                    phrases: ["intent.phrase.showCID \(.applicationName)", "intent.phrase.showIdentity \(.applicationName)"],
                     shortTitle: LocalizedStringResource("intent.short.showCID"), systemImageName: "person.text.rectangle")
         AppShortcut(intent: RefreshIntent(),
-                    phrases: ["intent.phrase.refresh \(.applicationName)"],
+                    phrases: ["intent.phrase.refresh \(.applicationName)", "intent.phrase.refreshBans \(.applicationName)"],
                     shortTitle: LocalizedStringResource("intent.short.refresh"), systemImageName: "arrow.clockwise")
     }
 }

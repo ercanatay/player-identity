@@ -53,9 +53,11 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(CLIParser.parse(["cid", "Play.Example.com", "--raw-id=0000000000000000"]),
                        .success(.cid(host: "play.example.com", rawID: 0, json: false)))
         XCTAssertEqual(CLIParser.parse(["ban", "192.0.2.1:27016", "--timeout", "2.5", "--json"]),
-                       .success(.ban(host: "192.0.2.1", port: 27016, cid: nil, json: true, timeout: 2.5)))
+                       .success(.ban(host: "192.0.2.1", port: 27016, cid: nil, json: true, timeout: 2.5, recordMetrics: true)))
         XCTAssertEqual(CLIParser.parse(["ban", "192.0.2.1", "--cid", Self.fixtureCID.uppercased()]),
                        .success(.ban(host: "192.0.2.1", port: 27015, cid: Self.fixtureCID, json: false, timeout: 4)))
+        XCTAssertEqual(CLIParser.parse(["ban", "192.0.2.1", "--no-metrics"]),
+                       .success(.ban(host: "192.0.2.1", port: 27015, cid: nil, json: false, timeout: 4, recordMetrics: false)))
         XCTAssertEqual(CLIParser.parse(["status", "--json"]), .success(.status(json: true)))
         XCTAssertEqual(CLIParser.parse(["--version"]), .success(.version(json: false)))
         XCTAssertEqual(CLIParser.parse(["--version", "--json"]), .success(.version(json: true)))
@@ -63,7 +65,8 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(CLIParser.parse(["help"]), .success(.help))
 
         let usageErrors: [[String]] = [
-            [], ["frobnicate"], ["cid"], ["cid", "a", "b"], ["cid", "not an ip"], ["cid", "192.0.2.1", "--raw-id", "xyz"],
+            [], ["frobnicate"], ["status", "--no-metrics"], ["cid", "192.0.2.1", "--no-metrics"],
+            ["--no-metrics=1", "ban", "192.0.2.1"], ["cid"], ["cid", "a", "b"], ["cid", "not an ip"], ["cid", "192.0.2.1", "--raw-id", "xyz"],
             ["cid", "192.0.2.1", "--raw-id", "00000000000000000"], ["cid", "192.0.2.1", "--raw-id"],
             ["cid", "192.0.2.1", "--cid", Self.fixtureCID], ["ban"], ["ban", "192.0.2.1:0"], ["ban", "192.0.2.1:abc"],
             ["ban", "192.0.2.1", "--cid", "1234"], ["ban", "192.0.2.1", "--timeout", "0"],
@@ -195,6 +198,49 @@ final class CLITests: XCTestCase {
 
         let unresolved = await run(["ban", "missing.example.com:27015", "--json"])
         XCTAssertEqual(unresolved.exitCode, 2)
+    }
+
+    // MARK: §39 metrics sample
+
+    private var metricsFile: URL { AppPaths(home: home).metricsFile }
+
+    private func a2sTransport() -> FakeUDPTransport {
+        FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc())))
+    }
+
+    func testBanWritesAMetricsSampleOnceAndNoMetricsTurnsItOff() async throws {
+        let first = await run(["ban", "51.68.190.91:27015"], context(udp: a2sTransport()))
+        XCTAssertEqual(first.exitCode, 0)
+        var samples = MetricsStore(fileURL: metricsFile).load()
+        XCTAssertEqual(samples.count, 1)
+        XCTAssertEqual(samples.first?.serverID, MetricSample.stableServerID(host: "51.68.190.91", port: 27015))
+        XCTAssertEqual(samples.first?.map, "rpg_city")
+        XCTAssertEqual(samples.first?.online, true)
+
+        _ = await run(["ban", "51.68.190.91:27015"], context(udp: a2sTransport()))   // same second → deduped
+        XCTAssertEqual(MetricsStore(fileURL: metricsFile).load().count, 1)
+
+        clock.advance(5)
+        _ = await run(["ban", "51.68.190.91:27015", "--no-metrics"], context(udp: a2sTransport()))
+        XCTAssertEqual(MetricsStore(fileURL: metricsFile).load().count, 1)
+
+        clock.advance(5)
+        _ = await run(["ban", "51.68.190.91:27015", "--json"], context(udp: a2sTransport()))
+        samples = MetricsStore(fileURL: metricsFile).load()
+        XCTAssertEqual(samples.count, 2)
+    }
+
+    func testBanSampleUsesTheSavedServerAndSkipsSilentServers() async throws {
+        let snapshot = try fixture("cli-status-profile")    // contains "Example EU" at 192.0.2.20:27015
+        _ = await run(["ban", "192.0.2.20:27015"], context(udp: a2sTransport(), snapshot: snapshot))
+        let next = snapshot.deletingLastPathComponent().appendingPathComponent("metrics.jsonl")
+        XCTAssertEqual(MetricsStore(fileURL: next).load().map(\.serverID),
+                       [UUID(uuidString: "1E390D91-9114-454E-A9B3-4AB1833ACD48")!])
+
+        let silent = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: nil, challenge: nil, connect: nil))
+        let unreachable = await run(["ban", "192.0.2.99"], context(udp: silent))
+        XCTAssertEqual(unreachable.exitCode, 2)
+        XCTAssertEqual(MetricsStore(fileURL: metricsFile).load(), [])           // no A2S answer → no sample
     }
 
     func testBanIPv6Endpoint() async throws {
