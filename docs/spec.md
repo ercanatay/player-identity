@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.2 · Tarih: 2026-11-09 · Durum: uygulanacak (v2.1 → v2.2: §36–§41 itiraz takibi, arayüz/VPN, ban matrisi, metrikler, ban listesi, altyapı)
+Sürüm: 2.4 · Tarih: 2026-11-09 · Durum: uygulanacak (v2.3 → v2.4: §43 config override uyarısı + model kataloğu)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -995,3 +995,62 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 - **App Intents / Kısayollar:** "Sunucu banını kontrol et", "CID'imi göster", "Yenile" — `AppIntents` ile; Siri/Kısayollar. (V1: 3 intent)
 - **UI smoke testi:** XCUITest ile açılış + Ayarlar > Güncellemeler görünürlüğü (CI'da koşmaz, yerel etiketli).
 - Testler: cask şablonu (Ruby sözdizimi lint), teşhis zip içeriği + redaksiyon, intent parametre çözümleme.
+
+---
+
+## 42. Sunucu izleme + bildirimler (v2.3)
+
+### 42.1 Model
+- `ServerEntry.watch: Bool` (varsayılan `false`, geriye uyumlu).
+- İzlenen sunucu için geçişler kaydedilir ve bildirim üretilir:
+  - `watchBanAppeared` (IP veya CID banı ortaya çıktı; tür metinde)
+  - `watchBanLifted` (ban kalktı)
+  - `watchOffline` (sunucu erişilemez oldu)
+  - `watchOnline` (yeniden erişilebilir; aradan ≥10 dk geçtiyse)
+  - `watchMapChanged` (harita değişti; eski → yeni)
+
+### 42.2 Davranış
+- Değerlendirme her **tam yenilemede** ve menü çubuğu 30 dk döngüsünde yapılır.
+- Yalnız `watch == true` sunucular bildirim üretir; ilk gözlemde (önceki durum yok) **bildirim yok**.
+- Aynı geçiş 10 dk içinde tekrar bildirilmez (mevcut dedupe).
+- Bildirim ayarı kapalıysa hiç gönderilmez; geçmiş kayıtları yine yazılır (`watch*` olayları).
+- Menü çubuğu modu kapalıysa arka plan kontrolü yoktur; arayüzde not gösterilir.
+
+### 42.3 Arayüz
+- Sunucu satırında **🔔 izle** anahtarı (sağ tık menüsünde de); detay sheet'inde "Bu sunucuyu izle" anahtarı + hangi olayların bildirileceği kısa açıklaması.
+- Filtre: **"Yalnız izlenenler"** (mevcut filtrelerle birlikte çalışır).
+- İzlenen satırda küçük 🔔 rozeti.
+
+### 42.4 Testler
+- Her geçiş türü için tespit + bildirim metni (TR/EN).
+- `watch == false` → bildirim yok; ilk gözlem → yok; 10 dk dedupe.
+- Harita değişimi eski→yeni; online/offline eşiği (10 dk).
+- Filtre, kalıcılık, eski kayıt uyumu (alan yoksa `false`).
+- Anahtar sayıları tr/en eşit; literal taraması 0.
+
+---
+
+## 43. `userconfig.cfg` override uyarısı + geniş model kataloğu (v2.4)
+
+### 43.1 Override uyarısı
+- Etkin değer `userconfig.cfg`'den geliyorsa profil kartında **belirgin uyarı** (turuncu):
+  "`userconfig.cfg` içindeki `name`/`model` satırı `config.cfg`'yi eziyor. Oyun içi değişiklikler kalıcı olmaz."
+- Yanında **"Satırı kaldır"** düğmesi:
+  - Onay ister; dosyayı `userconfig.cfg.appbak-YYYYMMDD-HHmmss` olarak yedekler.
+  - Yalnız ilgili satırı yorumlar (`// name "..."`) — başka satıra dokunmaz.
+  - Sonrası: dosya yeniden okunur, etkin değer `config.cfg`'den gelir, geçmişe `configOverrideRemoved` olayı yazılır.
+- Satır yoksa uyarı/düğme görünmez. Oyun açıkken kaldırma reddedilir (mevcut `gameRunning` kuralı).
+
+### 43.2 Model kataloğu
+- Model listesi şu klasörlerden toplanır (varsa):
+  1. `<gamedir>/models/player/`
+  2. `<veri kökü>/valve_downloads/models/player/`
+  3. `<veri kökü>/<gamedir>_downloads/models/player/` (ör. `gearbox_downloads`)
+- Klasör adları tekilleştirilir, alfabetik sıralanır; mevcut değer listede yoksa başa eklenir.
+- Kaynak (yerel/indirilen) tooltip'te gösterilir; seçim aynı `model` anahtarına yazılır.
+- Arayüzde not: "Bazı sunucular modeli kendi tarafında zorlar; bu durumda seçim o sunucuda görünmez."
+
+### 43.3 Testler
+- Uyarı yalnız override varken; satır kaldırma yedeği + yorumlama + diğer satırların korunması; oyun açıkken red.
+- Model kataloğu: iki/üç kaynak, tekilleştirme, sıralama, mevcut değer, kaynak etiketi, boş klasör.
+- Geçmiş olayı `configOverrideRemoved`; anahtar sayıları tr/en eşit.
