@@ -27,7 +27,7 @@ The scheme runs tests with the Turkish test language (most assertions compare th
 
 ### UI tests
 UI tests live in the `PlayerIdentityUITests` scheme and are kept separate from the main CI (`ci.yml`).
-They run on demand (or weekly) via the `ui-tests.yml` workflow:
+They run on demand via the `ui-tests.yml` workflow:
 ```sh
 gh workflow run ui-tests.yml
 ```
@@ -36,6 +36,7 @@ or from the Actions tab: *UI Tests* → *Run workflow*. Locally:
 xcodegen generate
 xcodebuild test -project PlayerIdentity.xcodeproj -scheme PlayerIdentityUITests -destination 'platform=macOS' -derivedDataPath .build-ui
 ```
+The UI smoke test runs locally; on GitHub macOS runners the app window is not visible to XCTest, so the workflow is best-effort (`continue-on-error`).
 
 ## Run
 ```sh
