@@ -1,3 +1,4 @@
+import AppIntents
 import AppKit
 import OSLog
 import SwiftUI
@@ -69,6 +70,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         model = AppModel(dependencies: dependencies)
         super.init()
+        // §41: the "Refresh" intent uses this model.
+        let model = self.model
+        AppDependencyManager.shared.add(dependency: model)
     }
 
     /// §30: in menu bar mode closing the window keeps the app running.

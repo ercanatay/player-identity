@@ -38,7 +38,7 @@ final class HistoryTests: XCTestCase {
         XCTAssertTrue(try lines()[1].contains(#""serverID":"1E390D91-9114-454E-A9B3-4AB1833ACD48""#))
         XCTAssertEqual(HistoryKind.allCases.map(\.rawValue),
                        ["refresh", "ipChanged", "banAppeared", "banLifted", "identityChanged", "nameChanged",
-                        "modelChanged", "apply", "fixAttempt", "appUpdateAvailable", "appeal"])   // §32 adds `appeal`
+                        "modelChanged", "apply", "fixAttempt", "appUpdateAvailable", "appeal", "note"])   // §32 `appeal`, §36 `note`
         XCTAssertEqual(AppPaths(home: URL(fileURLWithPath: "/h")).historyFile.path,
                        "/h/Library/Application Support/tr.ercanatay.playeridentity/history.jsonl")
     }

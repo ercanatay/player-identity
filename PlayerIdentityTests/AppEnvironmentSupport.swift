@@ -83,6 +83,8 @@ final class TestAppEnvironment {
         deps.appVersion = appVersion
         // No Xash3D app unless a test installs one (the host's /Applications is never consulted).
         deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: []), homeDirectory: home)
+        // No host interfaces in tests (§37); tests that need them inject a fake list.
+        deps.interfaceReporter = InterfaceReporter(lister: FakeInterfaceLister([]), egress: FakeEgressRoute(nil))
         configure(&deps)
         return AppModel(dependencies: deps)
     }

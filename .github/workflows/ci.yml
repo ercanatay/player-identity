@@ -41,3 +41,6 @@ jobs:
 
       - name: CLI smoke (§34)
         run: scripts/cli-smoke.sh
+
+      - name: Cask syntax (§41)
+        run: ruby -c Casks/player-identity.rb

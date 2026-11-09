@@ -39,6 +39,10 @@ struct AppDependencies {
     var gameLaunchRunner: any GameLaunchRunning = UnavailableGameLaunchRunner()
     /// §30: launch at login; `nil` = not available (tests inject a fake).
     var loginItem: (any LoginItemControlling)? = nil
+    /// §40: opens the ban list page in the browser (the default opens nothing).
+    var urlOpener: any URLOpening = UnavailableURLOpener()
+    /// §37: interfaces + egress interface (`getifaddrs` + route lookup; read-only, nothing is sent).
+    var interfaceReporter = InterfaceReporter()
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -59,7 +63,8 @@ struct AppDependencies {
                                relauncher: OpenAndTerminateRelauncher(runner: ProcessUpdateCommandRunner(),
                                                                       terminate: { await MainActor.run { TerminationPolicy.terminateForUpdate { NSApp.terminate(nil) } } }),
                                gameLaunchRunner: ProcessGameLaunchRunner(),
-                               loginItem: MainAppLoginItem())
+                               loginItem: MainAppLoginItem(),
+                               urlOpener: WorkspaceURLOpener())
     }
 }
 
@@ -138,6 +143,10 @@ final class AppModel {
 
     // MARK: §31 list filter
     var serverFilter = ServerListFilter()
+
+    // MARK: §37 interfaces
+    /// Interfaces and VPN state of the last full refresh; `nil` before it.
+    private(set) var interfaceReport: InterfaceReport?
 
     // MARK: §25/§27/§28 updates
     /// Release feed, banner, installer and data backups.
@@ -223,6 +232,8 @@ final class AppModel {
     @ObservationIgnored private var resolveTask: Task<Void, Never>?
     /// §22 history (`history.jsonl`); writes are chained so entries keep their order.
     @ObservationIgnored private let history: HistoryRecorder
+    /// §39 ping/uptime samples (`metrics.jsonl`).
+    @ObservationIgnored private let metrics: MetricsRecorder
     @ObservationIgnored private var historyTask: Task<Void, Never>?
     @ObservationIgnored private let notificationDispatcher: NotificationDispatcher
     /// Whether the user made changes while there is no record.
@@ -232,6 +243,7 @@ final class AppModel {
         deps = dependencies
         hostCache = HostResolutionCache(resolver: dependencies.resolver, now: dependencies.now)
         history = HistoryRecorder(store: HistoryStore(fileURL: dependencies.paths.historyFile), now: dependencies.now)
+        metrics = MetricsRecorder(store: MetricsStore(fileURL: dependencies.paths.metricsFile), now: dependencies.now)
         notificationDispatcher = NotificationDispatcher(notifier: dependencies.notifier, now: dependencies.now)
         let loaded = dependencies.snapshotStore.load()
         snapshotState = loaded
@@ -339,9 +351,11 @@ final class AppModel {
 
             // 3. Local IPs
             let provider = deps.localIPProvider
-            let lan = await Task.detached { provider.localAddresses() }.value
+            let reporter = deps.interfaceReporter
+            let (lan, interfaces) = await Task.detached { (provider.localAddresses(), reporter.report()) }.value
             guard current == generation else { return }
             lanAddresses = lan
+            interfaceReport = interfaces
 
             // 4. Public IP (primary → fallback)
             let ip: String?
@@ -357,12 +371,15 @@ final class AppModel {
 
             let bans = await banResults
             guard current == generation else { return }
+            var samples: [MetricSample] = []
             for request in banRequests {
                 guard let check = bans[request.serverID],
                       let index = servers.firstIndex(where: { $0.id == request.serverID }),
                       servers[index].host == request.host, servers[index].port == request.port else { continue }
                 servers[index].banCheck = check
+                samples.append(MetricSample(check: check, serverID: request.serverID, host: request.host))
             }
+            recordMetrics(samples)
 
             let now = deps.now()
             lastChecked = now
@@ -454,6 +471,100 @@ final class AppModel {
                 NotificationPlanner.content(for: entry, serverLabel: entry.serverID.flatMap { labels[$0] })
             }
         }
+    }
+
+    // MARK: §40 ban list URL
+
+    /// Sets (or clears with an empty text) the row's ban list URL template; saved with the record.
+    @discardableResult
+    func setBanListURL(_ template: String, for id: UUID) -> BanListTemplateError? {
+        guard let index = servers.firstIndex(where: { $0.id == id }) else { return nil }
+        let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        var stored: String?
+        if !trimmed.isEmpty {
+            switch BanListTemplate.validate(trimmed) {
+            case .success(let valid): stored = valid
+            case .failure(let error): return error
+            }
+        }
+        guard servers[index].banListURL != stored else { return nil }
+        servers[index].banListURL = stored
+        markEdited()
+        return nil
+    }
+
+    /// The filled-in ban list URL of a row (CID and IP from the current identity and resolution).
+    func banListURL(for id: UUID) -> Result<URL, BanListTemplateError>? {
+        guard let entry = servers.first(where: { $0.id == id }), let template = entry.banListURL else { return nil }
+        let status = rowStatus(id)
+        let values = BanListValues(cid: status?.currentCID, ip: address(for: entry)?.text, host: entry.host, port: entry.port)
+        return BanListTemplate.url(template, values: values)
+    }
+
+    /// "Ban listesinde ara": opens the page in the default browser (no scraping).
+    @discardableResult
+    func openBanList(for id: UUID) -> BanListTemplateError? {
+        switch banListURL(for: id) {
+        case .success(let url)?:
+            _ = deps.urlOpener.open(url)
+            return nil
+        case .failure(let error)?:
+            return error
+        case nil:
+            return .empty
+        }
+    }
+
+    // MARK: §36 appeal reminders
+
+    /// Appeals whose follow-up date has passed and that were not notified yet (empty with notifications off).
+    /// The caller posts the notification, then calls `markAppealsNotified`.
+    func dueAppealReminders() -> [AppealReminder.Due] {
+        AppealReminder.due(servers, now: deps.now(), notificationsEnabled: notificationsEnabled)
+    }
+
+    func markAppealsNotified(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        servers = AppealReminder.markNotified(ids, in: servers, at: deps.now())
+    }
+
+    // MARK: §38 ban matrix
+
+    /// Matrix rows (banned first); range bans come from the history of fix attempts.
+    func banMatrixRows() async -> [BanMatrixRow] {
+        BanMatrix.rows(servers: servers, rangeBans: BanMatrix.rangeBans(from: await loadHistory()))
+    }
+
+    // MARK: §41 diagnostics
+
+    /// The diagnostics ZIP (app info, redacted record, history/metrics tails, update state).
+    func diagnosticsArchive(appInfo: DiagnosticsAppInfo = .current()) async -> Data {
+        await historyTask?.value
+        await metricsTask?.value
+        return DiagnosticsBundle.archive(DiagnosticsInput(appInfo: appInfo, paths: deps.paths, defaults: deps.defaults,
+                                                           now: deps.now()))
+    }
+
+    // MARK: §39 metrics
+
+    @ObservationIgnored private var metricsTask: Task<Void, Never>?
+
+    /// Appends one sample per finished check, after the previous writes.
+    private func recordMetrics(_ samples: [MetricSample]) {
+        guard !samples.isEmpty else { return }
+        let recorder = metrics
+        let previous = metricsTask
+        metricsTask = Task {
+            await previous?.value
+            await recorder.record(samples)
+        }
+    }
+
+    /// Samples for the charts (read off the main thread).
+    func loadMetrics() async -> [MetricSample] {
+        let store = MetricsStore(fileURL: deps.paths.metricsFile)
+        await metricsTask?.value
+        return await Task.detached { store.load() }.value
     }
 
     /// For tests: waits until the running refresh finishes.
@@ -687,20 +798,34 @@ final class AppModel {
     func setNote(_ note: String, for id: UUID) -> AppealEditError? {
         switch ServerAnnotations.setNote(note, for: id, in: servers) {
         case .success(let updated):
-            guard updated != servers else { return nil }
+            guard updated != servers, let old = servers.first(where: { $0.id == id }) else { return nil }
             servers = updated
             markEdited()
+            // §36: note changes go into the history (old → new, cut to 500 characters).
+            if let entry = ServerAnnotations.noteHistoryEntry(old: old.note, new: note, server: old, now: deps.now()) {
+                recordHistory { recorder in
+                    await recorder.record(entry)
+                    return []
+                }
+            }
             return nil
         case .failure(let error):
             return error
         }
     }
 
+    /// §36 "postpone the follow-up date" (+1 / +3 days); the reminder is armed again.
+    @discardableResult
+    func postponeFollowUp(byDays days: Int, for id: UUID) -> AppealEditError? {
+        guard let appeal = servers.first(where: { $0.id == id })?.appeal else { return .serverNotFound }
+        return saveAppeal(appeal.postponed(byDays: days, now: deps.now()), for: id)
+    }
+
     /// Adds, edits or removes (`nil`) the appeal; a change is recorded in the history (`appeal`).
     @discardableResult
     func saveAppeal(_ appeal: Appeal?, for id: UUID) -> AppealEditError? {
         guard let old = servers.first(where: { $0.id == id }) else { return .serverNotFound }
-        switch ServerAnnotations.setAppeal(appeal, for: id, in: servers) {
+        switch ServerAnnotations.setAppeal(appeal, for: id, in: servers, now: deps.now()) {
         case .success(let updated):
             guard let entry = ServerAnnotations.historyEntry(old: old.appeal, new: appeal, server: old, now: deps.now()) else {
                 return nil

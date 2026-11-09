@@ -122,4 +122,10 @@ log "Packaging $ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 (cd "$OUTPUT_DIR" && shasum -a 256 "$(basename "$ZIP")" > SHA256SUMS.txt)
 echo "$STATUS" > "$OUTPUT_DIR/release-status.txt"
+
+# §41: the Homebrew cask follows the published (notarized) asset; UPDATE_CASK=1 forces it, 0 skips it.
+if [[ "${UPDATE_CASK:-}" == 1 || ( -z "${UPDATE_CASK:-}" && "$STATUS" == notarized ) ]]; then
+    log "Updating Casks/player-identity.rb"
+    scripts/update-cask.sh "$VERSION" --from "$OUTPUT_DIR"
+fi
 log "Done: $STATUS · $(cat "$OUTPUT_DIR/SHA256SUMS.txt")"

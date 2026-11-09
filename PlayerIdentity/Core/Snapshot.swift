@@ -20,10 +20,13 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
     /// §32: free-text note (at most 2000 characters) and appeal tracking. Absent in old records.
     var note: String
     var appeal: Appeal?
+    /// §40: ban list URL template (`https`, with `{cid}`/`{ip}`/`{host}`/`{port}`); absent in old records.
+    var banListURL: String?
 
     init(id: UUID = UUID(), label: String, host: String, port: Int = ServerEntry.defaultPort,
          cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil,
-         group: String? = nil, favorite: Bool = false, order: Int = 0, note: String = "", appeal: Appeal? = nil) {
+         group: String? = nil, favorite: Bool = false, order: Int = 0, note: String = "", appeal: Appeal? = nil,
+         banListURL: String? = nil) {
         self.id = id
         self.label = label
         self.host = host
@@ -36,10 +39,11 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         self.order = order
         self.note = note
         self.appeal = appeal
+        self.banListURL = banListURL
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal
+        case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal, banListURL
     }
 
     /// Fields added after schema 1 are optional when decoding (old records stay readable).
@@ -57,6 +61,7 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         order = try container.decodeIfPresent(Int.self, forKey: .order) ?? 0
         note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
         appeal = try container.decodeIfPresent(Appeal.self, forKey: .appeal)
+        banListURL = try container.decodeIfPresent(String.self, forKey: .banListURL)
     }
 }
 

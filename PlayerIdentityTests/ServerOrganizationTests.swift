@@ -200,7 +200,8 @@ final class ServerOrganizationTests: XCTestCase {
         // Create
         let created = Appeal(sentAt: Self.t0, channel: .discord, summary: "IP ban itirazi")
         XCTAssertNil(model.saveAppeal(created, for: id))
-        XCTAssertEqual(model.servers.first?.appeal, created)
+        XCTAssertEqual(model.servers.first?.appeal?.hasSameContent(as: created), true)
+        XCTAssertEqual(model.servers.first?.appeal?.events, [AppealEvent(status: .sent, at: Self.t0)])   // §36 timeline
         // Unchanged → no new history entry
         XCTAssertNil(model.saveAppeal(created, for: id))
         // Update with an allowed transition

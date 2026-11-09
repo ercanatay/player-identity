@@ -102,6 +102,11 @@ targets:
         type: folder
         buildPhase: resources
         name: ScannedCore
+      # §41: the Homebrew cask, linted by the tests (`ruby -c`) from the test bundle.
+      - path: Casks
+        type: folder
+        buildPhase: resources
+        name: CaskTemplate
     dependencies:
       - target: PlayerIdentity
     settings:

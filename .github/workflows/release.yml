@@ -116,6 +116,22 @@ jobs:
           gh release create "$GITHUB_REF_NAME" "$ZIP" dist/SHA256SUMS.txt \
             --title "PlayerIdentity $VERSION" --verify-tag --notes-file "$NOTES"
 
+      - name: Update Homebrew cask (§41, optional)
+        if: env.RELEASE_STATUS == 'notarized'
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          git checkout -- Casks/player-identity.rb   # release.sh already updated the tag checkout
+          git fetch origin main
+          git checkout -B cask-update origin/main
+          scripts/update-cask.sh "$VERSION" --from dist
+          if git diff --quiet -- Casks/player-identity.rb; then echo "cask already up to date"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update Homebrew cask to $VERSION" -- Casks/player-identity.rb
+          git push origin HEAD:main
+
       - name: Clean up keychain and key
         if: always()
         run: |

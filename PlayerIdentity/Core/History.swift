@@ -15,6 +15,8 @@ enum HistoryKind: String, Codable, Sendable, CaseIterable {
     case appUpdateAvailable
     /// §32: an appeal was saved (`old`/`new` = status, `note` = channel).
     case appeal
+    /// §36: the server note changed (`old`/`new` = note, cut to 500 characters).
+    case note
 }
 
 /// One line of `history.jsonl`: `{ts, kind, serverID?, host?, old?, new?, note?}`.
@@ -165,7 +167,7 @@ struct HistoryState: Sendable, Equatable {
         case .banAppeared: if let id = entry.serverID { bans[id] = entry.new }
         case .banLifted: if let id = entry.serverID { bans[id] = nil }
         case .appUpdateAvailable: updateVersion = entry.new
-        case .apply, .fixAttempt, .appeal: break
+        case .apply, .fixAttempt, .appeal, .note: break
         }
     }
 }
