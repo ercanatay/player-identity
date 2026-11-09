@@ -128,6 +128,7 @@ struct ModelPopUpButton: NSViewRepresentable {
                 item.setValue(NSNumber(value: 1), forKey: "preferredImageVisibility")
             }
             item.representedObject = option.value
+            item.toolTip = option.sourceTooltip
             item.state = option.value == title ? .on : .off
             menu.addItem(item)
         }

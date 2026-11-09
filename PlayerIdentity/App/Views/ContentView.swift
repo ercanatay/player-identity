@@ -204,6 +204,25 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.15)))
             }
+            if model.hasConfigOverride {
+                // §43.1 userconfig.cfg override warning
+                HStack(spacing: 8) {
+                    Label(L10n.text(.configOverrideWarning), systemImage: StatusLevel.orange.symbolName)
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(L10n.text(.configOverrideRemove)) { model.showsOverrideRemoval = true }
+                        .disabled(model.isApplying)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.15)))
+                .confirmationDialog(L10n.text(.configOverrideConfirmTitle), isPresented: $model.showsOverrideRemoval,
+                                    titleVisibility: .visible) {
+                    Button(L10n.text(.configOverrideRemove), role: .destructive) { model.removeOverride() }
+                    Button(L10n.text(.actionCancel), role: .cancel) {}
+                } message: {
+                    Text(L10n.format(.configOverrideConfirmMessage, model.overriddenKeys.joined(separator: "/")))
+                }
+            }
             FieldRow(title: L10n.text(.profileName)) {
                 Menu {
                     ForEach(model.nameOptions, id: \.self) { option in
@@ -239,6 +258,10 @@ struct ContentView: View {
                 sourceNote(model.configSources.model)
             }
             if let error = model.modelError { fieldError(error) }
+            Text(L10n.text(.profileModelServerNote))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.leading, 142)
             FieldRow(title: "") {
                 // §16.3 selected model preview; source file path in the tooltip.
                 let preview = model.preview(for: model.modelDraft)

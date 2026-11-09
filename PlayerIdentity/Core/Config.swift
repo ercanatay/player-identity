@@ -111,15 +111,67 @@ struct ConfigReader: Sendable {
     }
 }
 
-/// §15.3: folder names under `<gamedir>/models/player/`, alphabetical. `nil` if unreadable.
+/// §43.2: where a model folder was found.
+enum ModelSource: String, Sendable, Equatable, Hashable, CaseIterable {
+    /// `<gamedir>/models/player/`
+    case local
+    /// `<dataRoot>/valve_downloads/…` or `<dataRoot>/<gamedir>_downloads/…`
+    case downloaded
+
+    var label: String {
+        switch self {
+        case .local: return L10n.text(.modelSourceLocal)
+        case .downloaded: return L10n.text(.modelSourceDownloaded)
+        }
+    }
+}
+
+/// A model folder name with every source it was found in (`local` first).
+struct CatalogModel: Sendable, Equatable {
+    let name: String
+    let sources: [ModelSource]
+}
+
+/// §15.3 / §43.2: folder names under `models/player/` of the gamedir and of the `*_downloads` folders.
 enum ModelCatalog {
+    /// Local folder only; `nil` if unreadable.
     static func load(gamedir: URL, fileSystem: any FileSystemReading = LocalFileSystem()) -> [String]? {
-        let folder = gamedir.appendingPathComponent("models/player", isDirectory: true)
+        folders(in: gamedir.appendingPathComponent("models/player", isDirectory: true), fileSystem: fileSystem)
+    }
+
+    /// Union of the three folders (§43.2), deduplicated by name and sorted; `nil` if none of them is readable.
+    static func entries(dataRoot: URL, gamedir: String,
+                        fileSystem: any FileSystemReading = LocalFileSystem()) -> [CatalogModel]? {
+        let gamedirURL = dataRoot.appendingPathComponent(gamedir, isDirectory: true)
+        var folders: [(ModelSource, URL)] = [(.local, gamedirURL.appendingPathComponent("models/player", isDirectory: true))]
+        var downloads = ["valve_downloads"]
+        if gamedir != "valve" { downloads.append("\(gamedir)_downloads") }
+        for folder in downloads {
+            folders.append((.downloaded, dataRoot.appendingPathComponent(folder, isDirectory: true)
+                .appendingPathComponent("models/player", isDirectory: true)))
+        }
+        var sources: [String: [ModelSource]] = [:]
+        var readable = false
+        for (source, url) in folders {
+            guard let names = Self.folders(in: url, fileSystem: fileSystem) else { continue }
+            readable = true
+            for name in names where !(sources[name]?.contains(source) ?? false) {
+                sources[name, default: []].append(source)
+            }
+        }
+        guard readable else { return nil }
+        return sort(Array(sources.keys)).map { CatalogModel(name: $0, sources: sources[$0] ?? []) }
+    }
+
+    private static func folders(in folder: URL, fileSystem: any FileSystemReading) -> [String]? {
         guard let entries = try? fileSystem.contentsOfDirectory(folder) else { return nil }
-        return entries
+        return sort(entries
             .filter { fileSystem.isDirectory($0) && !$0.lastPathComponent.hasPrefix(".") }
-            .map(\.lastPathComponent)
-            .sorted { $0.lowercased() == $1.lowercased() ? $0 < $1 : $0.lowercased() < $1.lowercased() }
+            .map(\.lastPathComponent))
+    }
+
+    private static func sort(_ names: [String]) -> [String] {
+        names.sorted { $0.lowercased() == $1.lowercased() ? $0 < $1 : $0.lowercased() < $1.lowercased() }
     }
 }
 

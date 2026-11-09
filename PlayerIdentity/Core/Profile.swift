@@ -10,6 +10,8 @@ struct LocalProfile: Sendable, Equatable {
     var configSources = ConfigSources()
     /// §15.3 model list; `nil` if the folder is unreadable.
     var models: [String]? = nil
+    /// §43.2 sources per model folder name.
+    var modelSources: [String: [ModelSource]] = [:]
 }
 
 /// Validates the data root and selected gamedir, then reads identity and config. Read-only.
@@ -29,11 +31,12 @@ struct ProfileLoader: Sendable {
         let gamedirURL = selected.map { dataRoot.appendingPathComponent($0, isDirectory: true) }
         let identity = IdentityReader(fileSystem: fileSystem, homeDirectory: homeDirectory).read(gamedir: gamedirURL)
         let effective = gamedirURL.map { ConfigReader(fileSystem: fileSystem).readEffective(gamedir: $0) }
-        let models = gamedirURL.flatMap { ModelCatalog.load(gamedir: $0, fileSystem: fileSystem) }
+        let catalog = selected.flatMap { ModelCatalog.entries(dataRoot: dataRoot, gamedir: $0, fileSystem: fileSystem) }
         return LocalProfile(gamedirs: gamedirs, selectedGamedir: selected, identity: identity,
                             config: effective?.config ?? PlayerConfig(),
                             configSources: effective?.sources ?? ConfigSources(),
-                            models: models)
+                            models: catalog?.map(\.name),
+                            modelSources: Dictionary(uniqueKeysWithValues: (catalog ?? []).map { ($0.name, $0.sources) }))
     }
 }
 

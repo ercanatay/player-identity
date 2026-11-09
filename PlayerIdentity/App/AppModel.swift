@@ -200,6 +200,10 @@ final class AppModel {
     private(set) var configSources = ConfigSources()
     /// Folder names under `<gamedir>/models/player/`; `nil` if unreadable.
     private(set) var availableModels: [String]?
+    /// §43.2 sources per model folder name.
+    private(set) var modelSources: [String: [ModelSource]] = [:]
+    /// §43.1 confirmation dialog for removing the `userconfig.cfg` override line.
+    var showsOverrideRemoval = false
     /// Draft values; written to disk only via Apply.
     var nameDraft = ""
     var modelDraft = ""
@@ -361,6 +365,7 @@ final class AppModel {
         config = profile.config
         configSources = profile.configSources
         availableModels = profile.models
+        modelSources = profile.modelSources
         isGameRunning = gameRunning
         loadPreviews(resetting: gamedirChanged)
 
@@ -1002,7 +1007,57 @@ final class AppModel {
     // MARK: Name/model editing (§15)
 
     var modelOptions: [ModelOption] {
-        PlayerOptions.modelOptions(available: availableModels ?? [], current: config.model)
+        PlayerOptions.modelOptions(available: availableModels ?? [], current: config.model, sources: modelSources)
+    }
+
+    // MARK: userconfig.cfg override (§43.1)
+
+    /// Keys (`name`, `model`) whose effective value comes from `userconfig.cfg`.
+    var overriddenKeys: [String] {
+        [configSources.name == .userconfig ? "name" : nil, configSources.model == .userconfig ? "model" : nil]
+            .compactMap { $0 }
+    }
+
+    var hasConfigOverride: Bool { !overriddenKeys.isEmpty }
+
+    /// Comments out the override lines (after the user confirmed), then re-reads the files.
+    @discardableResult
+    func removeOverride() -> Task<Void, Never>? {
+        guard hasConfigOverride, !isApplying, let gamedir = selectedGamedir else { return nil }
+        let gamedirURL = dataRoot.appendingPathComponent(gamedir, isDirectory: true)
+        let keys = overriddenKeys
+        let now = deps.now
+        let remover = UserconfigOverrideRemover(detector: deps.gameProcessDetector, now: { now() })
+        isApplying = true
+        applyStatus = nil
+        return Task {
+            let result = await Task.detached { () -> Result<OverrideRemoval, EditMessage> in
+                do {
+                    return .success(try remover.remove(gamedir: gamedirURL, keys: keys))
+                } catch let error as EditMessage {
+                    return .failure(error)
+                } catch {
+                    return .failure(.writeFailed)
+                }
+            }.value
+            isApplying = false
+            switch result {
+            case .success(let removal):
+                applyStatus = .success(L10n.format(.configOverrideDone, removal.backupURL.lastPathComponent))
+                let entry = HistoryEntry(ts: deps.now(), kind: .configOverrideRemoved,
+                                         new: removal.keys.joined(separator: ", "),
+                                         note: removal.backupURL.lastPathComponent)
+                recordHistory { recorder in
+                    await recorder.record(entry)
+                    return []
+                }
+                isGameRunning = false
+                await startRefresh(includeNetwork: isRefreshing).value
+            case .failure(let error):
+                applyStatus = .failure(error)
+                if error == .gameRunning { isGameRunning = true }
+            }
+        }
     }
 
     var nameOptions: [String] {

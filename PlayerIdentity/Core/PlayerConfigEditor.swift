@@ -9,6 +9,8 @@ enum EditMessage: String, Error, Sendable, CaseIterable {
     case gameRunning
     case writeFailed
     case configMissing
+    /// §43.1: nothing to remove / `userconfig.cfg` unreadable.
+    case overrideMissing
 
     var text: String {
         switch self {
@@ -17,6 +19,7 @@ enum EditMessage: String, Error, Sendable, CaseIterable {
         case .gameRunning: return L10n.text(.editGameRunning)
         case .writeFailed: return L10n.text(.editWriteFailed)
         case .configMissing: return L10n.text(.editConfigMissing)
+        case .overrideMissing: return L10n.text(.editOverrideMissing)
         }
     }
 }
@@ -55,14 +58,22 @@ enum PlayerValueValidator {
 struct ModelOption: Sendable, Equatable, Hashable {
     let value: String
     let label: String
+    /// §43.2 where the folder was found; empty for the "current" placeholder row.
+    var sources: [ModelSource] = []
+
+    /// Tooltip text: "Source: Local, Downloaded"; `nil` without sources.
+    var sourceTooltip: String? {
+        sources.isEmpty ? nil : L10n.format(.modelSourceTooltip, sources.map(\.label).joined(separator: ", "))
+    }
 }
 
 enum PlayerOptions {
     static let recentNamesLimit = 10
 
     /// Folder names; if the current model is not listed, it is prepended with a "current" marker.
-    static func modelOptions(available: [String], current: String) -> [ModelOption] {
-        var options = available.map { ModelOption(value: $0, label: $0) }
+    static func modelOptions(available: [String], current: String,
+                             sources: [String: [ModelSource]] = [:]) -> [ModelOption] {
+        var options = available.map { ModelOption(value: $0, label: $0, sources: sources[$0] ?? []) }
         if !current.isEmpty, !available.contains(current) {
             options.insert(ModelOption(value: current, label: L10n.format(.profileModelCurrent, current)), at: 0)
         }
@@ -333,6 +344,65 @@ struct PlayerConfigWriter: Sendable {
             try? fileManager.removeItem(at: temporary)
             throw error
         }
+    }
+}
+
+// MARK: - userconfig.cfg override removal (§43.1)
+
+struct OverrideRemoval: Sendable, Equatable {
+    /// Keys whose lines were commented out, in `name`, `model` order.
+    let keys: [String]
+    let backupURL: URL
+}
+
+/// Comments out the `name` / `model` lines of `userconfig.cfg` (every occurrence of the key); nothing else changes.
+struct UserconfigOverrideRemover: Sendable {
+    let detector: any GameProcessDetecting
+    let now: @Sendable () -> Date
+
+    static func backupName(at date: Date, timeZone: TimeZone = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "userconfig.cfg.appbak-" + formatter.string(from: date)
+    }
+
+    func remove(gamedir: URL, keys: [String]) throws -> OverrideRemoval {
+        if detector.isGameRunning() { throw EditMessage.gameRunning }
+        let url = gamedir.appendingPathComponent(ConfigFileKind.userconfig.fileName, isDirectory: false)
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue,
+              let original = try? Array(Data(contentsOf: url)) else { throw EditMessage.overrideMissing }
+
+        var lines = ConfigEditor.split(original)
+        var removed: [String] = []
+        for key in keys {
+            var found = false
+            for index in lines.indices where ConfigEditor.valueRange(in: lines[index].body, key: key) != nil {
+                lines[index].body = Array("// ".utf8) + lines[index].body
+                found = true
+            }
+            if found { removed.append(key) }
+        }
+        guard !removed.isEmpty else { throw EditMessage.overrideMissing }
+
+        let directory = url.deletingLastPathComponent()
+        let backup = directory.appendingPathComponent(Self.backupName(at: now()), isDirectory: false)
+        do {
+            try Data(original).write(to: backup, options: .atomic)
+            let temporary = directory.appendingPathComponent(".userconfig.cfg.\(UUID().uuidString).tmp", isDirectory: false)
+            try Data(ConfigEditor.join(lines)).write(to: temporary)
+            do {
+                _ = try FileManager.default.replaceItemAt(url, withItemAt: temporary)
+            } catch {
+                try? FileManager.default.removeItem(at: temporary)
+                throw error
+            }
+        } catch {
+            throw EditMessage.writeFailed
+        }
+        return OverrideRemoval(keys: removed, backupURL: backup)
     }
 }
 

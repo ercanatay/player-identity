@@ -470,3 +470,14 @@
 "watch.notify.online.body" = "It answers again after an outage of %@ minutes.";
 "watch.notify.map.title" = "Map changed: %@";
 "watch.notify.map.body" = "%@ → %@";
+"config.override.warning" = "The name/model line in userconfig.cfg overrides config.cfg. In-game changes will not persist.";
+"config.override.remove" = "Remove Line";
+"config.override.confirm.title" = "Remove the userconfig.cfg line?";
+"config.override.confirm.message" = "userconfig.cfg is backed up first; only the %@ line is commented out with //. The effective value is then read from config.cfg.";
+"config.override.done" = "Line removed · backup: %@";
+"edit.overrideMissing" = "No line to remove was found in userconfig.cfg.";
+"history.kind.configOverrideRemoved" = "Override line removed";
+"model.source.local" = "Local";
+"model.source.downloaded" = "Downloaded";
+"model.source.tooltip" = "Source: %@";
+"profile.model.serverNote" = "Some servers force the model on their side; in that case your choice is not visible on that server.";

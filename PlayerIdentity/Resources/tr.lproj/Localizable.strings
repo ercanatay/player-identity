@@ -470,3 +470,14 @@
 "watch.notify.online.body" = "%@ dakikalık kesintiden sonra yeniden yanıt veriyor.";
 "watch.notify.map.title" = "Harita değişti: %@";
 "watch.notify.map.body" = "%@ → %@";
+"config.override.warning" = "userconfig.cfg içindeki name/model satırı config.cfg'yi eziyor. Oyun içi değişiklikler kalıcı olmaz.";
+"config.override.remove" = "Satırı kaldır";
+"config.override.confirm.title" = "userconfig.cfg satırı kaldırılsın mı?";
+"config.override.confirm.message" = "Önce userconfig.cfg yedeklenir; yalnız %@ satırı // ile yoruma alınır. Etkin değer config.cfg'den okunur.";
+"config.override.done" = "Satır kaldırıldı · yedek: %@";
+"edit.overrideMissing" = "userconfig.cfg içinde kaldırılacak satır bulunamadı.";
+"history.kind.configOverrideRemoved" = "Override satırı kaldırıldı";
+"model.source.local" = "Yerel";
+"model.source.downloaded" = "İndirilen";
+"model.source.tooltip" = "Kaynak: %@";
+"profile.model.serverNote" = "Bazı sunucular modeli kendi tarafında zorlar; bu durumda seçim o sunucuda görünmez.";

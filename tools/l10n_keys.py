@@ -555,6 +555,18 @@ KEYS = [
     ("watchNotifyOnlineBody", "watch.notify.online.body", "%@ dakikalık kesintiden sonra yeniden yanıt veriyor.", "It answers again after an outage of %@ minutes."),
     ("watchNotifyMapTitle", "watch.notify.map.title", "Harita değişti: %@", "Map changed: %@"),
     ("watchNotifyMapBody", "watch.notify.map.body", "%@ → %@", "%@ → %@"),
+    # §43 userconfig.cfg override + model catalog
+    ("configOverrideWarning", "config.override.warning", "userconfig.cfg içindeki name/model satırı config.cfg'yi eziyor. Oyun içi değişiklikler kalıcı olmaz.", "The name/model line in userconfig.cfg overrides config.cfg. In-game changes will not persist."),
+    ("configOverrideRemove", "config.override.remove", "Satırı kaldır", "Remove Line"),
+    ("configOverrideConfirmTitle", "config.override.confirm.title", "userconfig.cfg satırı kaldırılsın mı?", "Remove the userconfig.cfg line?"),
+    ("configOverrideConfirmMessage", "config.override.confirm.message", "Önce userconfig.cfg yedeklenir; yalnız %@ satırı // ile yoruma alınır. Etkin değer config.cfg'den okunur.", "userconfig.cfg is backed up first; only the %@ line is commented out with //. The effective value is then read from config.cfg."),
+    ("configOverrideDone", "config.override.done", "Satır kaldırıldı · yedek: %@", "Line removed · backup: %@"),
+    ("editOverrideMissing", "edit.overrideMissing", "userconfig.cfg içinde kaldırılacak satır bulunamadı.", "No line to remove was found in userconfig.cfg."),
+    ("historyKindConfigOverrideRemoved", "history.kind.configOverrideRemoved", "Override satırı kaldırıldı", "Override line removed"),
+    ("modelSourceLocal", "model.source.local", "Yerel", "Local"),
+    ("modelSourceDownloaded", "model.source.downloaded", "İndirilen", "Downloaded"),
+    ("modelSourceTooltip", "model.source.tooltip", "Kaynak: %@", "Source: %@"),
+    ("profileModelServerNote", "profile.model.serverNote", "Bazı sunucular modeli kendi tarafında zorlar; bu durumda seçim o sunucuda görünmez.", "Some servers force the model on their side; in that case your choice is not visible on that server."),
 ]
 
 INFOPLIST = {

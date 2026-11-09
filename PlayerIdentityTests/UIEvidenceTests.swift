@@ -32,6 +32,40 @@ final class UIEvidenceTests: XCTestCase {
         try png.write(to: directory.appendingPathComponent("share-card.png"))
     }
 
+    /// §43 userconfig override warning (before/after removal) and the multi-source model list (fake fixtures).
+    func testRenderOverrideAndModelCatalog() async throws {
+        let env = try TestAppEnvironment()
+        let data = env.valveDir.deletingLastPathComponent()
+        for path in ["valve/models/player/gordon", "valve/models/player/barney", "valve_downloads/models/player/keyturk1",
+                     "valve_downloads/models/player/keyturk2", "valve_downloads/models/player/tbo"] {
+            try FileManager.default.createDirectory(at: data.appendingPathComponent(path), withIntermediateDirectories: true)
+        }
+        try Data("sensitivity 3\nname \"Ezen Ad\"\n".utf8).write(to: env.valveDir.appendingPathComponent("userconfig.cfg"))
+        let model = env.makeModel()
+        await model.refresh().value
+        XCTAssertTrue(model.hasConfigOverride)
+        try render(ContentView(model: model), size: CGSize(width: 900, height: 1100), name: "v24-override-warning")
+
+        await model.removeOverride()?.value
+        XCTAssertFalse(model.hasConfigOverride)
+        try render(ContentView(model: model), size: CGSize(width: 900, height: 1100), name: "v24-override-removed")
+
+        let list = VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.text(.profileModel)).font(.headline)
+            ForEach(model.modelOptions, id: \.value) { option in
+                HStack {
+                    Text(option.label)
+                    Spacer()
+                    Text(option.sourceTooltip ?? "").foregroundStyle(.secondary)
+                }
+            }
+            Text(L10n.text(.profileModelServerNote)).font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(16)
+        try render(list, size: CGSize(width: 640, height: 260), name: "v24-model-list")
+        XCTAssertEqual(model.modelOptions.map(\.value), ["barney", "gordon", "keyturk1", "keyturk2", "tbo"])
+    }
+
     func testRenderScreens() async throws {
         let env = try TestAppEnvironment()
         let clock = env.clock
