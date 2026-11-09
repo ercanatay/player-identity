@@ -248,6 +248,59 @@ KEYS = [
     ("appealChecklistSQL", "appeal.checklist.sql", "SQL/AMXBans ise: panelden/DB'den silin.", "SQL/AMXBans: delete it from the panel/DB."),
     ("appealChecklistFilterban", "appeal.checklist.filterban", "sv_filterban değerini kontrol edin.", "Check the sv_filterban value."),
     ("appealChecklistRestart", "appeal.checklist.restart", "Sunucuyu yeniden başlatın, listid/listip ile doğrulayın ve oyuncuyu tekrar bağlanmaya çağırın.", "Restart the server, verify with listid/listip and ask the player to reconnect."),
+
+    # Server row details (§20, §21)
+    ("serverResolving", "server.resolving", "çözülüyor…", "resolving…"),
+    ("serverResolveNotFound", "server.resolve.notFound", "ad bulunamadı", "name not found"),
+    ("serverResolveNetwork", "server.resolve.network", "DNS hatası (ağ)", "DNS error (network)"),
+    ("serverInfoPing", "server.info.ping", "%@ ms", "%@ ms"),
+
+    # History window (§22)
+    ("historyTitle", "history.title", "Geçmiş", "History"),
+    ("historyEmpty", "history.empty", "Henüz kayıt yok", "No entries yet"),
+    ("historyEmptyFiltered", "history.emptyFiltered", "Bu filtreye uyan kayıt yok", "No entries match this filter"),
+    ("historyFilterKind", "history.filter.kind", "Tür", "Type"),
+    ("historyFilterServer", "history.filter.server", "Sunucu", "Server"),
+    ("historyFilterAll", "history.filter.all", "Tümü", "All"),
+    ("historyCount", "history.count", "%@ kayıt", "%@ entries"),
+    ("historyExportJSON", "history.export.json", "JSON olarak dışa aktar…", "Export as JSON…"),
+    ("historyExportMarkdown", "history.export.markdown", "Markdown olarak dışa aktar…", "Export as Markdown…"),
+    ("historyExportFailed", "history.export.failed", "Dışa aktarılamadı: %@", "Export failed: %@"),
+    ("historyKindRefresh", "history.kind.refresh", "Durum değişti", "Status changed"),
+    ("historyKindIPChanged", "history.kind.ipChanged", "IP değişti", "IP changed"),
+    ("historyKindBanAppeared", "history.kind.banAppeared", "Ban başladı", "Ban detected"),
+    ("historyKindBanLifted", "history.kind.banLifted", "Ban kalktı", "Ban lifted"),
+    ("historyKindIdentityChanged", "history.kind.identityChanged", "Kimlik değişti", "Identity changed"),
+    ("historyKindNameChanged", "history.kind.nameChanged", "Ad değişti", "Name changed"),
+    ("historyKindModelChanged", "history.kind.modelChanged", "Model değişti", "Model changed"),
+    ("historyKindApply", "history.kind.apply", "Uygulandı", "Applied"),
+    ("historyKindFixAttempt", "history.kind.fixAttempt", "Düzeltme denemesi", "Fix attempt"),
+    ("historyKindAppUpdateAvailable", "history.kind.appUpdateAvailable", "Güncelleme var", "Update available"),
+    ("historyFixRangeBanned", "history.fix.rangeBanned", "IP aralığı banı", "IP range ban"),
+    ("historyFixFailed", "history.fix.failed", "Düzeltme başarısız", "Fix failed"),
+
+    # Apply preview (§24)
+    ("diffTitle", "diff.title", "Değişiklik önizlemesi", "Change preview"),
+    ("diffMessage", "diff.message", "Aşağıdaki satırlar yazılacak. Yaz'a basmadan hiçbir dosya değişmez.", "The lines below will be written. No file changes until you press Write."),
+    ("diffWrite", "diff.write", "Yaz", "Write"),
+
+    # Update check (§25)
+    ("updateAvailable", "update.available", "Yeni sürüm mevcut: %@", "A new version is available: %@"),
+    ("updateDownload", "update.download", "İndir", "Download"),
+    ("updateIgnore", "update.ignore", "Yoksay", "Ignore"),
+    ("updateCheck", "update.check", "Güncellemeleri Denetle…", "Check for Updates…"),
+    ("updateUpToDateTitle", "update.upToDate.title", "Uygulama güncel", "You're up to date"),
+    ("updateUpToDateMessage", "update.upToDate.message", "Sürüm %@ en son sürüm.", "Version %@ is the latest version."),
+
+    # Notifications (§23)
+    ("settingsNotifications", "settings.notifications", "Bildirimler", "Notifications"),
+    ("notifyBanAppearedTitle", "notify.banAppeared.title", "Ban başladı", "Ban detected"),
+    ("notifyBanLiftedTitle", "notify.banLifted.title", "Ban kalktı", "Ban lifted"),
+    ("notifyIPChangedTitle", "notify.ipChanged.title", "Genel IP değişti", "Public IP changed"),
+    ("notifyIdentityChangedTitle", "notify.identityChanged.title", "Kimlik değişti", "Identity changed"),
+    ("notifyFixAttemptTitle", "notify.fixAttempt.title", "Düzeltme sonucu", "Fix result"),
+    ("notifyServerBody", "notify.serverBody", "%@: %@", "%@: %@"),
+    ("notifyChangeBody", "notify.changeBody", "%@ → %@", "%@ → %@"),
 ]
 
 INFOPLIST = {

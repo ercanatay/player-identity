@@ -23,7 +23,17 @@ struct PlayerIdentityApp: App {
                 Button(L10n.text(.actionSave)) { appDelegate.model.save() }
                     .keyboardShortcut("s", modifiers: .command)
             }
+            CommandGroup(after: .appInfo) {
+                Button(L10n.text(.updateCheck)) { appDelegate.model.checkForUpdates(manual: true) }
+            }
         }
+
+        // §22 history window; SwiftUI lists it in the Window menu, with ⌘Y.
+        Window(L10n.text(.historyTitle), id: "history") {
+            HistoryView(model: appDelegate.model)
+        }
+        .defaultSize(width: 760, height: 480)
+        .keyboardShortcut("y", modifiers: .command)
 
         Settings {
             SettingsView(model: appDelegate.model)
@@ -60,3 +70,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 }
+

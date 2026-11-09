@@ -144,6 +144,8 @@ struct HistoryState: Sendable, Equatable {
     var model: String?
     /// Banned servers and their ban status (`ipBanned` / `cidBanned`).
     var bans: [UUID: String] = [:]
+    /// Last release reported by `appUpdateAvailable`.
+    var updateVersion: String?
 
     init() {}
 
@@ -160,7 +162,8 @@ struct HistoryState: Sendable, Equatable {
         case .modelChanged: model = entry.new
         case .banAppeared: if let id = entry.serverID { bans[id] = entry.new }
         case .banLifted: if let id = entry.serverID { bans[id] = nil }
-        case .apply, .fixAttempt, .appUpdateAvailable: break
+        case .appUpdateAvailable: updateVersion = entry.new
+        case .apply, .fixAttempt: break
         }
     }
 }
@@ -312,6 +315,15 @@ actor HistoryRecorder {
         current.apply(entry)
         state = current
         return true
+    }
+
+    /// Records `appUpdateAvailable` once per release version.
+    @discardableResult
+    func recordUpdate(version: String) -> HistoryEntry? {
+        let current = loadState()
+        guard current.updateVersion != version else { return nil }
+        let entry = HistoryEntry(ts: now(), kind: .appUpdateAvailable, old: current.updateVersion, new: version)
+        return record(entry) ? entry : nil
     }
 
     private func loadState() -> HistoryState {

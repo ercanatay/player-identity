@@ -257,11 +257,13 @@ final class LocalizationTests: XCTestCase {
     // MARK: Source scan (§18.3, §18.7/3)
 
     func testAppAndCoreSourcesContainNoUserFacingLiterals() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        // The test bundle carries copies of `PlayerIdentity/App` and `PlayerIdentity/Core` (folder resources), so the
+        // scan never reads the repository directly (no Documents-folder access from the test host).
+        let resources = try XCTUnwrap(Bundle(for: LocalizationTests.self).resourceURL)
         var files: [URL] = []
-        for folder in ["PlayerIdentity/App", "PlayerIdentity/Core"] {
-            let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: root.appendingPathComponent(folder),
-                                                                          includingPropertiesForKeys: nil))
+        for folder in ["App", "Core"] {
+            let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: resources.appendingPathComponent(folder),
+                                                                          includingPropertiesForKeys: nil), folder)
             files += enumerator.compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" }
         }
         XCTAssertGreaterThan(files.count, 20)

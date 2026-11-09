@@ -19,6 +19,12 @@ struct AppDependencies {
     var sleeper: any Sleeping
     /// §20 hostname resolution (fake in tests; tests never hit DNS).
     var resolver: any ServerAddressResolver
+    /// §23 notification center; no-op unless injected.
+    var notifier: any UserNotifying = NoopNotifier()
+    /// §25 GitHub Releases client; `nil` = update checks disabled (default in tests).
+    var updateHTTP: (any HTTPClient)? = nil
+    /// `CFBundleShortVersionString` of the running app.
+    var appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -33,7 +39,9 @@ struct AppDependencies {
                                gameProcessDetector: SystemGameProcessDetector(),
                                commandRunner: ProcessCommandRunner(),
                                sleeper: TaskSleeper(),
-                               resolver: SystemAddressResolver())
+                               resolver: SystemAddressResolver(),
+                               notifier: SystemNotifier(),
+                               updateHTTP: URLSessionHTTPClient())
     }
 }
 
@@ -65,6 +73,29 @@ final class AppModel {
     var banCheckEnabled: Bool {
         didSet { deps.defaults.set(banCheckEnabled, forKey: Self.banCheckDefaultsKey) }
     }
+    /// Settings > "Notifications" (§23, on by default). When off, no notification is posted.
+    var notificationsEnabled: Bool {
+        didSet { deps.defaults.set(notificationsEnabled, forKey: DefaultsKey.notificationsEnabled) }
+    }
+
+    // MARK: §25 update check
+    /// Banner content: a newer, not ignored release.
+    private(set) var availableUpdate: AppUpdate?
+    /// Set after a manual check found no newer release (for the "up to date" alert).
+    var manualCheckUpToDate = false
+    @ObservationIgnored private var updateTask: Task<Void, Never>?
+
+    // MARK: §24 apply preview
+    struct ApplyPreview: Identifiable, Equatable {
+        let id = UUID()
+        let diffs: [ConfigFileDiff]
+    }
+    /// Open preview sheet; nothing is written until `confirmApply()`.
+    var applyPreview: ApplyPreview?
+
+    // MARK: §22 history window
+    /// Incremented after every history write so the history window reloads.
+    private(set) var historyRevision = 0
 
     // MARK: §15 name/model editing
     /// Sources of the effective values (§15.2).
@@ -133,6 +164,7 @@ final class AppModel {
     /// §22 history (`history.jsonl`); writes are chained so entries keep their order.
     @ObservationIgnored private let history: HistoryRecorder
     @ObservationIgnored private var historyTask: Task<Void, Never>?
+    @ObservationIgnored private let notificationDispatcher: NotificationDispatcher
     /// Whether the user made changes while there is no record.
     private var editedWithoutSnapshot = false
 
@@ -140,6 +172,7 @@ final class AppModel {
         deps = dependencies
         hostCache = HostResolutionCache(resolver: dependencies.resolver, now: dependencies.now)
         history = HistoryRecorder(store: HistoryStore(fileURL: dependencies.paths.historyFile), now: dependencies.now)
+        notificationDispatcher = NotificationDispatcher(notifier: dependencies.notifier, now: dependencies.now)
         let loaded = dependencies.snapshotStore.load()
         snapshotState = loaded
         let snapshot = loaded.snapshot
@@ -154,6 +187,8 @@ final class AppModel {
         selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
         servers = snapshot?.servers ?? []
         banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
+        notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
+        availableUpdate = UpdateState(defaults: dependencies.defaults).banner(currentVersion: dependencies.appVersion)
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
     }
 
@@ -307,13 +342,28 @@ final class AppModel {
 
     // MARK: History (§22)
 
-    private func recordHistory(_ operation: @escaping @Sendable (HistoryRecorder) async -> Void) {
+    /// Runs a history write after the previous ones; the returned notifications (§23) are posted afterwards.
+    private func recordHistory(_ operation: @escaping @Sendable (HistoryRecorder) async -> [NotificationContent]) {
         let recorder = history
+        let dispatcher = notificationDispatcher
+        let enabled = notificationsEnabled
         let previous = historyTask
-        historyTask = Task.detached {
+        historyTask = Task {
             await previous?.value
-            await operation(recorder)
+            let contents = await operation(recorder)
+            historyRevision += 1
+            await dispatcher.handle(contents, enabled: enabled)
         }
+    }
+
+    private func serverLabels() -> [UUID: String] {
+        Dictionary(servers.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// History entries for the history window (read off the main thread).
+    func loadHistory() async -> [HistoryEntry] {
+        let store = HistoryStore(fileURL: deps.paths.historyFile)
+        return await Task.detached { store.load() }.value
     }
 
     private func recordRefreshHistory() {
@@ -325,7 +375,12 @@ final class AppModel {
             name: config.name.isEmpty ? nil : config.name,
             model: config.model.isEmpty ? nil : config.model,
             servers: servers.map { HistoryObservation.Server(id: $0.id, host: $0.host, ban: $0.banCheck?.status) })
-        recordHistory { await $0.observe(observation) }
+        let labels = serverLabels()
+        recordHistory { recorder in
+            await recorder.observe(observation).compactMap { entry in
+                NotificationPlanner.content(for: entry, serverLabel: entry.serverID.flatMap { labels[$0] })
+            }
+        }
     }
 
     /// For tests: waits until queued history writes finish.
@@ -503,7 +558,10 @@ final class AppModel {
                                              new: [name.map { "name=\($0)" }, model.map { "model=\($0)" }]
                                                 .compactMap { $0 }.joined(separator: "; "),
                                              note: outcome.summary)
-                    recordHistory { await $0.record(entry) }
+                    recordHistory { recorder in
+                        await recorder.record(entry)
+                        return []
+                    }
                 }
                 appliedSinceSave = true
                 isGameRunning = false
@@ -518,6 +576,98 @@ final class AppModel {
                 if error == .gameRunning { isGameRunning = true }
             }
         }
+    }
+
+    // MARK: Apply preview (§24)
+
+    /// Uygula: computes the diff without writing. An empty diff opens no sheet; errors show as the apply status.
+    @discardableResult
+    func requestApply() -> Task<Void, Never>? {
+        guard canApply, let gamedir = selectedGamedir else { return nil }
+        let gamedirURL = dataRoot.appendingPathComponent(gamedir, isDirectory: true)
+        let name = pendingName
+        let model = pendingModel
+        let writer = PlayerConfigWriter(detector: deps.gameProcessDetector)
+        applyStatus = nil
+        return Task {
+            let result = await Task.detached { () -> Result<[ConfigFileDiff], EditMessage> in
+                do {
+                    return .success(try writer.preview(gamedir: gamedirURL, name: name, model: model).diffs)
+                } catch let error as EditMessage {
+                    return .failure(error)
+                } catch {
+                    return .failure(.writeFailed)
+                }
+            }.value
+            switch result {
+            case .success(let diffs):
+                applyPreview = diffs.isEmpty ? nil : ApplyPreview(diffs: diffs)
+            case .failure(let error):
+                applyStatus = .failure(error)
+            }
+        }
+    }
+
+    /// "Yaz": closes the preview and writes.
+    @discardableResult
+    func confirmApply() -> Task<Void, Never>? {
+        guard applyPreview != nil else { return nil }
+        applyPreview = nil
+        return apply()
+    }
+
+    /// Cancel: closes the preview; nothing is written.
+    func cancelApply() {
+        applyPreview = nil
+    }
+
+    // MARK: Update check (§25)
+
+    /// Launch check (at most every 24 h) or manual check. Network errors are silent.
+    @discardableResult
+    func checkForUpdates(manual: Bool = false) -> Task<Void, Never>? {
+        guard let http = deps.updateHTTP else { return nil }
+        let defaults = deps.defaults
+        let initial = UpdateState(defaults: defaults)
+        let now = deps.now()
+        guard UpdateChecker.isDue(lastCheck: initial.lastCheck, now: now, manual: manual), updateTask == nil else { return nil }
+        let checker = UpdateChecker(http: http, currentVersion: deps.appVersion)
+        let current = deps.appVersion
+        let task = Task {
+            var state = initial
+            let result = await checker.check()
+            updateTask = nil
+            switch result {
+            case .failed:
+                return
+            case .upToDate:
+                state.lastCheck = now
+                state.latest = nil
+                manualCheckUpToDate = manual
+            case .available(let update):
+                state.lastCheck = now
+                state.latest = update
+                recordHistory { recorder in
+                    await recorder.recordUpdate(version: update.version)
+                    return []
+                }
+            }
+            state.save(to: defaults)
+            availableUpdate = state.banner(currentVersion: current)
+        }
+        updateTask = task
+        return task
+    }
+
+    var appVersion: String { deps.appVersion }
+
+    /// "Yoksay": hides the banner for this version.
+    func ignoreUpdate() {
+        guard let update = availableUpdate else { return }
+        var state = UpdateState(defaults: deps.defaults)
+        state.ignoredVersion = update.version
+        state.save(to: deps.defaults)
+        availableUpdate = nil
     }
 
     // MARK: Fix (§17)
@@ -584,7 +734,11 @@ final class AppModel {
             applyFixResult(result, serverID: id, request: request)
             let entry = HistoryEntry(ts: deps.now(), kind: .fixAttempt, serverID: id, host: request?.host,
                                      old: oldIP, new: result.newIP, note: result.outcome.code)
-            recordHistory { await $0.record(entry) }
+            let content = NotificationPlanner.content(for: entry, serverLabel: serverLabels()[id],
+                                                      fixMessage: result.outcome.message)
+            recordHistory { recorder in
+                await recorder.record(entry) ? [content].compactMap { $0 } : []
+            }
         }
         fixTask = task
         return task

@@ -21,7 +21,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination
 xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build test
 ```
 The `.xcodeproj` is generated and not tracked in git. Tests never touch the network or the user's real files
-(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **206** tests.
+(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **279** tests.
 The scheme runs tests with the Turkish test language (most assertions compare the Turkish source texts);
 `LocalizationTests` switch languages explicitly.
 
@@ -50,6 +50,16 @@ open -n .build/Build/Products/Debug/PlayerIdentity.app --args -AppleLanguages '(
 - IP range display (`/24`, `/16`; IPv6 `/64`, `/48`) and IP range ban detection.
 - Name/model dropdowns and **Apply** to update `config.cfg` / `userconfig.cfg`.
 - Model previews: BMP thumbnails in the model dropdown and the profile card.
+- Server hosts may be hostnames: resolved via DNS (first IPv4, else IPv6, cached 5 min); the row shows
+  `host → IP` and, from the ban check's A2S_INFO reply, `map · players/max · ping` (server name in the tooltip).
+- **History** window (Window menu, ⌘Y): state changes from `history.jsonl` (5000 entries / 90 days), filter by
+  type and server, export as JSON or Markdown.
+- **Apply** first shows a preview of the lines to be written (`-`/`+`, line numbers); nothing is written until
+  **Write**.
+- Update check against GitHub Releases at most once a day at launch and from the app menu; a banner offers
+  **Download** / **Ignore**. Network errors are silent; nothing is downloaded automatically.
+- Notifications for ban detected/lifted, public IP change, identity change and fix results (not on first run,
+  not repeated within 10 minutes); Settings > **Notifications** turns them off.
 
 ## Data sources
 - **Identity file** (priority order): `~/.config/.xash_id` → `~/.local/.xash_id` → `~/.xash_id` → `<gamedir>/.xash_id`.

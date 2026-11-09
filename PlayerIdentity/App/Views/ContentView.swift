@@ -27,6 +27,10 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let update = model.availableUpdate {
+                UpdateBanner(update: update, onIgnore: model.ignoreUpdate)
+                Divider()
+            }
             topBar
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
@@ -43,7 +47,17 @@ struct ContentView: View {
         }
         .frame(minWidth: 720, minHeight: 520)
         .task {
-            if !AppModel.isRunningTests { model.refresh() }
+            guard !AppModel.isRunningTests else { return }
+            model.refresh()
+            model.checkForUpdates()
+        }
+        .sheet(item: $model.applyPreview) { preview in
+            ApplyPreviewSheet(preview: preview, onWrite: { model.confirmApply() }, onCancel: model.cancelApply)
+        }
+        .alert(L10n.text(.updateUpToDateTitle), isPresented: $model.manualCheckUpToDate) {
+            Button(L10n.text(.actionOK), role: .cancel) {}
+        } message: {
+            Text(L10n.format(.updateUpToDateMessage, model.appVersion))
         }
         .sheet(item: $sheet) { mode in
             sheetView(mode)
@@ -207,7 +221,7 @@ struct ContentView: View {
             HStack(spacing: 12) {
                 Spacer().frame(width: 130)
                 Button {
-                    model.apply()
+                    model.requestApply()
                 } label: {
                     HStack(spacing: 6) {
                         if model.isApplying { ProgressView().controlSize(.small) }
@@ -487,11 +501,25 @@ struct ServerRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 12) {
                     Text(entry.label).fontWeight(.medium)
+                        .help(entry.banCheck?.info?.name ?? "")
                     Text(verbatim: "\(entry.host):\(String(entry.port))")
                         .font(.body.monospaced())
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .fixedSize()
+                }
+                // §20: `host → resolved IP` (or resolving/error); §21: `map · 9/26 · 42 ms`, hidden if unknown.
+                if let address = ServerRowText.addressLine(host: entry.host, status: status) {
+                    Text(verbatim: address)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+                if let info = ServerRowText.infoLine(entry.banCheck?.info) {
+                    Text(verbatim: info)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help(entry.banCheck?.info?.name ?? "")
+                        .accessibilityIdentifier("serverInfo")
                 }
                 HStack(spacing: 8) {
                     Text(L10n.format(.topbarLastCheck, TimeText.format(entry.lastCheckedAt)))

@@ -42,6 +42,15 @@ targets:
     platform: macOS
     sources:
       - path: PlayerIdentityTests
+      # Copies of the app sources for the literal scan (§18.3); read from the test bundle, not ~/Documents.
+      - path: PlayerIdentity/App
+        type: folder
+        buildPhase: resources
+        name: ScannedApp
+      - path: PlayerIdentity/Core
+        type: folder
+        buildPhase: resources
+        name: ScannedCore
     dependencies:
       - target: PlayerIdentity
     settings:

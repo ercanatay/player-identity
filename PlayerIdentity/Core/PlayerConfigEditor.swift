@@ -221,8 +221,56 @@ struct PlayerConfigWriter: Sendable {
 
     let detector: any GameProcessDetecting
 
+    /// File contents before and after the edit; computed without writing anything.
+    struct Plan: Sendable, Equatable {
+        let configURL: URL
+        let userURL: URL
+        let configOriginal: [UInt8]
+        let configBytes: [UInt8]
+        let userOriginal: [UInt8]?
+        let userBytes: [UInt8]?
+
+        /// §24: changed lines per file, `config.cfg` first; empty if nothing would change.
+        var diffs: [ConfigFileDiff] {
+            var result: [ConfigFileDiff] = []
+            if configBytes != configOriginal {
+                result.append(ConfigFileDiff(file: .config, lines: ConfigDiff.lines(old: configOriginal, new: configBytes)))
+            }
+            if let userOriginal, let userBytes, userBytes != userOriginal {
+                result.append(ConfigFileDiff(file: .userconfig, lines: ConfigDiff.lines(old: userOriginal, new: userBytes)))
+            }
+            return result.filter { !$0.lines.isEmpty }
+        }
+    }
+
     /// If `name` / `model` is `nil`, that key is not written.
     func apply(gamedir: URL, name: String?, model: String?) throws -> ApplyOutcome {
+        let changes = try Self.validatedChanges(name: name, model: model)
+        if detector.isGameRunning() { throw EditMessage.gameRunning }
+        let plan = try Self.plan(gamedir: gamedir, changes: changes)
+
+        var changed: [ConfigFileKind] = []
+        do {
+            if plan.configBytes != plan.configOriginal {
+                try Self.write(plan.configBytes, to: plan.configURL, original: plan.configOriginal)
+                changed.append(.config)
+            }
+            if let userBytes = plan.userBytes, let userOriginal = plan.userOriginal, userBytes != userOriginal {
+                try Self.write(userBytes, to: plan.userURL, original: userOriginal)
+                changed.append(.userconfig)
+            }
+        } catch {
+            throw EditMessage.writeFailed
+        }
+        return ApplyOutcome(changedFiles: changed)
+    }
+
+    /// §24 preview: the same edit as `apply`, without writing. Throws the same validation errors.
+    func preview(gamedir: URL, name: String?, model: String?) throws -> Plan {
+        try Self.plan(gamedir: gamedir, changes: Self.validatedChanges(name: name, model: model))
+    }
+
+    private static func validatedChanges(name: String?, model: String?) throws -> [(key: String, value: String)] {
         var changes: [(key: String, value: String)] = []
         if let name {
             guard let normalized = PlayerValueValidator.normalizedName(name) else { throw EditMessage.nameInvalid }
@@ -232,8 +280,10 @@ struct PlayerConfigWriter: Sendable {
             guard PlayerValueValidator.isValidModel(model) else { throw EditMessage.modelInvalid }
             changes.append(("model", model))
         }
-        if detector.isGameRunning() { throw EditMessage.gameRunning }
+        return changes
+    }
 
+    private static func plan(gamedir: URL, changes: [(key: String, value: String)]) throws -> Plan {
         let fileManager = FileManager.default
         let configURL = gamedir.appendingPathComponent(ConfigFileKind.config.fileName, isDirectory: false)
         let userURL = gamedir.appendingPathComponent(ConfigFileKind.userconfig.fileName, isDirectory: false)
@@ -263,21 +313,8 @@ struct PlayerConfigWriter: Sendable {
                 configBytes = ConfigEditor.append(change.key, value: change.value, to: configBytes)
             }
         }
-
-        var changed: [ConfigFileKind] = []
-        do {
-            if configBytes != configOriginal {
-                try Self.write(configBytes, to: configURL, original: configOriginal)
-                changed.append(.config)
-            }
-            if let userBytes, let userOriginal, userBytes != userOriginal {
-                try Self.write(userBytes, to: userURL, original: userOriginal)
-                changed.append(.userconfig)
-            }
-        } catch {
-            throw EditMessage.writeFailed
-        }
-        return ApplyOutcome(changedFiles: changed)
+        return Plan(configURL: configURL, userURL: userURL, configOriginal: configOriginal, configBytes: configBytes,
+                    userOriginal: userOriginal, userBytes: userBytes)
     }
 
     /// First `<file>.appbak` (single, overwritten), then a temporary file in the same folder + `replaceItemAt`.
@@ -296,5 +333,43 @@ struct PlayerConfigWriter: Sendable {
             try? fileManager.removeItem(at: temporary)
             throw error
         }
+    }
+}
+
+// MARK: - Diff (§24)
+
+struct ConfigDiffLine: Sendable, Equatable {
+    enum Kind: Sendable, Equatable {
+        case removed
+        case added
+    }
+
+    let kind: Kind
+    /// 1-based line number in the old file (removed) or the new file (added).
+    let number: Int
+    let text: String
+}
+
+struct ConfigFileDiff: Sendable, Equatable {
+    let file: ConfigFileKind
+    let lines: [ConfigDiffLine]
+}
+
+enum ConfigDiff {
+    /// Line diff of an edit made by `ConfigEditor`: values change in place and new keys are appended,
+    /// so lines are compared by position. A changed line yields `-` old then `+` new; line-ending-only
+    /// changes (the missing final newline added before an append) are not shown.
+    static func lines(old: [UInt8], new: [UInt8]) -> [ConfigDiffLine] {
+        let before = ConfigEditor.split(old)
+        let after = ConfigEditor.split(new)
+        var result: [ConfigDiffLine] = []
+        for index in 0..<max(before.count, after.count) {
+            let oldLine = index < before.count ? before[index].body : nil
+            let newLine = index < after.count ? after[index].body : nil
+            guard oldLine != newLine else { continue }
+            if let oldLine { result.append(ConfigDiffLine(kind: .removed, number: index + 1, text: ServerInfoParser.decode(oldLine))) }
+            if let newLine { result.append(ConfigDiffLine(kind: .added, number: index + 1, text: ServerInfoParser.decode(newLine))) }
+        }
+        return result
     }
 }
