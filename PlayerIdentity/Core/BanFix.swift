@@ -92,18 +92,7 @@ struct ProcessCommandRunner: CommandRunning {
     func run(_ command: NetworkCommand) async throws -> CommandOutput {
         let argv = command.argv
         guard CommandAllowlist.isAllowed(argv) else { throw CommandError.notAllowed }
-        return try await Task.detached {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: argv[0])
-            process.arguments = Array(argv.dropFirst())
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-            do { try process.run() } catch { throw CommandError.launchFailed }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            return CommandOutput(status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))
-        }.value
+        return try await SystemProcess.run(argv)
     }
 }
 
