@@ -47,7 +47,7 @@ final class LocalizationTests: XCTestCase {
     func testEnglishTableIsEnglishAndTurkishTableIsTurkish() throws {
         let tr = try table("Localizable", "tr")
         let en = try table("Localizable", "en")
-        for (key, value) in en {
+        for (key, value) in en where key != L10nKey.languageTurkish.rawValue {   // §35.2: own-language label
             XCTAssertNil(value.rangeOfCharacter(from: Self.turkishLetters), "Turkish letters in en \(key): \(value)")
         }
         let turkish = tr.values.filter { $0.rangeOfCharacter(from: Self.turkishLetters) != nil }

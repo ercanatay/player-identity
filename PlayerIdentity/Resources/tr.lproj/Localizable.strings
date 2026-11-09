@@ -369,3 +369,9 @@
 "settings.launchAtLogin.approval" = "Sistem Ayarları > Genel > Giriş Öğeleri'nde onay bekliyor.";
 "settings.launchAtLogin.onFailed" = "Açılışta başlat açılamadı: %@";
 "settings.launchAtLogin.offFailed" = "Açılışta başlat kapatılamadı: %@";
+"settings.language" = "Dil / Language";
+"language.system" = "Sistem";
+"language.systemResolved" = "Sistem (%@)";
+"language.tr" = "Türkçe";
+"language.en" = "English";
+"settings.language.note" = "Uygulama adı (Dock ve menü çubuğu) sistem diline bağlıdır; buradan değişmez.";

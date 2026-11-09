@@ -9,6 +9,7 @@ struct PlayerIdentityApp: App {
     var body: some Scene {
         Window(L10n.text(.appWindowTitle), id: "main") {
             ContentView(model: appDelegate.model)
+                .id(appDelegate.model.appLanguage)
         }
         .defaultSize(width: 900, height: 760)
         .windowResizability(.contentMinSize)
@@ -31,12 +32,14 @@ struct PlayerIdentityApp: App {
         // §22 history window; SwiftUI lists it in the Window menu, with ⌘Y.
         Window(L10n.text(.historyTitle), id: "history") {
             HistoryView(model: appDelegate.model)
+                .id(appDelegate.model.appLanguage)
         }
         .defaultSize(width: 760, height: 480)
         .keyboardShortcut("y", modifiers: .command)
 
         Settings {
             SettingsView(model: appDelegate.model)
+                .id(appDelegate.model.appLanguage)
         }
 
         // §30 status item (only while "Show in menu bar" is on); the Dock icon stays (V1).

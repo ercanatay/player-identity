@@ -27,11 +27,30 @@ struct GeneralSettingsView: View {
             Toggle(L10n.text(.settingsNotifications), isOn: $model.notificationsEnabled)
             Divider()
             VStack(alignment: .leading, spacing: 2) {
+                Picker(selection: $model.appLanguage) {
+                    Text(L10n.format(.languageSystemResolved,
+                                     L10n.text(AppLanguageSetting.system.resolved().labelKey)))
+                        .tag(AppLanguageSetting.system)
+                    Text(L10n.text(.languageTurkish)).tag(AppLanguageSetting.tr)
+                    Text(L10n.text(.languageEnglish)).tag(AppLanguageSetting.en)
+                } label: {
+                    Text(L10n.text(.settingsLanguage))
+                }
+                .accessibilityIdentifier("settingsLanguage")
+                Text(L10n.text(.settingsLanguageNote))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: 480, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Divider()
+            VStack(alignment: .leading, spacing: 2) {
                 Toggle(L10n.text(.settingsMenuBar), isOn: $model.menuBarEnabled)
                     .accessibilityIdentifier("settingsMenuBar")
                 Text(L10n.text(.settingsMenuBarHint))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: 480, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 2) {

@@ -371,4 +371,10 @@ enum L10nKey: String, CaseIterable, Sendable {
     case settingsLaunchAtLoginApproval = "settings.launchAtLogin.approval"
     case settingsLaunchAtLoginOnFailed = "settings.launchAtLogin.onFailed"
     case settingsLaunchAtLoginOffFailed = "settings.launchAtLogin.offFailed"
+    case settingsLanguage = "settings.language"
+    case languageSystem = "language.system"
+    case languageSystemResolved = "language.systemResolved"
+    case languageTurkish = "language.tr"
+    case languageEnglish = "language.en"
+    case settingsLanguageNote = "settings.language.note"
 }

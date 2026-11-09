@@ -437,6 +437,13 @@ KEYS = [
     ("settingsLaunchAtLoginApproval", "settings.launchAtLogin.approval", "Sistem Ayarları > Genel > Giriş Öğeleri'nde onay bekliyor.", "Waiting for approval in System Settings > General > Login Items."),
     ("settingsLaunchAtLoginOnFailed", "settings.launchAtLogin.onFailed", "Açılışta başlat açılamadı: %@", "Could not turn on launch at login: %@"),
     ("settingsLaunchAtLoginOffFailed", "settings.launchAtLogin.offFailed", "Açılışta başlat kapatılamadı: %@", "Could not turn off launch at login: %@"),
+    # v2.1: language selector (§35)
+    ("settingsLanguage", "settings.language", "Dil / Language", "Dil / Language"),
+    ("languageSystem", "language.system", "Sistem", "System"),
+    ("languageSystemResolved", "language.systemResolved", "Sistem (%@)", "System (%@)"),
+    ("languageTurkish", "language.tr", "Türkçe", "Türkçe"),
+    ("languageEnglish", "language.en", "English", "English"),
+    ("settingsLanguageNote", "settings.language.note", "Uygulama adı (Dock ve menü çubuğu) sistem diline bağlıdır; buradan değişmez.", "The app name (Dock and menu bar) follows the system language and does not change here."),
 ]
 
 INFOPLIST = {

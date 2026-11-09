@@ -96,6 +96,15 @@ final class AppModel {
         didSet { deps.defaults.set(notificationsEnabled, forKey: DefaultsKey.notificationsEnabled) }
     }
 
+    /// Settings > "Language / Dil" (§35). Applied at once: texts resolve in the new language and views rebuild.
+    var appLanguage: AppLanguageSetting {
+        didSet {
+            guard appLanguage != oldValue else { return }
+            appLanguage.save(to: deps.defaults)
+            L10n.setting = appLanguage
+        }
+    }
+
     // MARK: §30 menu bar and launch at login
     /// Settings > "Show in menu bar" (off by default).
     var menuBarEnabled: Bool {
@@ -241,6 +250,8 @@ final class AppModel {
         notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
         menuBarEnabled = MenuBarPreferences(defaults: dependencies.defaults).showInMenuBar
+        appLanguage = AppLanguageSetting(defaults: dependencies.defaults)
+        L10n.setting = AppLanguageSetting(defaults: dependencies.defaults)
         isGameAppInstalled = dependencies.gameAppLocator.locate() != nil
         loginItemStatus = dependencies.loginItem?.status() ?? .notRegistered
         updates = UpdateController(dependencies: dependencies)

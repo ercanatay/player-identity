@@ -369,3 +369,9 @@
 "settings.launchAtLogin.approval" = "Waiting for approval in System Settings > General > Login Items.";
 "settings.launchAtLogin.onFailed" = "Could not turn on launch at login: %@";
 "settings.launchAtLogin.offFailed" = "Could not turn off launch at login: %@";
+"settings.language" = "Dil / Language";
+"language.system" = "System";
+"language.systemResolved" = "System (%@)";
+"language.tr" = "Türkçe";
+"language.en" = "English";
+"settings.language.note" = "The app name (Dock and menu bar) follows the system language and does not change here.";

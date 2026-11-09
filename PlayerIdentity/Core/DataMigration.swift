@@ -8,6 +8,8 @@ enum DefaultsKey {
     static let notificationsEnabled = "notificationsEnabled"
     /// §30 menu bar mode (default off).
     static let showInMenuBar = "showInMenuBar"
+    /// §35 UI language: `system` (default) · `tr` · `en`.
+    static let appLanguage = "appLanguage"
 }
 
 /// One-time migration from the legacy `tr.ercanatay.oyuncukimlik` bundle (§19.3).
