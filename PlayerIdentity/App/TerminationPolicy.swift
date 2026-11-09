@@ -17,4 +17,9 @@ enum TerminationPolicy {
     }
 
     static func resetForTesting() { terminatingForUpdate = false }
+
+    /// §30: the app quits with its last window, except in menu bar mode.
+    static func quitsAfterLastWindowClosed(menuBarEnabled: Bool) -> Bool {
+        !menuBarEnabled
+    }
 }

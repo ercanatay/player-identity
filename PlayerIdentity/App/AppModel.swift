@@ -34,6 +34,11 @@ struct AppDependencies {
     var relauncher: any AppRelaunching = UnavailableRelauncher()
     /// UserDefaults domain exported into data backups (§28.2/3).
     var defaultsDomain: String = UpdateInstaller.bundleID
+    /// §29: Xash3D app detection and the `open` runner (the default never runs anything; real one in `live()`).
+    var gameAppLocator = GameAppLocator()
+    var gameLaunchRunner: any GameLaunchRunning = UnavailableGameLaunchRunner()
+    /// §30: launch at login; `nil` = not available (tests inject a fake).
+    var loginItem: (any LoginItemControlling)? = nil
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
@@ -52,7 +57,9 @@ struct AppDependencies {
                                notifier: SystemNotifier(),
                                updateHTTP: URLSessionHTTPClient(),
                                relauncher: OpenAndTerminateRelauncher(runner: ProcessUpdateCommandRunner(),
-                                                                      terminate: { await MainActor.run { TerminationPolicy.terminateForUpdate { NSApp.terminate(nil) } } }))
+                                                                      terminate: { await MainActor.run { TerminationPolicy.terminateForUpdate { NSApp.terminate(nil) } } }),
+                               gameLaunchRunner: ProcessGameLaunchRunner(),
+                               loginItem: MainAppLoginItem())
     }
 }
 
@@ -88,6 +95,40 @@ final class AppModel {
     var notificationsEnabled: Bool {
         didSet { deps.defaults.set(notificationsEnabled, forKey: DefaultsKey.notificationsEnabled) }
     }
+
+    // MARK: §30 menu bar and launch at login
+    /// Settings > "Show in menu bar" (off by default).
+    var menuBarEnabled: Bool {
+        didSet {
+            guard menuBarEnabled != oldValue else { return }
+            MenuBarPreferences(showInMenuBar: menuBarEnabled).save(to: deps.defaults)
+            if backgroundTasksActive {
+                if menuBarEnabled { startMenuBarRefresh() } else { stopMenuBarRefresh() }
+            }
+        }
+    }
+    private(set) var loginItemStatus: LoginItemStatus = .notRegistered
+    /// Last launch-at-login error, shown under the switch.
+    var loginItemError: LoginItemError?
+    @ObservationIgnored private var menuBarTask: Task<Void, Never>?
+    @ObservationIgnored private var backgroundTasksActive = false
+
+    // MARK: §29 join the game
+    /// `Xash3D-FWGS.app` was found; "Join Game" is hidden otherwise.
+    private(set) var isGameAppInstalled = false
+    struct JoinRequest: Identifiable, Equatable {
+        let id = UUID()
+        let serverID: UUID
+        let label: String
+        let plan: GameLaunchPlan
+    }
+    /// The game is running: "a new connection closes the current game" confirmation.
+    var pendingJoin: JoinRequest?
+    var joinError: GameLaunchError?
+    @ObservationIgnored private var joinTask: Task<Void, Never>?
+
+    // MARK: §31 list filter
+    var serverFilter = ServerListFilter()
 
     // MARK: §25/§27/§28 updates
     /// Release feed, banner, installer and data backups.
@@ -199,6 +240,9 @@ final class AppModel {
         banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
         notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
+        menuBarEnabled = MenuBarPreferences(defaults: dependencies.defaults).showInMenuBar
+        isGameAppInstalled = dependencies.gameAppLocator.locate() != nil
+        loginItemStatus = dependencies.loginItem?.status() ?? .notRegistered
         updates = UpdateController(dependencies: dependencies)
         updates.evaluateRestore(snapshot: loaded)
         updates.onUpdateFound = { [weak self] version in
@@ -255,6 +299,7 @@ final class AppModel {
         guard current == generation else { return }
         gamedirs = profile.gamedirs
         selectedGamedir = profile.selectedGamedir
+        isGameAppInstalled = deps.gameAppLocator.locate() != nil
         identity = profile.identity
         // Unedited drafts follow the new effective value; the user's draft is kept.
         if nameDraft == config.name { nameDraft = profile.config.name }
@@ -400,6 +445,11 @@ final class AppModel {
         }
     }
 
+    /// For tests: waits until the running refresh finishes.
+    func waitForRefresh() async {
+        await refreshTask?.value
+    }
+
     /// For tests: waits until queued history writes finish.
     func waitForHistory() async {
         await historyTask?.value
@@ -480,7 +530,146 @@ final class AppModel {
         markEdited()
     }
 
+    // MARK: §29 join the game
+
+    private var gameLauncher: GameLauncher {
+        GameLauncher(locator: deps.gameAppLocator, resolver: deps.resolver, detector: deps.gameProcessDetector,
+                     runner: deps.gameLaunchRunner)
+    }
+
+    /// "Join Game": builds the command; if the game is running, asks first (`pendingJoin`), otherwise opens it.
+    @discardableResult
+    func joinGame(_ id: UUID) -> Task<Void, Never>? {
+        guard let entry = servers.first(where: { $0.id == id }), joinTask == nil else { return nil }
+        let launcher = gameLauncher
+        let gamedir = selectedGamedir
+        let known = hostResolutions
+        let task = Task {
+            defer { joinTask = nil }
+            do {
+                let plan = try await launcher.plan(host: entry.host, port: entry.port, gamedir: gamedir, known: known)
+                if plan.gameRunning {
+                    pendingJoin = JoinRequest(serverID: id, label: entry.label, plan: plan)
+                } else {
+                    try await launcher.launch(plan) { true }
+                }
+            } catch let error as GameLaunchError {
+                joinError = error
+            } catch {
+                joinError = .launchFailed(status: -1)
+            }
+        }
+        joinTask = task
+        return task
+    }
+
+    /// Confirmed: the running game is replaced by the new connection.
+    @discardableResult
+    func confirmJoin() -> Task<Void, Never>? {
+        guard let request = pendingJoin else { return nil }
+        pendingJoin = nil
+        let launcher = gameLauncher
+        return Task {
+            do {
+                try await launcher.launch(request.plan) { true }
+            } catch let error as GameLaunchError {
+                joinError = error
+            } catch {
+                joinError = .launchFailed(status: -1)
+            }
+        }
+    }
+
+    /// Cancelled: nothing is started.
+    func cancelJoin() {
+        pendingJoin = nil
+    }
+
+    // MARK: §30 menu bar and launch at login
+
+    var menuBarPresentation: MenuBarPresentation { MenuBarPresentation.make(overall: report?.overall) }
+
+    /// Called once by the app (not in tests): starts the 30-minute refresh if the menu bar mode is on.
+    func activateBackgroundTasks() {
+        backgroundTasksActive = true
+        if menuBarEnabled { startMenuBarRefresh() }
+    }
+
+    private func startMenuBarRefresh() {
+        guard menuBarTask == nil else { return }
+        let sleeper = deps.sleeper
+        menuBarTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let delay = self?.runMenuBarTick() else { return }
+                try? await sleeper.sleep(seconds: max(delay, 60))
+            }
+        }
+    }
+
+    private func stopMenuBarRefresh() {
+        menuBarTask?.cancel()
+        menuBarTask = nil
+    }
+
+    /// One tick of the menu bar timer: refreshes if 30 minutes have passed since the last check. Returns the
+    /// seconds until the next tick, `nil` when the menu bar mode is off (the timer stops).
+    @discardableResult
+    func runMenuBarTick() -> TimeInterval? {
+        guard let delay = MenuBarRefreshSchedule.delay(lastRefresh: lastChecked, now: deps.now(), enabled: menuBarEnabled) else {
+            return nil
+        }
+        guard delay <= 0 else { return delay }
+        if !isRefreshing { refresh() }
+        return MenuBarRefreshSchedule.interval
+    }
+
+    var isLoginItemAvailable: Bool { deps.loginItem != nil }
+
+    func refreshLoginItemStatus() {
+        guard let item = deps.loginItem else { return }
+        loginItemStatus = item.status()
+    }
+
+    /// Settings > "Launch at login" (`SMAppService.mainApp`); a failure is shown under the switch.
+    func setLaunchAtLogin(_ enabled: Bool) {
+        guard let item = deps.loginItem else { return }
+        switch LoginItemSwitch.set(enabled, using: item) {
+        case .success(let status):
+            loginItemStatus = status
+            loginItemError = nil
+        case .failure(let error):
+            loginItemStatus = item.status()
+            loginItemError = error
+        }
+    }
+
+    // MARK: §33 share card
+
+    /// Card content for a row; labels and date in the user's language.
+    func shareCardContent(for id: UUID, icon: CGImage?) -> ShareCardContent? {
+        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
+        let cid = rowStatus(id)?.currentCID ?? entry.cid
+        let host = ServerAddress.parse(entry.host).flatMap { address -> String? in
+            if case .ipv6 = address { return "[\(entry.host)]" }
+            return nil
+        } ?? entry.host
+        let name = config.name.isEmpty ? (snapshotState.snapshot?.displayName ?? "") : config.name
+        return ShareCardContent(serverName: entry.label, hostPort: "\(host):\(entry.port)", cid: cid, playerName: name,
+                                dateText: DateFormatter.localizedString(from: deps.now(), dateStyle: .medium, timeStyle: .short),
+                                labels: ShareCardLabels(title: L10n.text(.appWindowTitle), server: L10n.text(.shareCardServer),
+                                                        cid: L10n.text(.shareCardCID), player: L10n.text(.shareCardPlayer),
+                                                        date: L10n.text(.shareCardDate)),
+                                icon: icon)
+    }
+
     // MARK: §32 notes and appeals
+
+    /// 🔔 in the row: an open appeal whose follow-up date has passed.
+    func isFollowUpDue(_ entry: ServerEntry) -> Bool {
+        entry.appeal?.isFollowUpDue(now: deps.now()) ?? false
+    }
+
+    var now: Date { deps.now() }
 
     /// Sets the note (at most 2000 characters). Saved with the record.
     @discardableResult

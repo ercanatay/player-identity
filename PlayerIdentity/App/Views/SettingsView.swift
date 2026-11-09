@@ -7,17 +7,57 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
-            Form {
-                Toggle(L10n.text(.settingsBanCheck), isOn: $model.banCheckEnabled)
-                Toggle(L10n.text(.settingsNotifications), isOn: $model.notificationsEnabled)
-            }
-            .padding(20)
-            .tabItem { Label(L10n.text(.settingsTabGeneral), systemImage: "gearshape") }
+            GeneralSettingsView(model: model)
+                .tabItem { Label(L10n.text(.settingsTabGeneral), systemImage: "gearshape") }
 
             UpdateSettingsView(updates: model.updates)
                 .tabItem { Label(L10n.text(.settingsTabUpdates), systemImage: "arrow.down.circle") }
         }
         .frame(width: 600)
+    }
+}
+
+/// Settings > General: ban check, notifications, menu bar mode and launch at login (§13.1, §23, §30).
+struct GeneralSettingsView: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        Form {
+            Toggle(L10n.text(.settingsBanCheck), isOn: $model.banCheckEnabled)
+            Toggle(L10n.text(.settingsNotifications), isOn: $model.notificationsEnabled)
+            Divider()
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle(L10n.text(.settingsMenuBar), isOn: $model.menuBarEnabled)
+                    .accessibilityIdentifier("settingsMenuBar")
+                Text(L10n.text(.settingsMenuBarHint))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle(L10n.text(.settingsLaunchAtLogin), isOn: Binding(
+                    get: { model.loginItemStatus.isOn },
+                    set: { model.setLaunchAtLogin($0) }))
+                    .disabled(!model.isLoginItemAvailable)
+                    .accessibilityIdentifier("settingsLaunchAtLogin")
+                if model.loginItemStatus == .requiresApproval {
+                    Text(L10n.text(.settingsLaunchAtLoginApproval))
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let error = model.loginItemError {
+                    Text(LoginItemText.error(error))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("loginItemError")
+                }
+            }
+        }
+        .padding(20)
+        .onAppear { model.refreshLoginItemStatus() }
     }
 }
 

@@ -62,7 +62,8 @@ final class TestAppEnvironment {
                    notifier: any UserNotifying = NoopNotifier(),
                    updates: HTTPScript? = nil,
                    appVersion: String = "1.0",
-                   game: FakeGameDetector = FakeGameDetector()) -> AppModel {
+                   game: FakeGameDetector = FakeGameDetector(),
+                   configure: (inout AppDependencies) -> Void = { _ in }) -> AppModel {
         let clock = self.clock
         var deps = AppDependencies(
             paths: AppPaths(home: home),
@@ -80,6 +81,9 @@ final class TestAppEnvironment {
         deps.notifier = notifier
         deps.updateHTTP = updates.map { ScriptedHTTPClient(script: $0) }
         deps.appVersion = appVersion
+        // No Xash3D app unless a test installs one (the host's /Applications is never consulted).
+        deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: []), homeDirectory: home)
+        configure(&deps)
         return AppModel(dependencies: deps)
     }
 }

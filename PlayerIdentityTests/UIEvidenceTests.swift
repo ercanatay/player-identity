@@ -147,6 +147,75 @@ final class UIEvidenceTests: XCTestCase {
         XCTAssertEqual(UpdateFixture.marker(of: installed), "old")
     }
 
+    /// v2.0 screens (§29–§33): groups + favorites + filter, notes/appeal, share card, menu bar, Settings > General.
+    func testRenderV2Screens() async throws {
+        let env = try TestAppEnvironment()
+        let clock = env.clock
+        let udp = FakeUDPTransport(clock: clock) { endpoint, packet in
+            if endpoint.address == TestAddresses.v4("192.0.2.30") {
+                return FakeServer.scripted(challenge: FakeReply(bytes: FakeServer.oob(0x6C, Array("You are banned".utf8))))(endpoint, packet)
+            }
+            return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))(endpoint, packet)
+        }
+        let item = FakeLoginItem()
+        item.registersAs = .requiresApproval
+        let model = env.makeModel(udp: udp) { deps in
+            deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: ["/Applications/Xash3D-FWGS.app"]),
+                                                 homeDirectory: URL(fileURLWithPath: "/Users/test"))
+            deps.gameLaunchRunner = FakeGameLaunchRunner()
+            deps.loginItem = item
+        }
+        model.addServer(ServerDraft(label: "POLIGON RPG", host: "192.0.2.10", group: "Europe", favorite: true))
+        model.addServer(ServerDraft(label: "Deathmatch EU", host: "192.0.2.20", group: "Europe"))
+        model.addServer(ServerDraft(label: "Zombie TR", host: "192.0.2.30", group: "Turkey"))
+        model.addServer(ServerDraft(label: "LAN", host: "192.0.2.40"))
+        model.addServer(ServerDraft(label: "Surf EU", host: "192.0.2.50", group: "Europe"))
+        await model.refresh().value
+        let ids = model.servers.map(\.id)
+        model.setNote("Admin: discord.gg/example · ban 2026-11-01", for: ids[1])
+        model.saveAppeal(Appeal(sentAt: clock.now.addingTimeInterval(-5 * 86_400), channel: .discord, status: .sent,
+                                followUpAt: clock.now.addingTimeInterval(-86_400),
+                                summary: "IP ban; new IP after router restart, CID unchanged."), for: ids[2])
+        model.menuBarEnabled = true
+        model.setLaunchAtLogin(true)
+
+        try render(ContentView(model: model), size: CGSize(width: 1000, height: 1250), name: "v2-main")
+        model.serverFilter.onlyBanned = true
+        try render(ContentView(model: model), size: CGSize(width: 1000, height: 1000), name: "v2-filter-banned")
+        model.serverFilter = ServerListFilter(onlyFavorites: true)
+        try render(ContentView(model: model), size: CGSize(width: 1000, height: 1000), name: "v2-filter-favorites")
+        model.serverFilter = ServerListFilter()
+
+        var draft = ServerDraft(entry: model.servers[3])
+        draft.group = "Asia"
+        try render(ServerFormSheet(title: L10n.text(.serverEditTitle), confirmTitle: L10n.text(.actionOK),
+                                   groups: model.serverGroups, draft: draft, onConfirm: { _ in }, onCancel: {}),
+                   size: CGSize(width: 400, height: 330), name: "v2-server-form")
+        try render(ServerDetailSheet(model: model, serverID: ids[2], onClose: {}),
+                   size: CGSize(width: 560, height: 520), name: "v2-details")
+        try render(ServerDetailSheet(model: model, serverID: ids[2], onClose: {},
+                                     editingAppeal: AppealDraft(try XCTUnwrap(model.servers[2].appeal), now: clock.now)),
+                   size: CGSize(width: 560, height: 680), name: "v2-appeal-form")
+        try render(ShareCardSheet(model: model, serverID: ids[0], onClose: {}),
+                   size: CGSize(width: 640, height: 470), name: "v2-share-card")
+        try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 260), name: "v2-menubar")
+        try render(GeneralSettingsView(model: model), size: CGSize(width: 600, height: 300), name: "v2-settings-general")
+        item.fails = true
+        model.setLaunchAtLogin(false)
+        try render(GeneralSettingsView(model: model), size: CGSize(width: 600, height: 300), name: "v2-settings-general-error")
+
+        let t0 = clock.now
+        let entries = [
+            HistoryEntry(ts: t0, kind: .appeal, serverID: ids[2], host: "192.0.2.30", old: nil, new: "sent", note: "discord"),
+            HistoryEntry(ts: t0.addingTimeInterval(60), kind: .appeal, serverID: ids[2], host: "192.0.2.30",
+                         old: "sent", new: "answered", note: "discord"),
+            HistoryEntry(ts: t0.addingTimeInterval(120), kind: .appeal, serverID: ids[2], host: "192.0.2.30",
+                         old: "answered", new: "accepted", note: "email"),
+        ]
+        try render(HistoryView(model: model, fixedEntries: entries, initialKind: .appeal),
+                   size: CGSize(width: 900, height: 420), name: "v2-history-appeal")
+    }
+
     private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)

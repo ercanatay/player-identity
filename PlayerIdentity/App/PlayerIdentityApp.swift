@@ -38,6 +38,15 @@ struct PlayerIdentityApp: App {
         Settings {
             SettingsView(model: appDelegate.model)
         }
+
+        // §30 status item (only while "Show in menu bar" is on); the Dock icon stays (V1).
+        MenuBarExtra(isInserted: Binding(get: { appDelegate.model.menuBarEnabled },
+                                         set: { appDelegate.model.menuBarEnabled = $0 })) {
+            MenuBarMenu(model: appDelegate.model)
+        } label: {
+            MenuBarLabel(model: appDelegate.model)
+        }
+        .menuBarExtraStyle(.menu)
     }
 }
 
@@ -57,6 +66,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         model = AppModel(dependencies: dependencies)
         super.init()
+    }
+
+    /// §30: in menu bar mode closing the window keeps the app running.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        TerminationPolicy.quitsAfterLastWindowClosed(menuBarEnabled: model.menuBarEnabled)
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

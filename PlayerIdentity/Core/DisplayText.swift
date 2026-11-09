@@ -46,8 +46,7 @@ enum HistoryText {
         case .apply: return L10n.text(.historyKindApply)
         case .fixAttempt: return L10n.text(.historyKindFixAttempt)
         case .appUpdateAvailable: return L10n.text(.historyKindAppUpdateAvailable)
-        // §32: localized in part 2 (no new texts in part 1); the raw kind is shown until then.
-        case .appeal: return kind.rawValue
+        case .appeal: return L10n.text(.historyKindAppeal)
         }
     }
 
@@ -61,6 +60,8 @@ enum HistoryText {
             return BanStatus(rawValue: raw)?.label ?? raw
         case .refresh:
             return StatusLevel.allCases.first { HistoryTransitions.levelName($0) == raw }?.label ?? raw
+        case .appeal:
+            return AppealStatus(rawValue: raw)?.label ?? raw
         default:
             return raw
         }
@@ -69,6 +70,7 @@ enum HistoryText {
     /// Note line; a fix attempt's outcome code is shown as its localized result.
     static func note(_ entry: HistoryEntry) -> String? {
         guard let note = entry.note, !note.isEmpty else { return nil }
+        if entry.kind == .appeal { return AppealChannel(rawValue: note)?.label ?? note }
         guard entry.kind == .fixAttempt else { return note }
         let old = entry.old ?? "—"
         let new = entry.new ?? "—"
@@ -94,6 +96,31 @@ enum HistoryText {
         case let (nil, new?): return new
         case let (old?, nil): return old + " → —"
         case (nil, nil): return nil
+        }
+    }
+}
+
+/// §29 "Join the game" error texts.
+enum GameLaunchText {
+    static func error(_ error: GameLaunchError) -> String {
+        switch error {
+        case .appNotFound: return L10n.text(.gameErrorAppNotFound)
+        case .invalidHost, .noAddress: return L10n.text(.gameErrorInvalidHost)
+        case .invalidPort: return L10n.text(.serverProblemPortInvalid)
+        case .invalidGamedir: return L10n.text(.gameErrorGamedir)
+        case .resolutionFailed: return L10n.text(.gameErrorResolution)
+        case .cancelled: return L10n.text(.actionCancel)
+        case .launchFailed(let status): return L10n.format(.gameErrorLaunch, String(status))
+        }
+    }
+}
+
+/// §30 launch-at-login error texts (the system's description is shown verbatim).
+enum LoginItemText {
+    static func error(_ error: LoginItemError) -> String {
+        switch error {
+        case .registerFailed(let detail): return L10n.format(.settingsLaunchAtLoginOnFailed, detail)
+        case .unregisterFailed(let detail): return L10n.format(.settingsLaunchAtLoginOffFailed, detail)
         }
     }
 }

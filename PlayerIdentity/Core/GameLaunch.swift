@@ -102,6 +102,12 @@ protocol GameLaunchRunning: Sendable {
     func run(_ argv: [String]) async throws -> CommandOutput
 }
 
+/// Default when nothing is injected (tests): never runs anything.
+struct UnavailableGameLaunchRunner: GameLaunchRunning {
+    init() {}
+    func run(_ argv: [String]) async throws -> CommandOutput { throw CommandError.launchFailed }
+}
+
 /// Real runner: allowlisted argv only, run directly by `Process` (no shell).
 struct ProcessGameLaunchRunner: GameLaunchRunning {
     init() {}

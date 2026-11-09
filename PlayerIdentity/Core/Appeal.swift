@@ -40,6 +40,15 @@ enum AppealStatus: String, Codable, Sendable, CaseIterable {
 
     /// Still waiting for a decision (a follow-up reminder applies).
     var isOpen: Bool { self == .sent || self == .answered }
+
+    var label: String {
+        switch self {
+        case .sent: return L10n.text(.appealStatusSent)
+        case .answered: return L10n.text(.appealStatusAnswered)
+        case .rejected: return L10n.text(.appealStatusRejected)
+        case .accepted: return L10n.text(.appealStatusAccepted)
+        }
+    }
 }
 
 /// Suggested channels; `Appeal.channel` stores the raw value (any other text is kept as is).
@@ -49,6 +58,16 @@ enum AppealChannel: String, Sendable, CaseIterable {
     case forum
     case email
     case other
+
+    var label: String {
+        switch self {
+        case .discord: return L10n.text(.appealChannelDiscord)
+        case .telegram: return L10n.text(.appealChannelTelegram)
+        case .forum: return L10n.text(.appealChannelForum)
+        case .email: return L10n.text(.appealChannelEmail)
+        case .other: return L10n.text(.appealChannelOther)
+        }
+    }
 }
 
 struct Appeal: Codable, Sendable, Equatable {
@@ -58,6 +77,14 @@ struct Appeal: Codable, Sendable, Equatable {
         case channelEmpty
         case summaryTooLong
         case followUpBeforeSent
+
+        var text: String {
+            switch self {
+            case .channelEmpty: return L10n.text(.appealProblemChannel)
+            case .summaryTooLong: return L10n.text(.appealProblemSummary)
+            case .followUpBeforeSent: return L10n.text(.appealProblemFollowUp)
+            }
+        }
     }
 
     var sentAt: Date
@@ -78,6 +105,9 @@ struct Appeal: Codable, Sendable, Equatable {
          summary: String = "") {
         self.init(sentAt: sentAt, channel: channel.rawValue, status: status, followUpAt: followUpAt, summary: summary)
     }
+
+    /// Channel as shown: the localized name of a known channel, the stored text otherwise.
+    var channelLabel: String { knownChannel?.label ?? channel }
 
     /// Known channel, `nil` for free text.
     var knownChannel: AppealChannel? { AppealChannel(rawValue: channel.trimmingCharacters(in: .whitespaces).lowercased()) }
@@ -145,5 +175,16 @@ enum ServerAnnotations {
         guard old != new else { return nil }
         return HistoryEntry(ts: now, kind: .appeal, serverID: server.id, host: server.host,
                             old: old?.status.rawValue, new: new?.status.rawValue, note: (new ?? old)?.channel)
+    }
+}
+
+extension AppealEditError {
+    var text: String {
+        switch self {
+        case .serverNotFound: return L10n.text(.errorInvalidHost)
+        case .invalid(let problems): return problems.map(\.text).joined(separator: "\n")
+        case .transitionNotAllowed(let from, let to): return L10n.format(.appealProblemTransition, from.label, to.label)
+        case .noteTooLong: return L10n.text(.notesTooLong)
+        }
     }
 }

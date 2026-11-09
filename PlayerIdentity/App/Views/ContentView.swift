@@ -16,11 +16,17 @@ struct ContentView: View {
     enum SheetMode: Identifiable {
         case add
         case edit(UUID)
+        /// §32 notes and appeal.
+        case details(UUID)
+        /// §33 share card preview.
+        case shareCard(UUID)
 
         var id: String {
             switch self {
             case .add: return "add"
-            case .edit(let id): return id.uuidString
+            case .edit(let id): return "edit-" + id.uuidString
+            case .details(let id): return "details-" + id.uuidString
+            case .shareCard(let id): return "share-" + id.uuidString
             }
         }
     }
@@ -55,6 +61,7 @@ struct ContentView: View {
             model.refresh()
             model.checkForUpdates()
             model.updates.startPeriodicChecks()
+            model.activateBackgroundTasks()
         }
         .sheet(item: Binding(
             get: { model.updates.pendingInstall?.origin == .banner ? model.updates.pendingInstall : nil },
@@ -70,6 +77,24 @@ struct ContentView: View {
         }
         .sheet(item: $model.fixSession) { session in
             FixSheet(model: model, initialSession: session)
+        }
+        // §29: the game is running → confirm before replacing it; errors of "Join Game".
+        .alert(L10n.text(.gameJoinConfirmTitle), isPresented: Binding(
+            get: { model.pendingJoin != nil },
+            set: { if !$0 { model.cancelJoin() } }
+        )) {
+            Button(L10n.text(.actionCancel), role: .cancel) { model.cancelJoin() }
+            Button(L10n.text(.gameJoinConfirmAction)) { model.confirmJoin() }
+        } message: {
+            Text(L10n.format(.gameJoinConfirmMessage, model.pendingJoin?.label ?? ""))
+        }
+        .alert(L10n.text(.gameErrorTitle), isPresented: Binding(
+            get: { model.joinError != nil && model.joinError != .cancelled },
+            set: { if !$0 { model.joinError = nil } }
+        )) {
+            Button(L10n.text(.actionOK), role: .cancel) {}
+        } message: {
+            Text(model.joinError.map(GameLaunchText.error) ?? "")
         }
         .alert(L10n.text(.alertNewNameTitle), isPresented: $showsNewName) {
             TextField(L10n.text(.profileName), text: $newNameText)
@@ -401,21 +426,25 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(model.servers) { entry in
-                        ServerRowView(entry: entry,
-                                      status: model.rowStatus(entry.id),
-                                      copied: copiedKey == entry.id.uuidString,
-                                      onCopy: { copy($0, key: entry.id.uuidString) },
-                                      onEdit: { sheet = .edit(entry.id) },
-                                      onDelete: { model.deleteServer(id: entry.id) },
-                                      onFix: model.fixKind(for: entry.id) == nil ? nil : { model.beginFix(entry.id) })
-                        if entry.id != model.servers.last?.id { Divider() }
-                    }
-                }
+                ServerSectionsView(model: model, copiedKey: copiedKey, makeActions: rowActions)
                 addServerButton
             }
         }
+    }
+
+    private func rowActions(_ entry: ServerEntry) -> ServerRowActions {
+        let id = entry.id
+        return ServerRowActions(
+            copy: { copy($0, key: id.uuidString) },
+            edit: { sheet = .edit(id) },
+            delete: { model.deleteServer(id: id) },
+            fix: model.fixKind(for: id) == nil ? nil : { model.beginFix(id) },
+            join: model.isGameAppInstalled ? { model.joinGame(id) } : nil,
+            toggleFavorite: { model.setFavorite(!entry.favorite, for: id) },
+            moveUp: model.canMoveServer(id: id, .up) ? { model.moveServer(id: id, .up) } : nil,
+            moveDown: model.canMoveServer(id: id, .down) ? { model.moveServer(id: id, .down) } : nil,
+            details: { sheet = .details(id) },
+            shareCard: { sheet = .shareCard(id) })
     }
 
     private var addServerButton: some View {
@@ -430,7 +459,7 @@ struct ContentView: View {
     private func sheetView(_ mode: SheetMode) -> some View {
         switch mode {
         case .add:
-            ServerFormSheet(title: L10n.text(.serverAdd), confirmTitle: L10n.text(.actionAdd),
+            ServerFormSheet(title: L10n.text(.serverAdd), confirmTitle: L10n.text(.actionAdd), groups: model.serverGroups,
                             onConfirm: { draft in
                                 model.addServer(draft)
                                 sheet = nil
@@ -438,13 +467,18 @@ struct ContentView: View {
                             onCancel: { sheet = nil })
         case .edit(let id):
             if let entry = model.servers.first(where: { $0.id == id }) {
-                ServerFormSheet(title: L10n.text(.serverEditTitle), confirmTitle: L10n.text(.actionOK), draft: ServerDraft(entry: entry),
+                ServerFormSheet(title: L10n.text(.serverEditTitle), confirmTitle: L10n.text(.actionOK), groups: model.serverGroups,
+                                draft: ServerDraft(entry: entry),
                                 onConfirm: { draft in
                                     model.updateServer(id: id, with: draft)
                                     sheet = nil
                                 },
                                 onCancel: { sheet = nil })
             }
+        case .details(let id):
+            ServerDetailSheet(model: model, serverID: id, onClose: { sheet = nil })
+        case .shareCard(let id):
+            ShareCardSheet(model: model, serverID: id, onClose: { sheet = nil })
         }
     }
 
@@ -474,116 +508,6 @@ struct ContentView: View {
                     }
                 }
             }
-        }
-    }
-}
-
-/// Server row: status icon · label · host:port · CID; last check time below (§8).
-struct ServerRowView: View {
-    let entry: ServerEntry
-    let status: ServerRowStatus?
-    let copied: Bool
-    let onCopy: (String) -> Void
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-    /// §17.1: only on `ipBanned` / `cidBanned` / `unreachable` rows.
-    var onFix: (() -> Void)? = nil
-
-    @State private var hovering = false
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Group {
-                if let status {
-                    StatusIcon(level: status.displayLevel, help: status.displayMessage?.text)
-                } else {
-                    Image(systemName: "circle.dashed")
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel(L10n.text(.serverNotChecked))
-                }
-            }
-            .frame(width: 18)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 12) {
-                    Text(entry.label).fontWeight(.medium)
-                        .help(entry.banCheck?.info?.name ?? "")
-                    Text(verbatim: "\(entry.host):\(String(entry.port))")
-                        .font(.body.monospaced())
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-                // §20: `host → resolved IP` (or resolving/error); §21: `map · 9/26 · 42 ms`, hidden if unknown.
-                if let address = ServerRowText.addressLine(host: entry.host, status: status) {
-                    Text(verbatim: address)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
-                }
-                if let info = ServerRowText.infoLine(entry.banCheck?.info) {
-                    Text(verbatim: info)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .help(entry.banCheck?.info?.name ?? "")
-                        .accessibilityIdentifier("serverInfo")
-                }
-                HStack(spacing: 8) {
-                    Text(L10n.format(.topbarLastCheck, TimeText.format(entry.lastCheckedAt)))
-                    if let message = status?.message {
-                        Text(message.text)
-                    }
-                    if let check = entry.banCheck,
-                       case .rejectedUnknownType(let raw) = BanClassification.classify(check) {
-                        // §17.9.2: server rejected, type unknown → the raw reply is shown.
-                        Text(BanClassification.unverifiedText + ": " + raw)
-                    } else if let banMessage = entry.banCheck?.status.messageCode {
-                        Text(banMessage.text)
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 8)
-
-            VStack(alignment: .leading, spacing: 4) {
-                BanColumn(check: entry.banCheck)
-                if let onFix {
-                    // §17.7: "Fix" next to/below the ban icon.
-                    Button(L10n.text(.actionFix), action: onFix)
-                        .controlSize(.small)
-                }
-            }
-
-            if let cid = status?.currentCID {
-                Button {
-                    onCopy(cid)
-                } label: {
-                    Text(copied ? L10n.text(.actionCopied) : cid)
-                        .font(.body.monospaced())
-                        .frame(minWidth: 290, alignment: .trailing)
-                }
-                .buttonStyle(.plain)
-                .help(L10n.text(.serverCopyHint))
-            } else {
-                Text("—").foregroundStyle(.secondary)
-            }
-
-            Button(action: onDelete) {
-                Image(systemName: "minus.circle")
-            }
-            .buttonStyle(.borderless)
-            .help(L10n.text(.actionDelete))
-            .accessibilityLabel(L10n.text(.actionDelete))
-            .opacity(hovering ? 1 : 0)
-            .disabled(!hovering)
-        }
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
-        .onHover { hovering = $0 }
-        .contextMenu {
-            Button(L10n.text(.actionEdit), action: onEdit)
-            Button(L10n.text(.actionDelete), role: .destructive, action: onDelete)
         }
     }
 }
