@@ -25,6 +25,18 @@ The `.xcodeproj` is generated and not tracked in git. Tests never touch the netw
 The scheme runs tests with the Turkish test language (most assertions compare the Turkish source texts);
 `LocalizationTests` switch languages explicitly.
 
+### UI tests
+UI tests live in the `PlayerIdentityUITests` scheme and are kept separate from the main CI (`ci.yml`).
+They run on demand (or weekly) via the `ui-tests.yml` workflow:
+```sh
+gh workflow run ui-tests.yml
+```
+or from the Actions tab: *UI Tests* → *Run workflow*. Locally:
+```sh
+xcodegen generate
+xcodebuild test -project PlayerIdentity.xcodeproj -scheme PlayerIdentityUITests -destination 'platform=macOS' -derivedDataPath .build-ui
+```
+
 ## Run
 ```sh
 open .build/Build/Products/Debug/PlayerIdentity.app
