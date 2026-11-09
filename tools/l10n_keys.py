@@ -286,11 +286,8 @@ KEYS = [
 
     # Update check (§25)
     ("updateAvailable", "update.available", "Yeni sürüm mevcut: %@", "A new version is available: %@"),
-    ("updateDownload", "update.download", "İndir", "Download"),
     ("updateIgnore", "update.ignore", "Yoksay", "Ignore"),
     ("updateCheck", "update.check", "Güncellemeleri Denetle…", "Check for Updates…"),
-    ("updateUpToDateTitle", "update.upToDate.title", "Uygulama güncel", "You're up to date"),
-    ("updateUpToDateMessage", "update.upToDate.message", "Sürüm %@ en son sürüm.", "Version %@ is the latest version."),
 
     # Notifications (§23)
     ("settingsNotifications", "settings.notifications", "Bildirimler", "Notifications"),

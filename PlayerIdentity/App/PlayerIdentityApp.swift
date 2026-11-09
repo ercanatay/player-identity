@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard model.hasUnsavedChanges else { return .terminateNow }
+        guard TerminationPolicy.needsConfirmation(hasUnsavedChanges: model.hasUnsavedChanges) else { return .terminateNow }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = L10n.text(.quitTitle)

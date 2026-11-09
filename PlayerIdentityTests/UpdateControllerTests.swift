@@ -216,8 +216,7 @@ final class UpdateControllerTests: XCTestCase {
     func testSettingsCheckShowsStatusInsteadOfAlert() async throws {
         let (json, files) = Self.feed(["1.1.0"])
         let (model, _) = makeModel(feed: json, files: files)
-        await model.updates.checkForUpdates(manual: true, announce: false)?.value
-        XCTAssertFalse(model.manualCheckUpToDate)
+        await model.updates.checkForUpdates(manual: true)?.value
         XCTAssertEqual(model.updates.status, .upToDate)
         XCTAssertNil(model.availableUpdate)
     }

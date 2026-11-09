@@ -59,8 +59,6 @@ final class UpdateController {
     private(set) var releases: [AppRelease] = []
     /// Banner: newer stable release that is not ignored.
     private(set) var availableUpdate: AppUpdate?
-    /// After a manual check found nothing newer.
-    var manualCheckUpToDate = false
     private(set) var status: Status = .idle
     private(set) var lastCheck: Date?
     var preferences: UpdatePreferences {
@@ -110,10 +108,9 @@ final class UpdateController {
     // MARK: Checking (§25, §27.2)
 
     /// Launch check (at most every 24 h, only with automatic checks on) or manual check. Network errors are silent.
-    /// `announce`: a manual check that finds nothing shows the "up to date" alert (menu); the Settings tab shows
-    /// it in its status line instead.
+    /// Menu and Settings share this path: the result shows in the Settings status line and the banner (no modal alert).
     @discardableResult
-    func checkForUpdates(manual: Bool = false, announce: Bool = true) -> Task<Void, Never>? {
+    func checkForUpdates(manual: Bool = false) -> Task<Void, Never>? {
         guard let http = deps.updateHTTP, checkTask == nil, !status.isBusy || status == .checking else { return nil }
         let now = deps.now()
         if !manual {
@@ -127,13 +124,13 @@ final class UpdateController {
                 if status == .checking { status = .idle }
                 return
             }
-            apply(feed: fetched, checkedAt: now, manual: manual, announce: announce)
+            apply(feed: fetched, checkedAt: now, manual: manual)
         }
         checkTask = task
         return task
     }
 
-    private func apply(feed: [AppRelease], checkedAt now: Date, manual: Bool, announce: Bool = true) {
+    private func apply(feed: [AppRelease], checkedAt now: Date, manual: Bool) {
         releases = feed
         lastCheck = now
         var state = UpdateState(defaults: deps.defaults)
@@ -150,7 +147,6 @@ final class UpdateController {
         state.save(to: deps.defaults)
         availableUpdate = state.banner(currentVersion: appVersion)
         if status == .checking || status == .upToDate { status = newest == nil ? .upToDate : .idle }
-        manualCheckUpToDate = manual && announce && newest == nil
         if let newest, newest.isInstallable, preferences.autoDownload, availableUpdate != nil {
             startDownloadInBackground(newest)
         }

@@ -232,11 +232,8 @@
 "diff.message" = "Aşağıdaki satırlar yazılacak. Yaz'a basmadan hiçbir dosya değişmez.";
 "diff.write" = "Yaz";
 "update.available" = "Yeni sürüm mevcut: %@";
-"update.download" = "İndir";
 "update.ignore" = "Yoksay";
 "update.check" = "Güncellemeleri Denetle…";
-"update.upToDate.title" = "Uygulama güncel";
-"update.upToDate.message" = "Sürüm %@ en son sürüm.";
 "settings.notifications" = "Bildirimler";
 "notify.banAppeared.title" = "Ban başladı";
 "notify.banLifted.title" = "Ban kalktı";

@@ -65,11 +65,6 @@ struct ContentView: View {
         .sheet(item: $model.applyPreview) { preview in
             ApplyPreviewSheet(preview: preview, onWrite: { model.confirmApply() }, onCancel: model.cancelApply)
         }
-        .alert(L10n.text(.updateUpToDateTitle), isPresented: $model.manualCheckUpToDate) {
-            Button(L10n.text(.actionOK), role: .cancel) {}
-        } message: {
-            Text(L10n.format(.updateUpToDateMessage, model.appVersion))
-        }
         .sheet(item: $sheet) { mode in
             sheetView(mode)
         }

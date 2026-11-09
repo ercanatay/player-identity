@@ -42,7 +42,7 @@ struct UpdateSettingsView: View {
             Toggle(L10n.text(.updateAutoCheck), isOn: $updates.preferences.autoCheck)
             Toggle(L10n.text(.updateAutoDownload), isOn: $updates.preferences.autoDownload)
             HStack {
-                Button(L10n.text(.updateCheckNow)) { updates.checkForUpdates(manual: true, announce: false) }
+                Button(L10n.text(.updateCheckNow)) { updates.checkForUpdates(manual: true) }
                     .disabled(updates.status.isBusy)
                 Spacer()
             }

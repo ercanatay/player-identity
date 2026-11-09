@@ -106,7 +106,6 @@ final class AppModelUpdateTests: XCTestCase {
         let model = env.makeModel(updates: failing, appVersion: "1.0")
         await model.checkForUpdates()?.value
         XCTAssertNil(model.availableUpdate)
-        XCTAssertFalse(model.manualCheckUpToDate)
         XCTAssertNil(UpdateState(defaults: env.defaults).lastCheck)
         XCTAssertNotNil(env.makeModel(updates: failing, appVersion: "1.0").checkForUpdates())
     }
@@ -115,9 +114,8 @@ final class AppModelUpdateTests: XCTestCase {
         let env = try TestAppEnvironment()
         let model = env.makeModel(updates: HTTPScript(defaultBody: same), appVersion: "1.0")
         await model.checkForUpdates()?.value
-        XCTAssertFalse(model.manualCheckUpToDate)          // launch check: silent
         await model.checkForUpdates(manual: true)?.value
-        XCTAssertTrue(model.manualCheckUpToDate)
+        XCTAssertEqual(model.updates.status, .upToDate)    // shown in the status line, no modal alert
         XCTAssertNil(model.availableUpdate)
     }
 

@@ -238,6 +238,11 @@ move `PlayerIdentity.app` to `/Applications`. Release builds since **v1.1.0** ar
 warning. Each release lists the SHA-256 of the zip (`SHA256SUMS.txt`). A release built without the signing secrets is
 marked "not notarized" in its notes; open that one with right-click → **Open** on first launch.
 
+### What's new in v1.2.1
+- Clean quit during an update: the relaunch no longer asks "Quit without saving?" (the pre-install snapshot is already taken).
+- **Check for Updates…** in the menu now uses the same path as Settings > Updates: the result appears in the status line and
+  the banner, with no modal alert.
+
 ### What's new in v1.2.0
 - Automatic update: the app reads the release feed, downloads the zip, checks its SHA-256 against `SHA256SUMS.txt`,
   verifies the code signature and Team ID, and installs it. A failed install rolls back to the current version.

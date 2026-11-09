@@ -52,7 +52,7 @@ struct AppDependencies {
                                notifier: SystemNotifier(),
                                updateHTTP: URLSessionHTTPClient(),
                                relauncher: OpenAndTerminateRelauncher(runner: ProcessUpdateCommandRunner(),
-                                                                      terminate: { await MainActor.run { NSApp.terminate(nil) } }))
+                                                                      terminate: { await MainActor.run { TerminationPolicy.terminateForUpdate { NSApp.terminate(nil) } } }))
     }
 }
 
@@ -94,11 +94,6 @@ final class AppModel {
     let updates: UpdateController
     /// Banner content: a newer, not ignored release.
     var availableUpdate: AppUpdate? { updates.availableUpdate }
-    /// Set after a manual check found no newer release (for the "up to date" alert).
-    var manualCheckUpToDate: Bool {
-        get { updates.manualCheckUpToDate }
-        set { updates.manualCheckUpToDate = newValue }
-    }
 
     // MARK: §24 apply preview
     struct ApplyPreview: Identifiable, Equatable {

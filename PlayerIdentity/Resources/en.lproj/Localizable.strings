@@ -232,11 +232,8 @@
 "diff.message" = "The lines below will be written. No file changes until you press Write.";
 "diff.write" = "Write";
 "update.available" = "A new version is available: %@";
-"update.download" = "Download";
 "update.ignore" = "Ignore";
 "update.check" = "Check for Updates…";
-"update.upToDate.title" = "You're up to date";
-"update.upToDate.message" = "Version %@ is the latest version.";
 "settings.notifications" = "Notifications";
 "notify.banAppeared.title" = "Ban detected";
 "notify.banLifted.title" = "Ban lifted";
