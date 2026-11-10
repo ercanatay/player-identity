@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.4 · Tarih: 2026-11-09 · Durum: uygulanacak (v2.3 → v2.4: §43 config override uyarısı + model kataloğu)
+Sürüm: 2.5 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.4 → v2.5: §44 indirilen model önizlemesi, §45 bildirim inceliği + sessiz saatler)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1054,3 +1054,30 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 - Uyarı yalnız override varken; satır kaldırma yedeği + yorumlama + diğer satırların korunması; oyun açıkken red.
 - Model kataloğu: iki/üç kaynak, tekilleştirme, sıralama, mevcut değer, kaynak etiketi, boş klasör.
 - Geçmiş olayı `configOverrideRemoved`; anahtar sayıları tr/en eşit.
+
+---
+
+## 44. İndirilen modellerin önizlemesi (v2.5)
+
+- Önizleme arama sırası (ilk bulunan BMP):
+  1. `<gamedir>/models/player/<model>/`
+  2. `<veri kökü>/valve_downloads/models/player/<model>/`
+  3. `<veri kökü>/<gamedir>_downloads/models/player/<model>/`
+- Uzantı büyük/küçük harf duyarsız (mevcut davranış).
+- Kaynak yolu tooltip'te; önbellek anahtarına dosya yolu + mtime girer.
+- BMP yoksa yer tutucu (mevcut).
+- Testler: yerel öncelik, indirilen klasörden bulma, büyük uzantı, yoksa yer tutucu, mtime değişiminde yenileme.
+
+## 45. Bildirim inceliği + sessiz saatler (v2.5)
+
+- Ayarlar > Genel > **Bildirimler** altında ayrı anahtarlar (varsayılan açık):
+  - `notifyBanChanges` (ban başladı/kalktı)
+  - `notifyOnlineChanges` (çevrimdışı/çevrimiçi)
+  - `notifyMapChanges` (harita değişti)
+- **Sessiz saatler:** anahtar + başlangıç/bitiş (`HH:mm`, varsayılan 23:00–08:00). Aralık gece yarısını aşabilir (23:00–08:00 gibi).
+- Sessiz saatte bildirim **gönderilmez**; geçmiş kayıtları yine yazılır. Ban kalktı bildirimi de aynı kurala tabi.
+- Eski `notificationsEnabled` anahtarı ana şalter olarak kalır; kapatılırsa hiçbiri gönderilmez.
+- Testler: her olay türü için anahtar kapalı → bildirim yok; sessiz saat içinde/dışında; gece yarısını aşan aralık; ana şalter kapalı; kalıcılık; tr/en anahtar eşitliği.
+
+### 45.1 README
+- Homebrew kurulum: `brew tap ercanatay/tap && brew install --cask ercanatay/tap/player-identity`; `playeridentityctl` PATH'e linklenir.

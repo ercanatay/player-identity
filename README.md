@@ -21,7 +21,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination
 xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity -destination 'platform=macOS' -derivedDataPath .build test
 ```
 The `.xcodeproj` is generated and not tracked in git. Tests never touch the network or the user's real files
-(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **476** tests.
+(temporary fixture folders, fake HTTP/UDP clients, fake command runner). Total: **490** tests.
 The scheme runs tests with the Turkish test language (most assertions compare the Turkish source texts);
 `LocalizationTests` switch languages explicitly.
 
@@ -250,6 +250,12 @@ move `PlayerIdentity.app` to `/Applications`. Release builds since **v1.1.0** ar
 **Developer ID Application: Rigicon, Inc.**, notarized by Apple and stapled, so they open without a Gatekeeper
 warning. Each release lists the SHA-256 of the zip (`SHA256SUMS.txt`). A release built without the signing secrets is
 marked "not notarized" in its notes; open that one with right-click → **Open** on first launch.
+
+### What's new in v2.4.0
+- **Downloaded model previews**: previews of downloaded models are shown from `valve_downloads` (spec 44).
+- **Granular notifications and quiet hours**: choose which notification categories you receive and set quiet hours (spec 45).
+- **Homebrew install**: install the app with the Homebrew cask (`brew install --cask ercanatay/tap/player-identity`).
+- 490 tests.
 
 ### What's new in v2.3.0
 - **Watched servers**: watch selected servers and get notified when their player list or ban state changes (spec 42).
