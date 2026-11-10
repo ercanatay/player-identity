@@ -28,3 +28,38 @@ jobs:
           name: ui-test-results
           path: .build-ui/TestResults.xcresult
           retention-days: 7
+      - name: Launch app for diagnostics
+        if: always()
+        continue-on-error: true
+        run: |
+          APP=.build-ui/Build/Products/Debug/PlayerIdentity.app
+          if [ -d "$APP" ]; then
+            open "$APP" --args -PIUITesting || true
+            sleep 8
+          else
+            echo "App bulunamadı: $APP"
+          fi
+      - name: Capture screenshot
+        if: always()
+        continue-on-error: true
+        run: screencapture -x /tmp/ci-screen.png || true
+      - name: Window diagnostics
+        if: always()
+        continue-on-error: true
+        run: |
+          osascript -e 'tell application "System Events" to get name of every process whose background only is false' || true
+          osascript -e 'tell application "System Events" to tell process "PlayerIdentity" to count windows' || true
+      - name: Collect unified log
+        if: always()
+        continue-on-error: true
+        run: |
+          log show --last 5m --predicate 'process == "PlayerIdentity"' --style compact | tail -80 > /tmp/pi-log.txt || true
+      - name: Upload UI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-diagnostics
+          path: |
+            /tmp/ci-screen.png
+            /tmp/pi-log.txt
+          retention-days: 7
