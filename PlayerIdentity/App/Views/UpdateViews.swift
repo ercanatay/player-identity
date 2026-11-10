@@ -50,47 +50,268 @@ enum UpdateStatusText {
 
     static func percent(_ fraction: Double) -> String {
         let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
+        formatter.locale = SettingsFormat.locale   // "62 %" / "%62", in the in-app language
         formatter.numberStyle = .percent
         formatter.maximumFractionDigits = 0
         return formatter.string(from: NSNumber(value: min(max(fraction, 0), 1))) ?? String(Int(fraction * 100))
     }
 
     static func size(_ bytes: Int) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+        SettingsFormat.size(bytes)
     }
 }
 
-/// Status line with progress and cancel (banner and Settings).
+/// Status line with progress and cancel (update banner).
 struct UpdateStatusRow: View {
     @Bindable var updates: UpdateController
-    /// Single line (banner); the Settings tab wraps long error texts.
+    /// Single line (banner); elsewhere long error texts wrap.
     var compact = false
 
     var body: some View {
         if let text = UpdateStatusText.text(updates.status) {
-            HStack(spacing: 8) {
+            HStack(spacing: Space.s2) {
                 switch updates.status {
                 case .downloading(let fraction):
-                    ProgressView(value: fraction).frame(width: 140)
+                    ProgressView(value: fraction)
+                        .tint(Palette.accentFill)
+                        .frame(width: 140)
+                        .accessibilityLabel(L10n.text(.a11yUpdateProgress))
+                        .accessibilityValue(UpdateStatusText.percent(fraction))
                 case .checking, .verifying, .installing, .relaunching:
                     ProgressView().controlSize(.small)
                 default:
                     EmptyView()
                 }
                 Text(text)
-                    .foregroundStyle(UpdateStatusText.isError(updates.status) ? Color.red : Color.secondary)
+                    .font(TypeScale.callout)
+                    .foregroundStyle(UpdateStatusText.isError(updates.status) ? Palette.redText : Palette.text2)
+                    .monospacedDigit()
                     .lineLimit(compact ? 1 : nil)
-                    .fixedSize(horizontal: compact, vertical: true)
+                    .truncationMode(.tail)
+                    .fixedSize(horizontal: false, vertical: !compact)
+                    .help(text)
                     .textSelection(.enabled)
                 if updates.status.isCancellable {
                     Button(L10n.text(.actionAbort), action: updates.cancelInstall)
+                        .controlSize(.small)
                         .fixedSize()
                 }
             }
-            .font(.callout)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("updateStatus")
+        }
+    }
+}
+
+/// What the Updates tab status card shows for the controller state (Claude Design S7–S10): available, downloading
+/// (progress, size), working (verifying/installing), ready, up to date, cancelled, never checked, error.
+struct UpdateCardContent: Equatable {
+    enum Tone: Equatable {
+        case accent, green, red, neutral
+    }
+
+    enum Action: Hashable {
+        /// Opens the install confirmation for the available release.
+        case install
+        case releaseNotes
+        case cancel
+        /// Check again (the feed could not be loaded).
+        case retryCheck
+        /// Request the install again (download or verification failed).
+        case retryInstall
+    }
+
+    var symbol: String
+    var tone: Tone
+    var title: String
+    var body: String
+    /// Determinate progress (downloading).
+    var progress: Double?
+    var isIndeterminate = false
+    var percent: String?
+    var actions: [Action] = []
+
+    static func make(status: UpdateController.Status, availableUpdate: AppUpdate?, availableRelease: AppRelease?,
+                     activeRelease: AppRelease?, lastCheck: Date?, appVersion: String) -> UpdateCardContent {
+        let busySymbol = "arrow.down.circle.fill"
+        let version = activeRelease?.versionString ?? availableUpdate?.version ?? ""
+        switch status {
+        case .checking:
+            return UpdateCardContent(symbol: "arrow.clockwise", tone: .neutral, title: L10n.text(.updateStatusChecking),
+                                     body: "", isIndeterminate: true)
+        case .downloading(let fraction):
+            let clamped = min(max(fraction, 0), 1)
+            var body = ""
+            if let size = activeRelease?.zip?.size, size > 0 {
+                body = L10n.format(.updatesDownloadedOf, SettingsFormat.size(Int(Double(size) * clamped)),
+                                   SettingsFormat.size(size))
+            }
+            return UpdateCardContent(symbol: busySymbol, tone: .accent,
+                                     title: L10n.format(.updatesDownloadingTitle, version), body: body,
+                                     progress: clamped, percent: UpdateStatusText.percent(clamped), actions: [.cancel])
+        case .verifying, .installing, .relaunching:
+            return UpdateCardContent(symbol: busySymbol, tone: .accent, title: UpdateStatusText.text(status) ?? "",
+                                     body: version.isEmpty ? "" : L10n.format(.updatesVersion, version),
+                                     isIndeterminate: true, actions: status.isCancellable ? [.cancel] : [])
+        case .ready(let ready):
+            return UpdateCardContent(symbol: busySymbol, tone: .accent, title: L10n.format(.updatesReadyTitle, ready),
+                                     body: L10n.format(.updateStatusReady, ready), actions: [.install, .releaseNotes])
+        case .failed(let error):
+            let checkFailed = error == .feedUnavailable
+            return UpdateCardContent(symbol: "xmark.octagon.fill", tone: .red,
+                                     title: L10n.text(checkFailed ? .updatesCheckFailedTitle : .updatesInstallFailedTitle),
+                                     body: UpdateStatusText.error(error),
+                                     actions: [checkFailed || availableUpdate == nil ? .retryCheck : .retryInstall])
+        case .backupFailed:
+            return UpdateCardContent(symbol: "xmark.octagon.fill", tone: .red,
+                                     title: L10n.text(.updatesInstallFailedTitle), body: UpdateStatusText.text(status) ?? "")
+        case .cancelled:
+            return UpdateCardContent(symbol: "xmark.circle", tone: .neutral, title: L10n.text(.updateStatusCancelled),
+                                     body: L10n.text(.updatesCancelledBody),
+                                     actions: availableUpdate == nil ? [] : [.install, .releaseNotes])
+        case .upToDate:
+            return upToDate(appVersion)
+        case .idle:
+            if let update = availableUpdate {
+                return UpdateCardContent(symbol: busySymbol, tone: .accent,
+                                         title: L10n.format(.updatesAvailableTitle, update.version),
+                                         body: availableRelease.map(summary) ?? "", actions: [.install, .releaseNotes])
+            }
+            if lastCheck != nil { return upToDate(appVersion) }
+            return UpdateCardContent(symbol: "arrow.down.circle", tone: .neutral, title: L10n.text(.updateNever),
+                                     body: L10n.text(.updatesNeverBody))
+        }
+    }
+
+    private static func upToDate(_ version: String) -> UpdateCardContent {
+        UpdateCardContent(symbol: "checkmark.circle.fill", tone: .green, title: L10n.text(.updatesUpToDateTitle),
+                          body: L10n.format(.updatesUpToDateBody, version))
+    }
+
+    /// "Faster ban checks · FWGS 0.21 support · 13.4 MB": up to three items of the release notes plus the size.
+    static func summary(_ release: AppRelease) -> String {
+        var parts = notesItems(release.notes, limit: 3)
+        if let size = release.zip?.size { parts.append(SettingsFormat.size(size)) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Bullet items of Markdown notes (or the first plain line), without Markdown marks.
+    static func notesItems(_ notes: String, limit: Int) -> [String] {
+        let lines = notes.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        let clean: (String) -> String = { line in
+            var text = line
+            while let first = text.first, "#-*+>".contains(first) { text.removeFirst() }
+            return text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
+                .trimmingCharacters(in: .whitespaces)
+        }
+        let bullets = lines.filter { $0.hasPrefix("- ") || $0.hasPrefix("* ") || $0.hasPrefix("+ ") }.map(clean)
+        let items = bullets.isEmpty ? lines.filter { !$0.isEmpty && !$0.hasPrefix("#") }.prefix(1).map(clean) : bullets
+        return Array(items.filter { !$0.isEmpty }.prefix(limit))
+    }
+
+    var color: Color {
+        switch tone {
+        case .accent: return Palette.accent
+        case .green: return Palette.green
+        case .red: return Palette.red
+        case .neutral: return Palette.text2
+        }
+    }
+}
+
+/// Updates tab status card (`role: status`): symbol 24 in the state colour, title 13 semibold (+ percentage),
+/// progress bar, 12 pt body and the state's buttons. Min height 92 so switching state never reflows the tab.
+struct UpdateStatusCard: View {
+    @Bindable var updates: UpdateController
+
+    private var content: UpdateCardContent {
+        UpdateCardContent.make(status: updates.status, availableUpdate: updates.availableUpdate,
+                               availableRelease: updates.availableRelease, activeRelease: updates.activeRelease,
+                               lastCheck: updates.lastCheck, appVersion: updates.appVersion)
+    }
+
+    var body: some View {
+        let content = self.content
+        HStack(alignment: .top, spacing: Space.s3) {
+            Image(systemName: content.symbol)
+                .font(.system(size: 22))
+                .foregroundStyle(content.color)
+                .frame(width: 24, height: 24)
+                .padding(.top, 1)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
+                    Text(content.title)
+                        .font(TypeScale.label)
+                        .foregroundStyle(Palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let percent = content.percent {
+                        Text(verbatim: percent)
+                            .monospacedDigit()
+                            .foregroundStyle(Palette.text2)
+                    }
+                }
+                if let progress = content.progress {
+                    TokenProgressBar(value: progress, label: L10n.text(.a11yUpdateProgress),
+                                     valueText: content.percent ?? "")
+                } else if content.isIndeterminate {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .tint(Palette.accentFill)
+                        .accessibilityLabel(content.title)
+                }
+                if !content.body.isEmpty {
+                    Text(content.body)
+                        .font(TypeScale.callout)
+                        .foregroundStyle(Palette.text2)
+                        .monospacedDigit()
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                        .help(content.body)
+                }
+                if !content.actions.isEmpty {
+                    HStack(spacing: Space.s2) {
+                        ForEach(content.actions, id: \.self) { action in
+                            button(action)
+                        }
+                    }
+                    .padding(.top, Space.s1)
+                }
+            }
+        }
+        .padding(Space.s4)
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: Radius.card).fill(Palette.card))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Palette.border, lineWidth: 1))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(content.body.isEmpty ? content.title : content.title + ". " + content.body)
+        .accessibilityIdentifier("updateStatus")
+    }
+
+    @ViewBuilder
+    private func button(_ action: UpdateCardContent.Action) -> some View {
+        switch action {
+        case .install:
+            Button(L10n.text(.updatesDownloadAndInstall)) { updates.requestInstallOfAvailableUpdate() }
+                .prominentButton()
+                .disabled(updates.status.isBusy)
+                .accessibilityIdentifier("updateInstall")
+        case .releaseNotes:
+            if let url = updates.availableRelease?.pageURL ?? updates.availableUpdate?.url {
+                Button(L10n.text(.updateReleaseNotes)) { NSWorkspace.shared.open(url) }
+                    .help(url.absoluteString)
+            }
+        case .cancel:
+            Button(L10n.text(.actionCancel), action: updates.cancelInstall)
+                .disabled(!updates.status.isCancellable)
+                .accessibilityIdentifier("updateCancel")
+        case .retryCheck:
+            Button(L10n.text(.actionRetry)) { updates.checkForUpdates(manual: true) }
+                .prominentButton()
+        case .retryInstall:
+            Button(L10n.text(.actionRetry)) { updates.requestInstallOfAvailableUpdate() }
+                .prominentButton()
         }
     }
 }
@@ -177,7 +398,8 @@ struct RestoreBanner: View {
     }
 }
 
-/// §27.3 / §28.2/2 confirmation before installing another version.
+/// §27.3 / §28.2/2 confirmation before installing another version (sheet: 520 wide, padding 20, spacing 12; notes in an
+/// inset box; Release Notes on the left, Cancel (Esc) then the default button (Return) on the right).
 struct InstallConfirmSheet: View {
     @Bindable var updates: UpdateController
     let request: UpdateController.InstallRequest
@@ -185,43 +407,61 @@ struct InstallConfirmSheet: View {
     var body: some View {
         let release = request.release
         let downgrade = request.change == .downgrade
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.format(downgrade ? .updateConfirmDowngradeTitle : .updateConfirmInstallTitle, release.versionString))
-                .font(.title3.bold())
-            if let size = release.zip?.size {
-                Text(L10n.format(.updateConfirmSize, UpdateStatusText.size(size))).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: Space.s3) {
+            VStack(alignment: .leading, spacing: Space.s1) {
+                Text(L10n.format(downgrade ? .updateConfirmDowngradeTitle : .updateConfirmInstallTitle, release.versionString))
+                    .font(TypeScale.headline)
+                    .foregroundStyle(Palette.text)
+                if let size = release.zip?.size {
+                    Text(L10n.format(.updateConfirmSize, UpdateStatusText.size(size)))
+                        .foregroundStyle(Palette.text2)
+                        .monospacedDigit()
+                }
             }
             ScrollView {
                 ReleaseNotesText(notes: release.notes)
-                    .font(.callout)
+                    .font(TypeScale.callout)
+                    .foregroundStyle(Palette.text)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
+                    .padding(Space.s3)
             }
             .frame(minHeight: 100, maxHeight: 220)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
+            .background(RoundedRectangle(cornerRadius: Radius.inner).fill(Palette.inset))
+            .overlay(RoundedRectangle(cornerRadius: Radius.inner).strokeBorder(Palette.border, lineWidth: 1))
             if downgrade {
-                Label(L10n.text(.updateConfirmDowngradeWarning), systemImage: StatusLevel.orange.symbolName)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
+                NoticeBox(symbol: StatusLevel.orange.symbolName, symbolColor: Palette.orange,
+                          text: L10n.text(.updateConfirmDowngradeWarning), textColor: Palette.orangeText,
+                          background: Palette.orangeTint)
                 Toggle(L10n.text(.updateConfirmBackupData), isOn: Binding(
                     get: { updates.pendingInstall?.backupData ?? request.backupData },
                     set: { updates.pendingInstall?.backupData = $0 }))
+                    .toggleStyle(.checkbox)
+                    .tint(Palette.accentFill)
             }
-            Text(L10n.text(.updateConfirmRelaunch)).font(.callout).foregroundStyle(.secondary)
-            HStack {
+            Text(L10n.text(.updateConfirmRelaunch))
+                .font(TypeScale.callout)
+                .foregroundStyle(Palette.text2)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.s2) {
                 if let page = release.pageURL {
                     Button(L10n.text(.updateReleaseNotes)) { NSWorkspace.shared.open(page) }
+                        .help(page.absoluteString)
                 }
                 Spacer()
                 Button(L10n.text(.actionCancel), role: .cancel, action: updates.cancelRequest)
                     .keyboardShortcut(.cancelAction)
                 Button(L10n.text(downgrade ? .updateDowngrade : .updateInstall)) { updates.confirmInstall() }
+                    .prominentButton()
                     .keyboardShortcut(.defaultAction)
             }
+            .padding(.top, Space.s1)
         }
+        .font(TypeScale.body)
+        .foregroundStyle(Palette.text)
         .padding(20)
         .frame(width: 520)
+        .background(Palette.raised)
     }
 }
 

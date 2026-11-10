@@ -26,6 +26,8 @@ struct AppDependencies {
     var updateHTTP: (any HTTPClient)? = nil
     /// `CFBundleShortVersionString` of the running app.
     var appVersion: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+    /// `CFBundleVersion`, shown next to the version in Settings > Updates.
+    var appBuild: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
     /// §27 installer dependencies (real by default; the relauncher is a no-op that fails unless injected).
     var installedApp: URL = Bundle.main.bundleURL
     var updateDownloader: any UpdateDownloading = URLSessionUpdateDownloader()
@@ -1476,6 +1478,23 @@ final class AppModel {
             }
         }
         summary.settingsApplied = settings.count(includingDataRoot: includeDataRoot)
+        applySettings(settings, includeDataRoot: includeDataRoot)
+        if let plan {
+            servers = plan.servers
+            summary.added = plan.added
+            summary.updated = plan.updated
+            summary.skipped = plan.skipped
+            for entry in plan.servers { resolveIfNeeded(entry.host) }
+        }
+        appliedSinceSave = true
+        markEdited()
+        reevaluate()
+        refresh()
+        return .success(summary)
+    }
+
+    /// Applies every carried preference; missing values are left unchanged.
+    private func applySettings(_ settings: ArchivedSettings, includeDataRoot: Bool) {
         if let value = settings.language, let setting = AppLanguageSetting(rawValue: value) { appLanguage = setting }
         if let value = settings.notificationsEnabled { notificationsEnabled = value }
         if let value = settings.notifyBanChanges { notifyBanChanges = value }
@@ -1496,18 +1515,53 @@ final class AppModel {
             dataRoot = URL(fileURLWithPath: value, isDirectory: true).standardizedFileURL
             deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
         }
-        if let plan {
-            servers = plan.servers
-            summary.added = plan.added
-            summary.updated = plan.updated
-            summary.skipped = plan.skipped
-            for entry in plan.servers { resolveIfNeeded(entry.host) }
+    }
+
+    // MARK: Reset and erase (Settings > Reset)
+
+    /// "Reset Settings…": preferences return to their defaults. Servers, the record, identity history, the data root
+    /// and the game folder are kept.
+    func resetSettings() {
+        applySettings(.defaults, includeDataRoot: false)
+    }
+
+    /// Home folder of the paths in use (for `~/…` display).
+    var homeDirectory: URL { deps.paths.home }
+
+    /// The app's own data folder (`~/Library/Application Support/tr.ercanatay.playeridentity`).
+    var appDataFolder: URL { AppDataEraser(paths: deps.paths).directory }
+
+    /// What "Erase All Data…" would remove (for the confirmation text).
+    var eraseInventory: AppDataEraser.Inventory { AppDataEraser(paths: deps.paths).inventory() }
+
+    /// "Erase All Data…": waits for queued writes, removes the app's own data folder contents (record with servers,
+    /// identity history, metrics, watch state, backups, downloads) and starts over with an empty list. Game files,
+    /// the data root and the preferences are not touched. Returns an error text, `nil` on success.
+    func eraseAllData() async -> String? {
+        guard !updates.status.isBusy else { return L10n.text(.eraseBusy) }
+        refreshTask?.cancel()
+        generation += 1
+        await historyTask?.value
+        await metricsTask?.value
+        do {
+            try AppDataEraser(paths: deps.paths).erase()
+        } catch {
+            return L10n.format(.eraseFailed, error.localizedDescription)
         }
-        appliedSinceSave = true
-        markEdited()
+        await history.reset()
+        servers = []
+        snapshotState = .missing
+        watchState = [:]
+        editedWithoutSnapshot = false
+        appliedSinceSave = false
+        fixedSinceSave = false
+        saveErrorMessage = nil
+        historyRevision += 1
+        updates.dataFolderErased()
+        isRefreshing = false
         reevaluate()
         refresh()
-        return .success(summary)
+        return nil
     }
 
     // MARK: Environment

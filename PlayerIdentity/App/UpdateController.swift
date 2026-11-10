@@ -55,6 +55,7 @@ final class UpdateController {
     // MARK: State
 
     let appVersion: String
+    let appBuild: String
     /// Stable releases from the feed, newest first (empty until the first check).
     private(set) var releases: [AppRelease] = []
     /// Banner: newer stable release that is not ignored.
@@ -70,6 +71,8 @@ final class UpdateController {
     var pendingRestore = false
     private(set) var restoreError: String?
     private(set) var dataBackupCount = 0
+    /// Release being downloaded/installed (or prepared in the background); shown in the Updates status card.
+    private(set) var activeRelease: AppRelease?
 
     /// Called once per newly found release version (history `appUpdateAvailable`).
     @ObservationIgnored var onUpdateFound: (String) -> Void = { _ in }
@@ -83,6 +86,7 @@ final class UpdateController {
     init(dependencies: AppDependencies) {
         deps = dependencies
         appVersion = dependencies.appVersion
+        appBuild = dependencies.appBuild
         preferences = UpdatePreferences(defaults: dependencies.defaults)
         let state = UpdateState(defaults: dependencies.defaults)
         lastCheck = state.lastCheck
@@ -96,6 +100,12 @@ final class UpdateController {
         UpdateInstaller(paths: deps.paths, installedApp: deps.installedApp, currentVersion: appVersion,
                         downloader: deps.updateDownloader, fileManager: deps.updateFileManager,
                         runner: deps.updateRunner, relauncher: deps.relauncher)
+    }
+
+    /// Feed entry of the banner's release (`nil` until the feed is loaded).
+    var availableRelease: AppRelease? {
+        guard let version = availableUpdate?.version else { return nil }
+        return releases.first { $0.version.description == version }
     }
 
     /// Version history: the last 20 stable releases (§28.2/1).
@@ -121,7 +131,8 @@ final class UpdateController {
         let task = Task {
             defer { checkTask = nil }
             guard let fetched = try? await client.fetch() else {
-                if status == .checking { status = .idle }
+                // Automatic checks stay silent (§25); a manual check shows the error in Settings > Updates (§27.3).
+                if status == .checking { status = manual ? .failed(.feedUnavailable) : .idle }
                 return
             }
             apply(feed: fetched, checkedAt: now, manual: manual)
@@ -146,7 +157,9 @@ final class UpdateController {
         }
         state.save(to: deps.defaults)
         availableUpdate = state.banner(currentVersion: appVersion)
-        if status == .checking || status == .upToDate { status = newest == nil ? .upToDate : .idle }
+        if status == .checking || status == .upToDate || status == .failed(.feedUnavailable) {
+            status = newest == nil ? .upToDate : .idle
+        }
         if let newest, newest.isInstallable, preferences.autoDownload, availableUpdate != nil {
             startDownloadInBackground(newest)
         }
@@ -248,6 +261,7 @@ final class UpdateController {
                 return nil
             }
         }
+        activeRelease = request.release
         let installer = self.installer
         let ready = prepared?.release == request.release ? prepared : nil
         prepared = nil
@@ -290,6 +304,7 @@ final class UpdateController {
     /// Automatic download (off by default): downloads and verifies, never installs (§27.2).
     private func startDownloadInBackground(_ release: AppRelease) {
         guard installTask == nil, prepared?.release != release else { return }
+        activeRelease = release
         let installer = self.installer
         installTask = Task {
             do {
@@ -340,6 +355,14 @@ final class UpdateController {
                 restoreError = String(describing: error)
             }
         }
+    }
+
+    /// After "Erase All Data": the backups and any prepared download are gone.
+    func dataFolderErased() {
+        prepared = nil
+        restoreOffer = nil
+        if case .ready = status { status = .idle }
+        dataBackupCount = backupStore.list().count
     }
 
     /// "Yedekleri temizle" (§28.3).

@@ -78,7 +78,7 @@ struct ServerDetailSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(L10n.format(.serverDetailsTitle, entry?.label ?? ""))
-                .font(.title3.bold())
+                .font(TypeScale.headline)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -132,12 +132,12 @@ struct ServerDetailSheet: View {
             .accessibilityIdentifier("detailWatchToggle")
             Text(L10n.text(.watchDescription))
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Palette.text2)
                 .fixedSize(horizontal: false, vertical: true)
             if !model.menuBarEnabled {
                 Label(L10n.text(.watchBackgroundNote), systemImage: "info.circle")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -154,9 +154,9 @@ struct ServerDetailSheet: View {
                 .font(.callout.monospaced())
                 .accessibilityIdentifier("banListField")
                 .onChange(of: banListText) { banListError = nil }
-            Text(L10n.text(.banListHint)).font(.caption).foregroundStyle(.secondary)
+            Text(L10n.text(.banListHint)).font(.caption).foregroundStyle(Palette.text2)
             if let problem = Self.validationText(banListText) ?? banListError {
-                Text(problem).font(.callout).foregroundStyle(.red).accessibilityIdentifier("banListError")
+                Text(problem).font(.callout).foregroundStyle(Palette.redText).accessibilityIdentifier("banListError")
             }
             Button(L10n.text(.banListSearch)) {
                 if let error = model.setBanListURL(banListText, for: serverID) ?? model.openBanList(for: serverID) {
@@ -184,16 +184,16 @@ struct ServerDetailSheet: View {
                 Spacer()
                 Text(L10n.format(.notesCount, String(note.count)))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(ServerNote.isValid(note) ? Color.secondary : Color.red)
+                    .foregroundStyle(ServerNote.isValid(note) ? Palette.text2 : Palette.redText)
             }
             TextEditor(text: $note)
                 .font(.body)
                 .frame(height: 90)
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.3)))
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(Palette.borderStrong))
                 .accessibilityLabel(L10n.text(.notesTitle))
                 .accessibilityIdentifier("notesEditor")
             if !ServerNote.isValid(note) {
-                Text(L10n.text(.notesTooLong)).font(.caption).foregroundStyle(.red)
+                Text(L10n.text(.notesTooLong)).font(.caption).foregroundStyle(Palette.redText)
             }
         }
     }
@@ -209,14 +209,14 @@ struct ServerDetailSheet: View {
             } else if let appeal = entry?.appeal {
                 appealSummary(appeal)
             } else {
-                Text(L10n.text(.appealNone)).foregroundStyle(.secondary)
+                Text(L10n.text(.appealNone)).foregroundStyle(Palette.text2)
                 HStack {
                     Button(L10n.text(.appealAdd)) { draft = AppealDraft(now: model.now) }
                     copyAppealButton
                 }
             }
             if let appealError {
-                Text(appealError).font(.callout).foregroundStyle(.red)
+                Text(appealError).font(.callout).foregroundStyle(Palette.redText)
             }
         }
     }
@@ -225,25 +225,25 @@ struct ServerDetailSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
                 GridRow {
-                    Text(L10n.text(.appealStatus)).foregroundStyle(.secondary)
+                    Text(L10n.text(.appealStatus)).foregroundStyle(Palette.text2)
                     AppealStatusBadge(status: appeal.status)
                 }
                 GridRow {
-                    Text(L10n.text(.appealChannel)).foregroundStyle(.secondary)
+                    Text(L10n.text(.appealChannel)).foregroundStyle(Palette.text2)
                     Text(verbatim: appeal.channelLabel)
                 }
                 GridRow {
-                    Text(L10n.text(.appealSentAt)).foregroundStyle(.secondary)
+                    Text(L10n.text(.appealSentAt)).foregroundStyle(Palette.text2)
                     Text(verbatim: AppealDates.text(appeal.sentAt))
                 }
                 if let followUp = appeal.followUpAt {
                     GridRow {
-                        Text(L10n.text(.appealFollowUp)).foregroundStyle(.secondary)
+                        Text(L10n.text(.appealFollowUp)).foregroundStyle(Palette.text2)
                         HStack(spacing: 6) {
                             Text(verbatim: AppealDates.text(followUp))
                             if appeal.isFollowUpDue(now: model.now) {
                                 Label(L10n.format(.appealFollowUpDue, AppealDates.text(followUp)), systemImage: "bell.fill")
-                                    .foregroundStyle(.orange)
+                                    .foregroundStyle(Palette.orangeText)
                             }
                         }
                     }
@@ -259,7 +259,7 @@ struct ServerDetailSheet: View {
             if appeal.status.isOpen {
                 // §36 "Takip tarihini ertele"
                 HStack(spacing: 8) {
-                    Text(L10n.text(.appealPostpone)).foregroundStyle(.secondary)
+                    Text(L10n.text(.appealPostpone)).foregroundStyle(Palette.text2)
                     Button(L10n.text(.appealPostponeOneDay)) {
                         appealError = model.postponeFollowUp(byDays: 1, for: serverID)?.text
                     }
@@ -284,17 +284,17 @@ struct ServerDetailSheet: View {
     /// §36 timeline: Sent → Answered → … with dates.
     private func timeline(_ appeal: Appeal) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(L10n.text(.appealTimeline)).font(.caption.bold()).foregroundStyle(.secondary)
+            Text(L10n.text(.appealTimeline)).font(.caption.bold()).foregroundStyle(Palette.text2)
             ForEach(Array(appeal.timeline.enumerated()), id: \.offset) { index, event in
                 HStack(spacing: 8) {
                     Image(systemName: index == appeal.timeline.count - 1 ? "largecircle.fill.circle" : "circle.fill")
                         .font(.system(size: 9))
-                        .foregroundStyle(index == appeal.timeline.count - 1 ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(index == appeal.timeline.count - 1 ? Palette.accentText : Palette.text2)
                         .accessibilityHidden(true)
                     AppealStatusBadge(status: event.status)
                     Text(verbatim: DateFormatter.localizedString(from: event.at, dateStyle: .medium, timeStyle: .short))
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.text2)
                 }
             }
         }
@@ -333,14 +333,14 @@ struct ServerDetailSheet: View {
                 LabeledContent(L10n.text(.appealSummary)) {
                     TextEditor(text: binding.summary)
                         .frame(height: 70)
-                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.3)))
+                        .overlay(RoundedRectangle(cornerRadius: 4).stroke(Palette.borderStrong))
                         .accessibilityLabel(L10n.text(.appealSummary))
                 }
             }
             .accessibilityIdentifier("appealForm")
             ForEach(problems, id: \.self) { problem in
                 Label(problem.text, systemImage: StatusLevel.red.symbolName)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Palette.redText)
                     .font(.callout)
             }
             HStack {

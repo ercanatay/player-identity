@@ -36,6 +36,29 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
         return values.compactMap { $0 }.count
     }
 
+    /// Factory preferences (Settings > Reset > "Reset Settings…"). `gamedir` and `dataRoot` stay `nil`: the
+    /// selected game folder and data root are kept.
+    static let defaults = ArchivedSettings(
+        language: AppLanguageSetting.system.rawValue, notificationsEnabled: true, notifyBanChanges: true,
+        notifyOnlineChanges: true, notifyMapChanges: true, quietHoursEnabled: false,
+        quietHoursStart: QuietHours.defaultStart, quietHoursEnd: QuietHours.defaultEnd, showInMenuBar: false,
+        launchAtLogin: false, autoCheckUpdates: UpdatePreferences().autoCheck,
+        autoDownloadUpdates: UpdatePreferences().autoDownload, banCheckEnabled: true)
+
+    /// How many carried values differ from `current` (import preview: "14 values · 3 differ").
+    func differences(from current: ArchivedSettings, includingDataRoot: Bool) -> Int {
+        func differs<T: Equatable>(_ value: T?, _ other: T?) -> Int { value.map { $0 != other ? 1 : 0 } ?? 0 }
+        return differs(language, current.language) + differs(notificationsEnabled, current.notificationsEnabled)
+            + differs(notifyBanChanges, current.notifyBanChanges) + differs(notifyOnlineChanges, current.notifyOnlineChanges)
+            + differs(notifyMapChanges, current.notifyMapChanges) + differs(quietHoursEnabled, current.quietHoursEnabled)
+            + differs(quietHoursStart, current.quietHoursStart) + differs(quietHoursEnd, current.quietHoursEnd)
+            + differs(showInMenuBar, current.showInMenuBar) + differs(launchAtLogin, current.launchAtLogin)
+            + differs(autoCheckUpdates, current.autoCheckUpdates)
+            + differs(autoDownloadUpdates, current.autoDownloadUpdates)
+            + differs(banCheckEnabled, current.banCheckEnabled) + differs(gamedir, current.gamedir)
+            + (includingDataRoot ? differs(dataRoot, current.dataRoot) : 0)
+    }
+
     /// Drops invalid values (never applied) and returns how many were dropped.
     func sanitized() -> (settings: ArchivedSettings, invalid: Int) {
         var copy = self
@@ -343,13 +366,15 @@ enum ServerImportPlanner {
 
 /// `profile.json.appbak-<yyyyMMdd-HHmmss>` next to the record (§46.2 Replace).
 enum RecordBackup {
+    static let suffix = ".appbak-"
+
     static func backupURL(for file: URL, at date: Date, timeZone: TimeZone = .current) -> URL {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = timeZone
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return file.deletingLastPathComponent()
-            .appendingPathComponent(file.lastPathComponent + ".appbak-" + formatter.string(from: date), isDirectory: false)
+            .appendingPathComponent(file.lastPathComponent + suffix + formatter.string(from: date), isDirectory: false)
     }
 
     /// Copies the record; `nil` when there is no record yet. Throws on failure.

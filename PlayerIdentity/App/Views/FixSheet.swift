@@ -22,7 +22,7 @@ struct FixSheet: View {
             case .unreachable: unreachableContent
             }
             if let note = session.note {
-                Text(note).font(.callout).foregroundStyle(.secondary)
+                Text(note).font(.callout).foregroundStyle(Palette.text2)
             }
         }
         .padding(20)
@@ -32,11 +32,11 @@ struct FixSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.title3.bold())
+            Text(title).font(TypeScale.headline)
             if let entry {
                 Text(verbatim: "\(entry.label) · \(entry.host):\(String(entry.port))")
                     .font(.callout.monospaced())
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.text2)
             }
         }
     }
@@ -65,7 +65,7 @@ struct FixSheet: View {
                 Text(L10n.text(.fixOutage)).font(.callout)
                 Text(L10n.text(.fixRisk))
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.text2)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
@@ -85,7 +85,7 @@ struct FixSheet: View {
     @ViewBuilder
     private func ipResult(_ outcome: IPFixOutcome, at date: Date) -> some View {
         Text(outcome.message + " · " + TimeText.format(date))
-            .foregroundStyle(outcome.isSuccess ? Color.green : Color.red)
+            .foregroundStyle(outcome.isSuccess ? Palette.greenText : Palette.redText)
             .fixedSize(horizontal: false, vertical: true)
         switch outcome {
         case .ipUnchanged(_, let routerURL):
@@ -149,7 +149,7 @@ struct FixSheet: View {
             }
             .frame(height: 180)
             .padding(6)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
+            .background(RoundedRectangle(cornerRadius: Radius.inner).fill(Palette.inset))
         }
         if case .running(let progress) = session.phase {
             runningView(progress, cancellable: false)

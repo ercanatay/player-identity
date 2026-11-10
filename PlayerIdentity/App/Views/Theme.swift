@@ -45,6 +45,9 @@ enum Palette {
     static let control = dynamic(.hex(0xFFFFFF), .white(0.10))
     static let controlBorder = dynamic(.ink(0.14), .white(0.10))
     static let toolbarHover = dynamic(.ink(0.06), .white(0.07))
+    /// `--c-switch-off` / `--c-knob`: switch track when off (also segmented-control track) and the knob.
+    static let switchOff = dynamic(.ink(0.16), .white(0.18))
+    static let knob = dynamic(.hex(0xFFFFFF), .hex(0xF2F4F7))
     static let skeleton = dynamic(.ink(0.07), .white(0.07))
     static let stripe = dynamic(.ink(0.06), .white(0.05))
     static let scrim = dynamic(.ink(0.16), .black(0.38))

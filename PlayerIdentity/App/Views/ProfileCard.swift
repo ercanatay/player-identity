@@ -346,17 +346,7 @@ struct ProfileCard: View {
     }
 
     private func chooseDataRoot() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.directoryURL = model.dataRoot
-        panel.prompt = L10n.text(.profilePanelPrompt)
-        panel.message = L10n.text(.profilePanelMessage)
-        if panel.runModal() == .OK, let url = panel.url {
-            model.setDataRoot(url)
-        }
+        DataRootPanel.choose(model)
     }
 }
 

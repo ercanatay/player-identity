@@ -14,7 +14,7 @@ struct ShareCardSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(L10n.text(.shareCardCreate)).font(.title3.bold())
+            Text(L10n.text(.shareCardCreate)).font(TypeScale.headline)
             Group {
                 if let png, let image = NSImage(data: png) {
                     Image(nsImage: image)
@@ -27,7 +27,7 @@ struct ShareCardSheet: View {
                         .accessibilityIdentifier("shareCardPreview")
                 } else {
                     Text(L10n.text(.shareCardFailed))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Palette.text2)
                         .frame(maxWidth: .infinity, minHeight: 200)
                 }
             }
@@ -35,7 +35,7 @@ struct ShareCardSheet: View {
             if let message {
                 Text(message)
                     .font(.callout)
-                    .foregroundStyle(isError ? Color.red : Color.secondary)
+                    .foregroundStyle(isError ? Palette.redText : Palette.text2)
                     .lineLimit(2)
                     .truncationMode(.middle)
             }

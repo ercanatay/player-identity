@@ -35,7 +35,7 @@ struct ServerFormSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(title).font(.title3.bold())
+            Text(title).font(TypeScale.headline)
 
             Form {
                 TextField(L10n.text(.serverFormLabel), text: $draft.label)
@@ -60,7 +60,7 @@ struct ServerFormSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(draft.problems, id: \.self) { problem in
                         Label(problem.text, systemImage: StatusLevel.red.symbolName)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Palette.redText)
                             .font(.callout)
                     }
                 }

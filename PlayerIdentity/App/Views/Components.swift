@@ -94,15 +94,22 @@ struct TintBadge: View {
     let text: String
     let foreground: Color
     let background: Color
+    /// Optional SF Symbol 11 before the text (version history badges).
+    var symbol: String?
 
     var body: some View {
-        Text(text)
-            .font(TypeScale.captionStrong)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .background(RoundedRectangle(cornerRadius: Radius.badge).fill(background))
-            .fixedSize()
+        HStack(spacing: Space.s1) {
+            if let symbol {
+                Image(systemName: symbol).font(.system(size: 10, weight: .semibold)).accessibilityHidden(true)
+            }
+            Text(text)
+        }
+        .font(TypeScale.captionStrong)
+        .foregroundStyle(foreground)
+        .padding(.horizontal, symbol == nil ? 6 : Space.s2)
+        .padding(.vertical, symbol == nil ? 1 : 2)
+        .background(RoundedRectangle(cornerRadius: Radius.badge).fill(background))
+        .fixedSize()
     }
 }
 

@@ -339,6 +339,12 @@ actor HistoryRecorder {
         return record(entry) ? entry : nil
     }
 
+    /// Forgets the cached state (after "Erase All Data"): the next write starts from the file again.
+    func reset() {
+        state = nil
+        count = 0
+    }
+
     private func loadState() -> HistoryState {
         if let state { return state }
         let kept = (try? store.compact(now: now())) ?? store.load()
