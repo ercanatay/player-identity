@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.7 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.6 → v2.7: §47 sıfırlama/temizleme + UI redesign referansı)
+Sürüm: 2.8 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.7 → v2.8: §48 kalan pencerelerin redesign'ı)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1138,3 +1138,32 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 - Kaynak: `docs/design/handoff/` (`tokens.css` tokenları, `MainWindow.dc.html`, `SettingsWindow.dc.html`, `icons.js` SF Symbol adları, Canvas N1 notları).
 - Tokenlar SwiftUI `Theme`/`Palette` içinde light/dark olarak tanımlanır; hardcoded renk yok. Sahte pencere kromu (trafik ışıkları) çizilmez.
 - Sapmalar: açık temada teal metin/düğme `#177A70`/`#187A71`; koyu temada `#2FB6A8`. "Fix…" ortak eylem penceresi değil, **satır içi sunucu eylem popover'ı** açar.
+
+---
+
+## 48. Kalan pencerelerin tasarım dili (v2.8)
+
+Amaç: Geçmiş, Ban Matrisi ve Metrikler pencerelerini §47.4'teki token sistemiyle aynı görsel dile getirmek.
+Davranış değişmez; yalnız sunum.
+
+### 48.1 Geçmiş penceresi
+- Toolbar: başlık, tür ve sunucu filtreleri, **JSON** / **Markdown** dışa aktarma düğmeleri.
+- Satır: tür ikonu + etiketi, sunucu, zaman (göreli + tam tooltip), ayrıntı; en yeni üstte.
+- Boş durum ve filtreye uymayan durum ayrı metinlerle.
+- Sanal liste/performans: 5000 satırda kaydırma akıcı.
+
+### 48.2 Ban matrisi
+- Toolbar: başlık, **CSV dışa aktar**, **Kopyala**.
+- Tablo: sunucu, IP ban, CID ban, aralık, son kontrol; durum çipleri (ikon + metin + tint), banlılar üstte.
+- Dar genişlikte sütunlar önceliklendirilir; kesilme yerine tooltip.
+- Boş durum: “Henüz sunucu yok.”
+
+### 48.3 Metrikler
+- Sunucu detayında grafik kartı: uptime başlığı, ping ve oyuncu grafikleri, çevrimdışı aralıklar işaretli.
+- Boş seri: “Son 24 saatte veri yok.”
+- Grafik eksenleri/legend token renkleriyle; light/dark uyumlu.
+
+### 48.4 Kurallar ve testler
+- Hardcoded renk yok; `Theme`/`Palette` kullanılır; sahte pencere kromu çizilmez.
+- Light/dark × TR/EN kanıt görüntüleri; mevcut davranış testleri bozulmaz.
+- Kaynak taramasında view dosyalarında sabit renk/ölçü kalmadığı doğrulanır.
