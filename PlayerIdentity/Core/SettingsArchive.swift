@@ -1,0 +1,373 @@
+import Foundation
+
+// §46 settings / server export-import. Pure model + parsing + merge planning; the app model applies the result.
+
+/// What an export contains (§46.1).
+enum SettingsArchiveScope: String, Codable, Sendable, CaseIterable {
+    case settingsOnly
+    case settingsAndServers
+}
+
+/// Exported preferences. Every field is optional: a missing field is simply not applied on import.
+struct ArchivedSettings: Codable, Sendable, Equatable {
+    var language: String?
+    var notificationsEnabled: Bool?
+    var notifyBanChanges: Bool?
+    var notifyOnlineChanges: Bool?
+    var notifyMapChanges: Bool?
+    var quietHoursEnabled: Bool?
+    var quietHoursStart: String?
+    var quietHoursEnd: String?
+    var showInMenuBar: Bool?
+    var launchAtLogin: Bool?
+    var autoCheckUpdates: Bool?
+    var autoDownloadUpdates: Bool?
+    var banCheckEnabled: Bool?
+    var gamedir: String?
+    /// Only present when the user asked for it (§46.1).
+    var dataRoot: String?
+
+    /// Number of settings carried (the data root counts only when `includingDataRoot`).
+    func count(includingDataRoot: Bool) -> Int {
+        let values: [Any?] = [language, notificationsEnabled, notifyBanChanges, notifyOnlineChanges, notifyMapChanges,
+                              quietHoursEnabled, quietHoursStart, quietHoursEnd, showInMenuBar, launchAtLogin,
+                              autoCheckUpdates, autoDownloadUpdates, banCheckEnabled, gamedir,
+                              includingDataRoot ? dataRoot : nil]
+        return values.compactMap { $0 }.count
+    }
+
+    /// Drops invalid values (never applied) and returns how many were dropped.
+    func sanitized() -> (settings: ArchivedSettings, invalid: Int) {
+        var copy = self
+        var invalid = 0
+        if let language, AppLanguageSetting(rawValue: language) == nil { copy.language = nil; invalid += 1 }
+        if let value = quietHoursStart, QuietHours.minutes(value) == nil { copy.quietHoursStart = nil; invalid += 1 }
+        if let value = quietHoursEnd, QuietHours.minutes(value) == nil { copy.quietHoursEnd = nil; invalid += 1 }
+        if let gamedir {
+            let ok = !gamedir.isEmpty && gamedir != "." && gamedir != ".." && !gamedir.contains("/")
+            if !ok { copy.gamedir = nil; invalid += 1 }
+        }
+        if let dataRoot, !dataRoot.hasPrefix("/") || dataRoot.contains("\0") { copy.dataRoot = nil; invalid += 1 }
+        return (copy, invalid)
+    }
+}
+
+/// Exported server row: no CID, no check state, no ban/metric history (§46.1).
+struct ArchivedServer: Codable, Sendable, Equatable {
+    var label: String
+    var host: String
+    var port: Int
+    var group: String?
+    var favorite: Bool
+    var watch: Bool
+    var note: String
+    var appeal: Appeal?
+    var banListURL: String?
+
+    init(label: String, host: String, port: Int, group: String? = nil, favorite: Bool = false, watch: Bool = false,
+         note: String = "", appeal: Appeal? = nil, banListURL: String? = nil) {
+        self.label = label
+        self.host = host
+        self.port = port
+        self.group = group
+        self.favorite = favorite
+        self.watch = watch
+        self.note = note
+        self.appeal = appeal
+        self.banListURL = banListURL
+    }
+
+    init(entry: ServerEntry) {
+        var appeal = entry.appeal
+        appeal?.notifiedAt = nil
+        self.init(label: entry.label, host: entry.host, port: entry.port, group: entry.group, favorite: entry.favorite,
+                  watch: entry.watch, note: entry.note, appeal: appeal, banListURL: entry.banListURL)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case label, host, port, group, favorite, watch, note, appeal, banListURL
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = try container.decode(String.self, forKey: .label)
+        host = try container.decode(String.self, forKey: .host)
+        port = try container.decode(Int.self, forKey: .port)
+        group = try container.decodeIfPresent(String.self, forKey: .group)
+        favorite = try container.decodeIfPresent(Bool.self, forKey: .favorite) ?? false
+        watch = try container.decodeIfPresent(Bool.self, forKey: .watch) ?? false
+        note = try container.decodeIfPresent(String.self, forKey: .note) ?? ""
+        appeal = try container.decodeIfPresent(Appeal.self, forKey: .appeal)
+        banListURL = try container.decodeIfPresent(String.self, forKey: .banListURL)
+    }
+
+    /// Same validation as the server form (§8, §20, §32, §40); returns the cleaned row or `nil`.
+    func validated() -> ArchivedServer? {
+        var copy = self
+        copy.label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        copy.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !copy.label.isEmpty, HostValidator.classify(copy.host) != nil, HostValidator.isValidPort(port),
+              ServerNote.isValid(note) else { return nil }
+        if let appeal, !appeal.isValid { return nil }
+        if let url = banListURL, !url.isEmpty {
+            guard case .success = BanListTemplate.validate(url) else { return nil }
+        } else {
+            copy.banListURL = nil
+        }
+        copy.group = ServerOrganization.normalizedGroup(group)
+        return copy
+    }
+
+    /// `host:port` identity used to match servers (case-insensitive host).
+    var key: String { SettingsArchiveKey.make(host: host, port: port) }
+}
+
+enum SettingsArchiveKey {
+    static func make(host: String, port: Int) -> String { "\(HostValidator.normalized(host)):\(port)" }
+}
+
+/// `{ schemaVersion, appVersion, exportedAt, scope, settings, servers? }` (§46.1).
+struct SettingsArchive: Codable, Sendable, Equatable {
+    static let currentSchemaVersion = 1
+    static let maxFileSize = 4 * 1024 * 1024
+
+    var schemaVersion: Int = SettingsArchive.currentSchemaVersion
+    var appVersion: String
+    var exportedAt: Date
+    var scope: SettingsArchiveScope
+    var settings: ArchivedSettings
+    var servers: [ArchivedServer]?
+
+    /// File name offered in the save panel, e.g. `playeridentity-settings-20261110-101500.json`.
+    static func defaultFileName(now: Date, timeZone: TimeZone = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "playeridentity-settings-\(formatter.string(from: now)).json"
+    }
+
+    static func make(scope: SettingsArchiveScope, includeDataRoot: Bool, settings: ArchivedSettings,
+                     servers: [ServerEntry], appVersion: String, now: Date) -> SettingsArchive {
+        var carried = settings
+        if !includeDataRoot { carried.dataRoot = nil }
+        let rows = scope == .settingsAndServers
+            ? servers.sorted { $0.order < $1.order }.map(ArchivedServer.init(entry:))
+            : nil
+        return SettingsArchive(appVersion: appVersion, exportedAt: now, scope: scope, settings: carried, servers: rows)
+    }
+
+    func encoded() throws -> Data {
+        let encoder = SnapshotStore.makeEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(self)
+    }
+}
+
+enum SettingsArchiveError: Error, Sendable, Equatable {
+    case unreadable
+    case tooLarge
+    case symbolicLink
+    case notJSON
+    case missingVersion
+    case unsupportedVersion(Int)
+    case invalid
+
+    var text: String {
+        switch self {
+        case .unreadable: return L10n.text(.importErrorUnreadable)
+        case .tooLarge: return L10n.text(.importErrorTooLarge)
+        case .symbolicLink: return L10n.text(.importErrorSymlink)
+        case .notJSON: return L10n.text(.importErrorNotJSON)
+        case .missingVersion: return L10n.text(.importErrorMissingVersion)
+        case .unsupportedVersion(let version): return L10n.format(.importErrorUnsupportedVersion, String(version))
+        case .invalid: return L10n.text(.importErrorInvalid)
+        }
+    }
+}
+
+/// A validated archive: invalid settings / server rows are already removed and only counted.
+struct ParsedSettingsArchive: Sendable, Equatable {
+    var archive: SettingsArchive
+    var invalidSettings: Int
+    var invalidServers: Int
+
+    var invalidCount: Int { invalidSettings + invalidServers }
+    var hasDataRoot: Bool { archive.settings.dataRoot != nil }
+}
+
+enum SettingsArchiveParser {
+    /// Reads a file: JSON only, regular file only (no symbolic link), size-limited.
+    static func read(_ url: URL) -> Result<ParsedSettingsArchive, SettingsArchiveError> {
+        guard url.pathExtension.lowercased() == "json" else { return .failure(.notJSON) }
+        guard let values = try? url.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey, .fileSizeKey]) else {
+            return .failure(.unreadable)
+        }
+        if values.isSymbolicLink == true { return .failure(.symbolicLink) }
+        guard values.isRegularFile == true else { return .failure(.unreadable) }
+        if (values.fileSize ?? 0) > SettingsArchive.maxFileSize { return .failure(.tooLarge) }
+        guard let data = try? Data(contentsOf: url) else { return .failure(.unreadable) }
+        return parse(data)
+    }
+
+    private struct LossyServer: Decodable {
+        let value: ArchivedServer?
+        init(from decoder: any Decoder) throws {
+            value = try? decoder.singleValueContainer().decode(ArchivedServer.self)
+        }
+    }
+
+    private struct Raw: Decodable {
+        let appVersion: String
+        let exportedAt: Date
+        let scope: SettingsArchiveScope
+        let settings: ArchivedSettings
+        let servers: [LossyServer]?
+    }
+
+    /// Unknown fields are ignored; a missing/unknown version, broken JSON or a wrong type is refused.
+    static func parse(_ data: Data) -> Result<ParsedSettingsArchive, SettingsArchiveError> {
+        guard let object = try? JSONSerialization.jsonObject(with: data), let dict = object as? [String: Any] else {
+            return .failure(.notJSON)
+        }
+        guard let versionValue = dict["schemaVersion"] else { return .failure(.missingVersion) }
+        guard let number = versionValue as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue == Double(number.intValue) else { return .failure(.invalid) }
+        guard number.intValue == SettingsArchive.currentSchemaVersion else {
+            return .failure(.unsupportedVersion(number.intValue))
+        }
+        guard let raw = try? SnapshotStore.makeDecoder().decode(Raw.self, from: data) else { return .failure(.invalid) }
+        let cleaned = raw.settings.sanitized()
+        var valid: [ArchivedServer] = []
+        var invalidServers = 0
+        for row in raw.servers ?? [] {
+            if let server = row.value?.validated() { valid.append(server) } else { invalidServers += 1 }
+        }
+        let archive = SettingsArchive(appVersion: raw.appVersion, exportedAt: raw.exportedAt, scope: raw.scope,
+                                      settings: cleaned.settings, servers: raw.servers == nil ? nil : valid)
+        return .success(ParsedSettingsArchive(archive: archive, invalidSettings: cleaned.invalid,
+                                              invalidServers: invalidServers))
+    }
+}
+
+enum SettingsImportMode: String, Sendable, CaseIterable {
+    case merge
+    case replace
+}
+
+/// Import preview (§46.2): counts only, nothing is changed.
+struct SettingsImportPreview: Sendable, Equatable {
+    var settingCount: Int
+    var serverCount: Int
+    var conflictCount: Int
+    var invalidCount: Int
+    var hasServers: Bool
+
+    static func make(_ parsed: ParsedSettingsArchive, existing: [ServerEntry], includeDataRoot: Bool) -> SettingsImportPreview {
+        let incoming = parsed.archive.servers ?? []
+        let local = Set(existing.map { SettingsArchiveKey.make(host: $0.host, port: $0.port) })
+        var seen = Set<String>()
+        var conflicts = 0
+        for row in incoming where seen.insert(row.key).inserted && local.contains(row.key) { conflicts += 1 }
+        return SettingsImportPreview(settingCount: parsed.archive.settings.count(includingDataRoot: includeDataRoot),
+                                     serverCount: incoming.count, conflictCount: conflicts,
+                                     invalidCount: parsed.invalidCount, hasServers: parsed.archive.servers != nil)
+    }
+}
+
+/// Result summary (§46.2): added / updated / skipped (invalid rows, duplicates and rows without changes).
+struct SettingsImportSummary: Sendable, Equatable {
+    var added = 0
+    var updated = 0
+    var skipped = 0
+    var settingsApplied = 0
+    var backupFile: URL?
+}
+
+/// Merge / replace planning for the server list.
+enum ServerImportPlanner {
+    struct Plan: Equatable {
+        var servers: [ServerEntry]
+        var added: Int
+        var updated: Int
+        var skipped: Int
+    }
+
+    static func plan(existing: [ServerEntry], incoming: [ArchivedServer], invalidRows: Int, mode: SettingsImportMode) -> Plan {
+        var result = mode == .merge ? existing : []
+        var added = 0, updated = 0, skipped = invalidRows
+        var seen = Set<String>()
+        for row in incoming {
+            guard seen.insert(row.key).inserted else { skipped += 1; continue }
+            let match = existing.first { SettingsArchiveKey.make(host: $0.host, port: $0.port) == row.key }
+            let groups = ServerOrganization.groups(result)
+            let group = ServerOrganization.resolveGroup(row.group, existing: groups)
+            if let match {
+                var entry = match
+                entry.label = row.label
+                entry.group = group
+                entry.favorite = row.favorite
+                entry.watch = row.watch
+                entry.note = row.note
+                entry.banListURL = row.banListURL
+                entry.appeal = sameAppeal(match.appeal, row.appeal) ? match.appeal : row.appeal
+                if entry == match, mode == .merge {
+                    skipped += 1
+                } else {
+                    updated += 1
+                    if let index = result.firstIndex(where: { $0.id == match.id }) {
+                        result[index] = entry
+                    } else {
+                        entry.order = ServerOrganization.nextOrder(result)
+                        result.append(entry)
+                    }
+                }
+            } else {
+                result.append(ServerEntry(label: row.label, host: row.host, port: row.port, group: group,
+                                          favorite: row.favorite, order: ServerOrganization.nextOrder(result),
+                                          note: row.note, appeal: row.appeal, banListURL: row.banListURL,
+                                          watch: row.watch))
+                added += 1
+            }
+        }
+        return Plan(servers: result, added: added, updated: updated, skipped: skipped)
+    }
+
+    private static func sameAppeal(_ lhs: Appeal?, _ rhs: Appeal?) -> Bool {
+        var a = lhs, b = rhs
+        a?.notifiedAt = nil
+        b?.notifiedAt = nil
+        return a == b
+    }
+}
+
+/// `profile.json.appbak-<yyyyMMdd-HHmmss>` next to the record (§46.2 Replace).
+enum RecordBackup {
+    static func backupURL(for file: URL, at date: Date, timeZone: TimeZone = .current) -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return file.deletingLastPathComponent()
+            .appendingPathComponent(file.lastPathComponent + ".appbak-" + formatter.string(from: date), isDirectory: false)
+    }
+
+    /// Copies the record; `nil` when there is no record yet. Throws on failure.
+    static func make(of file: URL, at date: Date) throws -> URL? {
+        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+        let target = backupURL(for: file, at: date)
+        if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
+        try FileManager.default.copyItem(at: file, to: target)
+        return target
+    }
+}
+
+enum SettingsImportError: Error, Sendable, Equatable {
+    case backupFailed(String)
+
+    var text: String {
+        switch self {
+        case .backupFailed(let detail): return L10n.format(.importErrorBackup, detail)
+        }
+    }
+}

@@ -1429,6 +1429,87 @@ final class AppModel {
         reevaluate()
     }
 
+    // MARK: Settings export / import (§46)
+
+    /// Current preferences in archive form (`dataRoot` is filtered out by the builder unless requested).
+    func currentArchivedSettings() -> ArchivedSettings {
+        ArchivedSettings(language: appLanguage.rawValue,
+                         notificationsEnabled: notificationsEnabled,
+                         notifyBanChanges: notifyBanChanges,
+                         notifyOnlineChanges: notifyOnlineChanges,
+                         notifyMapChanges: notifyMapChanges,
+                         quietHoursEnabled: quietHoursEnabled,
+                         quietHoursStart: quietHoursStart,
+                         quietHoursEnd: quietHoursEnd,
+                         showInMenuBar: menuBarEnabled,
+                         launchAtLogin: isLoginItemAvailable ? loginItemStatus.isOn : nil,
+                         autoCheckUpdates: updates.preferences.autoCheck,
+                         autoDownloadUpdates: updates.preferences.autoDownload,
+                         banCheckEnabled: banCheckEnabled,
+                         gamedir: selectedGamedir,
+                         dataRoot: dataRoot.path)
+    }
+
+    func settingsArchive(scope: SettingsArchiveScope, includeDataRoot: Bool) -> SettingsArchive {
+        SettingsArchive.make(scope: scope, includeDataRoot: includeDataRoot, settings: currentArchivedSettings(),
+                             servers: servers, appVersion: deps.appVersion, now: deps.now())
+    }
+
+    func importPreview(_ parsed: ParsedSettingsArchive, includeDataRoot: Bool) -> SettingsImportPreview {
+        SettingsImportPreview.make(parsed, existing: servers, includeDataRoot: includeDataRoot)
+    }
+
+    /// Applies a validated archive. Replace first copies `profile.json` to `profile.json.appbak-<time>`; if that
+    /// fails nothing is changed. The record is left "unsaved" and the files are re-read (refresh is started).
+    func importSettings(_ parsed: ParsedSettingsArchive, mode: SettingsImportMode,
+                        includeDataRoot: Bool) -> Result<SettingsImportSummary, SettingsImportError> {
+        var summary = SettingsImportSummary()
+        let settings = parsed.archive.settings
+        let plan = parsed.archive.servers.map {
+            ServerImportPlanner.plan(existing: servers, incoming: $0, invalidRows: parsed.invalidServers, mode: mode)
+        }
+        if mode == .replace, plan != nil {
+            do {
+                summary.backupFile = try RecordBackup.make(of: deps.paths.snapshotFile, at: deps.now())
+            } catch {
+                return .failure(.backupFailed(error.localizedDescription))
+            }
+        }
+        summary.settingsApplied = settings.count(includingDataRoot: includeDataRoot)
+        if let value = settings.language, let setting = AppLanguageSetting(rawValue: value) { appLanguage = setting }
+        if let value = settings.notificationsEnabled { notificationsEnabled = value }
+        if let value = settings.notifyBanChanges { notifyBanChanges = value }
+        if let value = settings.notifyOnlineChanges { notifyOnlineChanges = value }
+        if let value = settings.notifyMapChanges { notifyMapChanges = value }
+        if let value = settings.quietHoursEnabled { quietHoursEnabled = value }
+        if let value = settings.quietHoursStart { quietHoursStart = value }
+        if let value = settings.quietHoursEnd { quietHoursEnd = value }
+        if let value = settings.showInMenuBar { menuBarEnabled = value }
+        if let value = settings.launchAtLogin, isLoginItemAvailable, value != loginItemStatus.isOn {
+            setLaunchAtLogin(value)
+        }
+        if let value = settings.autoCheckUpdates { updates.preferences.autoCheck = value }
+        if let value = settings.autoDownloadUpdates { updates.preferences.autoDownload = value }
+        if let value = settings.banCheckEnabled { banCheckEnabled = value }
+        if let value = settings.gamedir { selectedGamedir = value }
+        if includeDataRoot, let value = settings.dataRoot {
+            dataRoot = URL(fileURLWithPath: value, isDirectory: true).standardizedFileURL
+            deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
+        }
+        if let plan {
+            servers = plan.servers
+            summary.added = plan.added
+            summary.updated = plan.updated
+            summary.skipped = plan.skipped
+            for entry in plan.servers { resolveIfNeeded(entry.host) }
+        }
+        appliedSinceSave = true
+        markEdited()
+        reevaluate()
+        refresh()
+        return .success(summary)
+    }
+
     // MARK: Environment
 
     nonisolated static var isRunningTests: Bool {

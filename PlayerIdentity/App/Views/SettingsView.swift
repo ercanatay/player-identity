@@ -109,6 +109,8 @@ struct GeneralSettingsView: View {
                 }
             }
             Divider()
+            DataSettingsRow(model: model)
+            Divider()
             DiagnosticsSettingsRow(model: model)
         }
         .padding(20)

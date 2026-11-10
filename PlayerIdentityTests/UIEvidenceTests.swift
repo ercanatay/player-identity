@@ -385,6 +385,32 @@ final class UIEvidenceTests: XCTestCase {
         try render(ContentView(model: model), size: CGSize(width: 900, height: 1100), name: "v25-downloaded-preview")
     }
 
+    /// §46 settings export / import: Data section, export sheet, import preview (merge / replace) and result.
+    func testRenderV26Screens() async throws {
+        L10n.setting = .tr
+        defer { L10n.setting = .system }
+        let env = try TestAppEnvironment()
+        let model = env.makeModel()
+        model.addServer(ServerDraft(label: "POLIGON RPG", host: "play.example.com", portText: "27015", group: "RPG", favorite: true))
+        model.addServer(ServerDraft(label: "Yerel", host: "local.example.com", portText: "27016"))
+        await model.refresh().value
+        try render(GeneralSettingsView(model: model), size: CGSize(width: 600, height: 640), name: "v26-settings-data")
+        try render(SettingsExportSheet(model: model) {}, size: CGSize(width: 460, height: 360), name: "v26-export-sheet")
+        let rows = [ArchivedServer(label: "POLIGON RPG (yeni ad)", host: "play.example.com", port: 27015, group: "RPG"),
+                    ArchivedServer(label: "Yeni sunucu", host: "new.example.com", port: 27015)]
+        var settings = model.currentArchivedSettings()
+        settings.dataRoot = "/Users/ornek/Library/Application Support"
+        let parsed = ParsedSettingsArchive(archive: SettingsArchive(appVersion: "2.6.0", exportedAt: Date(), scope: .settingsAndServers,
+                                                                    settings: settings, servers: rows),
+                                           invalidSettings: 0, invalidServers: 1)
+        let candidate = DataSettingsRow.ImportCandidate(fileName: "playeridentity-settings-20261110-101500.json", parsed: parsed)
+        try render(SettingsImportSheet(model: model, candidate: candidate) {}, size: CGSize(width: 480, height: 470), name: "v26-import-preview")
+        let result = SettingsImportSummary(added: 1, updated: 1, skipped: 1, settingsApplied: 12,
+                                           backupFile: URL(fileURLWithPath: "/tmp/profile.json.appbak-20261110-101530"))
+        try render(SettingsImportSheet(model: model, candidate: candidate, initialSummary: result) {},
+                   size: CGSize(width: 480, height: 300), name: "v26-import-result")
+    }
+
     private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)
