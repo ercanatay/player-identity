@@ -19,6 +19,12 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.5.0
+
+- **Settings and server export/import**: choose the scope (Settings only, or Settings + servers), export to JSON, and import with merge or replace.
+- Preview of what will change, plus a result summary after import.
+- Replace mode keeps a `profile.json.appbak-*` backup of the previous data.
+
 ## Contents
 
 - [Features at a glance](#features-at-a-glance)
@@ -38,6 +44,7 @@ folder (`profile.json`, history, metrics, updates).
   - [Name and model editing](#name-and-model-editing)
   - [Model catalogue and previews](#model-catalogue-and-previews)
   - [Join game](#join-game)
+  - [Settings export/import](#settings-exportimport)
   - [Share card](#share-card)
   - [Menu bar and launch at login](#menu-bar-and-launch-at-login)
   - [Updates and downgrade](#updates-and-downgrade)
@@ -375,6 +382,17 @@ The CLI appends a metrics sample for successful A2S replies unless `--no-metrics
 
 ---
 
+### Settings export/import
+
+Exports settings and, optionally, the server list to a JSON file named `playeridentity-settings-*.json`.
+
+- **Scope**: *Settings only*, or *Settings + servers*.
+- `dataRoot` is excluded by default, so a file exported on one Mac does not point another Mac at a local folder.
+- **Merge**: servers are matched by `host:port`; matching entries are updated and new ones are added.
+- **Replace**: the current data is replaced. Before replacing, the previous `profile.json` is kept as `profile.json.appbak-*`.
+- A preview lists the planned changes before anything is written, and a result summary follows the import.
+- Identity (CID), history and metrics are **not** exported or imported.
+
 ## Data and privacy
 
 Everything the app writes lives in:
@@ -454,7 +472,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **490 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **515 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests
@@ -474,7 +492,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | XcodeGen, build, 490 tests on `macos-26` |
+| `ci.yml` | push / PR | XcodeGen, build, 515 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -488,7 +506,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (490)
+PlayerIdentityTests/      Unit tests (515)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

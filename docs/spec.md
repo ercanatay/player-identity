@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.5 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.4 → v2.5: §44 indirilen model önizlemesi, §45 bildirim inceliği + sessiz saatler)
+Sürüm: 2.6 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.5 → v2.6: §46 ayar/sunucu export-import)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1081,3 +1081,33 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 
 ### 45.1 README
 - Homebrew kurulum: `brew tap ercanatay/tap && brew install --cask ercanatay/tap/player-identity`; `playeridentityctl` PATH'e linklenir.
+
+---
+
+## 46. Ayarlar dışa/içe aktarma (v2.6)
+
+### 46.1 Dışa aktarma
+- JSON dosyası: `playeridentity-settings-YYYYMMDD-HHmmss.json` (NSSavePanel).
+- Kapsam seçimi:
+  - **Settings only:** dil, bildirim ana şalteri + kategoriler + sessiz saatler, menü çubuğu, açılışta başlatma tercihi, güncelleme tercihleri, ban kontrolü, veri kökü, gamedir.
+  - **Settings + servers:** ek olarak sunucular (etiket, host, port, grup, favori, izleme, not, itiraz, ban listesi URL'si) — ban/metrik geçmişi, CID değerleri ve kimlik **dahil değil**.
+- Biçim: `{ schemaVersion: 1, appVersion, exportedAt, scope, settings: {...}, servers: [...] }`.
+- `dataRoot` varsayılan olarak **dahil edilmez** (taşınabilirlik); isteğe bağlı "veri kökünü de aktar" anahtarı.
+
+### 46.2 İçe aktarma
+- Dosya seçici; şema doğrulama; bilinmeyen alanlar yok sayılır; bozuk/eksik dosya reddedilir.
+- **Önizleme:** kaç ayar, kaç sunucu; çakışan sunucular (aynı `host:port`); geçersiz satırlar.
+- **Modlar:**
+  - **Merge (varsayılan):** ayarlar uygulanır; sunucular `host:port` ile eşleşir → etiket/grup/favori/izleme/not/itiraz/ban listesi güncellenir; yalnız yerelde olanlar korunur; yeni olanlar eklenir.
+  - **Replace:** mevcut sunucu listesi değiştirilir; öncesinde `profile.json.appbak-<zaman>` yedeği alınır.
+- `dataRoot` yalnız "veri kökünü de aktar" işaretliyse uygulanır; aksi hâlde mevcut değer korunur.
+- İçe aktarma sonrası: dosyalar yeniden okunur, "Kaydedilmedi" durumu, sonuç özeti (eklenen/güncellenen/atlanan).
+- Güvenlik: dosya yalnız JSON; sembolik bağlantı/özel yol yok; sunucu host doğrulaması mevcut kurallarla.
+
+### 46.3 Testler
+- Roundtrip: settings-only ve settings+servers; alanlar birebir.
+- Şema doğrulama: eksik sürüm, bilinmeyen sürüm, bozuk JSON, yanlış tip.
+- Merge: yeni ekleme, mevcut güncelleme, yerelde kalan, çakışma sayısı.
+- Replace: yedek oluşturma, liste değişimi, geri alma yok.
+- `dataRoot` dahil/hariç; dil/bildirim/sessiz saat değerlerinin uygulanması.
+- l10n anahtarları tr/en eşit; literal taraması 0.
