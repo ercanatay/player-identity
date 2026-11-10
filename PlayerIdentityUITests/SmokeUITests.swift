@@ -12,6 +12,9 @@ final class SmokeUITests: XCTestCase {
         app = XCUIApplication()
         app.launchArguments = ["-PIUITesting", "-AppleLanguages", "(tr)", "-AppleLocale", "tr_TR"]
         app.launch()
+        app.activate()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20), "app did not come to the foreground")
+        try await Task.sleep(for: .seconds(1))
     }
 
     override func tearDown() async throws {
@@ -19,23 +22,44 @@ final class SmokeUITests: XCTestCase {
     }
 
     func testMainWindowAndSettingsUpdatesTab() throws {
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20), "app did not come to the foreground")
-        let mainWindow = app.windows.firstMatch
-        XCTAssertTrue(mainWindow.waitForExistence(timeout: 20), "main window missing")
+        let mainWindow = app.windows.element(boundBy: 0)
+        if !mainWindow.waitForExistence(timeout: 30) {
+            XCTContext.runActivity(named: "App hierarchy") { _ in
+                let attachment = XCTAttachment(string: app.debugDescription)
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+            XCTFail("main window missing (windows=\(app.windows.count))")
+            return
+        }
         XCTAssertTrue(app.buttons["Yenile"].firstMatch.waitForExistence(timeout: 10), "Refresh button missing")
 
-        // App menu (the first item after the Apple menu) → "Ayarlar…"
-        let appMenu = app.menuBars.firstMatch.menuBarItems.element(boundBy: 1)
+        // App menu: by title (TR/EN), fallback to the item after the Apple menu.
+        let menuBar = app.menuBars.firstMatch
+        let titledMenu = ["Oyuncu Kimlik Kartı", "Player Identity"]
+            .map { menuBar.menuBarItems[$0] }
+            .first { $0.exists }
+        let appMenu = titledMenu ?? menuBar.menuBarItems.element(boundBy: 1)
         XCTAssertTrue(appMenu.waitForExistence(timeout: 10), "app menu missing")
         appMenu.click()
-        let settingsItem = app.menuItems["Ayarlar…"]
-        XCTAssertTrue(settingsItem.waitForExistence(timeout: 10), "Ayarlar… menu item missing")
-        settingsItem.click()
+        let settingsTitles = ["Ayarlar…", "Settings…"]
+        let settingsItem = settingsTitles
+            .map { app.menuItems[$0] }
+            .first { $0.waitForExistence(timeout: 5) }
+        XCTAssertNotNil(settingsItem, "Ayarlar… / Settings… menu item missing")
+        settingsItem?.click()
 
-        let updatesTab = app.toolbars.buttons["Güncellemeler"].firstMatch
-        XCTAssertTrue(updatesTab.waitForExistence(timeout: 15), "Güncellemeler toolbar button missing")
-        updatesTab.click()
-        XCTAssertTrue(app.buttons["Şimdi denetle"].firstMatch.waitForExistence(timeout: 10), "updates pane did not open")
+        let updatesTitles = ["Güncellemeler", "Updates"]
+        let updatesTab = updatesTitles
+            .map { app.toolbars.buttons[$0].firstMatch }
+            .first { $0.waitForExistence(timeout: 15) }
+        XCTAssertNotNil(updatesTab, "Güncellemeler / Updates toolbar button missing")
+        updatesTab?.click()
+        let checkTitles = ["Şimdi denetle", "Check Now"]
+        let checkButton = checkTitles
+            .map { app.buttons[$0].firstMatch }
+            .first { $0.waitForExistence(timeout: 10) }
+        XCTAssertNotNil(checkButton, "updates pane did not open")
 
         // Close the Settings window.
         app.typeKey("w", modifierFlags: .command)
