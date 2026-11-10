@@ -1,3 +1,4 @@
+<!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
 Sürüm: 2.8 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.7 → v2.8: §48 kalan pencerelerin redesign'ı)

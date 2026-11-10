@@ -34,6 +34,9 @@ jobs:
           xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
             -destination 'platform=macOS' -derivedDataPath .build build
 
+      - name: Spec sanitization gate
+        run: chmod +x scripts/sync-spec.sh && scripts/sync-spec.sh --check
+
       - name: Test
         run: |
           xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \

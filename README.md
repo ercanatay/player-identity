@@ -76,11 +76,13 @@ folder (`profile.json`, history, metrics, updates).
   - [Command-line tool](#command-line-tool)
 - [Data and privacy](#data-and-privacy)
 - [Security and signing](#security-and-signing)
+- [Security policy](SECURITY.md)
 - [Troubleshooting](#troubleshooting)
 - [Build and test](#build-and-test)
 - [Project layout](#project-layout)
 - [Releases and Homebrew](#releases-and-homebrew)
 - [Design spec](#design-spec)
+- [Changelog](CHANGELOG.md)
 - [License](#license)
 
 ---
@@ -453,8 +455,9 @@ when you ask for them, and they are redacted.
 - In-app updates verify the code signature, the signing team, the bundle identifier and the version before
   replacing anything, and roll back on failure.
 - Writes to game files are limited to `name`/`model` in `config.cfg` / `userconfig.cfg`, with backups.
+- Supported versions, how to report a vulnerability privately, and what the app writes: see [SECURITY.md](SECURITY.md).
 
-Verify a download yourself:
+Verify a download yourself (the full vulnerability reporting process and update verification chain are in [SECURITY.md](SECURITY.md)):
 
 ```sh
 codesign --verify --deep --strict /Applications/PlayerIdentity.app
@@ -514,7 +517,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | XcodeGen, build, 556 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 556 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -533,7 +536,7 @@ PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask
 docs/spec.md              Design/behaviour specification (Turkish)
-scripts/                  release, cask, CLI smoke, icon tooling
+scripts/                  release, cask, CLI smoke, spec sync, icon tooling
 ```
 
 ---
@@ -541,6 +544,7 @@ scripts/                  release, cask, CLI smoke, icon tooling
 ## Releases and Homebrew
 
 - Every `vX.Y.Z` tag builds and publishes a **signed, notarized** ZIP plus `SHA256SUMS.txt`.
+- Release history is kept in [`CHANGELOG.md`](CHANGELOG.md) (Keep a Changelog format).
 - The cask is updated automatically by the release workflow; the public tap is
   [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap).
 - Tap sync in the release workflow is automatic when the `TAP_TOKEN` secret is set: a fine-grained PAT with
@@ -561,7 +565,8 @@ scripts/                  release, cask, CLI smoke, icon tooling
 
 The full behaviour specification — status rules, localization keys, ban checks, update/downgrade rules,
 acceptance criteria — is in [`docs/spec.md`](docs/spec.md) (Turkish). It is the single source of truth for the
-implementation.
+implementation. The published copy is sanitized by `scripts/sync-spec.sh`; CI runs `scripts/sync-spec.sh --check`
+to block personal or private network data from being committed.
 
 ---
 
