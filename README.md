@@ -19,6 +19,17 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Main window — light](docs/screenshots/main-light.png) | ![Main window — dark](docs/screenshots/main-dark.png) |
+| Main window — light | Main window — dark |
+| ![Settings — light](docs/screenshots/settings-general-light.png) | ![Settings — dark](docs/screenshots/settings-general-dark.png) |
+| Settings — light | Settings — dark |
+
+---
+
 ## What's new in v2.7.0
 
 - **Redesigned History, Ban Matrix and Metrics windows** using the same design language as the main window: new toolbar, filter chips, narrow-width behaviour, and a chart card for metrics.
@@ -37,6 +48,7 @@ folder (`profile.json`, history, metrics, updates).
 
 ## Contents
 
+- [Screenshots](#screenshots)
 - [Features at a glance](#features-at-a-glance)
 - [Requirements](#requirements)
 - [Install](#install)
@@ -531,6 +543,9 @@ scripts/                  release, cask, CLI smoke, icon tooling
 - Every `vX.Y.Z` tag builds and publishes a **signed, notarized** ZIP plus `SHA256SUMS.txt`.
 - The cask is updated automatically by the release workflow; the public tap is
   [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap).
+- Tap sync in the release workflow is automatic when the `TAP_TOKEN` secret is set: a fine-grained PAT with
+  `contents: write` on the tap repository. Without it, run `scripts/sync-tap.sh` manually (uses your local `gh` login;
+  `--dry-run` shows the diff first).
 - Version history inside the app can install older stable releases with the same verification and a data backup.
 
 ---
