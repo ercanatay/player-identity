@@ -125,6 +125,32 @@ final class AppModel {
     var notificationsEnabled: Bool {
         didSet { deps.defaults.set(notificationsEnabled, forKey: DefaultsKey.notificationsEnabled) }
     }
+    /// §45 per-category switches (on by default).
+    var notifyBanChanges: Bool {
+        didSet { deps.defaults.set(notifyBanChanges, forKey: DefaultsKey.notifyBanChanges) }
+    }
+    var notifyOnlineChanges: Bool {
+        didSet { deps.defaults.set(notifyOnlineChanges, forKey: DefaultsKey.notifyOnlineChanges) }
+    }
+    var notifyMapChanges: Bool {
+        didSet { deps.defaults.set(notifyMapChanges, forKey: DefaultsKey.notifyMapChanges) }
+    }
+    /// §45 quiet hours (`HH:mm`, may cross midnight). History is still written; only notifications are held back.
+    var quietHoursEnabled: Bool {
+        didSet { deps.defaults.set(quietHoursEnabled, forKey: DefaultsKey.quietHoursEnabled) }
+    }
+    var quietHoursStart: String {
+        didSet { deps.defaults.set(quietHoursStart, forKey: DefaultsKey.quietHoursStart) }
+    }
+    var quietHoursEnd: String {
+        didSet { deps.defaults.set(quietHoursEnd, forKey: DefaultsKey.quietHoursEnd) }
+    }
+
+    var notificationPolicy: NotificationPolicy {
+        NotificationPolicy(master: notificationsEnabled, banChanges: notifyBanChanges,
+                           onlineChanges: notifyOnlineChanges, mapChanges: notifyMapChanges,
+                           quiet: QuietHours(enabled: quietHoursEnabled, start: quietHoursStart, end: quietHoursEnd))
+    }
 
     /// Settings > "Language / Dil" (§35). Applied at once: texts resolve in the new language and views rebuild.
     var appLanguage: AppLanguageSetting {
@@ -293,6 +319,13 @@ final class AppModel {
         servers = snapshot?.servers ?? []
         banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
         notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
+        let defaults = dependencies.defaults
+        notifyBanChanges = defaults.object(forKey: DefaultsKey.notifyBanChanges) as? Bool ?? true
+        notifyOnlineChanges = defaults.object(forKey: DefaultsKey.notifyOnlineChanges) as? Bool ?? true
+        notifyMapChanges = defaults.object(forKey: DefaultsKey.notifyMapChanges) as? Bool ?? true
+        quietHoursEnabled = defaults.object(forKey: DefaultsKey.quietHoursEnabled) as? Bool ?? false
+        quietHoursStart = defaults.string(forKey: DefaultsKey.quietHoursStart) ?? QuietHours.defaultStart
+        quietHoursEnd = defaults.string(forKey: DefaultsKey.quietHoursEnd) ?? QuietHours.defaultEnd
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
         menuBarEnabled = MenuBarPreferences(defaults: dependencies.defaults).showInMenuBar
         watchState = WatchStateStore(fileURL: dependencies.paths.watchStateFile).load()
@@ -474,12 +507,13 @@ final class AppModel {
         let recorder = history
         let dispatcher = notificationDispatcher
         let enabled = notificationsEnabled
+        let policy = notificationPolicy
         let previous = historyTask
         historyTask = Task {
             await previous?.value
             let contents = await operation(recorder)
             historyRevision += 1
-            await dispatcher.handle(contents, enabled: enabled)
+            await dispatcher.handle(contents, enabled: enabled, policy: policy)
         }
     }
 
@@ -623,6 +657,8 @@ final class AppModel {
     /// §36: posts "İtiraz takibi: <server>" once per follow-up date (launch, refresh, menu bar timer).
     @discardableResult
     func checkAppealReminders() -> Task<Void, Never>? {
+        // §45: during quiet hours the reminder stays pending (not marked notified) and fires later.
+        guard !notificationPolicy.quiet.contains(deps.now()) else { return nil }
         let due = dueAppealReminders()
         guard !due.isEmpty else { return nil }
         let contents = due.compactMap { item in
@@ -631,7 +667,8 @@ final class AppModel {
         markAppealsNotified(Set(due.map(\.serverID)))
         let dispatcher = notificationDispatcher
         let enabled = notificationsEnabled
-        return Task { await dispatcher.handle(contents, enabled: enabled) }
+        let policy = notificationPolicy
+        return Task { await dispatcher.handle(contents, enabled: enabled, policy: policy) }
     }
 
     // MARK: §38 ban matrix

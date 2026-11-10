@@ -21,6 +21,8 @@ struct NotificationContent: Sendable, Equatable {
     let key: String
     let title: String
     let body: String
+    /// §45 which switch gates this notification.
+    var category: NotificationCategory = .general
 }
 
 /// Does nothing (default in tests and when notifications are unavailable).
@@ -75,10 +77,11 @@ enum NotificationPlanner {
         case .banAppeared:
             let label = entry.new.flatMap(BanStatus.init(rawValue:))?.label ?? new
             return NotificationContent(key: key, title: L10n.text(.notifyBanAppearedTitle),
-                                       body: L10n.format(.notifyServerBody, server, label))
+                                       body: L10n.format(.notifyServerBody, server, label), category: .ban)
         case .banLifted:
             return NotificationContent(key: key, title: L10n.text(.notifyBanLiftedTitle),
-                                       body: L10n.format(.notifyServerBody, server, L10n.text(.banStatusNoBlock)))
+                                       body: L10n.format(.notifyServerBody, server, L10n.text(.banStatusNoBlock)),
+                                       category: .ban)
         case .ipChanged:
             return NotificationContent(key: key, title: L10n.text(.notifyIPChangedTitle),
                                        body: L10n.format(.notifyChangeBody, old, new))
@@ -111,10 +114,12 @@ actor NotificationDispatcher {
 
     /// Returns the notifications actually posted.
     @discardableResult
-    func handle(_ contents: [NotificationContent], enabled: Bool) async -> [NotificationContent] {
+    func handle(_ contents: [NotificationContent], enabled: Bool,
+                policy: NotificationPolicy? = nil) async -> [NotificationContent] {
         guard enabled else { return [] }
         let time = now()
         let fresh = contents.filter { content in
+            if let policy, !policy.allows(content.category, at: time) { return false }
             guard let last = lastSent[content.key] else { return true }
             return time.timeIntervalSince(last) >= Self.dedupeInterval
         }

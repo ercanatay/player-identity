@@ -6,6 +6,13 @@ enum DefaultsKey {
     static let banCheckEnabled = "banCheckEnabled"
     static let recentNames = "recentNames"
     static let notificationsEnabled = "notificationsEnabled"
+    /// §45 per-category switches (default on) and quiet hours (default off, 23:00–08:00).
+    static let notifyBanChanges = "notifyBanChanges"
+    static let notifyOnlineChanges = "notifyOnlineChanges"
+    static let notifyMapChanges = "notifyMapChanges"
+    static let quietHoursEnabled = "quietHoursEnabled"
+    static let quietHoursStart = "quietHoursStart"
+    static let quietHoursEnd = "quietHoursEnd"
     /// §30 menu bar mode (default off).
     static let showInMenuBar = "showInMenuBar"
     /// §35 UI language: `system` (default) · `tr` · `en`.

@@ -329,6 +329,14 @@ notarizes with `APPLE_ASC_KEY_P8` (base64 or PEM), `APPLE_ASC_KEY_ID`, `APPLE_AS
 verifies the zip and publishes it with `gh release create`. If the secrets are missing it publishes an ad-hoc build
 and says "not notarized" in the release notes.
 
+## Install (Homebrew)
+
+```bash
+brew tap ercanatay/tap && brew install --cask ercanatay/tap/player-identity
+```
+
+The cask installs `PlayerIdentity.app` and links the `playeridentityctl` command-line tool into your `PATH`.
+
 ## Install (local build)
 
 ```bash

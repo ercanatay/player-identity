@@ -22,10 +22,43 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @Bindable var model: AppModel
 
+    /// `HH:mm` string ↔ Date (today at that time) for a DatePicker.
+    private func quietBinding(_ keyPath: ReferenceWritableKeyPath<AppModel, String>) -> Binding<Date> {
+        Binding(
+            get: {
+                let minutes = QuietHours.minutes(model[keyPath: keyPath]) ?? 0
+                return Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+            },
+            set: { date in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+                model[keyPath: keyPath] = QuietHours.text(minutes: (parts.hour ?? 0) * 60 + (parts.minute ?? 0))
+            })
+    }
+
     var body: some View {
         Form {
             Toggle(L10n.text(.settingsBanCheck), isOn: $model.banCheckEnabled)
             Toggle(L10n.text(.settingsNotifications), isOn: $model.notificationsEnabled)
+            Toggle(L10n.text(.settingsNotifyBan), isOn: $model.notifyBanChanges)
+                .disabled(!model.notificationsEnabled)
+            Toggle(L10n.text(.settingsNotifyOnline), isOn: $model.notifyOnlineChanges)
+                .disabled(!model.notificationsEnabled)
+            Toggle(L10n.text(.settingsNotifyMap), isOn: $model.notifyMapChanges)
+                .disabled(!model.notificationsEnabled)
+            Toggle(L10n.text(.settingsQuietHours), isOn: $model.quietHoursEnabled)
+                .disabled(!model.notificationsEnabled)
+            HStack {
+                DatePicker(L10n.text(.settingsQuietFrom), selection: quietBinding(\.quietHoursStart),
+                           displayedComponents: .hourAndMinute)
+                DatePicker(L10n.text(.settingsQuietTo), selection: quietBinding(\.quietHoursEnd),
+                           displayedComponents: .hourAndMinute)
+            }
+            .disabled(!model.notificationsEnabled || !model.quietHoursEnabled)
+            Text(L10n.text(.settingsQuietNote))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 480, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
             Divider()
             VStack(alignment: .leading, spacing: 2) {
                 Picker(selection: $model.appLanguage) {

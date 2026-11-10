@@ -368,6 +368,23 @@ final class UIEvidenceTests: XCTestCase {
                    size: CGSize(width: 620, height: 860), name: "watch-details-off-menubar-on")
     }
 
+    /// §44–§45: notification settings and a preview found in a downloads folder (fake fixture).
+    func testRenderV25Screens() async throws {
+        let env = try TestAppEnvironment()
+        let data = env.valveDir.deletingLastPathComponent()
+        let folder = data.appendingPathComponent("valve_downloads/models/player/keyturk1", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try BMPFixture.paletted(width: 164, height: 200).write(to: folder.appendingPathComponent("KEYTURK1.BMP"))
+        try Data("name \"N\"\nmodel \"keyturk1\"\n".utf8).write(to: env.valveDir.appendingPathComponent("config.cfg"))
+        let model = env.makeModel()
+        await model.refresh().value
+        await model.loadPreviews()?.value
+        XCTAssertNotNil(model.preview(for: "keyturk1")?.image)
+        model.quietHoursEnabled = true
+        try render(GeneralSettingsView(model: model).padding(20), size: CGSize(width: 600, height: 560), name: "v25-settings-notifications")
+        try render(ContentView(model: model), size: CGSize(width: 900, height: 1100), name: "v25-downloaded-preview")
+    }
+
     private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)

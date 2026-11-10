@@ -14,10 +14,31 @@ enum ModelPreviewLocator {
             .appendingPathComponent(model, isDirectory: true)
     }
 
+    /// §44 search order: local gamedir, then `valve_downloads`, then `<gamedir>_downloads` (siblings of the gamedir).
+    static func folders(gamedir: URL, model: String) -> [URL] {
+        let root = gamedir.deletingLastPathComponent()
+        let name = gamedir.lastPathComponent
+        var downloads = ["valve_downloads"]
+        if name != "valve" { downloads.append("\(name)_downloads") }
+        return [folder(gamedir: gamedir, model: model)] + downloads.map {
+            root.appendingPathComponent($0, isDirectory: true)
+                .appendingPathComponent("models/player", isDirectory: true)
+                .appendingPathComponent(model, isDirectory: true)
+        }
+    }
+
+    /// First BMP found in the §44 search order.
     static func imageURL(gamedir: URL, model: String,
                          fileSystem: any FileSystemReading = LocalFileSystem()) -> URL? {
-        guard !model.isEmpty, !model.contains("/"),
-              let entries = try? fileSystem.contentsOfDirectory(folder(gamedir: gamedir, model: model)) else { return nil }
+        guard !model.isEmpty, !model.contains("/") else { return nil }
+        for folder in folders(gamedir: gamedir, model: model) {
+            if let url = firstBMP(in: folder, fileSystem: fileSystem) { return url }
+        }
+        return nil
+    }
+
+    private static func firstBMP(in folder: URL, fileSystem: any FileSystemReading) -> URL? {
+        guard let entries = try? fileSystem.contentsOfDirectory(folder) else { return nil }
         return entries
             .filter { $0.pathExtension.lowercased() == fileExtension && fileSystem.isRegularFile($0) }
             .sorted { lhs, rhs in

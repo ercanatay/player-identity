@@ -235,6 +235,13 @@
 "update.ignore" = "Yoksay";
 "update.check" = "Güncellemeleri Denetle…";
 "settings.notifications" = "Bildirimler";
+"settings.notify.ban" = "Ban değişiklikleri (başladı/kalktı)";
+"settings.notify.online" = "Çevrimdışı/çevrimiçi değişiklikleri";
+"settings.notify.map" = "Harita değişiklikleri";
+"settings.quietHours" = "Sessiz saatler";
+"settings.quietHours.from" = "Başlangıç";
+"settings.quietHours.to" = "Bitiş";
+"settings.quietHours.note" = "Sessiz saatlerde bildirim gönderilmez; geçmiş kayıtları yine yazılır. Aralık gece yarısını aşabilir (23:00–08:00).";
 "notify.banAppeared.title" = "Ban başladı";
 "notify.banLifted.title" = "Ban kalktı";
 "notify.ipChanged.title" = "Genel IP değişti";

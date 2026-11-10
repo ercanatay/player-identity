@@ -235,6 +235,13 @@
 "update.ignore" = "Ignore";
 "update.check" = "Check for Updates…";
 "settings.notifications" = "Notifications";
+"settings.notify.ban" = "Ban changes (started/lifted)";
+"settings.notify.online" = "Offline/online changes";
+"settings.notify.map" = "Map changes";
+"settings.quietHours" = "Quiet hours";
+"settings.quietHours.from" = "From";
+"settings.quietHours.to" = "To";
+"settings.quietHours.note" = "No notifications are sent during quiet hours; history is still recorded. The range may cross midnight (23:00–08:00).";
 "notify.banAppeared.title" = "Ban detected";
 "notify.banLifted.title" = "Ban lifted";
 "notify.ipChanged.title" = "Public IP changed";

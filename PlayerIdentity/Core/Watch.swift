@@ -131,6 +131,15 @@ struct WatchStateStore: Sendable {
 
 /// §42 notification texts.
 enum WatchNotificationText {
+    /// §45 gate of each event.
+    static func category(of event: WatchEvent) -> NotificationCategory {
+        switch event {
+        case .banAppeared, .banLifted: return .ban
+        case .offline, .online: return .online
+        case .mapChanged: return .map
+        }
+    }
+
     static func content(for event: WatchEvent, server: ServerEntry) -> NotificationContent {
         let label = server.label
         let key: String
@@ -159,6 +168,6 @@ enum WatchNotificationText {
             body = L10n.format(.watchNotifyMapBody, old, new)
         }
         return NotificationContent(key: [event.kind.rawValue, server.id.uuidString, key].joined(separator: "|"),
-                                   title: title, body: body)
+                                   title: title, body: body, category: Self.category(of: event))
     }
 }

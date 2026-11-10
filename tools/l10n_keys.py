@@ -291,6 +291,13 @@ KEYS = [
 
     # Notifications (§23)
     ("settingsNotifications", "settings.notifications", "Bildirimler", "Notifications"),
+    ("settingsNotifyBan", "settings.notify.ban", "Ban değişiklikleri (başladı/kalktı)", "Ban changes (started/lifted)"),
+    ("settingsNotifyOnline", "settings.notify.online", "Çevrimdışı/çevrimiçi değişiklikleri", "Offline/online changes"),
+    ("settingsNotifyMap", "settings.notify.map", "Harita değişiklikleri", "Map changes"),
+    ("settingsQuietHours", "settings.quietHours", "Sessiz saatler", "Quiet hours"),
+    ("settingsQuietFrom", "settings.quietHours.from", "Başlangıç", "From"),
+    ("settingsQuietTo", "settings.quietHours.to", "Bitiş", "To"),
+    ("settingsQuietNote", "settings.quietHours.note", "Sessiz saatlerde bildirim gönderilmez; geçmiş kayıtları yine yazılır. Aralık gece yarısını aşabilir (23:00–08:00).", "No notifications are sent during quiet hours; history is still recorded. The range may cross midnight (23:00–08:00)."),
     ("notifyBanAppearedTitle", "notify.banAppeared.title", "Ban başladı", "Ban detected"),
     ("notifyBanLiftedTitle", "notify.banLifted.title", "Ban kalktı", "Ban lifted"),
     ("notifyIPChangedTitle", "notify.ipChanged.title", "Genel IP değişti", "Public IP changed"),
