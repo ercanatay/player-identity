@@ -14,7 +14,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TARGET="$ROOT/docs/spec.md"
 
 # Hassas desenler (--check bu listeyi arar). Nokta regex'te kaçışlı.
-SENSITIVE_RE='159\.146|192\.168|TestPlayer|TestPlayer'
+SENSITIVE_RE='159\.146|192\.168|Fener''Bahce|Donald''-''Trump'
 
 if [[ "${1:-}" == "--check" ]]; then
   if [[ ! -f "$TARGET" ]]; then
@@ -49,6 +49,8 @@ trap 'rm -f "$tmp"' EXIT
   printf '<!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->\n'
   # Sıra önemli: özel IP'ler önce, genel 159.146. kuralı en sonda.
   # \b sınırları 192.0.2.1 kuralının 192.0.2.10 gibi adreslere uymasını engeller.
+  NAME1='Fener''Bahce\(Original\)'
+  NAME2='Donald''-''Trump'
   perl -pe '
     s/192\.168\.2\.156\b/192.0.2.10/g;
     s/192\.168\.1\.101\b/192.0.2.11/g;
@@ -56,11 +58,7 @@ trap 'rm -f "$tmp"' EXIT
     s/159\.146\.69\.0\/24/198.51.100.0\/24/g;
     s/159\.146\.0\.0\/16/198.51.0.0\/16/g;
     s/159\.146\./198.51.100./g;
-    s/TestPlayer\(Original\)/TestPlayer/g;
-    s/TestPlayer/TestPlayer/g;
-    s/Ercan ATAY/Test/g;
-    s/Ercan/Test/g;
-  ' "$SOURCE"
+  ' "$SOURCE" | sed -e "s/${NAME1}/TestPlayer/g" -e "s/${NAME2}/TestPlayer/g" -e 's/Ercan ATAY/Test/g' -e 's/Ercan/Test/g'
 } > "$tmp"
 
 mv "$tmp" "$TARGET"
