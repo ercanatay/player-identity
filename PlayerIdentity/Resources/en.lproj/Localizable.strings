@@ -652,3 +652,13 @@
 "import.notInFile" = "Not in file";
 "import.modeLabel" = "When items already exist";
 "a11y.updateProgress" = "Download progress";
+
+/* §48 History, Ban Matrix and Metrics windows */
+"history.empty.body" = "Status changes, ban results and fixes appear here after a check.";
+"history.emptyFiltered.body" = "Choose another type or server, or clear the filters.";
+"history.filter.value" = "%@: %@";
+"history.column.event" = "Event";
+"history.column.time" = "Time";
+"banMatrix.empty.body" = "Add servers in the main window to compare their ban status here.";
+"metrics.offline" = "Offline";
+"metrics.a11ySummary" = "%@ points, lowest %@, highest %@";

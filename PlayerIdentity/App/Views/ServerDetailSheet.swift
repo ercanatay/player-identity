@@ -89,7 +89,6 @@ struct ServerDetailSheet: View {
                     appealSection
                     Divider()
                     banListSection
-                    Divider()
                     MetricsSection(samples: samples, serverID: serverID, now: model.now)
                 }
                 .padding(.trailing, 8)

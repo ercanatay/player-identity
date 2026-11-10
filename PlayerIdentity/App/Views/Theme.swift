@@ -147,6 +147,48 @@ enum Metrics {
         /// Below this table width the map · players · ping column folds into the server tooltip (720 pt windows).
         static let compactTable: CGFloat = 720
     }
+
+    /// §48 shared pieces of the secondary windows (History, Ban Matrix, Metrics card).
+    /// Tinted square behind a row's kind symbol.
+    static let rowIcon: CGFloat = 24
+    /// Status chip (icon + text + tint) height.
+    static let chip: CGFloat = 22
+    /// 1 pt card / table border.
+    static let hairline: CGFloat = 1
+    /// Space the system traffic lights take in the in-content toolbar stand-in (offscreen renders).
+    static let trafficLights: CGFloat = 64
+
+    /// §48.1 History window.
+    enum History {
+        static let minWidth: CGFloat = 600
+        static let minHeight: CGFloat = 360
+        static let serverColumn: CGFloat = 168
+        static let timeColumn: CGFloat = 120
+        /// Lines of a note before it truncates (full text in the tooltip).
+        static let noteLines = 2
+    }
+
+    /// §48.2 Ban matrix window: fixed columns; the server column takes the rest (never below `serverMin`).
+    enum BanMatrix {
+        static let minWidth: CGFloat = 520
+        static let minHeight: CGFloat = 280
+        static let serverMin: CGFloat = 160
+        static let cell: CGFloat = 132
+        static let range: CGFloat = 156
+        static let lastCheck: CGFloat = 148
+    }
+
+    /// §48.3 Metrics card charts.
+    enum Chart {
+        static let height: CGFloat = 112
+        static let emptyHeight: CGFloat = 72
+        static let line: CGFloat = 1.5
+        static let gridLine: CGFloat = 0.5
+        static let point: CGFloat = 14
+        static let legendSwatch = CGSize(width: 12, height: 8)
+        /// X axis labels every 4 hours of the 24 h window.
+        static let axisHours = 4
+    }
 }
 
 /// Type scale (SF Pro / SF Mono).
@@ -172,6 +214,57 @@ enum TypeScale {
     static let monoStrong = Font.system(size: 13, weight: .semibold, design: .monospaced)
     /// 12 mono — diff view.
     static let monoSmall = Font.system(size: 12, design: .monospaced)
+    /// 12 medium — chip texts.
+    static let chip = Font.system(size: 12, weight: .medium)
+    /// 14 — row / header SF Symbols.
+    static let symbol = Font.system(size: 14)
+    /// 10 semibold — symbols inside chips and badges.
+    static let symbolSmall = Font.system(size: 10, weight: .semibold)
+    /// 28 — empty-state symbol.
+    static let symbolLarge = Font.system(size: 28)
+}
+
+/// Tone of a status chip or row icon (§48): raw colour for the symbol, AA colour for the text, tint for the fill.
+enum ChipTone: Equatable, CaseIterable {
+    case neutral, accent, green, orange, red
+
+    init(_ level: StatusLevel) {
+        switch level {
+        case .green: self = .green
+        case .orange: self = .orange
+        case .red: self = .red
+        }
+    }
+
+    var iconColor: Color {
+        switch self {
+        case .neutral: return Palette.text3
+        case .accent: return Palette.accent
+        case .green: return Palette.green
+        case .orange: return Palette.orange
+        case .red: return Palette.red
+        }
+    }
+
+    var textColor: Color {
+        switch self {
+        case .neutral: return Palette.text2
+        case .accent: return Palette.accentText
+        case .green: return Palette.greenText
+        case .orange: return Palette.orangeText
+        case .red: return Palette.redText
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .neutral: return Palette.group
+        case .accent: return Palette.accentTint
+        case .green: return Palette.greenTint
+        case .orange: return Palette.orangeTint
+        case .red: return Palette.redTint
+        }
+    }
 }
 
 extension StatusLevel {

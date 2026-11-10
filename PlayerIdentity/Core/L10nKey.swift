@@ -654,4 +654,13 @@ enum L10nKey: String, CaseIterable, Sendable {
     case importNotInFile = "import.notInFile"
     case importModeLabel = "import.modeLabel"
     case a11yUpdateProgress = "a11y.updateProgress"
+    // §48 History, Ban Matrix and Metrics windows.
+    case historyEmptyBody = "history.empty.body"
+    case historyEmptyFilteredBody = "history.emptyFiltered.body"
+    case historyFilterValue = "history.filter.value"
+    case historyColumnEvent = "history.column.event"
+    case historyColumnTime = "history.column.time"
+    case banMatrixEmptyBody = "banMatrix.empty.body"
+    case metricsOffline = "metrics.offline"
+    case metricsA11ySummary = "metrics.a11ySummary"
 }

@@ -327,6 +327,85 @@ struct PopoverGroupTitle: View {
     }
 }
 
+/// Status chip (§48): SF Symbol + text on the tone's tint, 22 pt, radius 6. State is always text, never colour alone.
+struct StatusChip: View {
+    let symbol: String
+    let text: String
+    let tone: ChipTone
+    var monospaced = false
+    /// Tooltip; defaults to the text (a chip that truncates still shows its full value).
+    var help: String?
+
+    var body: some View {
+        HStack(spacing: Space.s1) {
+            Image(systemName: symbol)
+                .font(TypeScale.symbolSmall)
+                .foregroundStyle(tone.iconColor)
+                .accessibilityHidden(true)
+            Text(text)
+                .font(monospaced ? TypeScale.monoSmall : TypeScale.chip)
+                .foregroundStyle(tone.textColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .padding(.horizontal, Space.s2)
+        .frame(height: Metrics.chip)
+        .background(RoundedRectangle(cornerRadius: Radius.control).fill(tone.tint))
+        .help(help ?? text)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+    }
+}
+
+/// Toolbar row: leading group, flexible space, trailing group. In the app the window toolbar hosts the same
+/// groups (`.toolbar`); offscreen renders have no window toolbar, so they draw this 52 pt strip on the toolbar
+/// token instead — the system traffic lights are not drawn, only their space is kept.
+struct InlineToolbar<Leading: View, Trailing: View>: View {
+    @ViewBuilder var leading: Leading
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        Palette.toolbar
+            .frame(height: Metrics.toolbar)
+            .overlay(alignment: .leading) {
+                HStack(spacing: Space.s3) {
+                    Color.clear.frame(width: Metrics.trafficLights)
+                    leading
+                    Spacer(minLength: Space.s2)
+                    HStack(spacing: Space.s2) { trailing }
+                }
+                .padding(.horizontal, Space.s3)
+            }
+            .clipped()
+            .overlay(alignment: .bottom) { ThemedDivider() }
+    }
+}
+
+/// Window title + count in the toolbar (15 semibold + 12 tertiary).
+struct ToolbarTitle: View {
+    let title: String
+    var count: String?
+
+    var body: some View {
+        HStack(spacing: Space.s2) {
+            Text(title)
+                .font(TypeScale.headline)
+                .foregroundStyle(Palette.text)
+                .lineLimit(1)
+                .fixedSize()
+                .accessibilityAddTraits(.isHeader)
+            if let count {
+                Text(verbatim: count)
+                    .font(TypeScale.callout)
+                    .foregroundStyle(Palette.text3)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+    }
+}
+
 /// 1 pt separator in the token colour.
 struct ThemedDivider: View {
     var body: some View {

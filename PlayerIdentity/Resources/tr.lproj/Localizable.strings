@@ -652,3 +652,13 @@
 "import.notInFile" = "Dosyada yok";
 "import.modeLabel" = "Öğe zaten varsa";
 "a11y.updateProgress" = "İndirme ilerlemesi";
+
+/* §48 History, Ban Matrix and Metrics windows */
+"history.empty.body" = "Durum değişiklikleri, ban sonuçları ve düzeltmeler bir kontrolden sonra burada görünür.";
+"history.emptyFiltered.body" = "Başka bir tür veya sunucu seçin ya da filtreleri temizleyin.";
+"history.filter.value" = "%@: %@";
+"history.column.event" = "Olay";
+"history.column.time" = "Zaman";
+"banMatrix.empty.body" = "Ban durumlarını burada karşılaştırmak için ana pencereden sunucu ekleyin.";
+"metrics.offline" = "Çevrimdışı";
+"metrics.a11ySummary" = "%@ nokta, en düşük %@, en yüksek %@";
