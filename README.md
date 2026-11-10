@@ -19,6 +19,12 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.6.0
+
+- **Redesigned main window and Settings** following the Claude Design handoff: new layout, light and dark appearance, Turkish and English UI.
+- **Design tokens** (colours, spacing, typography) shared across the main window and Settings.
+- **Reset Settings** and **Erase All Data** in Settings (see spec §47).
+
 ## What's new in v2.5.0
 
 - **Settings and server export/import**: choose the scope (Settings only, or Settings + servers), export to JSON, and import with merge or replace.
@@ -472,7 +478,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **515 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **540 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests
@@ -492,7 +498,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | XcodeGen, build, 515 tests on `macos-26` |
+| `ci.yml` | push / PR | XcodeGen, build, 540 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -506,7 +512,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (515)
+PlayerIdentityTests/      Unit tests (540)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask
@@ -524,6 +530,13 @@ scripts/                  release, cask, CLI smoke, icon tooling
 - Version history inside the app can install older stable releases with the same verification and a data backup.
 
 ---
+
+## Design
+
+- [`docs/design/ui-brief.md`](docs/design/ui-brief.md): UI brief for the redesign.
+- [`docs/design/claude-design-prompt.md`](docs/design/claude-design-prompt.md): prompt used with Claude Design.
+- [`docs/design/handoff/`](docs/design/handoff/): handoff bundle: `tokens.css`, `MainWindow.dc.html`, `SettingsWindow.dc.html`, `icons.js`, and `Player Identity Canvas.dc.html` (canvas notes).
+- **Deviations from the handoff:** the light theme uses teal tones adjusted for contrast; the Fix action opens an inline popover instead of a separate sheet.
 
 ## Design spec
 

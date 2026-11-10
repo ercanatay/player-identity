@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="./tokens.css"><style>button{cursor:default;font-family:inherit}button:focus-visible{outline:2px solid var(--c-focus);outline-offset:1px}</style></helmet>
+<div data-theme="{{ theme }}" lang="{{ lang }}" data-screen-label="Main window" style="width:900px;height:{{ heightPx }};display:flex;flex-direction:column;background:var(--c-window);color:var(--c-text);font-family:var(--font-sans);font-size:13px;line-height:1.35;border-radius:var(--r-window);box-shadow:var(--shadow-window);overflow:hidden;position:relative;-webkit-font-smoothing:antialiased">
+
+  <!-- Unified toolbar (native: .windowToolbarStyle(.unified)) -->
+  <div style="height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px 0 20px;background:var(--c-toolbar);border-bottom:1px solid var(--c-separator)">
+    <div aria-hidden="true" style="display:flex;gap:8px;flex:none">
+      <span style="width:12px;height:12px;border-radius:50%;background:var(--c-tl-close)"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:var(--c-tl-min)"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:var(--c-tl-zoom)"></span>
+    </div>
+    <div style="font-size:15px;font-weight:600;white-space:nowrap;margin-left:8px;flex:none">Player Identity</div>
+    <div role="status" aria-live="polite" title="{{ statusTip }}" style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;margin-left:8px">
+      <span style="display:flex;color:{{ statusColor }}"><x-import component="Icon" from="./icons.js" sym="{{ statusSym }}" size="16" hint-size="16px,16px"></x-import></span>
+      <span style="font-weight:600;white-space:nowrap">{{ statusLabel }}</span>
+      <span style="color:var(--c-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">{{ statusDetail }}</span>
+      <span aria-hidden="true" style="color:var(--c-text-3);flex:none">·</span>
+      <span style="color:var(--c-text-2);white-space:nowrap;flex:none;font-variant-numeric:tabular-nums">{{ lastCheck }}</span>
+    </div>
+    <div style="display:flex;gap:4px;flex:none">
+      <button type="button" title="{{ t.refreshTip }}" aria-label="{{ t.refreshTip }}" aria-keyshortcuts="Meta+R" onClick="{{ refresh }}" style="width:32px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--c-text-2);opacity:{{ refreshOpacity }}" style-hover="background:var(--c-toolbar-hover)"><x-import component="Icon" from="./icons.js" sym="arrow.clockwise" size="16" hint-size="16px,16px"></x-import></button>
+      <button type="button" title="{{ t.saveTip }}" aria-label="{{ t.saveTip }}" aria-keyshortcuts="Meta+S" style="width:32px;height:28px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--c-text-2);opacity:{{ saveOpacity }}" style-hover="background:var(--c-toolbar-hover)"><x-import component="Icon" from="./icons.js" sym="square.and.arrow.down" size="16" hint-size="16px,16px"></x-import></button>
+    </div>
+  </div>
+
+  <!-- Update banner (optional, above all content) -->
+  <sc-if value="{{ showBanner }}" hint-placeholder-val="{{ false }}">
+    <div role="region" aria-label="{{ t.bannerTitle }}" style="flex:none;display:flex;align-items:center;gap:12px;padding:8px 12px 8px 16px;background:var(--c-accent-tint);border-bottom:1px solid var(--c-separator)">
+      <span style="display:flex;color:var(--c-accent-text)"><x-import component="Icon" from="./icons.js" sym="arrow.down.circle.fill" size="18" hint-size="18px,18px"></x-import></span>
+      <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:8px">
+        <span style="font-weight:600;white-space:nowrap">{{ t.bannerTitle }}</span>
+        <span title="{{ t.bannerSub }}" style="font-size:12px;color:var(--c-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">{{ t.bannerSub }}</span>
+      </div>
+      <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap;flex:none">{{ t.releaseNotes }}</button>
+      <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap;flex:none">{{ t.updateNow }}</button>
+      <button type="button" title="{{ t.dismiss }}" aria-label="{{ t.dismiss }}" onClick="{{ closeBanner }}" style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--c-text-2);flex:none" style-hover="background:var(--c-toolbar-hover)"><x-import component="Icon" from="./icons.js" sym="xmark" size="12" hint-size="12px,12px"></x-import></button>
+    </div>
+  </sc-if>
+
+  <!-- Scrollable content -->
+  <div ref="{{ scrollRef }}" style="flex:1;min-height:0;overflow:auto;position:relative;padding:16px;display:flex;flex-direction:column;gap:16px">
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.38fr) minmax(0,1fr);gap:16px;align-items:stretch">
+
+      <!-- PROFILE CARD -->
+      <section aria-label="{{ t.profile }}" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;height:24px">
+          <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="person.crop.circle" size="16" hint-size="16px,16px"></x-import></span>
+          <h2 style="margin:0;font-size:13px;font-weight:600">{{ t.profile }}</h2>
+          <span style="flex:1"></span>
+          <sc-if value="{{ pReady }}" hint-placeholder-val="{{ true }}">
+            <span style="font-size:12px;color:var(--c-text-2);white-space:nowrap;opacity:{{ lockOpacity }}">{{ t.pending }}</span>
+            <button type="button" onClick="{{ openDiff }}" aria-disabled="{{ locked }}" style="display:inline-flex;align-items:center;height:24px;padding:0 12px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap;opacity:{{ lockOpacity }}">{{ t.apply }}</button>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ locked }}" hint-placeholder-val="{{ false }}">
+          <div role="note" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--c-orange-tint);font-size:12px;color:var(--c-text)">
+            <span style="display:flex;color:var(--c-orange-text)"><x-import component="Icon" from="./icons.js" sym="lock.fill" size="14" hint-size="14px,14px"></x-import></span>
+            <span style="min-width:0">{{ t.lockedMsg }}</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ pReady }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+            <div style="display:flex;gap:16px;min-width:0">
+              <div title="{{ t.modelThumb }}" style="width:72px;height:96px;flex:none;border-radius:8px;border:1px solid var(--c-border);background:repeating-linear-gradient(135deg,var(--c-stripe) 0 6px,transparent 6px 12px);display:flex;align-items:flex-end;justify-content:center;padding:6px;font-family:var(--font-mono);font-size:10px;color:var(--c-text-3);text-align:center;line-height:1.2">sas.bmp</div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;opacity:{{ lockOpacity }}">
+                <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                  <label style="font-size:11px;color:var(--c-text-2)">{{ t.name }}</label>
+                  <div role="combobox" aria-expanded="false" title="n1ght0wl" style="display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 10px;border-radius:6px;background:var(--c-field);border:1px solid var(--c-control-border);min-width:0">
+                    <span style="flex:1;min-width:0;font-size:22px;font-weight:600;letter-spacing:-0.2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">n1ght0wl</span>
+                    <span style="flex:none;font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--c-orange-tint);color:var(--c-orange-text)">{{ t.edited }}</span>
+                    <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="chevron.down" size="12" hint-size="12px,12px"></x-import></span>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                  <label style="font-size:11px;color:var(--c-text-2);width:40px;flex:none">{{ t.model }}</label>
+                  <div role="button" aria-haspopup="menu" style="display:inline-flex;align-items:center;justify-content:space-between;gap:8px;width:148px;height:24px;padding:0 6px 0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow)">
+                    <span>sas</span>
+                    <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="chevron.up.chevron.down" size="12" hint-size="12px,12px"></x-import></span>
+                  </div>
+                  <span style="flex:none;font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--c-orange-tint);color:var(--c-orange-text)">{{ t.edited }}</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:104px minmax(0,1fr) 22px;column-gap:8px;row-gap:4px;align-items:center">
+              <sc-for list="{{ kv }}" as="r" hint-placeholder-count="5">
+                <span style="font-size:12px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:22px;line-height:22px">{{ r.label }}</span>
+                <span title="{{ r.value }}" style="font-family:var(--font-mono);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;height:22px;line-height:22px">{{ r.value }}</span>
+                <span style="display:flex;justify-content:center">
+                  <sc-if value="{{ r.hasAction }}" hint-placeholder-val="{{ true }}">
+                    <button type="button" title="{{ r.actionTip }}" aria-label="{{ r.actionTip }}" style="width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:0;border-radius:5px;background:transparent;color:var(--c-text-2)" style-hover="background:var(--c-toolbar-hover)"><x-import component="Icon" from="./icons.js" sym="{{ r.actionSym }}" size="13" hint-size="13px,13px"></x-import></button>
+                  </sc-if>
+                </span>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ pLoading }}" hint-placeholder-val="{{ false }}">
+          <div aria-busy="true" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:16px">
+              <div style="width:72px;height:96px;border-radius:8px;background:var(--c-skeleton);flex:none"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px;padding-top:15px">
+                <div style="height:36px;border-radius:6px;background:var(--c-skeleton)"></div>
+                <div style="height:24px;width:196px;border-radius:6px;background:var(--c-skeleton)"></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <div style="height:22px;display:flex;align-items:center;gap:8px"><div style="width:96px;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:70%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div></div>
+              <div style="height:22px;display:flex;align-items:center;gap:8px"><div style="width:96px;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:80%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div></div>
+              <div style="height:22px;display:flex;align-items:center;gap:8px"><div style="width:96px;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:76%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div></div>
+              <div style="height:22px;display:flex;align-items:center;gap:8px"><div style="width:96px;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:24%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div></div>
+              <div style="height:22px;display:flex;align-items:center;gap:8px"><div style="width:96px;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:64%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ pEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="min-height:236px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:0 24px">
+            <span style="display:flex;color:var(--c-text-3)"><x-import component="Icon" from="./icons.js" sym="person.crop.circle" size="32" hint-size="32px,32px"></x-import></span>
+            <div style="font-weight:600">{{ t.profEmptyT }}</div>
+            <div style="font-size:12px;color:var(--c-text-2);max-width:320px;text-wrap:pretty">{{ t.profEmptyB }}</div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.scanAgain }}</button>
+              <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap">{{ t.chooseFile }}</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ pError }}" hint-placeholder-val="{{ false }}">
+          <div role="alert" style="min-height:236px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:0 24px">
+            <span style="display:flex;color:var(--c-orange)"><x-import component="Icon" from="./icons.js" sym="exclamationmark.triangle.fill" size="32" hint-size="32px,32px"></x-import></span>
+            <div style="font-weight:600">{{ t.profErrT }}</div>
+            <div title="~/Library/Application Support/Xash3D/cstrike/config.cfg" style="font-family:var(--font-mono);font-size:12px;color:var(--c-text-2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.profErrB }}</div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.grant }}</button>
+              <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap">{{ t.tryAgain }}</button>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+
+      <!-- NETWORK CARD -->
+      <section aria-label="{{ t.network }}" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px;height:24px">
+          <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="globe" size="16" hint-size="16px,16px"></x-import></span>
+          <h2 style="margin:0;font-size:13px;font-weight:600">{{ t.network }}</h2>
+        </div>
+
+        <sc-if value="{{ nReady }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:11px;color:var(--c-text-2)">{{ t.publicIp }}</span>
+              <sc-if value="{{ ipOk }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;gap:8px;height:24px">
+                  <span title="185.107.56.12" style="font-family:var(--font-mono);font-size:13px;font-weight:600;white-space:nowrap;user-select:text">185.107.56.12</span>
+                  <button type="button" aria-label="{{ t.copyIp }}" title="{{ t.copyIp }}" style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap"><x-import component="Icon" from="./icons.js" sym="doc.on.doc" size="12" hint-size="12px,12px"></x-import>{{ t.copy }}</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ ipFail }}" hint-placeholder-val="{{ false }}">
+                <div role="alert" style="display:flex;align-items:center;gap:8px;height:24px;min-width:0">
+                  <span style="display:flex;color:var(--c-red)"><x-import component="Icon" from="./icons.js" sym="xmark.octagon.fill" size="14" hint-size="14px,14px"></x-import></span>
+                  <span title="{{ t.ipFailed }}" style="font-size:12px;color:var(--c-red-text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1">{{ t.ipFailed }}</span>
+                  <button type="button" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap;flex:none">{{ t.retry }}</button>
+                </div>
+              </sc-if>
+            </div>
+            <div style="display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px;row-gap:0">
+              <span style="font-size:12px;color:var(--c-text-2);height:22px;line-height:22px">/24</span>
+              <span style="font-family:var(--font-mono);font-size:13px;height:22px;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ rangeColor }}">{{ r24 }}</span>
+              <span style="font-size:12px;color:var(--c-text-2);height:22px;line-height:22px">/16</span>
+              <span style="font-family:var(--font-mono);font-size:13px;height:22px;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ rangeColor }}">{{ r16 }}</span>
+            </div>
+            <div style="height:1px;background:var(--c-separator)"></div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:11px;color:var(--c-text-2);margin-bottom:2px">{{ t.interfaces }}</span>
+              <sc-for list="{{ ifaces }}" as="f" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:16px 44px minmax(0,1fr) 104px 48px;column-gap:8px;align-items:center;height:24px;opacity:{{ f.opacity }}">
+                  <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="{{ f.sym }}" size="14" hint-size="14px,14px"></x-import></span>
+                  <span style="font-family:var(--font-mono);font-size:13px">{{ f.name }}</span>
+                  <span style="font-size:12px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.kind }}</span>
+                  <span title="{{ f.ip }}" style="font-family:var(--font-mono);font-size:13px;white-space:nowrap">{{ f.ip }}</span>
+                  <span style="display:flex;justify-content:flex-end">
+                    <sc-if value="{{ f.vpn }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--c-accent-tint);color:var(--c-accent-text)">VPN</span></sc-if>
+                    <sc-if value="{{ f.inactive }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:var(--c-text-3)">{{ t.inactive }}</span></sc-if>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="height:1px;background:var(--c-separator)"></div>
+            <div style="display:flex;gap:8px;min-width:0">
+              <span style="display:flex;color:var(--c-text-2);padding-top:2px"><x-import component="Icon" from="./icons.js" sym="arrow.up.right" size="14" hint-size="14px,14px"></x-import></span>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1">
+                <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
+                  <span style="font-size:12px;color:var(--c-text-2);flex:none">{{ t.egress }}</span>
+                  <span title="{{ egressLine }}" style="font-family:var(--font-mono);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ egressLine }}</span>
+                </div>
+                <span title="{{ egressMeta }}" style="font-size:12px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ egressMeta }}</span>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ nLoading }}" hint-placeholder-val="{{ false }}">
+          <div aria-busy="true" style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;flex-direction:column;gap:6px"><div style="width:60px;height:9px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:150px;height:18px;border-radius:5px;background:var(--c-skeleton)"></div></div>
+            <div style="display:flex;flex-direction:column;gap:12px;padding:5px 0"><div style="width:65%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:55%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div></div>
+            <div style="height:1px;background:var(--c-separator)"></div>
+            <div style="display:flex;flex-direction:column;gap:14px;padding:4px 0"><div style="height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="height:10px;width:80%;border-radius:4px;background:var(--c-skeleton)"></div></div>
+            <div style="height:1px;background:var(--c-separator)"></div>
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="width:85%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:60%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ nEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="min-height:236px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;padding:0 16px">
+            <span style="display:flex;color:var(--c-text-3)"><x-import component="Icon" from="./icons.js" sym="wifi" size="32" hint-size="32px,32px"></x-import></span>
+            <div style="font-weight:600">{{ t.netEmptyT }}</div>
+            <div style="font-size:12px;color:var(--c-text-2);text-wrap:pretty">{{ t.netEmptyB }}</div>
+          </div>
+        </sc-if>
+      </section>
+    </div>
+
+    <!-- SERVERS CARD -->
+    <section ref="{{ serversRef }}" aria-label="{{ t.servers }}" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:24px">
+        <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="server.rack" size="16" hint-size="16px,16px"></x-import></span>
+        <h2 style="margin:0;font-size:13px;font-weight:600">{{ t.servers }}</h2>
+        <span style="font-size:12px;color:var(--c-text-3);font-variant-numeric:tabular-nums;margin-right:8px">{{ serverCount }}</span>
+        <div role="group" aria-label="{{ t.filtersTip }}" style="display:flex;gap:6px">
+          <sc-for list="{{ chips }}" as="c" hint-placeholder-count="3">
+            <button type="button" aria-pressed="{{ c.on }}" onClick="{{ c.toggle }}" style="display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border-radius:12px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }};font-size:12px;font-weight:500;white-space:nowrap;opacity:{{ chipOpacity }}">
+              <x-import component="Icon" from="./icons.js" sym="{{ c.sym }}" size="12" hint-size="12px,12px"></x-import>
+              <span>{{ c.label }}</span>
+              <span style="font-variant-numeric:tabular-nums;color:var(--c-text-3)">{{ c.count }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <span style="flex:1"></span>
+        <div style="display:flex;align-items:center;gap:6px;width:168px;height:24px;padding:0 8px;border-radius:6px;background:var(--c-field);border:1px solid var(--c-control-border);color:var(--c-text-3);font-size:12px;opacity:{{ chipOpacity }}">
+          <x-import component="Icon" from="./icons.js" sym="magnifyingglass" size="12" hint-size="12px,12px"></x-import>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.search }}</span>
+        </div>
+        <div style="position:relative">
+          <button type="button" title="{{ t.filtersTip }}" aria-label="{{ t.filtersTip }}" aria-haspopup="dialog" aria-expanded="{{ filtersOpen }}" onClick="{{ toggleFilters }}" style="width:28px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:6px;background:{{ filterBtnBg }};border:0;color:{{ filterBtnFg }};opacity:{{ chipOpacity }}" style-hover="background:var(--c-toolbar-hover)"><x-import component="Icon" from="./icons.js" sym="line.3.horizontal.decrease.circle" size="16" hint-size="16px,16px"></x-import></button>
+          <sc-if value="{{ filtersOpen }}" hint-placeholder-val="{{ false }}">
+            <div role="dialog" aria-label="{{ t.filtersTip }}" style="position:absolute;top:32px;right:-8px;width:264px;z-index:20;background:var(--c-raised);border-radius:10px;box-shadow:var(--shadow-popover);padding:12px;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:11px;font-weight:600;color:var(--c-text-2)">{{ t.fp_title }}</div>
+              <sc-for list="{{ chips }}" as="c" hint-placeholder-count="3">
+                <div role="checkbox" aria-checked="{{ c.on }}" onClick="{{ c.toggle }}" style="display:flex;align-items:center;gap:8px;height:22px">
+                  <span style="width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;background:{{ c.boxBg }};border:1px solid {{ c.boxBorder }};color:#fff;flex:none"><sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}"><x-import component="Icon" from="./icons.js" sym="checkmark" size="10" hint-size="10px,10px"></x-import></sc-if></span>
+                  <span style="flex:1">{{ c.label }}</span>
+                  <span style="font-size:12px;color:var(--c-text-3);font-variant-numeric:tabular-nums">{{ c.count }}</span>
+                </div>
+              </sc-for>
+              <div style="height:1px;background:var(--c-separator);margin:2px 0"></div>
+              <div style="display:flex;align-items:center;gap:8px;height:24px">
+                <span style="flex:1">{{ t.fp_group }}</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 6px 0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px">{{ t.fp_groupVal }}<x-import component="Icon" from="./icons.js" sym="chevron.up.chevron.down" size="10" hint-size="10px,10px"></x-import></span>
+              </div>
+              <div role="checkbox" aria-checked="true" style="display:flex;align-items:center;gap:8px;height:22px">
+                <span style="width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;background:var(--c-accent-fill);color:#fff;flex:none"><x-import component="Icon" from="./icons.js" sym="checkmark" size="10" hint-size="10px,10px"></x-import></span>
+                <span>{{ t.fp_hideUnres }}</span>
+              </div>
+              <div style="height:1px;background:var(--c-separator);margin:2px 0"></div>
+              <button type="button" onClick="{{ clearFilters }}" style="align-self:flex-start;border:0;background:transparent;padding:0;font-size:12px;color:var(--c-accent-text);font-weight:500">{{ t.clearFilters }}</button>
+            </div>
+          </sc-if>
+        </div>
+        <button type="button" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap;opacity:{{ chipOpacity }}"><x-import component="Icon" from="./icons.js" sym="plus" size="12" hint-size="12px,12px"></x-import>{{ t.add }}</button>
+      </div>
+
+      <sc-if value="{{ sErr }}" hint-placeholder-val="{{ false }}">
+        <div role="alert" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--c-orange-tint)">
+          <span style="display:flex;color:var(--c-orange-text)"><x-import component="Icon" from="./icons.js" sym="exclamationmark.triangle.fill" size="14" hint-size="14px,14px"></x-import></span>
+          <span style="flex:1;min-width:0;font-size:12px">{{ t.srvErr }}</span>
+          <button type="button" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap">{{ t.retry }}</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ sOff }}" hint-placeholder-val="{{ false }}">
+        <div role="note" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;background:var(--c-inset);border:1px solid var(--c-border)">
+          <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="shield.slash" size="14" hint-size="14px,14px"></x-import></span>
+          <span style="flex:1;min-width:0;font-size:12px;color:var(--c-text-2)">{{ t.srvOff }}</span>
+          <button type="button" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap">{{ t.openSettings }}</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ sList }}" hint-placeholder-val="{{ true }}">
+        <div role="table" aria-label="{{ t.servers }}" style="display:flex;flex-direction:column;border:1px solid var(--c-border);border-radius:8px;overflow:hidden">
+          <div role="row" style="display:grid;grid-template-columns:44px minmax(0,1fr) 150px 112px 196px;column-gap:12px;align-items:center;height:28px;padding:0 8px;border-bottom:1px solid var(--c-separator);font-size:11px;font-weight:600;color:var(--c-text-2)">
+            <span></span><span>{{ t.col_server }}</span><span>{{ t.col_cid }}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.col_map }}</span><span>{{ t.col_ban }}</span>
+          </div>
+          <sc-for list="{{ groups }}" as="g" hint-placeholder-count="3">
+            <div role="rowgroup">
+              <div style="height:28px;display:flex;align-items:center;gap:6px;padding:0 8px 0 12px;background:var(--c-group);border-bottom:1px solid var(--c-separator);font-size:11px;font-weight:600;color:var(--c-text-2)">
+                <x-import component="Icon" from="./icons.js" sym="chevron.down" size="10" hint-size="10px,10px"></x-import>
+                <span>{{ g.title }}</span>
+                <span style="font-weight:500;color:var(--c-text-3);font-variant-numeric:tabular-nums">{{ g.count }}</span>
+              </div>
+              <sc-for list="{{ g.rows }}" as="s" hint-placeholder-count="2">
+                <div role="row" style="display:grid;grid-template-columns:44px minmax(0,1fr) 150px 112px 196px;column-gap:12px;align-items:center;height:48px;padding:0 8px;border-bottom:1px solid var(--c-separator)" style-hover="background:var(--c-row-hover)">
+                  <div style="display:flex;gap:2px">
+                    <button type="button" title="{{ s.starTip }}" aria-label="{{ s.starTip }}" aria-pressed="{{ s.fav }}" onClick="{{ s.toggleFav }}" style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;padding:0;color:{{ s.starColor }}"><x-import component="Icon" from="./icons.js" sym="{{ s.starSym }}" size="14" hint-size="14px,14px"></x-import></button>
+                    <button type="button" title="{{ s.bellTip }}" aria-label="{{ s.bellTip }}" aria-pressed="{{ s.watch }}" onClick="{{ s.toggleWatch }}" style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;padding:0;color:{{ s.bellColor }}"><x-import component="Icon" from="./icons.js" sym="{{ s.bellSym }}" size="14" hint-size="14px,14px"></x-import></button>
+                  </div>
+                  <div role="cell" style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                    <span title="{{ s.name }}" style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.name }}</span>
+                    <div title="{{ s.hostTip }}" style="display:flex;align-items:baseline;gap:4px;min-width:0;font-size:12px;color:var(--c-text-2)">
+                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">{{ s.host }}</span>
+                      <span aria-hidden="true" style="flex:none;color:var(--c-text-3)">→</span>
+                      <span style="flex:none;font-family:var(--font-mono);font-size:13px;white-space:nowrap;color:{{ s.ipColor }}">{{ s.ip }}</span>
+                    </div>
+                  </div>
+                  <span role="cell" title="{{ s.cid }}" style="font-family:var(--font-mono);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:{{ s.cidColor }}">{{ s.cidShort }}</span>
+                  <div role="cell" style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                    <span title="{{ s.map }}" style="font-family:var(--font-mono);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.map }}</span>
+                    <span style="font-size:12px;color:var(--c-text-2);white-space:nowrap;font-variant-numeric:tabular-nums">{{ s.meta }}</span>
+                  </div>
+                  <div role="cell" style="display:flex;align-items:center;gap:8px;min-width:0">
+                    <span style="display:flex;color:{{ s.banIconColor }}"><x-import component="Icon" from="./icons.js" sym="{{ s.banSym }}" size="16" hint-size="16px,16px"></x-import></span>
+                    <div title="{{ s.banTip }}" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+                      <span style="font-weight:600;color:{{ s.banTextColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.banText }}</span>
+                      <span style="font-size:12px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.banDetail }}</span>
+                    </div>
+                    <sc-if value="{{ s.showFix }}" hint-placeholder-val="{{ false }}">
+                      <button type="button" onClick="{{ openActions }}" aria-label="{{ s.fixTip }}" title="{{ s.fixTip }}" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap;flex:none">{{ t.fix }}</button>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noMatch }}" hint-placeholder-val="{{ false }}">
+            <div style="height:144px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px">
+              <span style="color:var(--c-text-2)">{{ t.noMatchT }}</span>
+              <button type="button" onClick="{{ clearFilters }}" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text)">{{ t.clearFilters }}</button>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ sEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;border:1px dashed var(--c-border-strong);border-radius:8px;padding:0 24px">
+          <span style="display:flex;color:var(--c-text-3)"><x-import component="Icon" from="./icons.js" sym="tray" size="32" hint-size="32px,32px"></x-import></span>
+          <div style="font-weight:600">{{ t.srvEmptyT }}</div>
+          <div style="font-size:12px;color:var(--c-text-2);max-width:360px;text-wrap:pretty">{{ t.srvEmptyB }}</div>
+          <button type="button" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;margin-top:4px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap"><x-import component="Icon" from="./icons.js" sym="plus" size="12" hint-size="12px,12px"></x-import>{{ t.add }}</button>
+        </div>
+      </sc-if>
+    </section>
+
+    <!-- REASONS & SUGGESTIONS -->
+    <section aria-label="{{ t.reasons }}" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0">
+      <div style="display:flex;align-items:center;gap:8px;height:24px">
+        <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="lightbulb" size="16" hint-size="16px,16px"></x-import></span>
+        <h2 style="margin:0;font-size:13px;font-weight:600">{{ t.reasons }}</h2>
+        <span style="font-size:12px;color:var(--c-text-3);font-variant-numeric:tabular-nums">{{ reasonCount }}</span>
+        <span style="flex:1"></span>
+        <div style="position:relative">
+          <button type="button" aria-haspopup="menu" aria-expanded="{{ actionsOpen }}" onClick="{{ toggleActions }}" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap;opacity:{{ actionsBtnOpacity }}"><x-import component="Icon" from="./icons.js" sym="ellipsis.circle" size="14" hint-size="14px,14px"></x-import>{{ t.allActions }}</button>
+          <sc-if value="{{ actionsOpen }}" hint-placeholder-val="{{ false }}">
+            <div role="menu" style="position:absolute;bottom:32px;right:0;width:296px;z-index:20;background:var(--c-raised);border-radius:10px;box-shadow:var(--shadow-popover);padding:6px;display:flex;flex-direction:column">
+              <sc-for list="{{ actionGroups }}" as="ag" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;padding:2px 0;border-top:{{ ag.border }}">
+                  <div style="font-size:11px;font-weight:600;color:var(--c-text-2);padding:4px 8px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ag.title }}</div>
+                  <sc-for list="{{ ag.items }}" as="it" hint-placeholder-count="2">
+                    <div role="menuitem" tabindex="0" style="display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;border-radius:5px" style-hover="background:var(--c-accent-fill);color:var(--c-on-accent)">
+                      <x-import component="Icon" from="./icons.js" sym="{{ it.sym }}" size="14" hint-size="14px,14px"></x-import>
+                      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.label }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <sc-if value="{{ rReady }}" hint-placeholder-val="{{ true }}">
+        <div role="list" style="display:flex;flex-direction:column">
+          <sc-for list="{{ reasons }}" as="r" hint-placeholder-count="4">
+            <div role="listitem" style="display:grid;grid-template-columns:20px minmax(0,1fr) auto;column-gap:12px;align-items:center;min-height:52px;padding:6px 0;border-top:{{ r.border }}">
+              <span style="display:flex;color:{{ r.color }}"><x-import component="Icon" from="./icons.js" sym="{{ r.sym }}" size="18" hint-size="18px,18px"></x-import></span>
+              <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
+                  <span style="flex:none;font-size:11px;font-weight:600;padding:0 6px;border-radius:4px;background:{{ r.tint }};color:{{ r.textColor }}">{{ r.sev }}</span>
+                  <span title="{{ r.msg }}" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{ r.msg }}</span>
+                </div>
+                <span title="{{ r.hint }}" style="font-size:12px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.hint }}</span>
+              </div>
+              <sc-if value="{{ r.hasAction }}" hint-placeholder-val="{{ false }}">
+                <button type="button" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap">{{ r.action }}</button>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{ rLoading }}" hint-placeholder-val="{{ false }}">
+        <div aria-busy="true" style="display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:8px;height:52px;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="_spinner" size="16" hint-size="16px,16px"></x-import><span>{{ t.rLoading }}</span></div>
+          <div style="display:flex;align-items:center;gap:12px;height:52px;border-top:1px solid var(--c-separator)"><div style="width:18px;height:18px;border-radius:50%;background:var(--c-skeleton)"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="width:62%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:44%;height:9px;border-radius:4px;background:var(--c-skeleton)"></div></div></div>
+          <div style="display:flex;align-items:center;gap:12px;height:52px;border-top:1px solid var(--c-separator)"><div style="width:18px;height:18px;border-radius:50%;background:var(--c-skeleton)"></div><div style="flex:1;display:flex;flex-direction:column;gap:8px"><div style="width:54%;height:10px;border-radius:4px;background:var(--c-skeleton)"></div><div style="width:38%;height:9px;border-radius:4px;background:var(--c-skeleton)"></div></div></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ rMsg }}" hint-placeholder-val="{{ false }}">
+        <div role="{{ rMsgRole }}" style="display:flex;align-items:center;gap:12px;min-height:52px">
+          <span style="display:flex;color:{{ rMsgColor }}"><x-import component="Icon" from="./icons.js" sym="{{ rMsgSym }}" size="18" hint-size="18px,18px"></x-import></span>
+          <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
+            <span style="font-weight:600">{{ rMsgT }}</span>
+            <span style="font-size:12px;color:var(--c-text-2)">{{ rMsgB }}</span>
+          </div>
+        </div>
+      </sc-if>
+    </section>
+  </div>
+
+  <!-- Apply-with-diff sheet -->
+  <sc-if value="{{ diffOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;top:52px;left:0;right:0;bottom:0;background:var(--c-scrim);z-index:30"></div>
+    <div role="dialog" aria-modal="true" aria-labelledby="diff-title" style="position:absolute;top:60px;left:50%;transform:translateX(-50%);width:560px;z-index:31;background:var(--c-raised);border-radius:12px;box-shadow:var(--shadow-popover);padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div id="diff-title" style="font-size:15px;font-weight:600">{{ t.dTitle }}</div>
+        <div style="color:var(--c-text-2)">{{ t.dBody }}</div>
+      </div>
+      <div style="border:1px solid var(--c-border);border-radius:8px;overflow:hidden;background:var(--c-inset)">
+        <div title="~/Library/Application Support/Xash3D/cstrike/config.cfg" style="display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-bottom:1px solid var(--c-separator);font-family:var(--font-mono);font-size:12px;color:var(--c-text-2)">
+          <x-import component="Icon" from="./icons.js" sym="folder" size="12" hint-size="12px,12px"></x-import>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0">~/Library/Application Support/Xash3D/cstrike/config.cfg</span>
+          <span style="flex:none;color:var(--c-red-text)">−2</span><span style="flex:none;color:var(--c-green-text)">+2</span>
+        </div>
+        <div role="table" style="padding:4px 0;font-family:var(--font-mono);font-size:12px;line-height:20px">
+          <sc-for list="{{ diff }}" as="d" hint-placeholder-count="7">
+            <div role="row" style="display:grid;grid-template-columns:40px 20px minmax(0,1fr);background:{{ d.bg }}">
+              <span style="text-align:right;padding-right:8px;color:var(--c-text-3)">{{ d.n }}</span>
+              <span aria-label="{{ d.aria }}" style="text-align:center;font-weight:700;color:{{ d.signColor }}">{{ d.sign }}</span>
+              <span style="white-space:pre;overflow:hidden;text-overflow:ellipsis">{{ d.text }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div role="checkbox" aria-checked="true" style="display:flex;align-items:center;gap:8px">
+          <span style="width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;background:var(--c-accent-fill);color:#fff;flex:none"><x-import component="Icon" from="./icons.js" sym="checkmark" size="10" hint-size="10px,10px"></x-import></span>
+          <span>{{ t.dBackup }}</span>
+        </div>
+        <div style="padding-left:22px;font-family:var(--font-mono);font-size:12px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.dBackupPath }}</div>
+        <div role="checkbox" aria-checked="false" style="display:flex;align-items:center;gap:8px">
+          <span style="width:14px;height:14px;border-radius:4px;background:var(--c-field);border:1px solid var(--c-border-strong);flex:none"></span>
+          <span>{{ t.dLock }}</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+        <button type="button" onClick="{{ closeOverlay }}" aria-keyshortcuts="Escape" style="display:inline-flex;align-items:center;height:24px;padding:0 14px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.cancel }}</button>
+        <button type="button" onClick="{{ closeOverlay }}" aria-keyshortcuts="Enter" style="display:inline-flex;align-items:center;height:24px;padding:0 14px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap">{{ t.applyBtn }}</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:940,&quot;height&quot;:800},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;en&quot;,&quot;tr&quot;],&quot;default&quot;:&quot;en&quot;,&quot;tsType&quot;:&quot;'en'|'tr'&quot;},&quot;state&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;default&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;error&quot;,&quot;disabled&quot;],&quot;default&quot;:&quot;default&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;overlay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;diff&quot;,&quot;filters&quot;,&quot;actions&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;banner&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:760,&quot;min&quot;:520,&quot;max&quot;:1600,&quot;tsType&quot;:&quot;number&quot;}}">
+const S = {
+  en: {
+    refreshTip: 'Refresh (⌘R)', saveTip: 'Save (⌘S)',
+    st_default: 'Action needed', st_default_d: 'Banned on 1 server · 1 timed · 1 at risk',
+    st_loading: 'Checking 6 servers…', st_loading_d: '',
+    st_empty: 'Nothing to check', st_empty_d: 'Add a server to start',
+    st_error: 'Check failed', st_error_d: 'Public IP lookup timed out',
+    st_disabled: 'Read-only', st_disabled_d: 'Xash3D is running · ban checks off',
+    lastCheck: 'Checked 14:32 · 2 min ago', lastNever: 'Never checked',
+    bannerTitle: 'Player Identity 2.5.0 is available', bannerSub: 'Faster ban checks and Xash3D FWGS 0.21 support.', releaseNotes: 'Release Notes', updateNow: 'Update Now', dismiss: 'Dismiss',
+    profile: 'Profile', pending: '2 unsaved changes', apply: 'Apply…', edited: 'Edited', name: 'Name', model: 'Model',
+    baseCid: 'Base CID', raw: 'Raw identity', source: 'Identity source', gamedir: 'Game dir', dataRoot: 'Data root', copy: 'Copy', copyIp: 'Copy public IP', reveal: 'Show in Finder', modelThumb: 'sas.bmp — model thumbnail',
+    lockedMsg: 'Xash3D is running — identity is read-only. Quit the game to apply changes.',
+    profEmptyT: 'No identity found', profEmptyB: 'No config.cfg was found in the known Xash3D or GoldSrc game folders.', chooseFile: 'Choose Identity File…', scanAgain: 'Scan Again',
+    profErrT: 'Couldn’t read identity', profErrB: 'config.cfg: Permission denied (EACCES)', tryAgain: 'Try Again', grant: 'Grant Access…',
+    network: 'Network', publicIp: 'Public IP', interfaces: 'Interfaces', egress: 'Egress', inactive: 'Inactive', wifi: 'Wi-Fi', ethernet: 'USB Ethernet', wireguard: 'WireGuard',
+    netEmptyT: 'Not connected', netEmptyB: 'No active network interface. Connect to a network to run ban checks.',
+    ipFailed: 'Lookup failed · timed out after 5 s', unknown: 'Unknown', retry: 'Retry',
+    servers: 'Servers', f_banned: 'Banned', f_fav: 'Favourites', f_watch: 'Watched', search: 'Filter servers', filtersTip: 'Filter options', add: 'Add Server',
+    col_server: 'Server', col_cid: 'CID', col_map: 'Map · Players · Ping', col_ban: 'Ban status',
+    g_tr: 'Türkiye', g_eu: 'Europe', g_other: 'Other',
+    b_banned: 'Banned', b_timed: 'Timed ban', b_clear: 'Not banned', b_risk: 'Range risk', b_unknown: 'Unknown', b_checking: 'Checking…', b_failed: 'Check failed', b_off: 'Checks off',
+    d_banned: 'Permanent · CID ban', d_timed: 'Ends in 1 h 42 m', d_clear: 'Checked 14:32', d_risk: '/24 overlaps a ban', d_unknown: 'Host not resolved', d_checking: 'Querying ban list', d_failed: 'No public IP', d_off: 'Disabled in Settings',
+    fix: 'Fix…', fixTip: 'Show fixes for', unresolved: 'unresolved', favOn: 'Remove from Favourites', favOff: 'Add to Favourites', watchOn: 'Stop watching', watchOff: 'Watch server',
+    srvEmptyT: 'No servers yet', srvEmptyB: 'Add a server by host name or IP:port to track its CID and ban status.',
+    srvErr: 'Ban checks failed — your public IP couldn’t be determined.', srvOff: 'Ban checks are off. Turn them on in Settings › General.', openSettings: 'Open Settings…',
+    noMatchT: 'No servers match these filters', clearFilters: 'Clear Filters',
+    reasons: 'Reasons & suggestions', allActions: 'All Actions',
+    sev_ban: 'Ban', sev_timed: 'Timed', sev_risk: 'Risk', sev_info: 'Info',
+    r1: 'CID 9f3a…a4e2 is banned on Dust2 Only · Istanbul', h1: 'Regenerate the CID, then rejoin — or send an appeal to the server admin.', a1: 'Regenerate CID…',
+    r2: 'Timed ban on Xash3D Crossfire 24/7 ends in 1 h 42 m', h2: 'Wait it out — rejoin attempts can extend the ban.',
+    r3: 'Your /24 (185.107.56.0/24) overlaps a range ban on HLDM Boot Camp', h3: 'Switch egress: disconnect utun3 or pick another VPN exit.', a3: 'Switch Egress…',
+    r4: 'VPN egress detected — some servers block datacenter ASNs', h4: 'Disconnect the VPN before joining servers that reject hosting IPs.',
+    rEmptyT: 'No issues found', rEmptyB: 'You’re not banned on any checked server.',
+    rErrT: 'Couldn’t analyse reasons', rErrB: 'Ban data is incomplete. Refresh once the network is back.',
+    rOffT: 'Suggestions need ban checks', rOffB: 'Turn on ban checks in Settings to see reasons and fixes.', rLoading: 'Analysing…',
+    pa_regen: 'Regenerate CID…', pa_appeal: 'Copy Appeal Text', pa_site: 'Open Server Website', pa_wait: 'Remind Me When It Ends', pa_net: 'Network', pa_vpn: 'Disconnect VPN (utun3)', pa_exit: 'Choose Another VPN Exit…', pa_profile: 'Profile', pa_rename: 'Rename Player…', pa_revealCfg: 'Show config.cfg in Finder',
+    fp_title: 'Show only', fp_group: 'Group by', fp_groupVal: 'Section', fp_hideUnres: 'Hide unresolved hosts',
+    dTitle: 'Apply changes to config.cfg?', dBody: '2 lines will change. Player Identity backs up the file first.', dBackup: 'Back up config.cfg before applying', dLock: 'Make file read-only after applying', dBackupPath: '→ Backups/config-2026-11-10-1432.cfg', cancel: 'Cancel', applyBtn: 'Apply',
+    removed: 'Removed', added: 'Added', ms: 'ms'
+  },
+  tr: {
+    refreshTip: 'Yenile (⌘R)', saveTip: 'Kaydet (⌘S)',
+    st_default: 'İşlem gerekli', st_default_d: '1 sunucuda yasaklı · 1 süreli · 1 riskli',
+    st_loading: '6 sunucu kontrol ediliyor…', st_loading_d: '',
+    st_empty: 'Kontrol edilecek bir şey yok', st_empty_d: 'Başlamak için sunucu ekleyin',
+    st_error: 'Kontrol başarısız', st_error_d: 'Genel IP sorgusu zaman aşımına uğradı',
+    st_disabled: 'Salt okunur', st_disabled_d: 'Xash3D çalışıyor · yasak kontrolü kapalı',
+    lastCheck: 'Son kontrol 14:32 · 2 dk önce', lastNever: 'Hiç kontrol edilmedi',
+    bannerTitle: 'Player Identity 2.5.0 sürümü hazır', bannerSub: 'Daha hızlı yasak kontrolü ve Xash3D FWGS 0.21 desteği.', releaseNotes: 'Sürüm Notları', updateNow: 'Şimdi Güncelle', dismiss: 'Kapat',
+    profile: 'Profil', pending: '2 kaydedilmemiş değişiklik', apply: 'Uygula…', edited: 'Değişti', name: 'Ad', model: 'Model',
+    baseCid: 'Temel CID', raw: 'Ham kimlik', source: 'Kimlik kaynağı', gamedir: 'Oyun dizini', dataRoot: 'Veri kökü', copy: 'Kopyala', copyIp: 'Genel IP’yi kopyala', reveal: 'Finder’da Göster', modelThumb: 'sas.bmp — model önizlemesi',
+    lockedMsg: 'Xash3D çalışıyor — kimlik salt okunur. Değişiklikleri uygulamak için oyundan çıkın.',
+    profEmptyT: 'Kimlik bulunamadı', profEmptyB: 'Bilinen Xash3D veya GoldSrc oyun klasörlerinde config.cfg bulunamadı.', chooseFile: 'Kimlik Dosyası Seç…', scanAgain: 'Yeniden Tara',
+    profErrT: 'Kimlik okunamadı', profErrB: 'config.cfg: İzin reddedildi (EACCES)', tryAgain: 'Tekrar Dene', grant: 'Erişim İzni Ver…',
+    network: 'Ağ', publicIp: 'Genel IP', interfaces: 'Arayüzler', egress: 'Çıkış', inactive: 'Pasif', wifi: 'Wi-Fi', ethernet: 'USB Ethernet', wireguard: 'WireGuard',
+    netEmptyT: 'Bağlı değil', netEmptyB: 'Etkin ağ arayüzü yok. Yasak kontrolleri için bir ağa bağlanın.',
+    ipFailed: 'Sorgu başarısız · 5 sn sonra zaman aşımı', unknown: 'Bilinmiyor', retry: 'Yeniden Dene',
+    servers: 'Sunucular', f_banned: 'Yasaklı', f_fav: 'Favoriler', f_watch: 'İzlenen', search: 'Sunucularda ara', filtersTip: 'Filtre seçenekleri', add: 'Sunucu Ekle',
+    col_server: 'Sunucu', col_cid: 'CID', col_map: 'Harita · Oyuncu · Ping', col_ban: 'Yasak durumu',
+    g_tr: 'Türkiye', g_eu: 'Avrupa', g_other: 'Diğer',
+    b_banned: 'Yasaklı', b_timed: 'Süreli yasak', b_clear: 'Yasak yok', b_risk: 'Aralık riski', b_unknown: 'Bilinmiyor', b_checking: 'Kontrol ediliyor…', b_failed: 'Kontrol başarısız', b_off: 'Kontrol kapalı',
+    d_banned: 'Kalıcı · CID yasağı', d_timed: '1 sa 42 dk kaldı', d_clear: 'Kontrol 14:32', d_risk: '/24 bir yasakla çakışıyor', d_unknown: 'Sunucu çözümlenemedi', d_checking: 'Yasak listesi sorgulanıyor', d_failed: 'Genel IP yok', d_off: 'Ayarlarda kapalı',
+    fix: 'Düzelt…', fixTip: 'Çözümleri göster:', unresolved: 'çözümlenmedi', favOn: 'Favorilerden çıkar', favOff: 'Favorilere ekle', watchOn: 'İzlemeyi bırak', watchOff: 'Sunucuyu izle',
+    srvEmptyT: 'Henüz sunucu yok', srvEmptyB: 'CID ve yasak durumunu izlemek için ana bilgisayar adı veya IP:port ile sunucu ekleyin.',
+    srvErr: 'Yasak kontrolleri başarısız — genel IP adresiniz belirlenemedi.', srvOff: 'Yasak kontrolleri kapalı. Ayarlar › Genel bölümünden açın.', openSettings: 'Ayarları Aç…',
+    noMatchT: 'Bu filtrelere uyan sunucu yok', clearFilters: 'Filtreleri Temizle',
+    reasons: 'Nedenler ve öneriler', allActions: 'Tüm İşlemler',
+    sev_ban: 'Yasak', sev_timed: 'Süreli', sev_risk: 'Risk', sev_info: 'Bilgi',
+    r1: 'CID 9f3a…a4e2, Dust2 Only · Istanbul sunucusunda yasaklı', h1: 'CID’yi yeniden oluşturup tekrar bağlanın ya da sunucu yöneticisine itiraz gönderin.', a1: 'CID’yi Yenile…',
+    r2: 'Xash3D Crossfire 24/7 süreli yasağı 1 sa 42 dk sonra bitiyor', h2: 'Bekleyin — yeniden bağlanma denemeleri süreyi uzatabilir.',
+    r3: '/24 aralığınız (185.107.56.0/24) HLDM Boot Camp’teki bir aralık yasağıyla çakışıyor', h3: 'Çıkışı değiştirin: utun3 bağlantısını kesin veya başka bir VPN çıkışı seçin.', a3: 'Çıkışı Değiştir…',
+    r4: 'VPN çıkışı algılandı — bazı sunucular veri merkezi ASN’lerini engelliyor', h4: 'Barındırma IP’lerini reddeden sunuculara katılmadan önce VPN’i kapatın.',
+    rEmptyT: 'Sorun bulunamadı', rEmptyB: 'Kontrol edilen hiçbir sunucuda yasaklı değilsiniz.',
+    rErrT: 'Nedenler analiz edilemedi', rErrB: 'Yasak verileri eksik. Ağ geri geldiğinde yenileyin.',
+    rOffT: 'Öneriler için yasak kontrolü gerekli', rOffB: 'Nedenleri ve çözümleri görmek için Ayarlar’dan yasak kontrollerini açın.', rLoading: 'Analiz ediliyor…',
+    pa_regen: 'CID’yi Yeniden Oluştur…', pa_appeal: 'İtiraz Metnini Kopyala', pa_site: 'Sunucu Web Sitesini Aç', pa_wait: 'Bitince Hatırlat', pa_net: 'Ağ', pa_vpn: 'VPN Bağlantısını Kes (utun3)', pa_exit: 'Başka VPN Çıkışı Seç…', pa_profile: 'Profil', pa_rename: 'Oyuncuyu Yeniden Adlandır…', pa_revealCfg: 'config.cfg’yi Finder’da Göster',
+    fp_title: 'Yalnızca göster', fp_group: 'Grupla', fp_groupVal: 'Bölüm', fp_hideUnres: 'Çözümlenmeyenleri gizle',
+    dTitle: 'config.cfg dosyasına değişiklikler uygulansın mı?', dBody: '2 satır değişecek. Player Identity önce dosyanın yedeğini alır.', dBackup: 'Uygulamadan önce config.cfg yedeğini al', dLock: 'Uyguladıktan sonra dosyayı salt okunur yap', dBackupPath: '→ Backups/config-2026-11-10-1432.cfg', cancel: 'Vazgeç', applyBtn: 'Uygula',
+    removed: 'Silindi', added: 'Eklendi', ms: 'ms'
+  }
+};
+
+const SRV = [
+  { id: 1, g: 'tr', name: 'Dust2 Only · Istanbul', host: 'cs.dust2only.com.tr', ip: '185.85.17.42:27015', cid: '9f3a1c7e0b5d4a2896e1f0c3d7b8a4e2', map: 'de_dust2', pl: '24/32', ping: 38, ban: 'banned', fav: true, watch: true },
+  { id: 2, g: 'tr', name: 'Kral CS Public #1', host: 'public1.kralcs.net', ip: '94.73.150.18:27015', cid: '4b7e02d91c6a4f38a05e7d2c9b1f6a03', map: 'de_inferno', pl: '18/24', ping: 46, ban: 'clear', fav: true, watch: false },
+  { id: 3, g: 'eu', name: 'Xash3D Crossfire 24/7', host: 'xash.cf247.eu', ip: '51.89.42.7:27016', cid: 'c21d8f4a7e9b4c0d86a3f15e2b7d9c48', map: 'crossfire', pl: '9/16', ping: 72, ban: 'timed', fav: true, watch: false },
+  { id: 4, g: 'eu', name: 'Frankfurt Mix Arena', host: 'fra.mixarena.gg', ip: '195.201.84.33:27015', cid: '0e6f9a3b5c2d4e71b8a09f4c6d3e2b15', map: 'de_nuke', pl: '12/20', ping: 54, ban: 'clear', fav: false, watch: true },
+  { id: 6, g: 'eu', name: 'AWP Lego Zone', host: 'lego.awpzone.pl', ip: null, cid: null, map: '—', pl: '—', ping: null, ban: 'unknown', fav: false, watch: false },
+  { id: 5, g: 'other', name: 'HLDM Boot Camp', host: 'hldm.bootcamp.ru', ip: '89.108.65.201:27015', cid: '7a1c4e9d2b8f4a06c35e1d7f9b2a8c64', map: 'bootcamp', pl: '6/16', ping: 88, ban: 'risk', fav: false, watch: true }
+];
+
+const BAN = {
+  banned: { sym: 'xmark.octagon.fill', icon: 'var(--c-red)', text: 'var(--c-red-text)', fix: true },
+  timed: { sym: 'clock.fill', icon: 'var(--c-orange)', text: 'var(--c-orange-text)', fix: true },
+  risk: { sym: 'exclamationmark.triangle.fill', icon: 'var(--c-orange)', text: 'var(--c-orange-text)', fix: true },
+  clear: { sym: 'checkmark.shield.fill', icon: 'var(--c-green)', text: 'var(--c-green-text)', fix: false },
+  unknown: { sym: 'questionmark.circle', icon: 'var(--c-text-3)', text: 'var(--c-text-2)', fix: false },
+  checking: { sym: '_spinner', icon: 'var(--c-text-2)', text: 'var(--c-text-2)', fix: false },
+  failed: { sym: 'exclamationmark.circle', icon: 'var(--c-orange)', text: 'var(--c-text)', fix: false },
+  off: { sym: 'shield.slash', icon: 'var(--c-text-3)', text: 'var(--c-text-2)', fix: false }
+};
+
+const midTrunc = (s) => (s && s.length > 20 ? s.slice(0, 8) + '…' + s.slice(-8) : (s || '—'));
+
+class Component extends DCLogic {
+  state = {};
+  scrollRef = React.createRef();
+  serversRef = React.createRef();
+
+  componentDidMount() { setTimeout(() => this.scrollFor(this.props.overlay), 300); }
+  componentWillUnmount() { clearTimeout(this.rt); }
+  scrollFor(o) {
+    const el = this.scrollRef.current; if (!el) return;
+    if (o === 'filters' && this.serversRef.current) el.scrollTop = this.serversRef.current.offsetTop - 16;
+    if (o === 'actions') el.scrollTop = el.scrollHeight;
+  }
+  setOverlay(o) { this.setState({ overlay: o }, () => this.scrollFor(o)); }
+
+  renderVals() {
+    const lang = this.props.lang === 'tr' ? 'tr' : 'en';
+    const t = S[lang];
+    const theme = this.props.theme === 'dark' ? 'dark' : 'light';
+    let st = this.props.state || 'default';
+    if (this.state.refreshing) st = 'loading';
+    const overlay = this.state.overlay !== undefined ? this.state.overlay : (this.props.overlay || 'none');
+    const height = Number(this.props.height || 760);
+    const banner = (this.props.banner === true || this.props.banner === 'true') && !this.state.bannerClosed;
+    const filters = this.state.filters || (this.props.overlay === 'filters' ? { banned: true } : {});
+    const favs = this.state.favs || {}; const watches = this.state.watches || {};
+    const isFav = (s) => favs[s.id] !== undefined ? favs[s.id] : s.fav;
+    const isWatch = (s) => watches[s.id] !== undefined ? watches[s.id] : s.watch;
+    const locked = st === 'disabled';
+
+    const statusMap = {
+      default: ['exclamationmark.triangle.fill', 'var(--c-orange)', t.st_default, t.st_default_d],
+      loading: ['_spinner', 'var(--c-text-2)', t.st_loading, t.st_loading_d],
+      empty: ['info.circle.fill', 'var(--c-text-3)', t.st_empty, t.st_empty_d],
+      error: ['xmark.octagon.fill', 'var(--c-red)', t.st_error, t.st_error_d],
+      disabled: ['lock.fill', 'var(--c-text-2)', t.st_disabled, t.st_disabled_d]
+    }[st];
+
+    const banKey = (s) => st === 'loading' ? 'checking' : st === 'error' ? 'failed' : st === 'disabled' ? 'off' : s.ban;
+    const all = st === 'empty' ? [] : SRV;
+    const isBanned = (s) => s.ban === 'banned' || s.ban === 'timed';
+    const pass = (s) => (!filters.banned || isBanned(s)) && (!filters.fav || isFav(s)) && (!filters.watch || isWatch(s));
+    const toggleFilter = (k) => this.setState({ filters: Object.assign({}, filters, { [k]: !filters[k] }) });
+
+    const mkRow = (s) => {
+      const k = banKey(s); const b = BAN[k]; const f = isFav(s); const w = isWatch(s);
+      return {
+        name: s.name, host: s.host, ip: s.ip || t.unresolved, ipColor: s.ip ? 'var(--c-text)' : 'var(--c-orange-text)',
+        hostTip: s.host + ' → ' + (s.ip || t.unresolved),
+        cid: s.cid || '—', cidShort: midTrunc(s.cid), cidColor: s.cid ? 'var(--c-text)' : 'var(--c-text-3)',
+        map: st === 'loading' && !s.ip ? '—' : s.map,
+        meta: s.ping == null || st === 'loading' ? s.pl + ' · — ' + t.ms : s.pl + ' · ' + s.ping + ' ' + t.ms,
+        banSym: b.sym, banIconColor: b.icon, banTextColor: b.text, banText: t['b_' + k], banDetail: t['d_' + k],
+        banTip: t['b_' + k] + ' — ' + t['d_' + k],
+        showFix: b.fix && st === 'default', fixTip: t.fixTip + ' ' + s.name,
+        fav: f, starSym: f ? 'star.fill' : 'star', starColor: f ? 'var(--c-orange)' : 'var(--c-text-3)', starTip: f ? t.favOn : t.favOff,
+        watch: w, bellSym: w ? 'bell.fill' : 'bell', bellColor: w ? 'var(--c-accent-text)' : 'var(--c-text-3)', bellTip: w ? t.watchOn : t.watchOff,
+        toggleFav: () => this.setState({ favs: Object.assign({}, favs, { [s.id]: !f }) }),
+        toggleWatch: () => this.setState({ watches: Object.assign({}, watches, { [s.id]: !w }) })
+      };
+    };
+    const groups = ['tr', 'eu', 'other'].map((g) => {
+      const rows = all.filter((s) => s.g === g && pass(s)).map(mkRow);
+      return { title: t['g_' + g], count: rows.length, rows };
+    }).filter((g) => g.rows.length);
+
+    const chipDefs = [['banned', t.f_banned, 'xmark.octagon.fill', SRV.filter(isBanned).length], ['fav', t.f_fav, 'star.fill', SRV.filter(isFav).length], ['watch', t.f_watch, 'bell.fill', SRV.filter(isWatch).length]];
+    const chips = chipDefs.map(([k, label, sym, count]) => {
+      const on = !!filters[k];
+      return {
+        label, count: st === 'empty' ? 0 : count, on, sym: on ? 'checkmark' : sym, toggle: () => toggleFilter(k),
+        bg: on ? 'var(--c-accent-tint)' : 'var(--c-control)', fg: on ? 'var(--c-accent-text)' : 'var(--c-text)', border: on ? 'var(--c-accent)' : 'var(--c-control-border)',
+        boxBg: on ? 'var(--c-accent-fill)' : 'var(--c-field)', boxBorder: on ? 'transparent' : 'var(--c-border-strong)'
+      };
+    });
+    const anyFilter = !!(filters.banned || filters.fav || filters.watch);
+
+    const reasonDefs = [
+      ['xmark.octagon.fill', 'var(--c-red)', 'var(--c-red-tint)', 'var(--c-red-text)', t.sev_ban, t.r1, t.h1, t.a1],
+      ['clock.fill', 'var(--c-orange)', 'var(--c-orange-tint)', 'var(--c-orange-text)', t.sev_timed, t.r2, t.h2, ''],
+      ['exclamationmark.triangle.fill', 'var(--c-orange)', 'var(--c-orange-tint)', 'var(--c-orange-text)', t.sev_risk, t.r3, t.h3, t.a3],
+      ['info.circle.fill', 'var(--c-accent)', 'var(--c-accent-tint)', 'var(--c-accent-text)', t.sev_info, t.r4, t.h4, '']
+    ];
+    const reasons = reasonDefs.map((r, i) => ({ sym: r[0], color: r[1], tint: r[2], textColor: r[3], sev: r[4], msg: r[5], hint: r[6], action: r[7], hasAction: !!r[7], border: i ? '1px solid var(--c-separator)' : '0' }));
+
+    const rMsgMap = {
+      empty: ['checkmark.circle.fill', 'var(--c-green)', t.rEmptyT, t.rEmptyB, 'status'],
+      error: ['exclamationmark.triangle.fill', 'var(--c-orange)', t.rErrT, t.rErrB, 'alert'],
+      disabled: ['shield.slash', 'var(--c-text-3)', t.rOffT, t.rOffB, 'note']
+    }[st];
+
+    const actionGroups = [
+      { title: 'Dust2 Only · Istanbul', items: [{ sym: 'key', label: t.pa_regen }, { sym: 'doc.on.doc', label: t.pa_appeal }, { sym: 'arrow.up.right.square', label: t.pa_site }] },
+      { title: 'Xash3D Crossfire 24/7', items: [{ sym: 'bell.badge', label: t.pa_wait }] },
+      { title: t.pa_net, items: [{ sym: 'lock.shield.fill', label: t.pa_vpn }, { sym: 'globe', label: t.pa_exit }] },
+      { title: t.pa_profile, items: [{ sym: 'pencil', label: t.pa_rename }, { sym: 'folder', label: t.pa_revealCfg }] }
+    ].map((g, i) => Object.assign(g, { border: i ? '1px solid var(--c-separator)' : '0' }));
+
+    const diff = [
+      [' ', '34', 'bind "F1" "autobuy"'], ['-', '35', 'name "nightowl"'], ['+', '35', 'name "n1ght0wl"'], [' ', '36', 'rate "25000"'],
+      [' ', '40', 'cl_updaterate "101"'], ['-', '41', 'model "gign"'], ['+', '41', 'model "sas"'], [' ', '42', 'topcolor "30"']
+    ].map(([sg, n, text]) => ({
+      n, text, sign: sg === '-' ? '−' : sg === '+' ? '+' : '', aria: sg === '-' ? t.removed : sg === '+' ? t.added : '',
+      bg: sg === '-' ? 'var(--c-red-tint)' : sg === '+' ? 'var(--c-green-tint)' : 'transparent',
+      signColor: sg === '-' ? 'var(--c-red-text)' : 'var(--c-green-text)'
+    }));
+
+    const ok = st === 'default' || st === 'disabled';
+    return {
+      t, theme, lang, heightPx: height + 'px',
+      statusSym: statusMap[0], statusColor: statusMap[1], statusLabel: statusMap[2], statusDetail: statusMap[3], statusTip: statusMap[2] + (statusMap[3] ? ' — ' + statusMap[3] : ''),
+      lastCheck: st === 'empty' ? t.lastNever : t.lastCheck,
+      refreshOpacity: st === 'loading' ? 0.4 : 1, saveOpacity: locked || st === 'empty' || st === 'loading' ? 0.4 : 1,
+      refresh: () => { if (st === 'loading') return; this.setState({ refreshing: true }); this.rt = setTimeout(() => this.setState({ refreshing: false }), 1600); },
+      showBanner: banner, closeBanner: () => this.setState({ bannerClosed: true }),
+      pReady: ok, pLoading: st === 'loading', pEmpty: st === 'empty', pError: st === 'error', locked, lockOpacity: locked ? 0.45 : 1,
+      kv: [
+        { label: t.baseCid, value: 'e2d4b6f8a0c24e1697b3d5f7091a3c5e', hasAction: true, actionSym: 'doc.on.doc', actionTip: t.copy },
+        { label: t.raw, value: '\\name\\n1ght0wl\\model\\sas\\topcolor\\30\\bottomcolor\\6\\rate\\25000\\cl_updaterate\\101\\cl_lw\\1', hasAction: true, actionSym: 'doc.on.doc', actionTip: t.copy },
+        { label: t.source, value: '~/Library/Application Support/Xash3D/cstrike/config.cfg', hasAction: true, actionSym: 'folder', actionTip: t.reveal },
+        { label: t.gamedir, value: 'cstrike', hasAction: false },
+        { label: t.dataRoot, value: '~/Library/Application Support/PlayerIdentity', hasAction: true, actionSym: 'folder', actionTip: t.reveal }
+      ],
+      nReady: ok || st === 'error', nLoading: st === 'loading', nEmpty: st === 'empty',
+      ipOk: st !== 'error', ipFail: st === 'error',
+      r24: st === 'error' ? '—' : '185.107.56.0/24', r16: st === 'error' ? '—' : '185.107.0.0/16', rangeColor: st === 'error' ? 'var(--c-text-3)' : 'var(--c-text)',
+      ifaces: [
+        { sym: 'wifi', name: 'en0', kind: t.wifi, ip: '192.0.2.24', vpn: false, inactive: false, opacity: 1 },
+        { sym: 'lock.shield.fill', name: 'utun3', kind: t.wireguard, ip: '10.8.0.6', vpn: true, inactive: false, opacity: 1 },
+        { sym: 'network', name: 'en7', kind: t.ethernet, ip: '—', vpn: false, inactive: true, opacity: 0.75 }
+      ],
+      egressLine: st === 'error' ? 'utun3 → —' : 'utun3 → 185.107.56.12', egressMeta: st === 'error' ? t.unknown : 'AS9009 M247 Europe · Amsterdam, NL',
+      serverCount: all.length, chips, chipOpacity: st === 'empty' ? 0.45 : 1,
+      filtersOpen: overlay === 'filters', toggleFilters: () => this.setOverlay(overlay === 'filters' ? 'none' : 'filters'),
+      filterBtnBg: anyFilter || overlay === 'filters' ? 'var(--c-accent-tint)' : 'transparent', filterBtnFg: anyFilter || overlay === 'filters' ? 'var(--c-accent-text)' : 'var(--c-text-2)',
+      clearFilters: () => this.setState({ filters: {} }),
+      sErr: st === 'error', sOff: st === 'disabled', sList: st !== 'empty', sEmpty: st === 'empty', noMatch: st !== 'empty' && groups.length === 0,
+      groups, serversRef: this.serversRef, scrollRef: this.scrollRef,
+      reasonCount: st === 'default' ? reasons.length : '', reasons,
+      rReady: st === 'default', rLoading: st === 'loading', rMsg: !!rMsgMap,
+      rMsgSym: rMsgMap ? rMsgMap[0] : 'info.circle.fill', rMsgColor: rMsgMap ? rMsgMap[1] : '', rMsgT: rMsgMap ? rMsgMap[2] : '', rMsgB: rMsgMap ? rMsgMap[3] : '', rMsgRole: rMsgMap ? rMsgMap[4] : 'note',
+      actionsOpen: overlay === 'actions', actionGroups, actionsBtnOpacity: st === 'default' ? 1 : 0.45,
+      toggleActions: () => { if (st === 'default') this.setOverlay(overlay === 'actions' ? 'none' : 'actions'); },
+      openActions: () => this.setOverlay('actions'),
+      diffOpen: overlay === 'diff', diff, openDiff: () => { if (!locked) this.setOverlay('diff'); }, closeOverlay: () => this.setOverlay('none')
+    };
+  }
+}
+</script>
+</body>
+</html>

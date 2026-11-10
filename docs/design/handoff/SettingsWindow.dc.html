@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="./tokens.css"><style>button{cursor:default;font-family:inherit}button:focus-visible{outline:2px solid var(--c-focus);outline-offset:1px}</style></helmet>
+<div data-theme="{{ theme }}" lang="{{ lang }}" data-screen-label="Settings window" style="width:600px;height:{{ heightPx }};display:flex;flex-direction:column;background:var(--c-window);color:var(--c-text);font-family:var(--font-sans);font-size:13px;line-height:1.35;border-radius:var(--r-window);box-shadow:var(--shadow-window);overflow:hidden;position:relative;-webkit-font-smoothing:antialiased">
+
+  <!-- Settings toolbar: title + tab items (native: Settings { TabView { … .tabItem } }) -->
+  <div style="flex:none;background:var(--c-toolbar);border-bottom:1px solid var(--c-separator);padding:0 12px 6px">
+    <div style="height:28px;display:flex;align-items:center;position:relative">
+      <div aria-hidden="true" style="display:flex;gap:8px;padding-left:8px">
+        <span style="width:12px;height:12px;border-radius:50%;background:var(--c-tl-close)"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:var(--c-tl-off)"></span>
+        <span style="width:12px;height:12px;border-radius:50%;background:var(--c-tl-off)"></span>
+      </div>
+      <div style="position:absolute;left:0;right:0;text-align:center;font-weight:600;pointer-events:none">{{ tabTitle }}</div>
+    </div>
+    <div role="tablist" style="display:flex;justify-content:center;gap:4px">
+      <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="2">
+        <button type="button" role="tab" aria-selected="{{ tb.on }}" onClick="{{ tb.select }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:76px;height:46px;padding:0 10px;border:0;border-radius:6px;background:{{ tb.bg }};color:{{ tb.fg }}">
+          <x-import component="Icon" from="./icons.js" sym="{{ tb.sym }}" size="22" hint-size="22px,22px"></x-import>
+          <span style="font-size:11px;color:{{ tb.labelFg }};white-space:nowrap">{{ tb.label }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:auto;padding:16px 24px 24px;display:flex;flex-direction:column;gap:16px">
+
+    <!-- ===================== GENERAL ===================== -->
+    <sc-if value="{{ isGeneral }}" hint-placeholder-val="{{ true }}">
+
+      <section aria-labelledby="g-ban" style="display:flex;flex-direction:column;gap:6px">
+        <h3 id="g-ban" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.banChecks }}</h3>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+            <div style="flex:1;min-width:0"><div>{{ t.autoCheck }}</div><div style="font-size:12px;color:var(--c-text-2);text-wrap:pretty">{{ t.autoCheckCap }}</div></div>
+            <div role="switch" aria-checked="true" aria-label="{{ t.autoCheck }}" style="width:32px;height:18px;border-radius:9px;background:var(--c-accent-fill);position:relative;flex:none"><span style="position:absolute;top:1px;left:15px;width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--c-separator)">
+            <div style="flex:1;min-width:0">{{ t.interval }}</div>
+            <div role="button" aria-haspopup="menu" style="display:inline-flex;align-items:center;gap:8px;height:24px;padding:0 6px 0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);white-space:nowrap">{{ t.every15 }}<x-import component="Icon" from="./icons.js" sym="chevron.up.chevron.down" size="11" hint-size="11px,11px"></x-import></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--c-separator)">
+            <div style="flex:1;min-width:0">{{ t.onLaunch }}</div>
+            <div role="switch" aria-checked="true" aria-label="{{ t.onLaunch }}" style="width:32px;height:18px;border-radius:9px;background:var(--c-accent-fill);position:relative;flex:none"><span style="position:absolute;top:1px;left:15px;width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="g-notif" style="display:flex;flex-direction:column;gap:6px">
+        <h3 id="g-notif" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.notifications }}</h3>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+            <div style="flex:1;min-width:0"><div>{{ t.allowNotif }}</div><div style="font-size:12px;color:var(--c-text-2)">{{ t.allowNotifCap }}</div></div>
+            <div role="switch" aria-checked="{{ notif }}" aria-label="{{ t.allowNotif }}" onClick="{{ toggleNotif }}" style="width:32px;height:18px;border-radius:9px;background:{{ notifTrack }};position:relative;flex:none"><span style="position:absolute;top:1px;left:{{ notifKnob }};width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+          </div>
+          <div aria-disabled="{{ notifOff }}" style="display:flex;flex-direction:column;opacity:{{ subOpacity }}">
+            <sc-for list="{{ notifRows }}" as="n" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 0 7px 20px;border-top:1px solid var(--c-separator)">
+                <span role="checkbox" aria-checked="{{ n.on }}" style="width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;background:{{ n.boxBg }};border:1px solid {{ n.boxBorder }};color:#fff;flex:none"><sc-if value="{{ n.on }}" hint-placeholder-val="{{ true }}"><x-import component="Icon" from="./icons.js" sym="checkmark" size="10" hint-size="10px,10px"></x-import></sc-if></span>
+                <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="{{ n.sym }}" size="14" hint-size="14px,14px"></x-import></span>
+                <span style="flex:1;min-width:0">{{ n.label }}</span>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0 8px 20px;border-top:1px solid var(--c-separator);flex-wrap:wrap">
+              <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="moon.fill" size="14" hint-size="14px,14px"></x-import></span>
+              <div style="flex:1;min-width:160px"><div>{{ t.quiet }}</div><div style="font-size:12px;color:var(--c-text-2)">{{ t.quietCap }}</div></div>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="height:22px;padding:0 8px;display:flex;align-items:center;border-radius:5px;background:var(--c-field);border:1px solid var(--c-control-border);font-variant-numeric:tabular-nums">23:00</span>
+                <span style="color:var(--c-text-2)">–</span>
+                <span style="height:22px;padding:0 8px;display:flex;align-items:center;border-radius:5px;background:var(--c-field);border:1px solid var(--c-control-border);font-variant-numeric:tabular-nums">08:00</span>
+              </div>
+              <div role="switch" aria-checked="true" aria-label="{{ t.quiet }}" style="width:32px;height:18px;border-radius:9px;background:var(--c-accent-fill);position:relative;flex:none"><span style="position:absolute;top:1px;left:15px;width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="g-lang" style="display:flex;flex-direction:column;gap:6px">
+        <h3 id="g-lang" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.language }}</h3>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0;flex-wrap:wrap">
+            <div style="flex:1;min-width:180px"><div>{{ t.langLabel }}</div><div style="font-size:12px;color:var(--c-text-2);text-wrap:pretty">{{ t.langCap }}</div></div>
+            <div role="radiogroup" aria-label="{{ t.langLabel }}" style="display:flex;padding:2px;gap:2px;border-radius:7px;background:var(--c-switch-off)">
+              <sc-for list="{{ langs }}" as="l" hint-placeholder-count="3">
+                <span role="radio" aria-checked="{{ l.on }}" style="height:20px;padding:0 12px;display:flex;align-items:center;border-radius:5px;background:{{ l.bg }};box-shadow:{{ l.shadow }};font-size:12px;font-weight:{{ l.weight }};white-space:nowrap">{{ l.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="g-app" style="display:flex;flex-direction:column;gap:6px">
+        <h3 id="g-app" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.app }}</h3>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+            <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="menubar.rectangle" size="16" hint-size="16px,16px"></x-import></span>
+            <div style="flex:1;min-width:0"><div>{{ t.menuBar }}</div><div style="font-size:12px;color:var(--c-text-2)">{{ t.menuBarCap }}</div></div>
+            <div role="switch" aria-checked="true" aria-label="{{ t.menuBar }}" style="width:32px;height:18px;border-radius:9px;background:var(--c-accent-fill);position:relative;flex:none"><span style="position:absolute;top:1px;left:15px;width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--c-separator)">
+            <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="power" size="16" hint-size="16px,16px"></x-import></span>
+            <div style="flex:1;min-width:0">{{ t.login }}</div>
+            <div role="switch" aria-checked="false" aria-label="{{ t.login }}" style="width:32px;height:18px;border-radius:9px;background:var(--c-switch-off);position:relative;flex:none"><span style="position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="g-data" style="display:flex;flex-direction:column;gap:6px">
+        <h3 id="g-data" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.data }}</h3>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <div style="display:flex;flex-direction:column;gap:6px;padding:8px 0">
+            <div>{{ t.dataRoot }}</div>
+            <div style="display:flex;align-items:center;gap:8px;min-width:0">
+              <div title="~/Library/Application Support/PlayerIdentity" style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:6px;background:var(--c-inset);border:1px solid var(--c-border)">
+                <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="folder" size="13" hint-size="13px,13px"></x-import></span>
+                <span style="font-family:var(--font-mono);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">~/Library/Application Support/PlayerIdentity</span>
+              </div>
+              <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap;flex:none">{{ t.reveal }}</button>
+              <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap;flex:none">{{ t.change }}</button>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--c-separator);flex-wrap:wrap">
+            <div style="flex:1;min-width:140px">{{ t.transfer }}</div>
+            <button type="button" onClick="{{ openImport }}" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap"><x-import component="Icon" from="./icons.js" sym="square.and.arrow.down" size="13" hint-size="13px,13px"></x-import>{{ t.importBtn }}</button>
+            <button type="button" onClick="{{ openExport }}" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap"><x-import component="Icon" from="./icons.js" sym="square.and.arrow.up" size="13" hint-size="13px,13px"></x-import>{{ t.exportBtn }}</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--c-separator);flex-wrap:wrap">
+            <div style="flex:1;min-width:140px">{{ t.diagnostics }}</div>
+            <button type="button" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap"><x-import component="Icon" from="./icons.js" sym="waveform.path.ecg" size="13" hint-size="13px,13px"></x-import>{{ t.copyDiag }}</button>
+            <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.openLogs }}</button>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="g-reset" style="display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:16px;border-top:1px solid var(--c-separator)">
+        <h3 id="g-reset" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.reset }}</h3>
+        <div style="margin:0 0 2px 4px;font-size:12px;color:var(--c-text-2)">{{ t.resetCap }}</div>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+            <div style="flex:1;min-width:0;font-size:12px;color:var(--c-text-2);text-wrap:pretty">{{ t.resetSettingsCap }}</div>
+            <button type="button" onClick="{{ openReset }}" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap;flex:none">{{ t.resetSettings }}</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--c-separator)">
+            <div style="flex:1;min-width:0;font-size:12px;color:var(--c-text-2);text-wrap:pretty">{{ t.eraseCap }}</div>
+            <button type="button" onClick="{{ openErase }}" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;font-weight:500;color:var(--c-red-text);white-space:nowrap;flex:none"><x-import component="Icon" from="./icons.js" sym="trash" size="13" hint-size="13px,13px"></x-import>{{ t.erase }}</button>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ===================== UPDATES ===================== -->
+    <sc-if value="{{ isUpdates }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div aria-label="App icon" style="width:56px;height:56px;border-radius:13px;flex:none;border:1px solid var(--c-border);background:repeating-linear-gradient(135deg,var(--c-stripe) 0 5px,transparent 5px 10px);display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:9px;color:var(--c-text-3)">app icon</div>
+        <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:22px;font-weight:600;letter-spacing:-0.2px">Player Identity</div>
+          <div style="font-variant-numeric:tabular-nums">{{ curVersion }}</div>
+          <div style="font-size:12px;color:var(--c-text-2)">{{ t.lastChecked }}: {{ lastChecked }}</div>
+        </div>
+        <button type="button" style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap;opacity:{{ checkOpacity }}"><x-import component="Icon" from="./icons.js" sym="arrow.clockwise" size="13" hint-size="13px,13px"></x-import>{{ t.checkNow }}</button>
+      </div>
+
+      <div role="status" aria-live="polite" style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:16px;display:flex;gap:12px;min-height:92px">
+        <span style="display:flex;color:{{ uColor }};padding-top:1px"><x-import component="Icon" from="./icons.js" sym="{{ uSym }}" size="24" hint-size="24px,24px"></x-import></span>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span style="font-weight:600;flex:1;min-width:0">{{ uTitle }}</span>
+            <sc-if value="{{ uDownloading }}" hint-placeholder-val="{{ false }}"><span style="font-variant-numeric:tabular-nums;color:var(--c-text-2)">{{ t.pct }}</span></sc-if>
+          </div>
+          <sc-if value="{{ uDownloading }}" hint-placeholder-val="{{ false }}">
+            <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" style="height:6px;border-radius:3px;background:var(--c-switch-off);overflow:hidden"><div style="width:62%;height:100%;border-radius:3px;background:var(--c-accent-fill)"></div></div>
+          </sc-if>
+          <span title="{{ uBody }}" style="font-size:12px;color:var(--c-text-2);font-family:{{ uBodyFont }};text-wrap:pretty">{{ uBody }}</span>
+          <sc-if value="{{ uHasButtons }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+              <sc-if value="{{ uAvailable }}" hint-placeholder-val="{{ true }}">
+                <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap">{{ t.install }}</button>
+                <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.notes }}</button>
+              </sc-if>
+              <sc-if value="{{ uDownloading }}" hint-placeholder-val="{{ false }}">
+                <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.cancel }}</button>
+              </sc-if>
+              <sc-if value="{{ uError }}" hint-placeholder-val="{{ false }}">
+                <button type="button" style="display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap">{{ t.tryAgain }}</button>
+              </sc-if>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <section aria-labelledby="u-auto" style="display:flex;flex-direction:column;gap:6px">
+        <h3 id="u-auto" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.automatic }}</h3>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+            <div style="flex:1;min-width:0"><div>{{ t.autoUpd }}</div><div style="font-size:12px;color:var(--c-text-2)">{{ t.autoUpdCap }}</div></div>
+            <div role="switch" aria-checked="true" aria-label="{{ t.autoUpd }}" style="width:32px;height:18px;border-radius:9px;background:var(--c-accent-fill);position:relative;flex:none"><span style="position:absolute;top:1px;left:15px;width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--c-separator)">
+            <div style="flex:1;min-width:0"><div>{{ t.autoDl }}</div><div style="font-size:12px;color:var(--c-text-2)">{{ t.autoDlCap }}</div></div>
+            <div role="switch" aria-checked="false" aria-label="{{ t.autoDl }}" style="width:32px;height:18px;border-radius:9px;background:var(--c-switch-off);position:relative;flex:none"><span style="position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:var(--c-knob);box-shadow:0 1px 2px rgba(0,0,0,.25)"></span></div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="u-hist" style="display:flex;flex-direction:column;gap:6px">
+        <h3 id="u-hist" style="margin:0 0 0 4px;font-size:13px;font-weight:600">{{ t.history }}</h3>
+        <div style="background:var(--c-card);border:1px solid var(--c-border);border-radius:12px;padding:4px 16px">
+          <sc-for list="{{ history }}" as="h" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:64px minmax(0,1fr) auto;column-gap:12px;align-items:center;min-height:40px;padding:4px 0;border-top:{{ h.border }}">
+              <span style="font-family:var(--font-mono);font-size:13px;font-weight:600">{{ h.v }}</span>
+              <div style="display:flex;flex-direction:column;min-width:0">
+                <span style="font-size:12px;color:var(--c-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.date }}</span>
+                <span title="{{ h.notes }}" style="font-size:12px;color:var(--c-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.notes }}</span>
+              </div>
+              <div style="display:flex;justify-content:flex-end">
+                <sc-if value="{{ h.isBadge }}" hint-placeholder-val="{{ false }}">
+                  <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;background:{{ h.tint }};color:{{ h.fg }};white-space:nowrap"><x-import component="Icon" from="./icons.js" sym="{{ h.sym }}" size="11" hint-size="11px,11px"></x-import>{{ h.badge }}</span>
+                </sc-if>
+                <sc-if value="{{ h.isDowngrade }}" hint-placeholder-val="{{ true }}">
+                  <button type="button" style="display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap"><x-import component="Icon" from="./icons.js" sym="arrow.uturn.backward" size="11" hint-size="11px,11px"></x-import>{{ t.downgrade }}</button>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+          <div role="note" style="display:flex;gap:8px;margin:4px 0 12px;padding:8px 12px;border-radius:8px;background:var(--c-inset);border:1px solid var(--c-border)">
+            <span style="display:flex;color:var(--c-text-2);padding-top:1px"><x-import component="Icon" from="./icons.js" sym="externaldrive" size="14" hint-size="14px,14px"></x-import></span>
+            <span style="font-size:12px;color:var(--c-text-2);text-wrap:pretty">{{ t.backupNote }}</span>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+  </div>
+
+  <!-- Sheets & alerts -->
+  <sc-if value="{{ anyOverlay }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;top:80px;left:0;right:0;bottom:0;background:var(--c-scrim);z-index:30"></div>
+  </sc-if>
+
+  <sc-if value="{{ exportOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-labelledby="exp-t" style="position:absolute;top:88px;left:50%;transform:translateX(-50%);width:460px;z-index:31;background:var(--c-raised);border-radius:12px;box-shadow:var(--shadow-popover);padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div id="exp-t" style="font-size:15px;font-weight:600">{{ t.expT }}</div>
+        <div style="color:var(--c-text-2)">{{ t.expB }}</div>
+      </div>
+      <div style="border:1px solid var(--c-border);border-radius:8px;background:var(--c-inset);padding:4px 12px">
+        <sc-for list="{{ exportRows }}" as="e" hint-placeholder-count="4">
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:{{ e.border }}">
+            <span role="checkbox" aria-checked="{{ e.on }}" style="width:14px;height:14px;margin-top:1px;border-radius:4px;display:flex;align-items:center;justify-content:center;background:{{ e.boxBg }};border:1px solid {{ e.boxBorder }};color:#fff;flex:none"><sc-if value="{{ e.on }}" hint-placeholder-val="{{ true }}"><x-import component="Icon" from="./icons.js" sym="checkmark" size="10" hint-size="10px,10px"></x-import></sc-if></span>
+            <div style="flex:1;min-width:0"><div>{{ e.label }}</div><div style="font-size:12px;color:{{ e.capColor }};display:flex;gap:4px;align-items:center"><sc-if value="{{ e.warn }}" hint-placeholder-val="{{ false }}"><x-import component="Icon" from="./icons.js" sym="exclamationmark.triangle.fill" size="11" hint-size="11px,11px"></x-import></sc-if><span>{{ e.cap }}</span></div></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <span style="font-size:12px;color:var(--c-text-2);flex:none">{{ t.exFile }}</span>
+        <span title="PlayerIdentity-Settings-2026-11-10.piexport" style="font-family:var(--font-mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">PlayerIdentity-Settings-2026-11-10.piexport</span>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" onClick="{{ closeOverlay }}" style="display:inline-flex;align-items:center;height:24px;padding:0 14px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.cancel }}</button>
+        <button type="button" onClick="{{ closeOverlay }}" style="display:inline-flex;align-items:center;height:24px;padding:0 14px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap">{{ t.exportDo }}</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ importOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="dialog" aria-modal="true" aria-labelledby="imp-t" style="position:absolute;top:88px;left:50%;transform:translateX(-50%);width:480px;z-index:31;background:var(--c-raised);border-radius:12px;box-shadow:var(--shadow-popover);padding:20px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div id="imp-t" style="font-size:15px;font-weight:600">{{ t.impT }}</div>
+        <div style="color:var(--c-text-2)">{{ t.impB }}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:var(--c-inset);border:1px solid var(--c-border);min-width:0">
+        <span style="display:flex;color:var(--c-text-2)"><x-import component="Icon" from="./icons.js" sym="doc.on.doc" size="18" hint-size="18px,18px"></x-import></span>
+        <div style="flex:1;min-width:0">
+          <div title="PlayerIdentity-Settings-2026-11-03.piexport" style="font-family:var(--font-mono);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">PlayerIdentity-Settings-2026-11-03.piexport</div>
+          <div style="font-size:12px;color:var(--c-text-2)">{{ t.impMeta }}</div>
+        </div>
+        <button type="button" style="display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:12px;color:var(--c-text);white-space:nowrap;flex:none">{{ t.chooseOther }}</button>
+      </div>
+      <div role="table" style="border:1px solid var(--c-border);border-radius:8px;padding:0 12px">
+        <sc-for list="{{ importRows }}" as="i" hint-placeholder-count="4">
+          <div role="row" style="display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:10px;align-items:center;min-height:32px;border-top:{{ i.border }}">
+            <span style="display:flex;color:{{ i.color }}"><x-import component="Icon" from="./icons.js" sym="{{ i.sym }}" size="14" hint-size="14px,14px"></x-import></span>
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ i.label }}</span>
+            <span style="font-size:12px;color:var(--c-text-2);white-space:nowrap">{{ i.value }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="flex:1;min-width:140px">{{ t.impMode }}</span>
+        <div role="radiogroup" style="display:flex;padding:2px;gap:2px;border-radius:7px;background:var(--c-switch-off)">
+          <span role="radio" aria-checked="true" style="height:20px;padding:0 12px;display:flex;align-items:center;border-radius:5px;background:var(--c-control);box-shadow:0 0.5px 1.5px rgba(0,0,0,.2);font-size:12px;font-weight:600">{{ t.merge }}</span>
+          <span role="radio" aria-checked="false" style="height:20px;padding:0 12px;display:flex;align-items:center;border-radius:5px;font-size:12px">{{ t.replace }}</span>
+        </div>
+      </div>
+      <div role="note" style="display:flex;gap:8px;font-size:12px;color:var(--c-text-2)"><span style="display:flex;padding-top:1px"><x-import component="Icon" from="./icons.js" sym="externaldrive" size="13" hint-size="13px,13px"></x-import></span><span style="text-wrap:pretty">{{ t.impNote }}</span></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button type="button" onClick="{{ closeOverlay }}" style="display:inline-flex;align-items:center;height:24px;padding:0 14px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;color:var(--c-text);white-space:nowrap">{{ t.cancel }}</button>
+        <button type="button" onClick="{{ closeOverlay }}" style="display:inline-flex;align-items:center;height:24px;padding:0 14px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent);white-space:nowrap">{{ t.importDo }}</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ confirmOpen }}" hint-placeholder-val="{{ false }}">
+    <div role="alertdialog" aria-modal="true" aria-labelledby="cf-t" aria-describedby="cf-b" style="position:absolute;top:104px;left:50%;transform:translateX(-50%);width:272px;z-index:31;background:var(--c-raised);border-radius:12px;box-shadow:var(--shadow-popover);padding:20px 16px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center">
+      <span style="display:flex;color:var(--c-orange)"><x-import component="Icon" from="./icons.js" sym="exclamationmark.triangle.fill" size="44" hint-size="44px,44px"></x-import></span>
+      <div id="cf-t" style="font-weight:700">{{ cTitle }}</div>
+      <div id="cf-b" style="font-size:12px;color:var(--c-text-2);text-wrap:pretty">{{ cBody }}</div>
+      <sc-if value="{{ cShowExport }}" hint-placeholder-val="{{ true }}">
+        <div role="checkbox" aria-checked="true" style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <span style="width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;background:var(--c-accent-fill);color:#fff;flex:none"><x-import component="Icon" from="./icons.js" sym="checkmark" size="10" hint-size="10px,10px"></x-import></span>
+          <span>{{ t.eraseExport }}</span>
+        </div>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;gap:8px;width:100%;margin-top:4px">
+        <button type="button" onClick="{{ closeOverlay }}" aria-keyshortcuts="Enter" style="height:28px;border-radius:6px;background:var(--c-accent-fill);border:0;font-size:13px;font-weight:500;color:var(--c-on-accent)">{{ t.cancel }}</button>
+        <button type="button" onClick="{{ closeOverlay }}" style="height:28px;border-radius:6px;background:var(--c-control);border:0.5px solid var(--c-control-border);box-shadow:var(--c-control-shadow);font-size:13px;font-weight:600;color:var(--c-red-text)">{{ cDo }}</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:640,&quot;height&quot;:560},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light'|'dark'&quot;},&quot;lang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;en&quot;,&quot;tr&quot;],&quot;default&quot;:&quot;en&quot;,&quot;tsType&quot;:&quot;'en'|'tr'&quot;},&quot;tab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;general&quot;,&quot;updates&quot;],&quot;default&quot;:&quot;general&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;updateState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;available&quot;,&quot;downloading&quot;,&quot;uptodate&quot;,&quot;error&quot;],&quot;default&quot;:&quot;available&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;overlay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;none&quot;,&quot;export&quot;,&quot;import&quot;,&quot;erase&quot;,&quot;reset&quot;],&quot;default&quot;:&quot;none&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;height&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:520,&quot;min&quot;:400,&quot;max&quot;:1600,&quot;tsType&quot;:&quot;number&quot;}}">
+const S = {
+  en: {
+    general: 'General', updates: 'Updates',
+    banChecks: 'Ban checks', autoCheck: 'Check ban status automatically', autoCheckCap: 'Queries each server’s ban list with its CID and your public IP.', interval: 'Interval', every15: 'Every 15 minutes', onLaunch: 'Check when Player Identity opens',
+    notifications: 'Notifications', allowNotif: 'Allow notifications', allowNotifCap: 'Delivered through macOS Notification Center.', nBan: 'Ban status changes', nOnline: 'A watched server comes online', nMap: 'Map changes on watched servers', quiet: 'Quiet hours', quietCap: 'Held and summarised when quiet hours end.',
+    language: 'Language', langLabel: 'App language', langSystem: 'System', langCap: 'Applies immediately. “System” follows macOS Language & Region.',
+    app: 'App', menuBar: 'Show in menu bar', menuBarCap: 'Status icon with last check and quick refresh.', login: 'Launch at login',
+    data: 'Data', dataRoot: 'Data root', change: 'Change…', reveal: 'Show in Finder', transfer: 'Settings transfer', exportBtn: 'Export…', importBtn: 'Import…', diagnostics: 'Diagnostics', copyDiag: 'Copy Diagnostics', openLogs: 'Open Logs',
+    reset: 'Reset', resetCap: 'These actions ask for confirmation and can’t be undone.', resetSettings: 'Reset Settings…', resetSettingsCap: 'Restores defaults. Servers and identity history are kept.', erase: 'Erase All Data…', eraseCap: 'Removes servers, identity history and backups from the data root.',
+    lastChecked: 'Last checked', lc_available: 'Today at 14:30', lc_uptodate: 'Just now', lc_error: 'Today at 14:30 · failed', checkNow: 'Check Now',
+    availT: 'Version 2.5.0 is available', availB: 'Faster ban checks · Xash3D FWGS 0.21 support · 14 fixes · 13.4 MB', install: 'Download & Install', notes: 'Release Notes',
+    dlT: 'Downloading 2.5.0…', dlB: '8.3 MB of 13.4 MB · about 20 s left', pct: '62 %', cancel: 'Cancel',
+    okT: 'Player Identity is up to date', okB: 'Version 2.5.0 is the latest release.',
+    errT: 'Couldn’t check for updates', errB: 'updates.playeridentity.app timed out (NSURLErrorDomain −1001).', tryAgain: 'Try Again',
+    automatic: 'Automatic updates', autoUpd: 'Check for updates automatically', autoUpdCap: 'Once a day, in the background.', autoDl: 'Download updates automatically', autoDlCap: 'You still choose when to install.',
+    history: 'Version history', installed: 'Installed', available: 'Available', downloading: 'Downloading', downgrade: 'Downgrade…',
+    backupNote: 'Before a downgrade, the data root is backed up to Backups/2.4.1/. Settings created by newer versions may be reset.',
+    n250: 'Faster ban checks, FWGS 0.21', n241: 'Fixes CID parsing for Xash3D 0.20', n240: 'Range-ban detection, egress line', n232: 'Turkish localisation',
+    d250: '3 Nov 2026', d241: '12 Oct 2026', d240: '28 Sep 2026', d232: '2 Sep 2026', version: 'Version',
+    expT: 'Export Settings', expB: 'Choose what to include. The file can be imported on another Mac.', exPrefs: 'Preferences', exPrefsCap: '14 values', exServers: 'Server list', exServersCap: '6 servers in 3 sections', exFav: 'Favourites & watch list', exFavCap: '3 favourites, 3 watched', exHist: 'Identity history', exHistCap: 'Contains CIDs that identify you on servers.', exFile: 'File', exportDo: 'Export…',
+    impT: 'Import Settings', impB: 'Review what will change before importing.', impMeta: 'Exported from 2.4.0 · 3 Nov 2026 · 4 KB', chooseOther: 'Choose…', impMode: 'When items already exist', merge: 'Merge', replace: 'Replace',
+    iPrefs: 'Preferences', iPrefsV: '14 values · 3 differ', iServers: 'Servers', iServersV: '8 · 2 new, 6 matched', iFav: 'Favourites & watch list', iFavV: '3 · no change', iHist: 'Identity history', iHistV: 'Not in file',
+    impNote: 'Current settings are backed up to Backups/pre-import-2026-11-10/ first.', importDo: 'Import',
+    eraseT: 'Erase all data?', eraseB: 'This removes 6 servers, identity history and 12 backups from ~/Library/Application Support/PlayerIdentity. It can’t be undone.', eraseExport: 'Export settings first', eraseDo: 'Erase All Data',
+    resetT: 'Reset all settings?', resetB: 'Preferences return to defaults. Servers, favourites and identity history are kept.', resetDo: 'Reset Settings'
+  },
+  tr: {
+    general: 'Genel', updates: 'Güncellemeler',
+    banChecks: 'Yasak kontrolleri', autoCheck: 'Yasak durumunu otomatik kontrol et', autoCheckCap: 'Her sunucunun yasak listesini CID’si ve genel IP adresinizle sorgular.', interval: 'Aralık', every15: '15 dakikada bir', onLaunch: 'Player Identity açıldığında kontrol et',
+    notifications: 'Bildirimler', allowNotif: 'Bildirimlere izin ver', allowNotifCap: 'macOS Bildirim Merkezi üzerinden gönderilir.', nBan: 'Yasak durumu değişiklikleri', nOnline: 'İzlenen bir sunucu çevrimiçi olduğunda', nMap: 'İzlenen sunucularda harita değiştiğinde', quiet: 'Sessiz saatler', quietCap: 'Sessiz saatler bitince özet olarak gönderilir.',
+    language: 'Dil', langLabel: 'Uygulama dili', langSystem: 'Sistem', langCap: 'Hemen uygulanır. “Sistem”, macOS Dil ve Bölge ayarını izler.',
+    app: 'Uygulama', menuBar: 'Menü çubuğunda göster', menuBarCap: 'Son kontrol ve hızlı yenileme içeren durum simgesi.', login: 'Girişte başlat',
+    data: 'Veri', dataRoot: 'Veri kökü', change: 'Değiştir…', reveal: 'Finder’da Göster', transfer: 'Ayar aktarımı', exportBtn: 'Dışa Aktar…', importBtn: 'İçe Aktar…', diagnostics: 'Tanılama', copyDiag: 'Tanılamayı Kopyala', openLogs: 'Günlükleri Aç',
+    reset: 'Sıfırlama', resetCap: 'Bu işlemler onay ister ve geri alınamaz.', resetSettings: 'Ayarları Sıfırla…', resetSettingsCap: 'Varsayılanları geri yükler. Sunucular ve kimlik geçmişi korunur.', erase: 'Tüm Verileri Sil…', eraseCap: 'Veri kökündeki sunucuları, kimlik geçmişini ve yedekleri kaldırır.',
+    lastChecked: 'Son kontrol', lc_available: 'Bugün 14:30', lc_uptodate: 'Az önce', lc_error: 'Bugün 14:30 · başarısız', checkNow: 'Şimdi Kontrol Et',
+    availT: '2.5.0 sürümü hazır', availB: 'Daha hızlı yasak kontrolü · Xash3D FWGS 0.21 desteği · 14 düzeltme · 13,4 MB', install: 'İndir ve Kur', notes: 'Sürüm Notları',
+    dlT: '2.5.0 indiriliyor…', dlB: '13,4 MB’ın 8,3 MB’ı indi · yaklaşık 20 sn kaldı', pct: '%62', cancel: 'Vazgeç',
+    okT: 'Player Identity güncel', okB: '2.5.0 en son sürüm.',
+    errT: 'Güncellemeler kontrol edilemedi', errB: 'updates.playeridentity.app zaman aşımına uğradı (NSURLErrorDomain −1001).', tryAgain: 'Tekrar Dene',
+    automatic: 'Otomatik güncellemeler', autoUpd: 'Güncellemeleri otomatik kontrol et', autoUpdCap: 'Günde bir kez, arka planda.', autoDl: 'Güncellemeleri otomatik indir', autoDlCap: 'Ne zaman kurulacağına yine siz karar verirsiniz.',
+    history: 'Sürüm geçmişi', installed: 'Kurulu', available: 'Mevcut', downloading: 'İndiriliyor', downgrade: 'Bu Sürüme Dön…',
+    backupNote: 'Sürüm düşürmeden önce veri kökü Backups/2.4.1/ klasörüne yedeklenir. Yeni sürümlerde oluşturulan ayarlar sıfırlanabilir.',
+    n250: 'Daha hızlı yasak kontrolü, FWGS 0.21', n241: 'Xash3D 0.20 için CID ayrıştırma düzeltmesi', n240: 'Aralık yasağı tespiti, çıkış satırı', n232: 'Türkçe yerelleştirme',
+    d250: '3 Kas 2026', d241: '12 Eki 2026', d240: '28 Eyl 2026', d232: '2 Eyl 2026', version: 'Sürüm',
+    expT: 'Ayarları Dışa Aktar', expB: 'Nelerin dahil edileceğini seçin. Dosya başka bir Mac’e aktarılabilir.', exPrefs: 'Tercihler', exPrefsCap: '14 değer', exServers: 'Sunucu listesi', exServersCap: '3 bölümde 6 sunucu', exFav: 'Favoriler ve izleme listesi', exFavCap: '3 favori, 3 izlenen', exHist: 'Kimlik geçmişi', exHistCap: 'Sunucularda sizi tanımlayan CID’ler içerir.', exFile: 'Dosya', exportDo: 'Dışa Aktar…',
+    impT: 'Ayarları İçe Aktar', impB: 'İçe aktarmadan önce nelerin değişeceğini inceleyin.', impMeta: '2.4.0 sürümünden · 3 Kas 2026 · 4 KB', chooseOther: 'Seç…', impMode: 'Öğe zaten varsa', merge: 'Birleştir', replace: 'Değiştir',
+    iPrefs: 'Tercihler', iPrefsV: '14 değer · 3 farklı', iServers: 'Sunucular', iServersV: '8 · 2 yeni, 6 eşleşen', iFav: 'Favoriler ve izleme listesi', iFavV: '3 · değişiklik yok', iHist: 'Kimlik geçmişi', iHistV: 'Dosyada yok',
+    impNote: 'Mevcut ayarlar önce Backups/pre-import-2026-11-10/ klasörüne yedeklenir.', importDo: 'İçe Aktar',
+    eraseT: 'Tüm veriler silinsin mi?', eraseB: '~/Library/Application Support/PlayerIdentity konumundaki 6 sunucu, kimlik geçmişi ve 12 yedek kaldırılır. Bu işlem geri alınamaz.', eraseExport: 'Önce ayarları dışa aktar', eraseDo: 'Tüm Verileri Sil',
+    resetT: 'Tüm ayarlar sıfırlansın mı?', resetB: 'Tercihler varsayılana döner. Sunucular, favoriler ve kimlik geçmişi korunur.', resetDo: 'Ayarları Sıfırla'
+  }
+};
+
+const box = (on) => ({ boxBg: on ? 'var(--c-accent-fill)' : 'var(--c-field)', boxBorder: on ? 'transparent' : 'var(--c-border-strong)' });
+
+class Component extends DCLogic {
+  state = {};
+  renderVals() {
+    const lang = this.props.lang === 'tr' ? 'tr' : 'en';
+    const t = S[lang];
+    const theme = this.props.theme === 'dark' ? 'dark' : 'light';
+    const tab = this.state.tab || this.props.tab || 'general';
+    const us = this.props.updateState || 'available';
+    const overlay = this.state.overlay !== undefined ? this.state.overlay : (this.props.overlay || 'none');
+    const notif = this.state.notif !== undefined ? this.state.notif : true;
+    const setO = (o) => () => this.setState({ overlay: o });
+
+    const tabs = [['general', t.general, 'gearshape'], ['updates', t.updates, 'arrow.down.circle']].map(([k, label, sym]) => {
+      const on = tab === k;
+      return { label, sym, on, bg: on ? 'var(--c-toolbar-hover)' : 'transparent', fg: on ? 'var(--c-accent-text)' : 'var(--c-text-2)', labelFg: on ? 'var(--c-text)' : 'var(--c-text-2)', select: () => this.setState({ tab: k }) };
+    });
+
+    const notifRows = [[t.nBan, 'checkmark.shield.fill', true], [t.nOnline, 'bell', true], [t.nMap, 'globe', false]].map(([label, sym, on]) => Object.assign({ label, sym, on }, box(on)));
+    const langs = [[t.langSystem, 'system'], ['Türkçe', 'tr'], ['English', 'en']].map(([label, k]) => {
+      const on = k === lang;
+      return { label, on, bg: on ? 'var(--c-control)' : 'transparent', shadow: on ? '0 0.5px 1.5px rgba(0,0,0,.2)' : 'none', weight: on ? 600 : 400 };
+    });
+
+    const uMap = {
+      available: ['arrow.down.circle.fill', 'var(--c-accent)', t.availT, t.availB, 'inherit'],
+      downloading: ['arrow.down.circle.fill', 'var(--c-accent)', t.dlT, t.dlB, 'inherit'],
+      uptodate: ['checkmark.circle.fill', 'var(--c-green)', t.okT, t.okB, 'inherit'],
+      error: ['xmark.octagon.fill', 'var(--c-red)', t.errT, t.errB, 'var(--font-mono)']
+    }[us];
+
+    const installedBadge = { isBadge: true, isDowngrade: false, badge: t.installed, sym: 'checkmark', tint: 'var(--c-green-tint)', fg: 'var(--c-green-text)' };
+    const dg = { isBadge: false, isDowngrade: true };
+    let hist;
+    if (us === 'uptodate') hist = [['2.5.0', t.d250, t.n250, installedBadge], ['2.4.1', t.d241, t.n241, dg], ['2.4.0', t.d240, t.n240, dg], ['2.3.2', t.d232, t.n232, dg]];
+    else {
+      hist = [['2.4.1', t.d241, t.n241, installedBadge], ['2.4.0', t.d240, t.n240, dg], ['2.3.2', t.d232, t.n232, dg]];
+      if (us !== 'error') hist.unshift(['2.5.0', t.d250, t.n250, { isBadge: true, isDowngrade: false, badge: us === 'downloading' ? t.downloading : t.available, sym: 'arrow.down.circle', tint: 'var(--c-accent-tint)', fg: 'var(--c-accent-text)' }]);
+    }
+    const history = hist.map(([v, date, notes, x], i) => Object.assign({ v, date, notes, border: i ? '1px solid var(--c-separator)' : '0' }, x));
+
+    const exportRows = [[t.exPrefs, t.exPrefsCap, true, false], [t.exServers, t.exServersCap, true, false], [t.exFav, t.exFavCap, true, false], [t.exHist, t.exHistCap, false, true]]
+      .map(([label, cap, on, warn], i) => Object.assign({ label, cap, on, warn, capColor: warn ? 'var(--c-orange-text)' : 'var(--c-text-2)', border: i ? '1px solid var(--c-separator)' : '0' }, box(on)));
+    const importRows = [
+      ['arrow.clockwise', 'var(--c-orange)', t.iPrefs, t.iPrefsV], ['plus', 'var(--c-accent-text)', t.iServers, t.iServersV],
+      ['checkmark', 'var(--c-text-2)', t.iFav, t.iFavV], ['xmark', 'var(--c-text-3)', t.iHist, t.iHistV]
+    ].map(([sym, color, label, value], i) => ({ sym, color, label, value, border: i ? '1px solid var(--c-separator)' : '0' }));
+
+    const isReset = overlay === 'reset';
+    return {
+      t, theme, lang, heightPx: Number(this.props.height || 520) + 'px',
+      tabs, tabTitle: tab === 'general' ? t.general : t.updates, isGeneral: tab === 'general', isUpdates: tab === 'updates',
+      notif, notifOff: !notif, toggleNotif: () => this.setState({ notif: !notif }), notifTrack: notif ? 'var(--c-accent-fill)' : 'var(--c-switch-off)', notifKnob: notif ? '15px' : '1px', subOpacity: notif ? 1 : 0.4,
+      notifRows, langs,
+      curVersion: t.version + (us === 'uptodate' ? ' 2.5.0 (250)' : ' 2.4.1 (241)'),
+      lastChecked: us === 'uptodate' ? t.lc_uptodate : us === 'error' ? t.lc_error : t.lc_available,
+      checkOpacity: us === 'downloading' ? 0.4 : 1,
+      uSym: uMap[0], uColor: uMap[1], uTitle: uMap[2], uBody: uMap[3], uBodyFont: uMap[4],
+      uAvailable: us === 'available', uDownloading: us === 'downloading', uError: us === 'error', uHasButtons: us !== 'uptodate',
+      history,
+      anyOverlay: overlay !== 'none', exportOpen: overlay === 'export', importOpen: overlay === 'import', confirmOpen: overlay === 'erase' || isReset,
+      cTitle: isReset ? t.resetT : t.eraseT, cBody: isReset ? t.resetB : t.eraseB, cDo: isReset ? t.resetDo : t.eraseDo, cShowExport: !isReset,
+      exportRows, importRows,
+      openExport: setO('export'), openImport: setO('import'), openErase: setO('erase'), openReset: setO('reset'), closeOverlay: setO('none')
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><meta name="design_doc_mode" content="canvas"><link rel="stylesheet" href="./tokens.css"><style>html,body{margin:0;background:#D5D9DF}a{color:#177A70;text-decoration:none}a:hover{text-decoration:underline;color:#0F5E56}</style></helmet>
+<div style="padding:64px;display:flex;flex-direction:column;gap:96px;font-family:var(--font-sans);color:#1B2432;-webkit-font-smoothing:antialiased;width:max-content">
+
+  <header style="display:flex;flex-direction:column;gap:12px;max-width:1100px">
+    <div style="font-size:13px;font-weight:600;color:#525D6D">macOS 14+ · SwiftUI · Handoff canvas</div>
+    <h1 style="margin:0;font-size:40px;font-weight:700;letter-spacing:-0.5px">Player Identity — redesign</h1>
+    <p style="margin:0;font-size:16px;line-height:1.5;color:#3A4556;max-width:820px;text-wrap:pretty">Main window (900×760, min 720×520) and Settings window (600×520), in light and dark, English and Turkish. Every frame is a live component — buttons, filter chips, stars, bells, tabs and sheets respond to clicks. Implementation notes are in <a href="#N1">N1</a>.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:13px">
+      <a href="#M1">M1–M4 Main · default</a><span>·</span><a href="#M5">M5–M6 Full height</a><span>·</span><a href="#M7">M7–M10 States</a><span>·</span><a href="#M11">M11–M14 Overlays</a><span>·</span><a href="#S1">S1–S6 Settings · General</a><span>·</span><a href="#S7">S7–S11 Updates</a><span>·</span><a href="#S12">S12–S15 Sheets & alerts</a><span>·</span><a href="#N1">N1 Notes</a>
+    </div>
+  </header>
+
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-size:24px;font-weight:700">Main window · default</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:64px;max-width:2000px">
+      <div id="M1" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M1</span><span>Light · English</span></div><dc-import name="MainWindow" theme="light" lang="en" state="default" hint-size="900px,760px"></dc-import></div>
+      <div id="M2" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M2</span><span>Dark · English</span></div><dc-import name="MainWindow" theme="dark" lang="en" state="default" hint-size="900px,760px"></dc-import></div>
+      <div id="M3" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M3</span><span>Light · Türkçe</span></div><dc-import name="MainWindow" theme="light" lang="tr" state="default" hint-size="900px,760px"></dc-import></div>
+      <div id="M4" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M4</span><span>Dark · Türkçe</span></div><dc-import name="MainWindow" theme="dark" lang="tr" state="default" hint-size="900px,760px"></dc-import></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-size:24px;font-weight:700">Main window · full scroll height <span style="font-size:15px;font-weight:400;color:#525D6D">(content inside the 760 pt window scrolls; shown expanded for review)</span></h2>
+    <div style="display:flex;flex-wrap:wrap;gap:64px;max-width:2000px">
+      <div id="M5" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M5</span><span>Light · English · full height</span></div><dc-import name="MainWindow" theme="light" lang="en" state="default" height="1210" hint-size="900px,1210px"></dc-import></div>
+      <div id="M6" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M6</span><span>Dark · Türkçe · full height</span></div><dc-import name="MainWindow" theme="dark" lang="tr" state="default" height="1210" hint-size="900px,1210px"></dc-import></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-size:24px;font-weight:700">Main window · section states <span style="font-size:15px;font-weight:400;color:#525D6D">(full height)</span></h2>
+    <div style="display:flex;flex-wrap:wrap;gap:64px;max-width:2000px">
+      <div id="M7" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M7</span><span>Loading · Light · English</span></div><dc-import name="MainWindow" theme="light" lang="en" state="loading" height="1210" hint-size="900px,1210px"></dc-import></div>
+      <div id="M8" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M8</span><span>Empty (first run, offline) · Dark · English</span></div><dc-import name="MainWindow" theme="dark" lang="en" state="empty" height="760" hint-size="900px,760px"></dc-import></div>
+      <div id="M9" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M9</span><span>Error · Light · Türkçe</span></div><dc-import name="MainWindow" theme="light" lang="tr" state="error" height="1250" hint-size="900px,1250px"></dc-import></div>
+      <div id="M10" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M10</span><span>Disabled (game running, checks off) · Dark · Türkçe</span></div><dc-import name="MainWindow" theme="dark" lang="tr" state="disabled" height="1210" hint-size="900px,1210px"></dc-import></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-size:24px;font-weight:700">Main window · overlays</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:64px;max-width:2000px">
+      <div id="M11" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M11</span><span>Update banner · Light · English</span></div><dc-import name="MainWindow" theme="light" lang="en" state="default" banner="true" hint-size="900px,760px"></dc-import></div>
+      <div id="M12" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M12</span><span>Apply-with-diff sheet · Dark · English</span></div><dc-import name="MainWindow" theme="dark" lang="en" state="default" overlay="diff" hint-size="900px,760px"></dc-import></div>
+      <div id="M13" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M13</span><span>Filters popover (Banned on) · Light · Türkçe</span></div><dc-import name="MainWindow" theme="light" lang="tr" state="default" overlay="filters" hint-size="900px,760px"></dc-import></div>
+      <div id="M14" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">M14</span><span>All-actions popover · Dark · Türkçe · banner</span></div><dc-import name="MainWindow" theme="dark" lang="tr" state="default" overlay="actions" banner="true" hint-size="900px,760px"></dc-import></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-size:24px;font-weight:700">Settings · General</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:48px;max-width:2000px;align-items:flex-start">
+      <div id="S1" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S1</span><span>Light · English</span></div><dc-import name="SettingsWindow" theme="light" lang="en" tab="general" hint-size="600px,520px"></dc-import></div>
+      <div id="S2" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S2</span><span>Dark · English</span></div><dc-import name="SettingsWindow" theme="dark" lang="en" tab="general" hint-size="600px,520px"></dc-import></div>
+      <div id="S3" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S3</span><span>Light · Türkçe</span></div><dc-import name="SettingsWindow" theme="light" lang="tr" tab="general" hint-size="600px,520px"></dc-import></div>
+      <div id="S4" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S4</span><span>Dark · Türkçe</span></div><dc-import name="SettingsWindow" theme="dark" lang="tr" tab="general" hint-size="600px,520px"></dc-import></div>
+      <div id="S5" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S5</span><span>Light · English · full height</span></div><dc-import name="SettingsWindow" theme="light" lang="en" tab="general" height="1340" hint-size="600px,1340px"></dc-import></div>
+      <div id="S6" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S6</span><span>Dark · Türkçe · full height</span></div><dc-import name="SettingsWindow" theme="dark" lang="tr" tab="general" height="1400" hint-size="600px,1400px"></dc-import></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-size:24px;font-weight:700">Settings · Updates</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:48px;max-width:2000px;align-items:flex-start">
+      <div id="S7" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S7</span><span>Update available · Light · English</span></div><dc-import name="SettingsWindow" theme="light" lang="en" tab="updates" update-state="available" hint-size="600px,520px"></dc-import></div>
+      <div id="S8" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S8</span><span>Downloading · Dark · English</span></div><dc-import name="SettingsWindow" theme="dark" lang="en" tab="updates" update-state="downloading" hint-size="600px,520px"></dc-import></div>
+      <div id="S9" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S9</span><span>Up to date · Light · Türkçe</span></div><dc-import name="SettingsWindow" theme="light" lang="tr" tab="updates" update-state="uptodate" hint-size="600px,520px"></dc-import></div>
+      <div id="S10" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S10</span><span>Error · Dark · Türkçe</span></div><dc-import name="SettingsWindow" theme="dark" lang="tr" tab="updates" update-state="error" hint-size="600px,520px"></dc-import></div>
+      <div id="S11" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S11</span><span>Available · Light · English · full height (version history)</span></div><dc-import name="SettingsWindow" theme="light" lang="en" tab="updates" update-state="available" height="900" hint-size="600px,900px"></dc-import></div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:24px">
+    <h2 style="margin:0;font-size:24px;font-weight:700">Settings · sheets & destructive confirmation</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:48px;max-width:2000px;align-items:flex-start">
+      <div id="S12" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S12</span><span>Export sheet · Light · English</span></div><dc-import name="SettingsWindow" theme="light" lang="en" tab="general" overlay="export" hint-size="600px,520px"></dc-import></div>
+      <div id="S13" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S13</span><span>Import sheet · Dark · Türkçe</span></div><dc-import name="SettingsWindow" theme="dark" lang="tr" tab="general" overlay="import" height="560" hint-size="600px,560px"></dc-import></div>
+      <div id="S14" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S14</span><span>Erase all data · Light · Türkçe</span></div><dc-import name="SettingsWindow" theme="light" lang="tr" tab="general" overlay="erase" hint-size="600px,520px"></dc-import></div>
+      <div id="S15" style="display:flex;flex-direction:column;gap:12px"><div style="display:flex;align-items:center;gap:8px;font-size:14px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px">S15</span><span>Reset settings · Dark · English</span></div><dc-import name="SettingsWindow" theme="dark" lang="en" tab="general" overlay="reset" hint-size="600px,520px"></dc-import></div>
+    </div>
+  </section>
+
+  <!-- ===================== NOTES ===================== -->
+  <section id="N1" data-screen-label="Notes" style="width:1280px;background:#FFFFFF;border-radius:16px;padding:56px 64px;display:flex;flex-direction:column;gap:48px;font-size:14px;line-height:1.55;color:#1B2432;box-shadow:0 1px 3px rgba(0,0,0,.08)">
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px"><span style="font-weight:700;background:#1B2432;color:#fff;border-radius:6px;padding:2px 8px;font-size:14px">N1</span><span style="font-size:13px;font-weight:600;color:#525D6D">Handoff notes — read top to bottom</span></div>
+      <h2 style="margin:0;font-size:32px;font-weight:700;letter-spacing:-0.3px">Implementing Player Identity in SwiftUI</h2>
+      <p style="margin:0;max-width:900px;color:#3A4556;text-wrap:pretty">Use native controls only (Button, Toggle, Picker, Menu, TextField, Table/List, ProgressView, .sheet, .popover, .confirmationDialog/.alert, Settings scene). The HTML is a visual spec: where it draws a control, use the matching system control and keep the spacing, type and colours below. No third-party packages.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-size:18px;font-weight:700">1 · Files in the ZIP</h3>
+        <div style="display:grid;grid-template-columns:220px 1fr;gap:6px 16px">
+          <code style="font-family:var(--font-mono);font-size:13px">tokens.css</code><span>Every token (type, spacing, radii, light + dark colours). Single source of truth.</span>
+          <code style="font-family:var(--font-mono);font-size:13px">icons.js</code><span>SVG stand-ins. Each carries <code style="font-family:var(--font-mono)">data-sf-symbol</code>; use Image(systemName:).</span>
+          <code style="font-family:var(--font-mono);font-size:13px">MainWindow.dc.html</code><span>Main window. Props: theme, lang, state, overlay, banner, height. Strings for EN/TR at the top of its logic.</span>
+          <code style="font-family:var(--font-mono);font-size:13px">SettingsWindow.dc.html</code><span>Settings window. Props: theme, lang, tab, updateState, overlay, height.</span>
+          <code style="font-family:var(--font-mono);font-size:13px">Player Identity Canvas</code><span>This canvas: frames M1–M14, S1–S15, notes N1.</span>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-size:18px;font-weight:700">2 · Windows & structure</h3>
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">
+          <li><b>Main:</b> WindowGroup, .defaultSize(900×760), .frame(minWidth: 720, minHeight: 520), .windowToolbarStyle(.unified). Toolbar: status (principal/leading), Refresh (⌘R) and Save (⌘S) as ToolbarItems with .help() tooltips and .keyboardShortcut.</li>
+          <li>Below the toolbar: optional update banner (not scrolled), then a ScrollView with 16 pt padding: [Profile | Network] row (Grid, 1.38 : 1), Servers card, Reasons card. At widths &lt; 820 pt the top row stacks (ViewThatFits).</li>
+          <li><b>Settings:</b> Settings { TabView { General, Updates } } at 600×520, each tab a ScrollView of grouped cards (Form .formStyle(.grouped) is acceptable if it matches the card spec).</li>
+          <li>No custom window chrome. Traffic lights, title bar and tab toolbar in the mockups are the system ones.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-size:18px;font-weight:700">3 · Spacing (8 pt grid)</h3>
+        <div style="display:grid;grid-template-columns:130px 70px 1fr;gap:6px 16px;align-items:center">
+          <sc-for list="{{ spacing }}" as="s" hint-placeholder-count="8">
+            <code style="font-family:var(--font-mono);font-size:13px">{{ s.token }}</code>
+            <div style="height:10px;width:{{ s.px }};background:#2FB6A8;border-radius:2px"></div>
+            <span>{{ s.use }}</span>
+          </sc-for>
+        </div>
+        <p style="margin:0;color:#3A4556">Radii: control 6 · inner box 8 · window 10 · card 12 · sheet 12. Card border 1 pt at 8 % opacity, padding 16. Heights: toolbar 52, control 24 (small 22), server row 48, group header 28, key/value row 22, reason row ≥ 52.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-size:18px;font-weight:700">4 · Type scale (SF Pro / SF Mono)</h3>
+        <div style="display:flex;flex-direction:column;border-top:1px solid #E3E6EA">
+          <sc-for list="{{ typeScale }}" as="ty" hint-placeholder-count="7">
+            <div style="display:grid;grid-template-columns:200px 1fr 230px;gap:16px;align-items:baseline;padding:8px 0;border-bottom:1px solid #E3E6EA">
+              <span style="font-family:{{ ty.family }};font-size:{{ ty.size }};font-weight:{{ ty.weight }};white-space:nowrap">{{ ty.sample }}</span>
+              <span style="color:#3A4556">{{ ty.use }}</span>
+              <code style="font-family:var(--font-mono);font-size:12px;color:#525D6D">{{ ty.swift }}</code>
+            </div>
+          </sc-for>
+        </div>
+        <p style="margin:0;color:#3A4556">Use .monospacedDigit() for times, counts, pings and percentages so numbers never shift width.</p>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <h3 style="margin:0;font-size:18px;font-weight:700">5 · Colour tokens</h3>
+      <p style="margin:0;color:#3A4556;max-width:980px">Create one Asset Catalog Color Set per token with Any + Dark appearances. Brand slate #1B2432 is the dark card surface and light-mode ink; teal #2FB6A8 is the accent (AccentColor). Text-on-surface uses the “-text” variants, which pass WCAG AA (≥ 4.5 : 1); raw status colours are for icons and fills only. Status is never conveyed by colour alone — every icon has a text label beside it.</p>
+      <div style="display:grid;grid-template-columns:200px 180px 180px 1fr;gap:0 16px;border-top:1px solid #E3E6EA">
+        <span style="font-size:12px;font-weight:600;color:#525D6D;padding:8px 0;border-bottom:1px solid #E3E6EA">Token</span>
+        <span style="font-size:12px;font-weight:600;color:#525D6D;padding:8px 0;border-bottom:1px solid #E3E6EA">Light</span>
+        <span style="font-size:12px;font-weight:600;color:#525D6D;padding:8px 0;border-bottom:1px solid #E3E6EA">Dark</span>
+        <span style="font-size:12px;font-weight:600;color:#525D6D;padding:8px 0;border-bottom:1px solid #E3E6EA">Usage</span>
+        <sc-for list="{{ tokens }}" as="c" hint-placeholder-count="12">
+          <code style="font-family:var(--font-mono);font-size:13px;padding:6px 0;border-bottom:1px solid #EEF0F3">{{ c.name }}</code>
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #EEF0F3"><span style="width:20px;height:20px;border-radius:5px;background:{{ c.light }};box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);flex:none"></span><code style="font-family:var(--font-mono);font-size:12px">{{ c.light }}</code></div>
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #EEF0F3"><span style="width:20px;height:20px;border-radius:5px;background:{{ c.dark }};box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);flex:none"></span><code style="font-family:var(--font-mono);font-size:12px">{{ c.dark }}</code></div>
+          <span style="padding:6px 0;border-bottom:1px solid #EEF0F3;color:#3A4556">{{ c.use }}</span>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <h3 style="margin:0;font-size:18px;font-weight:700">6 · Component specs</h3>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 40px">
+        <sc-for list="{{ components }}" as="k" hint-placeholder-count="12">
+          <div style="display:flex;flex-direction:column;gap:2px;padding:10px 0;border-top:1px solid #E3E6EA">
+            <span style="font-weight:700">{{ k.name }}</span>
+            <span style="color:#3A4556;text-wrap:pretty">{{ k.spec }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <h3 style="margin:0;font-size:18px;font-weight:700">7 · Section states (main window)</h3>
+      <div style="display:grid;grid-template-columns:120px repeat(4,minmax(0,1fr));gap:0 16px;border-top:1px solid #E3E6EA">
+        <sc-for list="{{ statesTable }}" as="r" hint-placeholder-count="6">
+          <span style="font-weight:{{ r.w }};padding:8px 0;border-bottom:1px solid #EEF0F3">{{ r.a }}</span>
+          <span style="font-weight:{{ r.w }};padding:8px 0;border-bottom:1px solid #EEF0F3;color:#3A4556">{{ r.b }}</span>
+          <span style="font-weight:{{ r.w }};padding:8px 0;border-bottom:1px solid #EEF0F3;color:#3A4556">{{ r.c }}</span>
+          <span style="font-weight:{{ r.w }};padding:8px 0;border-bottom:1px solid #EEF0F3;color:#3A4556">{{ r.d }}</span>
+          <span style="font-weight:{{ r.w }};padding:8px 0;border-bottom:1px solid #EEF0F3;color:#3A4556">{{ r.e }}</span>
+        </sc-for>
+      </div>
+      <p style="margin:0;color:#3A4556">Every state keeps the card’s height (skeletons and empty/error blocks reserve a 236 pt min-height), so switching state never reflows the window. Updates tab states: available, downloading, up to date, error — see S7–S10.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <h3 style="margin:0;font-size:18px;font-weight:700">8 · Interaction notes</h3>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 40px">
+        <sc-for list="{{ interactions }}" as="i" hint-placeholder-count="8">
+          <div style="display:flex;flex-direction:column;gap:4px;padding:10px 0;border-top:1px solid #E3E6EA">
+            <span style="font-weight:700">{{ i.name }}</span>
+            <ol style="margin:0;padding-left:18px;color:#3A4556;display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ i.steps }}" as="st" hint-placeholder-count="3"><li style="text-wrap:pretty">{{ st }}</li></sc-for>
+            </ol>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-size:18px;font-weight:700">9 · Accessibility & keyboard order</h3>
+        <ol style="margin:0;padding-left:18px;color:#3A4556;display:flex;flex-direction:column;gap:3px">
+          <li>Toolbar: Refresh → Save (status is an accessibility element with label + value, announced on change).</li>
+          <li>Update banner (if shown): Release Notes → Update Now → Dismiss.</li>
+          <li>Profile: Name combo box → Model menu → copy/reveal buttons (top to bottom) → Apply….</li>
+          <li>Network: Copy public IP → (Retry, in error).</li>
+          <li>Servers: filter chips (Banned, Favourites, Watched) → search → filter options → Add Server → table. In the table, ↑/↓ moves rows; within a row Tab goes star → bell → Fix….</li>
+          <li>Reasons: All Actions → each reason’s action button.</li>
+          <li>Sheets trap focus; Return = default (Apply/Export/Import), Esc = Cancel. Destructive alerts make Cancel the default; the destructive button never responds to Return.</li>
+        </ol>
+        <p style="margin:0;color:#3A4556">Toggle buttons (star, bell, chips) expose isSelected traits and labels like “Add to Favourites”. All text meets AA in both appearances; disabled controls use system disabled styling (≈ 45 % opacity) and carry an explanatory note nearby.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <h3 style="margin:0;font-size:18px;font-weight:700">10 · Localisation & truncation</h3>
+        <ul style="margin:0;padding-left:18px;color:#3A4556;display:flex;flex-direction:column;gap:3px">
+          <li>Strings live in a String Catalog (en, tr). Turkish runs ~20–35 % longer; no fixed-width text containers except table columns, which truncate with tooltips.</li>
+          <li>Don’t use .textCase(.uppercase) — Turkish dotted/dotless i (i/İ, ı/I) breaks. Group and column headers are sentence case.</li>
+          <li>Use locale formatting: “13.4 MB” / “13,4 MB”, “62 %” / “%62”, dates “3 Nov 2026” / “3 Kas 2026”.</li>
+          <li>CIDs (32 hex) and paths: .lineLimit(1).truncationMode(.middle) + .help(fullValue) + .textSelection(.enabled). In tables the CID shows 8…8 (e.g. 9f3a1c7e…d7b8a4e2) in a fixed 150 pt column.</li>
+          <li>Host → IP: the host truncates (tail), the IP:port never truncates. Server names truncate tail.</li>
+          <li>Rows never jump: fixed row heights, fixed column widths, monospaced digits, and a reserved slot for the Fix… button column.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <h3 style="margin:0;font-size:18px;font-weight:700">11 · SF Symbols used</h3>
+      <p style="margin:0;color:#3A4556">The drawings are approximations — always use the real symbol by name. Fill variants use .symbolRenderingMode(.hierarchical) or .palette with white glyph on status colours.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 24px">
+        <sc-for list="{{ symbols }}" as="sy" hint-placeholder-count="30">
+          <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #EEF0F3;min-width:0">
+            <span style="display:flex;color:#1B2432;width:20px;justify-content:center"><x-import component="Icon" from="./icons.js" sym="{{ sy.name }}" size="18" hint-size="18px,18px"></x-import></span>
+            <code style="font-family:var(--font-mono);font-size:12px;white-space:nowrap">{{ sy.name }}</code>
+            <span style="font-size:12px;color:#525D6D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sy.use }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      spacing: [
+        ['--sp-1', 4, 'Icon ↔ label in compact rows, row gaps in key/value grid'],
+        ['--sp-2', 8, 'Default gap: icon ↔ label, buttons in a group, field label ↔ field'],
+        ['--sp-3', 12, 'Grid column gap, gap between card header and body'],
+        ['--sp-4', 16, 'Card padding, gap between cards, window content inset'],
+        ['--sp-6', 24, 'Settings content side inset, empty-state padding'],
+        ['--sp-8', 32, 'Not used inside windows; canvas only']
+      ].map(([token, px, use]) => ({ token, px: px * 2 + 'px', use: px + ' — ' + use })),
+      typeScale: [
+        { sample: 'n1ght0wl', size: '22px', weight: 600, family: 'var(--font-sans)', use: 'Title — player name, app name on Updates', swift: '.system(size: 22, weight: .semibold)' },
+        { sample: 'Apply changes?', size: '15px', weight: 600, family: 'var(--font-sans)', use: 'Sheet titles, toolbar window title', swift: '.system(size: 15, weight: .semibold)' },
+        { sample: 'Servers', size: '13px', weight: 600, family: 'var(--font-sans)', use: 'Section label, card headers, ban status text', swift: '.headline (13 semibold)' },
+        { sample: 'Body text', size: '13px', weight: 400, family: 'var(--font-sans)', use: 'Body, buttons, row titles (500)', swift: '.body' },
+        { sample: 'Hint line', size: '12px', weight: 400, family: 'var(--font-sans)', use: 'Action hints, secondary row lines, captions', swift: '.callout' },
+        { sample: 'Column header', size: '11px', weight: 600, family: 'var(--font-sans)', use: 'Column/group headers, field labels, badges', swift: '.caption (600 for headers)' },
+        { sample: '9f3a1c7e…a4e2', size: '13px', weight: 400, family: 'var(--font-mono)', use: 'IDs, CIDs, IPs, paths, map names; 12 in diff view', swift: '.system(size: 13, design: .monospaced)' }
+      ],
+      tokens: [
+        ['--c-window', '#F2F4F7', '#111821', 'Window background behind cards'],
+        ['--c-toolbar', '#F8F9FB', '#18202B', 'Toolbar / title bar (system material in SwiftUI)'],
+        ['--c-card', '#FFFFFF', '#1B2432', 'Card surface (dark = brand slate)'],
+        ['--c-raised', '#FFFFFF', '#243042', 'Popovers, sheets, alerts'],
+        ['--c-field / --c-inset', '#FFFFFF / #F6F7F9', '#141B25 / #151C27', 'Text fields; inset boxes (diff, notes)'],
+        ['--c-group', '#F4F6F8', '#202A39', 'Table group header rows'],
+        ['--c-border', 'rgba(27,36,50,.08)', 'rgba(255,255,255,.08)', 'Card border 1 pt, separators'],
+        ['--c-text', '#1B2432', '#E9EEF4', 'Primary text'],
+        ['--c-text-2', '#525D6D', '#A7B1C0', 'Secondary text (AA on card + window)'],
+        ['--c-text-3', '#636D7C', '#8D99AB', 'Tertiary text, counts, inactive (AA on card)'],
+        ['--c-accent', '#2FB6A8', '#2FB6A8', 'Accent for icons, focus ring, selection'],
+        ['--c-accent-text', '#177A70', '#52D3C4', 'Accent-coloured text/links'],
+        ['--c-accent-fill', '#187A71', '#2FB6A8', 'Default (prominent) button fill'],
+        ['--c-on-accent', '#FFFFFF', '#08201E', 'Text on accent fill (5.2 : 1 / 7 : 1)'],
+        ['--c-green', '#34C759', '#34C759', 'Not banned icon; up to date'],
+        ['--c-green-text', '#1A7F37', '#5BD97A', 'Green text, diff “+” sign'],
+        ['--c-orange', '#FF9F0A', '#FF9F0A', 'Timed ban, range risk, warnings, favourite star'],
+        ['--c-orange-text', '#9A4A00', '#FFB547', 'Orange text, “Edited” badge'],
+        ['--c-red', '#FF453A', '#FF453A', 'Banned icon, errors'],
+        ['--c-red-text', '#C0201A', '#FF7A70', 'Red text, destructive buttons, diff “−”'],
+        ['--c-*-tint', 'status @ 12–16 %', 'status @ 16–18 %', 'Badge + notice backgrounds, diff line bg']
+      ].map(([name, light, dark, use]) => ({ name, light: light.indexOf(' ') > -1 && light.indexOf('rgba') < 0 ? light.split(' ')[0] : light, dark: dark.indexOf(' ') > -1 && dark.indexOf('rgba') < 0 ? dark.split(' ')[0] : dark, use: use + (light.indexOf(' / ') > -1 ? ' — ' + light + ' · ' + dark : '') })),
+      components: [
+        { name: 'Card', spec: 'RoundedRectangle(12) fill card, stroke border 1 pt, padding 16, internal VStack spacing 12. Header row 24 pt: SF Symbol 16 (secondary) + label 13 semibold + Spacer + trailing actions.' },
+        { name: 'Toolbar status', spec: 'Icon 16 (status colour) + label 13 semibold + detail 13 secondary (truncates tail) + “·” + last check (monospaced digits, never truncates). Whole group has .help with the full sentence.' },
+        { name: 'Buttons', spec: 'Default = .borderedProminent, tint accent-fill. Secondary = .bordered. Small (22 pt, 12 pt text) = .controlSize(.small). Destructive = role: .destructive (red text). Icon-only toolbar buttons 32×28.' },
+        { name: 'Profile name / model', spec: 'Name: editable combo (TextField + Menu of recent names), 36 pt tall, text 22 semibold. Model: Picker(.menu) 148 pt. Changed values show an “Edited” badge (11 semibold, orange tint) until applied.' },
+        { name: 'Key/value grid', spec: 'Grid, label column 104 pt (12 secondary), value mono 13 middle-truncated with tooltip and text selection, trailing 22 pt icon button (copy = doc.on.doc, reveal = folder). Row height 22, row gap 4.' },
+        { name: 'Model thumbnail', spec: '72×96, radius 8, border. Load the model’s .bmp from gamedir/models/player/<model>/; placeholder = striped box with filename.' },
+        { name: 'Interfaces row', spec: 'Grid 16 | 44 | flex | 104 | 48: icon, BSD name (mono), kind (12 secondary), IP (mono, right), badge (“VPN” accent tint) or “Inactive” text. Row height 24.' },
+        { name: 'Filter chips', spec: 'Toggle(.button) capsule 24 pt, radius 12. Off: control bg + symbol. On: accent tint, accent border, accent-text, symbol becomes checkmark (state readable without colour). Count in tertiary, monospaced digits.' },
+        { name: 'Servers table', spec: 'Table or List with section headers. Columns: 44 (star + bell, 20×20 hit targets) | server (flex) | CID 150 | map·players·ping 112 | ban 196. Row 48 pt, two lines. Group header 28 pt, 11 semibold secondary, disclosure chevron.' },
+        { name: 'Ban cell', spec: 'Icon 16 + two lines (status 13 semibold in status-text colour; detail 12 secondary) + optional “Fix…” small button. Statuses: Not banned, Banned, Timed ban, Range risk, Unknown, Checking… (ProgressView), Check failed, Checks off.' },
+        { name: 'Reason row', spec: 'Grid 20 | flex | auto, min height 52. Icon 18 + severity badge (Ban / Timed / Risk / Info) + message 13 (1 line, tooltip) / hint 12 secondary (1 line, tooltip) + optional small action button.' },
+        { name: 'Popovers', spec: '.popover(arrowEdge: .bottom/.top). Filters 264 wide: checkboxes with counts, Group by picker, “Hide unresolved hosts”, Clear Filters. All Actions 296 wide: Menu-like list grouped by server / network / profile.' },
+        { name: 'Sheets', spec: '.sheet, width 460–560, padding 20, spacing 12. Title 15 semibold, body 13 secondary, content in inset box (radius 8), buttons trailing: Cancel (.cancelAction) then default (.defaultAction).' },
+        { name: 'Destructive alert', spec: '.alert / NSAlert style: 272 wide, warning symbol 44, bold title, 12 pt message naming exactly what is removed and where, optional “Export settings first” checkbox, stacked buttons Cancel (default) / destructive.' },
+        { name: 'Update banner', spec: 'Full-width strip under the toolbar, outside the ScrollView. Accent tint bg, padding 8/16, arrow.down.circle.fill 18, title 13 semibold + subtitle 12 (truncates), Release Notes, Update Now (prominent), dismiss xmark.' },
+        { name: 'Settings cards', spec: 'Section label 13 semibold above card (4 pt inset). Card padding 4/16, rows ≥ 36 pt with 8 pt vertical padding and separators. Label left (caption 12 secondary under it), control trailing. Sub-options indent 20 and dim when the master toggle is off.' }
+      ],
+      statesTable: [
+        { w: 700, a: '', b: 'Loading', c: 'Empty', d: 'Error', e: 'Disabled' },
+        { w: 400, a: 'Toolbar', b: 'Spinner + “Checking 6 servers…”; Refresh disabled', c: '“Nothing to check” · “Never checked”; Save disabled', d: 'xmark.octagon.fill + “Check failed” + cause', e: 'lock.fill + “Read-only”; Save disabled' },
+        { w: 400, a: 'Profile', b: 'Skeleton with identical geometry', c: 'No identity found · Scan Again / Choose Identity File…', d: 'Couldn’t read identity + errno · Grant Access… / Try Again', e: 'Orange note “Xash3D is running…”; controls + Apply dimmed' },
+        { w: 400, a: 'Network', b: 'Skeleton', c: 'Not connected', d: 'Public IP “Lookup failed” + Retry; ranges “—”; interfaces still listed', e: 'Normal (read-only data)' },
+        { w: 400, a: 'Servers', b: 'Rows keep cached data; ban cell = spinner “Checking…”', c: 'Dashed empty block · Add Server', d: 'Orange notice + Retry; ban cells “Check failed”', e: 'Note “Ban checks are off” + Open Settings…; ban cells “Checks off”' },
+        { w: 400, a: 'Reasons', b: 'Spinner “Analysing…” + 2 skeleton rows', c: 'checkmark.circle.fill “No issues found”', d: '“Couldn’t analyse reasons”', e: '“Suggestions need ban checks”' }
+      ],
+      interactions: [
+        { name: 'Refresh (⌘R)', steps: ['Starts a check of identity, network and all servers; toolbar shows spinner + “Checking N servers…”; Refresh disabled until done.', 'Rows keep last known values; only the ban cell switches to “Checking…”. Values update in place — no reordering while a check runs.', 'On completion the status label and “Checked HH:MM · now” update; failures surface as the Error state per section, never as a modal.'] },
+        { name: 'Save (⌘S)', steps: ['Persists pending profile edits and server list to the data root without touching config.cfg.', 'Disabled when nothing is pending, while loading, or when read-only.'] },
+        { name: 'Apply with diff', steps: ['“Apply…” is enabled only when name/model differ from config.cfg and the game is not running.', 'Opens a sheet with a unified diff of config.cfg (line numbers, −/+ signs, red/green tints) and the backup destination.', 'Apply writes atomically (write temp → replace), creates the backup first, optionally sets the file read-only; Cancel/Esc discards nothing. On failure the sheet stays open with an inline error.'] },
+        { name: 'Filters', steps: ['Chips (Banned, Favourites, Watched) combine with AND and filter instantly; counts reflect the whole list.', 'Search filters by name, host, IP or CID substring.', 'Filter options popover adds Group by and “Hide unresolved hosts”. Clear Filters resets all. When nothing matches, the table shows “No servers match these filters” + Clear Filters.'] },
+        { name: 'Star / watch / Fix', steps: ['Star toggles favourite, bell toggles watch (notifications for online/map changes). Both update the chip counts immediately.', 'Fix… opens a popover anchored to the row with that server’s actions (same items as All Actions, filtered).'] },
+        { name: 'Update banner', steps: ['Shown when an update is found (auto-check or Check Now) and not yet installed; sits above all content and pushes it down — it does not overlay.', 'Update Now starts the download and the banner shows progress; Release Notes opens the notes; xmark hides it until the next version.', 'Never shown while a sheet is open; mirrors the Updates tab state.'] },
+        { name: 'Export sheet', steps: ['Choose categories; Identity history is off by default and carries a warning because it contains CIDs.', 'Export… opens NSSavePanel with the suggested file name (.piexport, JSON). Success shows a transient confirmation; failure keeps the sheet with an inline error.'] },
+        { name: 'Import sheet', steps: ['Choosing a file parses it first and shows a per-category summary (new / matched / differ / not in file) before anything changes.', 'Merge (default) keeps existing items and adds new; Replace overwrites. A backup of current settings is always made.', 'Files from newer app versions are refused with an explanation.'] },
+        { name: 'Destructive actions', steps: ['Reset Settings… and Erase All Data… live in a separate “Reset” group at the bottom of General.', 'Both confirm with an alert that names what is removed; Cancel is the default button; Erase offers “Export settings first”.'] },
+        { name: 'Updates tab', steps: ['Check Now → status card shows the result: available (Download & Install, Release Notes), downloading (progress, size, ETA, Cancel), up to date, error (message + Try Again).', 'Version history lists releases; older ones offer Downgrade…, which first backs up the data root to Backups/<current>/ (note shown under the list).'] }
+      ],
+      symbols: [
+        ['checkmark.shield.fill', 'Not banned'], ['xmark.octagon.fill', 'Banned, errors'], ['clock.fill', 'Timed ban'], ['exclamationmark.triangle.fill', 'Risk, warning'],
+        ['questionmark.circle', 'Unknown status'], ['exclamationmark.circle', 'Check failed'], ['shield.slash', 'Checks off'], ['_spinner', 'ProgressView()'],
+        ['info.circle.fill', 'Info reason'], ['checkmark.circle.fill', 'No issues / up to date'], ['lock.fill', 'Read-only'], ['lock.shield.fill', 'VPN interface'],
+        ['arrow.clockwise', 'Refresh, Check Now'], ['square.and.arrow.down', 'Save, Import'], ['square.and.arrow.up', 'Export'], ['arrow.down.circle.fill', 'Update available'],
+        ['arrow.down.circle', 'Updates tab'], ['gearshape', 'General tab'], ['star', 'Not favourite'], ['star.fill', 'Favourite'],
+        ['bell', 'Not watched'], ['bell.fill', 'Watched'], ['bell.badge', 'Remind me'], ['plus', 'Add Server'],
+        ['line.3.horizontal.decrease.circle', 'Filter options'], ['magnifyingglass', 'Search'], ['checkmark', 'Chip on, checkbox'], ['xmark', 'Dismiss'],
+        ['person.crop.circle', 'Profile'], ['globe', 'Network, VPN exit'], ['server.rack', 'Servers'], ['lightbulb', 'Reasons'],
+        ['wifi', 'Wi-Fi interface'], ['network', 'Ethernet interface'], ['arrow.up.right', 'Egress'], ['doc.on.doc', 'Copy'],
+        ['folder', 'Show in Finder'], ['chevron.down', 'Combo, disclosure'], ['chevron.up.chevron.down', 'Pop-up menu'], ['ellipsis.circle', 'All Actions'],
+        ['key', 'Regenerate CID'], ['pencil', 'Rename'], ['arrow.up.right.square', 'Open website'], ['tray', 'Empty servers'],
+        ['moon.fill', 'Quiet hours'], ['menubar.rectangle', 'Menu bar'], ['power', 'Launch at login'], ['waveform.path.ecg', 'Diagnostics'],
+        ['trash', 'Erase data'], ['arrow.uturn.backward', 'Downgrade'], ['externaldrive', 'Backup note']
+      ].map(([name, use]) => ({ name, use }))
+    };
+  }
+}
+</script>
+</body>
+</html>

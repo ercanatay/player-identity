@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.6 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.5 → v2.6: §46 ayar/sunucu export-import)
+Sürüm: 2.7 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.6 → v2.7: §47 sıfırlama/temizleme + UI redesign referansı)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1111,3 +1111,30 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 - Replace: yedek oluşturma, liste değişimi, geri alma yok.
 - `dataRoot` dahil/hariç; dil/bildirim/sessiz saat değerlerinin uygulanması.
 - l10n anahtarları tr/en eşit; literal taraması 0.
+
+---
+
+## 47. Ayarları sıfırlama ve tüm verileri silme (v2.7)
+
+### 47.1 Ayarları Sıfırla
+- Tüm tercihleri varsayılana döndürür: dil `system`, bildirimler varsayılan (ana şalter açık, kategoriler açık, sessiz saatler kapalı 23:00–08:00), menü çubuğu kapalı, açılışta başlatma kaydı kaldırılır, güncelleme tercihleri varsayılan, ban kontrolü açık.
+- **Korunur:** veri kökü, gamedir, sunucular, kayıt (`profile.json`), geçmiş, metrikler, yedekler.
+- Onay ister; iptal hiçbir şey değiştirmez. Sonrasında arayüz yeni tercihlere göre yeniden çizilir.
+
+### 47.2 Tüm Verileri Sil
+- Yalnız uygulamanın kendi klasörünü boşaltır: `~/Library/Application Support/tr.ercanatay.playeridentity` (kayıt, geçmiş, metrikler, watch-state, güncelleme indirmeleri/yedekleri, `*.appbak`).
+- **Dokunulmaz:** oyun dosyaları (`Xash3D FWGS`), veri kökü, uygulama tercihleri.
+- Onay sheet'inde **"Önce ayarları dışa aktar"** seçeneği (varsayılan kapalı); dışa aktarma başarısızsa silme yapılmaz. "Vazgeç"/Esc hiçbir şey silmez.
+- Güncelleme (indirme/kurulum) sürerken devre dışı.
+- Silme sonrası uygulama boş duruma döner; çökme yok.
+
+### 47.3 Testler
+- Sıfırlama sonrası tüm tercih değerleri varsayılan; korunması gerekenlerin aynı kaldığı.
+- Silme kapsamı (yalnız uygulama klasörü), oyun/veri kökü/tercihlerin korunması, iptal, dışa aktarma hatasında durma, güncelleme sırasında red.
+- Onay metinleri tr/en; anahtar eşitliği.
+
+### 47.4 UI redesign referansı
+- Ana pencere ve Ayarlar, Claude Design handoff'una göre uygulanır.
+- Kaynak: `docs/design/handoff/` (`tokens.css` tokenları, `MainWindow.dc.html`, `SettingsWindow.dc.html`, `icons.js` SF Symbol adları, Canvas N1 notları).
+- Tokenlar SwiftUI `Theme`/`Palette` içinde light/dark olarak tanımlanır; hardcoded renk yok. Sahte pencere kromu (trafik ışıkları) çizilmez.
+- Sapmalar: açık temada teal metin/düğme `#177A70`/`#187A71`; koyu temada `#2FB6A8`. "Fix…" ortak eylem penceresi değil, **satır içi sunucu eylem popover'ı** açar.

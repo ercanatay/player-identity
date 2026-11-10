@@ -1,0 +1,104 @@
+/* Player Identity — single source of design tokens.
+   Light/dark values are scoped by [data-theme] on each window root.
+   SwiftUI: map every --c-* token to an Asset Catalog Color Set (Any / Dark). */
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", system-ui, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
+  --fs-title: 22px;     /* player name, version title — semibold */
+  --fs-headline: 15px;  /* sheet / alert titles — semibold */
+  --fs-label: 13px;     /* section labels — semibold */
+  --fs-body: 13px;      /* body, buttons, values */
+  --fs-callout: 12px;   /* hints, secondary row lines, captions under controls */
+  --fs-caption: 11px;   /* column + group headers, field labels, badges */
+  --fs-mono: 13px;      /* IDs, CIDs, IPs, paths (12 inside diff view) */
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --sp-8: 32px;
+
+  --r-control: 6px; --r-inner: 8px; --r-window: 10px; --r-card: 12px; --r-sheet: 12px;
+
+  --h-toolbar: 52px; --h-control: 24px; --h-row: 48px; --h-group: 28px; --h-kv: 22px;
+
+  --brand-slate: #1B2432;
+  --brand-teal: #2FB6A8;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --c-window: #F2F4F7;
+  --c-toolbar: #F8F9FB;
+  --c-card: #FFFFFF;
+  --c-raised: #FFFFFF;
+  --c-field: #FFFFFF;
+  --c-inset: #F6F7F9;
+  --c-group: #F4F6F8;
+  --c-row-hover: rgba(27,36,50,0.035);
+  --c-border: rgba(27,36,50,0.08);
+  --c-border-strong: rgba(27,36,50,0.16);
+  --c-separator: rgba(27,36,50,0.08);
+  --c-text: #1B2432;
+  --c-text-2: #525D6D;
+  --c-text-3: #636D7C;
+  --c-accent: #2FB6A8;
+  --c-accent-text: #177A70;
+  --c-accent-fill: #187A71;
+  --c-on-accent: #FFFFFF;
+  --c-accent-tint: rgba(47,182,168,0.12);
+  --c-focus: rgba(47,182,168,0.55);
+  --c-green: #34C759;  --c-green-text: #1A7F37;  --c-green-tint: rgba(52,199,89,0.14);
+  --c-orange: #FF9F0A; --c-orange-text: #9A4A00; --c-orange-tint: rgba(255,159,10,0.16);
+  --c-red: #FF453A;    --c-red-text: #C0201A;    --c-red-tint: rgba(255,69,58,0.12);
+  --c-control: #FFFFFF;
+  --c-control-border: rgba(27,36,50,0.14);
+  --c-control-shadow: 0 0.5px 1px rgba(27,36,50,0.12);
+  --c-toolbar-hover: rgba(27,36,50,0.06);
+  --c-switch-off: rgba(27,36,50,0.16);
+  --c-knob: #FFFFFF;
+  --c-skeleton: rgba(27,36,50,0.07);
+  --c-stripe: rgba(27,36,50,0.06);
+  --c-scrim: rgba(27,36,50,0.16);
+  --c-tl-close: #FF5F57; --c-tl-min: #FEBC2E; --c-tl-zoom: #28C840; --c-tl-off: rgba(27,36,50,0.14);
+  --shadow-window: 0 0 0 0.5px rgba(0,0,0,0.14), 0 22px 56px rgba(27,36,50,0.22);
+  --shadow-popover: 0 0 0 0.5px rgba(27,36,50,0.14), 0 10px 32px rgba(27,36,50,0.18);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --c-window: #111821;
+  --c-toolbar: #18202B;
+  --c-card: #1B2432;
+  --c-raised: #243042;
+  --c-field: #141B25;
+  --c-inset: #151C27;
+  --c-group: #202A39;
+  --c-row-hover: rgba(255,255,255,0.03);
+  --c-border: rgba(255,255,255,0.08);
+  --c-border-strong: rgba(255,255,255,0.16);
+  --c-separator: rgba(255,255,255,0.08);
+  --c-text: #E9EEF4;
+  --c-text-2: #A7B1C0;
+  --c-text-3: #8D99AB;
+  --c-accent: #2FB6A8;
+  --c-accent-text: #52D3C4;
+  --c-accent-fill: #2FB6A8;
+  --c-on-accent: #08201E;
+  --c-accent-tint: rgba(47,182,168,0.16);
+  --c-focus: rgba(47,182,168,0.6);
+  --c-green: #34C759;  --c-green-text: #5BD97A;  --c-green-tint: rgba(52,199,89,0.18);
+  --c-orange: #FF9F0A; --c-orange-text: #FFB547; --c-orange-tint: rgba(255,159,10,0.18);
+  --c-red: #FF453A;    --c-red-text: #FF7A70;    --c-red-tint: rgba(255,69,58,0.18);
+  --c-control: rgba(255,255,255,0.10);
+  --c-control-border: rgba(255,255,255,0.10);
+  --c-control-shadow: 0 0.5px 1px rgba(0,0,0,0.3);
+  --c-toolbar-hover: rgba(255,255,255,0.07);
+  --c-switch-off: rgba(255,255,255,0.18);
+  --c-knob: #F2F4F7;
+  --c-skeleton: rgba(255,255,255,0.07);
+  --c-stripe: rgba(255,255,255,0.05);
+  --c-scrim: rgba(0,0,0,0.38);
+  --c-tl-close: #FF5F57; --c-tl-min: #FEBC2E; --c-tl-zoom: #28C840; --c-tl-off: rgba(255,255,255,0.16);
+  --shadow-window: 0 0 0 1px rgba(255,255,255,0.10), 0 22px 56px rgba(0,0,0,0.5);
+  --shadow-popover: 0 0 0 1px rgba(255,255,255,0.10), 0 12px 32px rgba(0,0,0,0.45);
+}
+
+@keyframes pi-spin { to { transform: rotate(360deg); } }
