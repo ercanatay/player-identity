@@ -1,18 +1,13 @@
 import AppKit
 import SwiftUI
 
-/// Single-window UI (§8).
+/// Single-window UI (§8), main window redesign: unified toolbar, optional banners, then a scroll view with
+/// [Profile | Network], Servers and Reasons cards on the window background.
 struct ContentView: View {
     @Bindable var model: AppModel
     @Environment(\.openWindow) private var openWindow
 
     @State private var sheet: SheetMode?
-    @State private var copiedKey: String?
-    @State private var showsSuggestions = false
-    @State private var showsNewName = false
-    @State private var newNameText = ""
-    @State private var showsManualModel = false
-    @State private var manualModelText = ""
 
     enum SheetMode: Identifiable {
         case add
@@ -34,29 +29,25 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let backup = model.updates.restoreOffer {
-                RestoreBanner(updates: model.updates, backup: backup)
-                Divider()
-            }
-            if let update = model.availableUpdate {
-                UpdateBanner(updates: model.updates, update: update)
-                Divider()
-            }
-            topBar
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-            Divider()
+            MainWindowBanners(model: model)
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    profileCard
-                    networkCard
-                    serversCard
-                    reasonsSection
+                VStack(alignment: .leading, spacing: Space.s4) {
+                    TopRowLayout {
+                        ProfileCard(model: model)
+                        NetworkCard(model: model)
+                    }
+                    ServersCard(model: model, presenter: presenter)
+                    ReasonsCard(model: model, presenter: presenter)
                 }
-                .padding(16)
+                .padding(Space.s4)
             }
+            .background(Palette.window)
         }
+        .background(Palette.window)
+        .foregroundStyle(Palette.text)
+        .font(TypeScale.body)
         .frame(minWidth: 720, minHeight: 520)
+        .toolbar { MainToolbarContent(model: model) }
         .task {
             guard !AppModel.isRunningTests else { return }
             model.refresh()
@@ -97,16 +88,6 @@ struct ContentView: View {
         } message: {
             Text(model.joinError.map(GameLaunchText.error) ?? "")
         }
-        .alert(L10n.text(.alertNewNameTitle), isPresented: $showsNewName) {
-            TextField(L10n.text(.profileName), text: $newNameText)
-            Button(L10n.text(.actionOK)) { model.nameDraft = newNameText }
-            Button(L10n.text(.actionCancel), role: .cancel) {}
-        }
-        .alert(L10n.text(.alertManualModelTitle), isPresented: $showsManualModel) {
-            TextField(L10n.text(.profileModel), text: $manualModelText)
-            Button(L10n.text(.actionOK)) { model.modelDraft = manualModelText }
-            Button(L10n.text(.actionCancel), role: .cancel) {}
-        }
         .alert(L10n.text(.alertSaveFailedTitle), isPresented: Binding(
             get: { model.saveErrorMessage != nil },
             set: { if !$0 { model.saveErrorMessage = nil } }
@@ -117,377 +98,14 @@ struct ContentView: View {
         }
     }
 
-    // MARK: Top bar
-
-    private var topBar: some View {
-        HStack(spacing: 12) {
-            if let report = model.report {
-                let statusLabel = Label {
-                    Text(report.overall.label).font(.title3.bold())
-                } icon: {
-                    Image(systemName: report.overall.symbolName)
-                        .foregroundStyle(report.overall.color)
-                        .font(.title2)
-                }
-                if report.reasons.isEmpty {
-                    statusLabel
-                        .accessibilityElement(children: .combine)
-                } else {
-                    // §14.2/2: clicking the label opens the "What to do?" popover.
-                    Button {
-                        showsSuggestions = true
-                    } label: {
-                        statusLabel
-                    }
-                    .buttonStyle(.plain)
-                    .help(L10n.text(.topbarWhatToDo))
-                    .accessibilityLabel(report.overall.label)
-                    .accessibilityHint(L10n.text(.topbarWhatToDo))
-                    .popover(isPresented: $showsSuggestions, arrowEdge: .bottom) {
-                        SuggestionsPopover(reasons: report.reasons)
-                    }
-                }
-            } else {
-                Text(L10n.text(model.isRefreshing ? .topbarChecking : .topbarNotChecked))
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(L10n.format(.topbarLastCheck, TimeText.format(model.lastChecked)))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-
-            Spacer()
-
-            if model.hasUnsavedChanges {
-                Text(L10n.text(.topbarUnsaved))
-                    .font(.caption.bold())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(Color.orange.opacity(0.2)))
-                    .foregroundStyle(.orange)
-            }
-
-            Button {
-                model.refresh()
-            } label: {
-                HStack(spacing: 6) {
-                    if model.isRefreshing {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    Text(L10n.text(.actionRefresh))
-                }
-            }
-            .disabled(model.isRefreshing)
-            .help(L10n.text(.helpRefresh))
-
-            Button {
-                model.save()
-            } label: {
-                Label(L10n.text(.actionSave), systemImage: "square.and.arrow.down")
-            }
-            .help(L10n.text(.helpSave))
-        }
-    }
-
-    // MARK: Profile card
-
-    private var profileCard: some View {
-        Card(title: L10n.text(.profileTitle)) {
-            if model.isGameRunning {
-                // §15.7 game-running warning banner
-                Label(EditMessage.gameRunning.text, systemImage: StatusLevel.orange.symbolName)
-                    .foregroundStyle(.orange)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.15)))
-            }
-            if model.hasConfigOverride {
-                // §43.1 userconfig.cfg override warning
-                HStack(spacing: 8) {
-                    Label(L10n.text(.configOverrideWarning), systemImage: StatusLevel.orange.symbolName)
-                        .foregroundStyle(.orange)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Button(L10n.text(.configOverrideRemove)) { model.showsOverrideRemoval = true }
-                        .disabled(model.isApplying)
-                }
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.15)))
-                .confirmationDialog(L10n.text(.configOverrideConfirmTitle), isPresented: $model.showsOverrideRemoval,
-                                    titleVisibility: .visible) {
-                    Button(L10n.text(.configOverrideRemove), role: .destructive) { model.removeOverride() }
-                    Button(L10n.text(.actionCancel), role: .cancel) {}
-                } message: {
-                    Text(L10n.format(.configOverrideConfirmMessage, model.overriddenKeys.joined(separator: "/")))
-                }
-            }
-            FieldRow(title: L10n.text(.profileName)) {
-                Menu {
-                    ForEach(model.nameOptions, id: \.self) { option in
-                        Button(option) { model.nameDraft = option }
-                    }
-                    Divider()
-                    Button(L10n.text(.profileNewName)) {
-                        newNameText = model.nameDraft
-                        showsNewName = true
-                    }
-                } label: {
-                    Text(model.nameDraft.isEmpty ? "—" : model.nameDraft)
-                }
-                .fixedSize()
-                .accessibilityLabel(L10n.format(.a11yProfileName, model.nameDraft))
-                sourceNote(model.configSources.name)
-            }
-            if let error = model.nameError { fieldError(error) }
-            FieldRow(title: L10n.text(.profileModel)) {
-                ModelPopUpButton(
-                    title: model.modelDraft,
-                    options: model.modelOptions,
-                    thumbnails: Dictionary(uniqueKeysWithValues: model.modelOptions.map {
-                        ($0.value, ModelPreviewStyle.thumbnail(model.preview(for: $0.value)))
-                    }),
-                    allowsManualEntry: model.allowsManualModelEntry,
-                    onSelect: { model.modelDraft = $0 },
-                    onManualEntry: {
-                        manualModelText = model.modelDraft
-                        showsManualModel = true
-                    })
-                .fixedSize()
-                sourceNote(model.configSources.model)
-            }
-            if let error = model.modelError { fieldError(error) }
-            Text(L10n.text(.profileModelServerNote))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 142)
-            FieldRow(title: "") {
-                // §16.3 selected model preview; source file path in the tooltip.
-                let preview = model.preview(for: model.modelDraft)
-                    ?? (model.isLoadingPreviews ? nil : ModelPreview.placeholder)
-                HStack(spacing: 10) {
-                    ModelPreviewView(preview: preview, modelName: model.modelDraft)
-                    Text(model.modelDraft.isEmpty ? "—" : model.modelDraft)
-                        .foregroundStyle(.secondary)
-                }
-                .help(preview?.image?.url.path ?? "")
-            }
-            HStack(spacing: 12) {
-                Spacer().frame(width: 130)
-                Button {
-                    model.requestApply()
-                } label: {
-                    HStack(spacing: 6) {
-                        if model.isApplying { ProgressView().controlSize(.small) }
-                        Text(L10n.text(.actionApply))
-                    }
-                }
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(!model.canApply)
-                .help(L10n.text(.helpApply))
-                switch model.applyStatus {
-                case .success(let text)?:
-                    Text(text).font(.callout).foregroundStyle(.secondary)
-                case .failure(let error)?:
-                    Text(error.text).font(.callout).foregroundStyle(.red)
-                case nil:
-                    EmptyView()
-                }
-                Spacer(minLength: 0)
-            }
-            FieldRow(title: L10n.text(.profileRawID)) {
-                Text(identityValue?.rawIDHex ?? "—")
-                    .font(.body.monospaced())
-                    .textSelection(.enabled)
-            }
-            FieldRow(title: L10n.text(.profileIdentitySource)) {
-                let path = identityValue?.source.url.path
-                Text(path.map { ($0 as NSString).abbreviatingWithTildeInPath } ?? "—")
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(path ?? "")
-            }
-            FieldRow(title: L10n.text(.profileGamedir)) {
-                if gamedirOptions.isEmpty {
-                    Text(L10n.text(.profileNoGamedir)).foregroundStyle(.secondary)
-                } else {
-                    Picker(L10n.text(.profileGamedir), selection: Binding(
-                        get: { model.selectedGamedir ?? "" },
-                        set: { model.selectGamedir($0) }
-                    )) {
-                        ForEach(gamedirOptions, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden()
-                    .fixedSize()
-                }
-            }
-            FieldRow(title: L10n.text(.profileDataRoot)) {
-                Text((model.dataRoot.path as NSString).abbreviatingWithTildeInPath)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(model.dataRoot.path)
-                Button(L10n.text(.profileChooseFolder), action: chooseDataRoot)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func sourceNote(_ source: ConfigFileKind?) -> some View {
-        if let source {
-            Text(source.note)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func fieldError(_ error: EditMessage) -> some View {
-        Text(error.text)
-            .font(.caption)
-            .foregroundStyle(.red)
-            .padding(.leading, 142)
-    }
-
-    private var identityValue: Identity? {
-        guard case .success(let identity)? = model.identity else { return nil }
-        return identity
-    }
-
-    private var gamedirOptions: [String] {
-        var options = model.gamedirs
-        if let selected = model.selectedGamedir, !options.contains(selected) { options.append(selected) }
-        return options
-    }
-
-    private func chooseDataRoot() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
-        panel.directoryURL = model.dataRoot
-        panel.prompt = L10n.text(.profilePanelPrompt)
-        panel.message = L10n.text(.profilePanelMessage)
-        if panel.runModal() == .OK, let url = panel.url {
-            model.setDataRoot(url)
-        }
-    }
-
-    // MARK: Network card
-
-    private var networkCard: some View {
-        Card(title: L10n.text(.networkTitle)) {
-            FieldRow(title: L10n.text(.networkPublicIP)) {
-                if let ip = model.publicIP {
-                    Text(ip)
-                        .font(.title2.monospaced())
-                        .textSelection(.enabled)
-                    copyButton(text: ip, key: "publicIP")
-                } else {
-                    Text(model.lastChecked == nil ? "—" : L10n.text(.networkUnavailable))
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            if let ip = model.publicIP, let range = IPRange.displayText(for: ip) {
-                FieldRow(title: L10n.text(.networkRange)) {
-                    Text(range)
-                        .font(.body.monospaced())
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("publicIPRange")
-                }
-            }
-            FieldRow(title: L10n.text(.networkLocalIPs)) {
-                if model.lanAddresses.isEmpty {
-                    Text(model.lastChecked == nil ? "—" : MessageCode.lanIPMissing.text)
-                        .foregroundStyle(.secondary)
-                } else {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(model.lanAddresses, id: \.display) { address in
-                            Text(address.display)
-                                .font(.body.monospaced())
-                                .textSelection(.enabled)
-                        }
-                    }
-                }
-            }
-            InterfacesSection(report: model.interfaceReport, publicIP: model.publicIP)
-        }
-    }
-
-    @ViewBuilder
-    private func copyButton(text: String, key: String) -> some View {
-        Button {
-            copy(text, key: key)
-        } label: {
-            Image(systemName: "doc.on.doc")
-        }
-        .buttonStyle(.borderless)
-        .help(L10n.text(.actionCopy))
-        .accessibilityLabel(L10n.text(.actionCopy))
-        if copiedKey == key {
-            Text(L10n.text(.actionCopied)).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    private func copy(_ text: String, key: String) {
-        Pasteboard.copy(text)
-        copiedKey = key
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            if copiedKey == key { copiedKey = nil }
-        }
-    }
-
-    // MARK: Servers
-
-    private var serversCard: some View {
-        Card(title: L10n.text(.serversTitle)) {
-            if model.servers.isEmpty {
-                VStack(spacing: 8) {
-                    Text(L10n.text(.serversEmpty)).foregroundStyle(.secondary)
-                    addServerButton
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            } else {
-                ServerSectionsView(model: model, copiedKey: copiedKey, makeActions: rowActions)
-                HStack {
-                    addServerButton
-                    // §38 ban matrix window
-                    Button {
-                        openWindow(id: "banMatrix")
-                    } label: {
-                        Label(L10n.text(.banMatrixOpen), systemImage: "tablecells")
-                    }
-                    .accessibilityIdentifier("openBanMatrix")
-                }
-            }
-        }
-    }
-
-    private func rowActions(_ entry: ServerEntry) -> ServerRowActions {
-        let id = entry.id
-        return ServerRowActions(
-            copy: { copy($0, key: id.uuidString) },
-            edit: { sheet = .edit(id) },
-            delete: { model.deleteServer(id: id) },
-            fix: model.fixKind(for: id) == nil ? nil : { model.beginFix(id) },
-            join: model.isGameAppInstalled ? { model.joinGame(id) } : nil,
-            toggleFavorite: { model.setFavorite(!entry.favorite, for: id) },
-            toggleWatch: { model.setWatch(!entry.watch, for: id) },
-            moveUp: model.canMoveServer(id: id, .up) ? { model.moveServer(id: id, .up) } : nil,
-            moveDown: model.canMoveServer(id: id, .down) ? { model.moveServer(id: id, .down) } : nil,
-            details: { sheet = .details(id) },
-            shareCard: { sheet = .shareCard(id) })
-    }
-
-    private var addServerButton: some View {
-        Button {
-            sheet = .add
-        } label: {
-            Label(L10n.text(.serverAdd), systemImage: "plus")
-        }
+    /// Opens the window-level sheets and windows for the cards.
+    private var presenter: MainWindowPresenter {
+        MainWindowPresenter(
+            addServer: { sheet = .add },
+            editServer: { sheet = .edit($0) },
+            details: { sheet = .details($0) },
+            shareCard: { sheet = .shareCard($0) },
+            openBanMatrix: { openWindow(id: "banMatrix") })
     }
 
     @ViewBuilder
@@ -516,91 +134,79 @@ struct ContentView: View {
             ShareCardSheet(model: model, serverID: id, onClose: { sheet = nil })
         }
     }
+}
 
-    // MARK: Reasons
+/// Callbacks the cards use to open window-level sheets (the cards hold no sheet state themselves).
+struct MainWindowPresenter {
+    var addServer: () -> Void = {}
+    var editServer: (UUID) -> Void = { _ in }
+    var details: (UUID) -> Void = { _ in }
+    var shareCard: (UUID) -> Void = { _ in }
+    var openBanMatrix: () -> Void = {}
+}
 
-    @ViewBuilder
-    private var reasonsSection: some View {
-        if let reasons = model.report?.reasons, !reasons.isEmpty {
-            Card(title: L10n.text(.reasonsTitle)) {
-                ForEach(Array(reasons.enumerated()), id: \.offset) { _, reason in
-                    // §14.2/1: primary message + secondary "→ suggestion" (gray, small).
-                    VStack(alignment: .leading, spacing: 2) {
-                        Label {
-                            Text(reason.message)
-                        } icon: {
-                            Image(systemName: reason.severity.symbolName)
-                                .foregroundStyle(reason.severity.color)
-                        }
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel(L10n.format(.a11yReason, reason.severity.label, reason.message))
+/// Update / restore banners: full-width strips under the toolbar, outside the scroll view (they push content down).
+struct MainWindowBanners: View {
+    @Bindable var model: AppModel
 
-                        Text(SuggestionText.secondaryLine(for: reason.code))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.leading, 28)
-                    }
-                }
-            }
+    var body: some View {
+        if let backup = model.updates.restoreOffer {
+            RestoreBanner(updates: model.updates, backup: backup)
+            ThemedDivider()
+        }
+        if let update = model.availableUpdate {
+            UpdateBanner(updates: model.updates, update: update)
+            ThemedDivider()
         }
     }
 }
 
-/// §13.3 ban column: icon + text; last check time in the tooltip.
-struct BanColumn: View {
-    let check: BanCheck?
+/// [Profile | Network] row: columns 1.38 : 1 with equal heights; stacks below the 820 pt window breakpoint.
+struct TopRowLayout: Layout {
+    var spacing: CGFloat = Space.s4
 
-    var body: some View {
-        if let check {
-            Label {
-                Text(check.status.label)
-            } icon: {
-                Image(systemName: check.status.symbolName)
-                    .foregroundStyle(check.status.level == .orange ? Color.secondary : check.status.level.color)
-            }
-            .frame(minWidth: 120, alignment: .leading)
-            .help(tooltip(check))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(L10n.format(.a11yBan, check.status.label))
-        } else {
-            Text("—")
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 120, alignment: .leading)
+    /// Content width (window minus the 2 × 16 pt inset) below which the cards stack.
+    static let stackWidth = Metrics.stackedBreakpoint - 2 * Space.s4
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? Self.stackWidth
+        let frames = layout(width: width, subviews: subviews)
+        return CGSize(width: width, height: frames.map(\.maxY).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for (subview, frame) in zip(subviews, layout(width: bounds.width, subviews: subviews)) {
+            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), anchor: .topLeading,
+                          proposal: ProposedViewSize(width: frame.width, height: frame.height))
         }
     }
 
-    private func tooltip(_ check: BanCheck) -> String {
-        let time = L10n.format(.topbarLastCheck, TimeText.format(check.checkedAt))
-        return check.detail.isEmpty ? time : "\(time)\n\(check.detail)"
+    /// Profile and network column widths (1.38 : 1); `nil` = stacked (content narrower than the breakpoint).
+    static func columnWidths(contentWidth width: CGFloat, spacing: CGFloat = Space.s4) -> (CGFloat, CGFloat)? {
+        guard width >= stackWidth else { return nil }
+        let available = max(width - spacing, 0)
+        let leading = (available * Metrics.profileShare / (Metrics.profileShare + 1)).rounded(.down)
+        return (leading, available - leading)
     }
-}
 
-/// "What to do?" popover (§14.2/2): numbered list of suggestions for the reasons + "Copy".
-struct SuggestionsPopover: View {
-    let reasons: [StatusReason]
-    @State private var copied = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.text(.topbarWhatToDo)).font(.headline)
-            ForEach(Array(SuggestionText.numberedLines(for: reasons).enumerated()), id: \.offset) { _, line in
-                Text(line)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
-            }
-            HStack {
-                Spacer()
-                if copied {
-                    Text(L10n.text(.actionCopied)).font(.caption).foregroundStyle(.secondary)
-                }
-                Button(L10n.text(.actionCopy)) {
-                    Pasteboard.copy(SuggestionText.plainText(for: reasons))
-                    copied = true
-                }
+    private func layout(width: CGFloat, subviews: Subviews) -> [CGRect] {
+        guard subviews.count == 2 else {
+            var y: CGFloat = 0
+            return subviews.map { subview in
+                let height = subview.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+                defer { y += height + spacing }
+                return CGRect(x: 0, y: y, width: width, height: height)
             }
         }
-        .padding(16)
-        .frame(width: 440)
+        guard let (leading, trailing) = Self.columnWidths(contentWidth: width, spacing: spacing) else {
+            let first = subviews[0].sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+            let second = subviews[1].sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+            return [CGRect(x: 0, y: 0, width: width, height: first),
+                    CGRect(x: 0, y: first + spacing, width: width, height: second)]
+        }
+        let height = max(subviews[0].sizeThatFits(ProposedViewSize(width: leading, height: nil)).height,
+                         subviews[1].sizeThatFits(ProposedViewSize(width: trailing, height: nil)).height)
+        return [CGRect(x: 0, y: 0, width: leading, height: height),
+                CGRect(x: leading + spacing, y: 0, width: trailing, height: height)]
     }
 }

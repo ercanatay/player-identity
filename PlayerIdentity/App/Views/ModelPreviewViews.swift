@@ -4,9 +4,9 @@ import SwiftUI
 /// §16.3 display helpers.
 enum ModelPreviewStyle {
     /// Dark background `#1B2432`.
-    static let background = Color(.sRGB, red: 0x1B / 255.0, green: 0x24 / 255.0, blue: 0x32 / 255.0, opacity: 1)
+    static let background = Palette.brandSlate
     static let thumbnailSize = NSSize(width: 20, height: 24)
-    static let previewSize = CGSize(width: 56, height: 68)
+    static let previewSize = Metrics.modelThumbnail
     static let cornerRadius: CGFloat = 8
 
     /// Centers inside `bounds` keeping the aspect ratio (aspect fit).
@@ -36,7 +36,7 @@ enum ModelPreviewStyle {
         }
         let image = preview?.image
         return NSImage(size: thumbnailSize, flipped: false) { rect in
-            NSColor(srgbRed: 0x1B / 255.0, green: 0x24 / 255.0, blue: 0x32 / 255.0, alpha: 1).setFill()
+            Palette.brandSlateNS.setFill()
             NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3).fill()
             guard let image, let context = NSGraphicsContext.current else { return true }
             context.imageInterpolation = .high
@@ -47,7 +47,8 @@ enum ModelPreviewStyle {
     }
 }
 
-/// Selected model preview: 56×68, 8 pt corners, dark background, 1 px border (§16.3).
+/// Selected model preview (§16.3): 72×96, radius 8, 1 pt border. Image on the brand-slate background,
+/// placeholder = striped box with the file name, `nil` = loading skeleton.
 struct ModelPreviewView: View {
     let preview: ModelPreview?
     let modelName: String
@@ -55,29 +56,34 @@ struct ModelPreviewView: View {
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
-        ZStack {
-            ModelPreviewStyle.background
+        ZStack(alignment: .bottom) {
             switch preview {
             case .image(let image)?:
+                ModelPreviewStyle.background
                 Image(decorative: image.cgImage, scale: displayScale)
                     .resizable()
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fit)
                     .accessibilityHidden(true)
             case .placeholder?:
-                Image(systemName: ModelPreview.placeholderSymbol)
-                    .font(.system(size: 28))
-                    .foregroundStyle(.secondary)
+                StripedBackground()
+                Text(verbatim: modelName.isEmpty ? "—" : modelName + ".bmp")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Palette.text3)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .truncationMode(.middle)
+                    .padding(6)
                     .accessibilityHidden(true)
             case nil:
-                EmptyView()   // skeleton: dark background only
+                Palette.skeleton   // loading skeleton
             }
         }
         .frame(width: ModelPreviewStyle.previewSize.width, height: ModelPreviewStyle.previewSize.height)
         .clipShape(RoundedRectangle(cornerRadius: ModelPreviewStyle.cornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: ModelPreviewStyle.cornerRadius)
-                .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1 / max(displayScale, 1))
+                .strokeBorder(Palette.border, lineWidth: 1)
         )
         .accessibilityElement()
         .accessibilityAddTraits(.isImage)
@@ -90,6 +96,24 @@ struct ModelPreviewView: View {
         case .placeholder?: return L10n.format(.a11yPreviewPlaceholder, modelName)
         case nil: return L10n.format(.a11yPreviewLoading, modelName)
         }
+    }
+}
+
+/// 135° stripes, 6 pt on / 6 pt off, in the `--c-stripe` token.
+private struct StripedBackground: View {
+    var body: some View {
+        Canvas { context, size in
+            let step: CGFloat = 12 * 2.squareRoot()
+            var path = Path()
+            var x = -size.height
+            while x < size.width + size.height {
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x + size.height, y: size.height))
+                x += step
+            }
+            context.stroke(path, with: .color(Palette.stripe), lineWidth: 6)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -111,7 +135,7 @@ struct ModelPopUpButton: NSViewRepresentable {
         let button = NSPopUpButton(frame: .zero, pullsDown: true)
         button.target = context.coordinator
         button.action = #selector(Coordinator.selected(_:))
-        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
         return button
     }
 

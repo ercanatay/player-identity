@@ -95,31 +95,44 @@ struct UpdateStatusRow: View {
     }
 }
 
-/// §27.3 banner: version + "Install" + "Release notes" + "Ignore"; shows the progress while installing.
+/// §27.3 banner: full-width strip under the toolbar (accent tint, padding 8/16): icon, title + status,
+/// Release Notes → Install (prominent) → Ignore (xmark). Shows the progress while installing.
 struct UpdateBanner: View {
     @Bindable var updates: UpdateController
     let update: AppUpdate
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Space.s3) {
             Image(systemName: "arrow.down.circle.fill")
-                .foregroundStyle(.blue)
+                .font(.system(size: 16))
+                .foregroundStyle(Palette.accentText)
                 .accessibilityHidden(true)
-            Text(L10n.format(.updateAvailable, update.version))
-                .fontWeight(.medium)
-            UpdateStatusRow(updates: updates, compact: true)
-            Spacer()
-            Button(L10n.text(.updateInstall)) { updates.requestInstallOfAvailableUpdate() }
-                .disabled(updates.status.isBusy)
+            HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
+                Text(L10n.format(.updateAvailable, update.version))
+                    .font(TypeScale.label)
+                    .foregroundStyle(Palette.text)
+                    .lineLimit(1)
+                    .fixedSize()
+                UpdateStatusRow(updates: updates, compact: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Button(L10n.text(.updateReleaseNotes)) { NSWorkspace.shared.open(update.url) }
                 .help(update.url.absoluteString)
-            Button(L10n.text(.updateIgnore), action: updates.ignoreUpdate)
+            Button(L10n.text(.updateInstall)) { updates.requestInstallOfAvailableUpdate() }
+                .prominentButton()
+                .disabled(updates.status.isBusy)
+            IconButton(symbol: "xmark", label: L10n.text(.updateIgnore),
+                       size: CGSize(width: Metrics.control, height: Metrics.control), symbolSize: 11,
+                       action: updates.ignoreUpdate)
                 .disabled(updates.status.isBusy)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.blue.opacity(0.12))
+        .font(TypeScale.body)
+        .padding(.leading, Space.s4)
+        .padding(.trailing, Space.s3)
+        .padding(.vertical, Space.s2)
+        .background(Palette.accentTint)
         .accessibilityElement(children: .contain)
+        .accessibilityLabel(L10n.format(.updateAvailable, update.version))
         .accessibilityIdentifier("updateBanner")
     }
 }
@@ -130,24 +143,25 @@ struct RestoreBanner: View {
     let backup: DataBackup
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Space.s3) {
             Image(systemName: "clock.arrow.circlepath")
-                .foregroundStyle(.orange)
+                .font(.system(size: 16))
+                .foregroundStyle(Palette.orangeText)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(L10n.format(.restoreBanner, RestoreBanner.date(backup.info.createdAt)))
-                    .fontWeight(.medium)
+                    .font(TypeScale.label)
                     .fixedSize(horizontal: false, vertical: true)
                 if let error = updates.restoreError {
-                    Text(L10n.format(.restoreFailed, error)).font(.callout).foregroundStyle(.red)
+                    Text(L10n.format(.restoreFailed, error)).font(TypeScale.callout).foregroundStyle(Palette.redText)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
             Button(L10n.text(.restoreAction)) { updates.pendingRestore = true }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.orange.opacity(0.14))
+        .padding(.horizontal, Space.s4)
+        .padding(.vertical, Space.s2)
+        .background(Palette.orangeTint)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("restoreBanner")
         .alert(L10n.text(.restoreConfirmTitle), isPresented: $updates.pendingRestore) {
@@ -211,45 +225,84 @@ struct InstallConfirmSheet: View {
     }
 }
 
-/// §24 preview of the lines Apply would write: per file `-`/`+` lines with line numbers.
+/// §24 preview of the lines Apply would write: per file an inset box with the file name and −/+ counts, then
+/// rows of line number | sign | text (mono 12, red/green tints). Cancel (Esc) / Write (Return).
 struct ApplyPreviewSheet: View {
     let preview: AppModel.ApplyPreview
     let onWrite: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L10n.text(.diffTitle)).font(.title3.bold())
-            Text(L10n.text(.diffMessage))
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: Space.s3) {
+            VStack(alignment: .leading, spacing: Space.s1) {
+                Text(L10n.text(.diffTitle)).font(TypeScale.headline)
+                Text(L10n.text(.diffMessage))
+                    .foregroundStyle(Palette.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: Space.s3) {
                     ForEach(Array(preview.diffs.enumerated()), id: \.offset) { _, diff in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: diff.file.fileName).font(.headline.monospaced())
-                            ForEach(Array(diff.lines.enumerated()), id: \.offset) { _, line in
-                                DiffLineRow(line: line)
-                            }
-                        }
+                        DiffFileBox(diff: diff)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
             }
-            .frame(minHeight: 120, maxHeight: 320)
-            .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
-            HStack {
+            .frame(minHeight: 120, maxHeight: 360)
+            .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: Space.s2) {
                 Spacer()
                 Button(L10n.text(.actionCancel), role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Button(L10n.text(.diffWrite), action: onWrite)
+                    .prominentButton()
                     .keyboardShortcut(.defaultAction)
             }
+            .padding(.top, Space.s1)
         }
+        .font(TypeScale.body)
+        .foregroundStyle(Palette.text)
         .padding(20)
         .frame(width: 560)
+        .background(Palette.raised)
+    }
+}
+
+/// One file of the diff: header (file name, −N +N) and the numbered lines.
+private struct DiffFileBox: View {
+    let diff: ConfigFileDiff
+
+    var body: some View {
+        let removed = diff.lines.filter { $0.kind == .removed }.count
+        let added = diff.lines.count - removed
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: Space.s2) {
+                Image(systemName: "folder").font(.system(size: 11)).accessibilityHidden(true)
+                Text(verbatim: diff.file.fileName)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(verbatim: "−" + String(removed))
+                    .foregroundStyle(Palette.redText)
+                    .accessibilityLabel(L10n.text(.diffRemoved) + " " + String(removed))
+                Text(verbatim: "+" + String(added))
+                    .foregroundStyle(Palette.greenText)
+                    .accessibilityLabel(L10n.text(.diffAdded) + " " + String(added))
+            }
+            .font(TypeScale.monoSmall)
+            .foregroundStyle(Palette.text2)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .overlay(alignment: .bottom) { ThemedDivider() }
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(diff.lines.enumerated()), id: \.offset) { _, line in
+                    DiffLineRow(line: line)
+                }
+            }
+            .padding(.vertical, Space.s1)
+        }
+        .background(Palette.inset)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.inner))
+        .overlay(RoundedRectangle(cornerRadius: Radius.inner).strokeBorder(Palette.border, lineWidth: 1))
     }
 }
 
@@ -258,19 +311,27 @@ private struct DiffLineRow: View {
 
     var body: some View {
         let removed = line.kind == .removed
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(spacing: 0) {
             Text(verbatim: String(line.number))
-                .foregroundStyle(.secondary)
-                .frame(width: 44, alignment: .trailing)
-            Text(verbatim: removed ? "-" : "+")
-                .foregroundStyle(removed ? Color.red : Color.green)
+                .foregroundStyle(Palette.text3)
+                .padding(.trailing, Space.s2)
+                .frame(width: 40, alignment: .trailing)
+            Text(verbatim: removed ? "−" : "+")
+                .fontWeight(.bold)
+                .foregroundStyle(removed ? Palette.redText : Palette.greenText)
+                .frame(width: 20)
+                .accessibilityLabel(L10n.text(removed ? .diffRemoved : .diffAdded))
             Text(verbatim: line.text)
-                .foregroundStyle(removed ? Color.red : Color.green)
+                .lineLimit(1)
+                .truncationMode(.tail)
                 .textSelection(.enabled)
+                .help(line.text)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .font(.callout.monospaced())
-        .padding(.vertical, 1)
-        .background((removed ? Color.red : Color.green).opacity(0.08))
+        .font(TypeScale.monoSmall)
+        .frame(height: 20)
+        .background(removed ? Palette.redTint : Palette.greenTint)
+        .accessibilityElement(children: .combine)
     }
 }
 

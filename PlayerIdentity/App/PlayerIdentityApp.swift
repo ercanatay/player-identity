@@ -14,6 +14,8 @@ struct PlayerIdentityApp: App {
         }
         .defaultSize(width: 900, height: 760)
         .windowResizability(.contentMinSize)
+        // Unified toolbar; the title is drawn by the toolbar status group (title → status, leading).
+        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             // §6: the Refresh button is disabled while refreshing; ⌘R always works and,
             // if pressed during a refresh, cancels the previous one so the latest request wins.
