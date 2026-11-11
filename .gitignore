@@ -9,3 +9,4 @@ dist/
 .build-release.log
 .build-ui/
 docs/evidence/
+docs/design/player-identity-redesign.zip

@@ -30,6 +30,11 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.8.0
+
+- **Full data backup and restore**: export everything (records, history, metrics, watch state) to one archive with a manifest, preview what a restore will change, and restore it. A pre-restore backup is written before any data is overwritten.
+- **Automatic daily backups** with 5 rotations, so recent state is kept without manual exports.
+
 ## What's new in v2.7.0
 
 - **Redesigned History, Ban Matrix and Metrics windows** using the same design language as the main window: new toolbar, filter chips, narrow-width behaviour, and a chart card for metrics.
@@ -57,6 +62,7 @@ folder (`profile.json`, history, metrics, updates).
   - [Status colours and suggestions](#status-colours-and-suggestions)
   - [Ban checks](#ban-checks)
   - [Fix: what can and cannot be fixed](#fix-what-can-and-cannot-be-fixed)
+  - [Full data backup and restore](#full-data-backup-and-restore)
   - [Servers: groups, favourites, filters](#servers-groups-favourites-filters)
   - [Notes and appeal tracking](#notes-and-appeal-tracking)
   - [Watched servers and notifications](#watched-servers-and-notifications)
@@ -241,6 +247,12 @@ between attempts, no retries, and no spawn packet. The whole check can be disabl
 - **Unreachable** — no network command is attempted; only a re-check and the server page are offered.
 
 A single fix can run at a time, is cancellable, and always leaves the network interface enabled.
+
+### Full data backup and restore
+
+- **Backup** writes records, history, metrics and watch state to one archive, with a manifest describing its contents.
+- **Restore** shows a preview of what will change first. Before overwriting anything, the app saves a pre-restore backup so the previous state can be recovered.
+- **Automatic daily backups** keep the 5 most recent rotations.
 
 ### Servers: groups, favourites, filters
 
@@ -497,7 +509,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **556 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **572 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests
@@ -517,7 +529,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 556 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 572 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -531,7 +543,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (556)
+PlayerIdentityTests/      Unit tests (572)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

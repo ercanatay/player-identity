@@ -1,7 +1,6 @@
-<!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.8 · Tarih: 2026-11-10 · Durum: uygulanacak (v2.7 → v2.8: §48 kalan pencerelerin redesign'ı)
+Sürüm: 2.9 · Tarih: 2026-11-11 · Durum: uygulanacak (v2.8 → v2.9: §49 tam veri yedeği/geri yükleme + otomatik yedek)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1168,3 +1167,33 @@ Davranış değişmez; yalnız sunum.
 - Hardcoded renk yok; `Theme`/`Palette` kullanılır; sahte pencere kromu çizilmez.
 - Light/dark × TR/EN kanıt görüntüleri; mevcut davranış testleri bozulmaz.
 - Kaynak taramasında view dosyalarında sabit renk/ölçü kalmadığı doğrulanır.
+
+---
+
+## 49. Tam veri yedeği / geri yükleme (v2.9)
+
+### 49.1 Manuel yedek
+- `NSSavePanel`; dosya: `playeridentity-backup-YYYYMMDD-HHmmss.zip`.
+- İçerik: `manifest.json` (`schemaVersion:1`, `appVersion`, `createdAt`, dosya sayıları), `profile.json`, `history.jsonl`, `metrics.jsonl`, `watch-state.json` (varsa).
+- **Dahil değil:** oyun dosyaları, config yedekleri (`*.appbak`), güncelleme indirmeleri/uygulama yedekleri, loglar.
+
+### 49.2 Geri yükleme
+- `NSOpenPanel` (zip); manifest/şema doğrulama; **önizleme**: kayıt tarihi, sunucu sayısı, geçmiş/metrik satır sayıları, sürüm uyumu.
+- Onay sonrası **önce mevcut veri** `backups/pre-restore-YYYYMMDD-HHmmss.zip` olarak yedeklenir.
+- Zip geçici klasöre açılır; JSON/JSONL parse edilir; doğrulama geçerse dosyalar atomik olarak yerine konur; arayüz yeniden yüklenir.
+- Herhangi bir adım başarısızsa mevcut veri korunur; hata mesajı gösterilir.
+- Güncelleme (indirme/kurulum) sürerken reddedilir; geri yükleme sırasında yenileme kilitlenir.
+
+### 49.3 Otomatik yedek
+- Varsayılan **açık** (Ayarlar > Genel > Veri).
+- Günde en fazla bir kez, açılışta: `backups/auto-YYYYMMDD.zip`; içerik manuel yedekle aynı.
+- İçerik değişmediyse (dosyaların birleşik SHA-256'sı aynı) yeni dosya yazılmaz.
+- Saklama: en fazla **5** otomatik yedek; en eski silinir.
+- Güncelleme kurulumundan **önce** ve **geri yükleme öncesi** ayrıca yedek alınır (mevcut davranışın tam veri sürümü).
+
+### 49.4 Testler
+- Manifest alanları, zip içeriği (dosya kümesi), roundtrip.
+- Eksik/bozuk manifest, şema uyumsuzluğu, bozuk JSON/JSONL, zip açılamıyor → mevcut veri korunur.
+- Geri yükleme öncesi yedek dosyası; güncelleme sürerken ret; yenileme kilidi.
+- Otomatik yedek: günde bir, değişmeyince yazmama, 5 dosya rotasyonu.
+- Yedekte oyun dosyası/appbak/update klasörü **yok**; tr/en anahtar eşitliği.
