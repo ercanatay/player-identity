@@ -36,8 +36,10 @@ final class MainWindowEvidenceTests: XCTestCase {
                 try render(window(model), size: CGSize(width: 900, height: 760), dark: dark, name: name + "-760")
             }
             // Minimum window width (720 pt, below the 820 pt breakpoint): the top row stacks.
-            try render(window(model), size: CGSize(width: 720, height: 1500), dark: false,
-                       name: "main-narrow-light-\(language.rawValue)")
+            for dark in [false, true] {
+                try render(window(model), size: CGSize(width: 720, height: 1500), dark: dark,
+                           name: "main-narrow-\(dark ? "dark" : "light")-\(language.rawValue)")
+            }
             _ = env
         }
     }

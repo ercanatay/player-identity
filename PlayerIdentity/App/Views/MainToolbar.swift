@@ -68,35 +68,48 @@ struct ToolbarStatusView: View {
     @State private var showsSuggestions = false
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            ForEach(ToolbarStatusLayout.allCases, id: \.self) { layout in
+                // Ideal width per variant: ViewThatFits then drops parts instead of squeezing the last-check text.
+                content(layout).fixedSize(horizontal: true, vertical: false)
+            }
+        }
+        .frame(maxWidth: 620, alignment: .leading)
+    }
+
+    private func content(_ layout: ToolbarStatusLayout) -> some View {
         HStack(spacing: Space.s2) {
-            Text(L10n.text(.appWindowTitle))
-                .font(TypeScale.headline)
-                .foregroundStyle(Palette.text)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.trailing, Space.s2)
-                .accessibilityAddTraits(.isHeader)
+            if layout.showsTitle {
+                Text(L10n.text(.appWindowTitle))
+                    .font(TypeScale.headline)
+                    .foregroundStyle(Palette.text)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(minWidth: 0, idealWidth: ToolbarStatusLayout.titleMaxWidth, maxWidth: ToolbarStatusLayout.titleMaxWidth, alignment: .leading)
+                    .layoutPriority(-2)
+                    .padding(.trailing, Space.s2)
+                    .accessibilityAddTraits(.isHeader)
+            }
             if hasReasons {
-                Button { showsSuggestions = true } label: { status }
+                Button { showsSuggestions = true } label: { status(layout) }
                     .buttonStyle(.plain)
                     .accessibilityHint(L10n.text(.topbarWhatToDo))
                     .popover(isPresented: $showsSuggestions, arrowEdge: .bottom) {
                         SuggestionsPopover(reasons: model.report?.reasons ?? [])
                     }
             } else {
-                status
+                status(layout)
             }
-            if model.hasUnsavedChanges {
+            if layout.showsBadge, model.hasUnsavedChanges {
                 TintBadge(text: L10n.text(.topbarUnsaved), foreground: Palette.orangeText, background: Palette.orangeTint)
                     .accessibilityIdentifier("unsavedBadge")
             }
         }
-        .frame(maxWidth: 620, alignment: .leading)
     }
 
     private var hasReasons: Bool { !(model.report?.reasons.isEmpty ?? true) }
 
-    private var status: some View {
+    private func status(_ layout: ToolbarStatusLayout) -> some View {
         let text = ToolbarStatusText(model: model)
         return HStack(spacing: Space.s2) {
             Group {
@@ -115,21 +128,24 @@ struct ToolbarStatusView: View {
                 .foregroundStyle(Palette.text)
                 .lineLimit(1)
                 .fixedSize()
-            if !text.detail.isEmpty {
+            if layout.showsDetail, !text.detail.isEmpty {
                 Text(text.detail)
                     .foregroundStyle(Palette.text2)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .frame(minWidth: 0, idealWidth: ToolbarStatusLayout.detailIdealWidth, maxWidth: ToolbarStatusLayout.detailMaxWidth, alignment: .leading)
                     .layoutPriority(-1)
             }
-            Text(verbatim: "·")
-                .foregroundStyle(Palette.text3)
-                .accessibilityHidden(true)
-            Text(text.lastCheck)
-                .foregroundStyle(Palette.text2)
-                .monospacedDigit()
-                .lineLimit(1)
-                .fixedSize()
+            if layout.showsLastCheck {
+                Text(verbatim: "·")
+                    .foregroundStyle(Palette.text3)
+                    .accessibilityHidden(true)
+                Text(text.lastCheck)
+                    .foregroundStyle(Palette.text2)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
         }
         .font(TypeScale.body)
         .contentShape(Rectangle())
@@ -139,6 +155,23 @@ struct ToolbarStatusView: View {
         .accessibilityValue(text.detail.isEmpty ? text.lastCheck : text.detail + ", " + text.lastCheck)
         .accessibilityIdentifier("toolbarStatus")
     }
+}
+
+/// Width fallbacks of the status group, widest first (`ViewThatFits` picks the first that fits).
+/// Full: title + icon/label/detail/last check + badge · titled: same without detail · compact: no title/detail (detail in tooltip) ·
+/// narrow: icon + label only. The tooltip and accessibility texts always keep the full sentence.
+enum ToolbarStatusLayout: CaseIterable, Hashable {
+    case full, titled, compact, narrow
+
+    static let titleMaxWidth: CGFloat = 180
+    /// Cap of the detail text, so the full layout has a bounded ideal width and truncates instead of being skipped.
+    static let detailMaxWidth: CGFloat = 240
+    static let detailIdealWidth: CGFloat = 110
+
+    var showsTitle: Bool { self == .full || self == .titled }
+    var showsDetail: Bool { self == .full }
+    var showsLastCheck: Bool { self != .narrow }
+    var showsBadge: Bool { self != .narrow }
 }
 
 /// Texts of the toolbar status group.
