@@ -736,3 +736,14 @@
 "fullRestore.error.rollback" = "The files could not be put in place (%@) and not every previous file could be put back. A copy of the previous files is in: %@";
 "fullRestore.error.save" = "Saving before the restore failed; nothing was restored. %@";
 "fullRestore.error.preBackup" = "The current data could not be backed up: %@";
+"fullBackup.auto.failed" = "The last automatic backup failed: %@";
+"settings.notifications.denied" = "No notification permission: macOS does not allow notifications from this app. Allow them in System Settings > Notifications; appeal reminders wait until then.";
+"watch.stateSaveFailed" = "The watch state could not be saved: %@. The same changes may be notified again after a relaunch.";
+"restore.relaunch" = "Relaunch";
+"restore.restoredRelaunch" = "The backup was restored; relaunch the app for it to take effect.";
+"restore.relaunchFailed" = "The app could not relaunch: %@";
+"update.error.cancelledByUser" = "The installation was cancelled: administrator approval was not given; nothing was changed.";
+"update.error.adminPrompt" = "Administrator approval could not be requested (osascript did not start); nothing was changed.";
+"update.error.rolledBackCopy" = "The installation failed; the previous version was restored. Copy of the backup: %@";
+"update.error.notRolledBack" = "The installation failed and the previous version could not be restored; no backup was found either. Download and install the app again.";
+"metrics.writeFailed" = "Samples could not be written in the last %@ hours (%@ failed attempts): %@";

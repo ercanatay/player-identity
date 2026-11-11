@@ -50,6 +50,25 @@ struct FullBackupSettingsRows: View {
                 .padding(.leading, Space.s6 + Space.s1)
                 .padding(.bottom, Space.s2)
                 .accessibilityIdentifier("fullBackupAutoLast")
+            if model.autoBackupEnabled, let error = model.autoBackupLastError {
+                HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
+                    Text(FullBackupText.automaticFailure(error))
+                        .font(TypeScale.callout)
+                        .foregroundStyle(Palette.redText)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(L10n.text(.actionRetry)) { model.retryAutomaticBackup() }
+                        .controlSize(.small)
+                        .fixedSize()
+                        .disabled(isLocked)
+                        .accessibilityIdentifier("fullBackupAutoRetry")
+                }
+                .padding(.leading, Space.s6 + Space.s1)
+                .padding(.bottom, Space.s2)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("fullBackupAutoFailed")
+            }
         }
     }
 
@@ -102,6 +121,12 @@ enum FullBackupText {
         case .failure(let error):
             return (L10n.format(.fullBackupFailed, error.text), true)
         }
+    }
+
+    /// Red line under "Last automatic backup" after a failed attempt.
+    static func automaticFailure(_ error: FullBackupError) -> String {
+        if case .writeFailed(let reason) = error { return L10n.format(.fullBackupAutoFailed, reason) }
+        return L10n.format(.fullBackupAutoFailed, error.text)
     }
 
     /// Warning lines of a backup that could not include everything (empty when it is complete).

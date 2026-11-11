@@ -32,6 +32,7 @@ final class InterfaceV22Tests: XCTestCase {
         await model.refresh().value                                       // refresh checks the reminders
         try await Task.sleep(for: .milliseconds(50))
         await waitUntil { notifier.posts.count == 1 }
+        await model.waitForAppealReminders()
         XCTAssertTrue(notifier.posts[0].title.hasSuffix("POLIGON"))
         XCTAssertNotNil(model.servers[0].appeal?.notifiedAt)
         XCTAssertFalse(model.hasUnsavedChanges)                           // bookkeeping, not an edit

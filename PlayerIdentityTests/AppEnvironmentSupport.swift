@@ -8,6 +8,10 @@ final class FakeNotifier: UserNotifying, @unchecked Sendable {
     private var grant: Bool
     private var requests = 0
     private var posted: [NotificationContent] = []
+    private var failing = false
+    private var attempts = 0
+
+    struct PostFailure: Error {}
 
     init(status: NotificationAuthorization = .notDetermined, grant: Bool = true) {
         self.status = status
@@ -16,6 +20,15 @@ final class FakeNotifier: UserNotifying, @unchecked Sendable {
 
     var requestCount: Int { lock.withLock { requests } }
     var posts: [NotificationContent] { lock.withLock { posted } }
+    /// Every `post` call, including the failed ones.
+    var postAttempts: Int { lock.withLock { attempts } }
+    /// While on, `post` throws and nothing is recorded as posted.
+    var failsPosts: Bool {
+        get { lock.withLock { failing } }
+        set { lock.withLock { failing = newValue } }
+    }
+
+    func setStatus(_ value: NotificationAuthorization) { lock.withLock { status = value } }
 
     func authorization() async -> NotificationAuthorization { lock.withLock { status } }
 
@@ -27,8 +40,13 @@ final class FakeNotifier: UserNotifying, @unchecked Sendable {
         }
     }
 
-    func post(_ content: NotificationContent) async {
-        lock.withLock { posted.append(content) }
+    func post(_ content: NotificationContent) async throws {
+        let fails = lock.withLock { () -> Bool in
+            attempts += 1
+            if !failing { posted.append(content) }
+            return failing
+        }
+        if fails { throw PostFailure() }
     }
 }
 

@@ -411,7 +411,7 @@ final class FullBackupTests: XCTestCase {
         let store = FullBackupStore(paths: paths, appVersion: "2.7.0")
 
         let first = await model.runAutomaticBackupIfDue()?.value
-        guard case .created(let url)? = first else { return XCTFail("\(String(describing: first))") }
+        guard case .success(.created(let url))? = first else { return XCTFail("\(String(describing: first))") }
         XCTAssertEqual(url.lastPathComponent, "auto-\(FullBackupNaming.day(env.clock.now)).zip")
         XCTAssertEqual(store.list(.automatic), [url])
         XCTAssertEqual(model.automaticBackupCount, 1)
@@ -423,7 +423,7 @@ final class FullBackupTests: XCTestCase {
         // Next day, nothing changed: no new file.
         env.clock.advance(86_400)
         let unchanged = await model.runAutomaticBackupIfDue()?.value
-        XCTAssertEqual(unchanged, .some(.unchanged))
+        XCTAssertEqual(unchanged, .some(.success(.unchanged)))
         XCTAssertEqual(store.list(.automatic).count, 1)
 
         // Next day with a change: a new file.
@@ -431,7 +431,7 @@ final class FullBackupTests: XCTestCase {
         model.addServer(ServerDraft(label: "B", host: "192.0.2.31"))
         model.save()
         let changed = await model.runAutomaticBackupIfDue()?.value
-        guard case .created? = changed else { return XCTFail("\(String(describing: changed))") }
+        guard case .success(.created)? = changed else { return XCTFail("\(String(describing: changed))") }
         XCTAssertEqual(store.list(.automatic).count, 2)
 
         // Off: nothing runs.

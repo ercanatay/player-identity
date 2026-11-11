@@ -73,6 +73,9 @@ final class UpdateController {
     private(set) var restoreOffer: DataBackup?
     var pendingRestore = false
     private(set) var restoreError: String?
+    /// The backup is back in place but the app has not relaunched yet (the banner offers "Relaunch").
+    private(set) var restoredAwaitingRelaunch = false
+    private(set) var isRelaunchingAfterRestore = false
     private(set) var dataBackupCount = 0
     /// Release being downloaded/installed (or prepared in the background); shown in the Updates status card.
     private(set) var activeRelease: AppRelease?
@@ -342,30 +345,57 @@ final class UpdateController {
 
     /// Offers the newest compatible backup when the record has an unsupported schema.
     func evaluateRestore(snapshot: SnapshotLoadResult) {
+        guard !restoredAwaitingRelaunch else { return }   // the banner keeps offering the relaunch
         restoreOffer = RestoreAdvisor.backupToOffer(snapshot: snapshot, backups: backupStore.list())
     }
 
     /// Confirmed restore: current data is backed up, the backup is put back, the app relaunches.
+    ///
+    /// The offer (and with it the banner) stays until the relaunch worked: if the files are back but the app could
+    /// not relaunch, the banner shows the error and offers "Relaunch" (the data is not restored a second time).
     @discardableResult
     func confirmRestore() -> Task<Void, Never>? {
         guard let backup = restoreOffer else { return nil }
         pendingRestore = false
+        restoreError = nil
+        guard !restoredAwaitingRelaunch else { return relaunchAfterRestore() }
         do {
             try backupStore.restore(backup, currentVersion: appVersion, now: deps.now(), defaults: deps.defaults)
         } catch {
-            restoreError = error.localizedDescription
+            restoreError = Self.errorText(error)
             return nil
         }
-        restoreOffer = nil
+        restoredAwaitingRelaunch = true
         dataBackupCount = backupStore.list().count
+        return relaunchAfterRestore()
+    }
+
+    /// "Relaunch" after a restore whose relaunch failed (also the last step of `confirmRestore`).
+    @discardableResult
+    func relaunchAfterRestore() -> Task<Void, Never>? {
+        guard restoredAwaitingRelaunch, restoreOffer != nil, !isRelaunchingAfterRestore else { return nil }
+        restoreError = nil
+        isRelaunchingAfterRestore = true
         let relauncher = deps.relauncher
         let app = deps.installedApp
         return Task {
             do {
                 try await relauncher.relaunch(app)
+                restoreOffer = nil
+                restoredAwaitingRelaunch = false
             } catch {
-                restoreError = String(describing: error)
+                restoreError = Self.errorText(error)
             }
+            isRelaunchingAfterRestore = false
+        }
+    }
+
+    /// Localized text of a restore/relaunch error.
+    static func errorText(_ error: any Error) -> String {
+        switch error {
+        case let update as UpdateError: return UpdateStatusText.error(update)
+        case let backup as FullBackupError: return backup.text
+        default: return error.localizedDescription
         }
     }
 
@@ -373,6 +403,8 @@ final class UpdateController {
     func dataFolderErased() {
         prepared = nil
         restoreOffer = nil
+        restoredAwaitingRelaunch = false
+        restoreError = nil
         if case .ready = status { status = .idle }
         dataBackupCount = backupStore.list().count
     }

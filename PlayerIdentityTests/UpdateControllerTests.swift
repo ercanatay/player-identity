@@ -246,6 +246,58 @@ final class UpdateControllerTests: XCTestCase {
         XCTAssertEqual(model.updates.dataBackupCount, 0)
     }
 
+    func testFailedRelaunchAfterRestoreKeepsTheBannerWithALocalizedErrorAndARelaunchAction() async throws {
+        let paths = AppPaths(home: env.home)
+        try env.temp.write("home/Library/Application Support/tr.ercanatay.playeridentity/profile.json",
+                           #"{"schemaVersion":1,"gamedir":"valve"}"#)
+        let store = DataBackupStore(paths: paths, defaultsDomain: env.suiteName)
+        try store.create(from: "1.1.0", to: "2.0.0", now: env.clock.now, defaults: env.defaults)
+        try env.temp.write("home/Library/Application Support/tr.ercanatay.playeridentity/profile.json", #"{"schemaVersion":2}"#)
+
+        let relauncher = FakeRelauncher()
+        relauncher.fails = true
+        let (model, _) = makeModel(feed: nil, relauncher: relauncher)
+        let updates = model.updates
+        XCTAssertNotNil(updates.restoreOffer)
+
+        await updates.confirmRestore()?.value
+        XCTAssertEqual(DataBackupStore.schemaVersion(try Data(contentsOf: paths.snapshotFile)), 1)   // files are back
+        XCTAssertNotNil(updates.restoreOffer, "the banner stays until the relaunch worked")
+        XCTAssertTrue(updates.restoredAwaitingRelaunch)
+        let backupsAfterRestore = updates.dataBackupCount
+        let expected = UpdateStatusText.error(.installFailed(rolledBack: false, backup: nil))
+        XCTAssertEqual(updates.restoreError, expected, "localized, not String(describing:)")
+        XCTAssertFalse(try XCTUnwrap(updates.restoreError).contains("installFailed"))
+        let backup = try XCTUnwrap(updates.restoreOffer)
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            XCTAssertEqual(RestoreBanner.title(updates, backup: backup), L10n.text(.restoreRestoredRelaunch))
+            XCTAssertTrue(try XCTUnwrap(RestoreBanner.errorText(updates)).hasPrefix("Uygulama yeniden başlatılamadı: "))
+            XCTAssertEqual(L10n.text(.restoreRelaunch), "Yeniden başlat")
+        }
+        // A model reload does not take the offer away while the relaunch is pending.
+        updates.evaluateRestore(snapshot: .missing)
+        XCTAssertNotNil(updates.restoreOffer)
+
+        // "Relaunch" again: the stale error is cleared, the data is not restored a second time.
+        relauncher.fails = false
+        await updates.relaunchAfterRestore()?.value
+        XCTAssertNil(updates.restoreError)
+        XCTAssertNil(updates.restoreOffer)
+        XCTAssertFalse(updates.restoredAwaitingRelaunch)
+        XCTAssertEqual(relauncher.relaunched, [installed, installed])
+        XCTAssertEqual(updates.dataBackupCount, backupsAfterRestore, "no second safety backup")
+        XCTAssertNil(updates.relaunchAfterRestore())
+    }
+
+    func testRestoreErrorTextsAreLocalized() throws {
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("en"))) {
+            XCTAssertEqual(UpdateController.errorText(UpdateError.notWritable), L10n.text(.updateErrorNotWritable))
+            XCTAssertEqual(UpdateController.errorText(FullBackupError.busy), L10n.text(.restoreErrorBusy))
+            let cocoa = CocoaError(.fileWriteNoPermission)
+            XCTAssertEqual(UpdateController.errorText(cocoa), cocoa.localizedDescription)
+        }
+    }
+
     func testNoRestoreBannerForReadableRecord() throws {
         try env.temp.write("home/Library/Application Support/tr.ercanatay.playeridentity/profile.json", #"{"schemaVersion":1}"#)
         let (model, _) = makeModel(feed: nil)

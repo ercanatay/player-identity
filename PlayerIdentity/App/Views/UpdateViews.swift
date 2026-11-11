@@ -41,9 +41,12 @@ enum UpdateStatusText {
         case .bundleMismatch: return L10n.text(.updateErrorBundle)
         case .versionMismatch: return L10n.text(.updateErrorVersion)
         case .notWritable: return L10n.text(.updateErrorNotWritable)
-        case .installFailed(true, _): return L10n.text(.updateErrorRolledBack)
+        case .cancelledByUser: return L10n.text(.updateErrorCancelledByUser)
+        case .adminPromptFailed: return L10n.text(.updateErrorAdminPrompt)
+        case .installFailed(true, nil): return L10n.text(.updateErrorRolledBack)
+        case .installFailed(true, let backup?): return L10n.format(.updateErrorRolledBackCopy, backup.path)
         case .installFailed(false, let backup?): return L10n.format(.updateErrorBackupLocation, backup.path)
-        case .installFailed(false, nil): return L10n.text(.updateErrorRolledBack)
+        case .installFailed(false, nil): return L10n.text(.updateErrorNotRolledBack)
         case .cancelled: return L10n.text(.updateStatusCancelled)
         }
     }
@@ -370,15 +373,26 @@ struct RestoreBanner: View {
                 .foregroundStyle(Palette.orangeText)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(L10n.format(.restoreBanner, RestoreBanner.date(backup.info.createdAt)))
+                Text(RestoreBanner.title(updates, backup: backup))
                     .font(TypeScale.label)
                     .fixedSize(horizontal: false, vertical: true)
-                if let error = updates.restoreError {
-                    Text(L10n.format(.restoreFailed, error)).font(TypeScale.callout).foregroundStyle(Palette.redText)
+                if let error = RestoreBanner.errorText(updates) {
+                    Text(error)
+                        .font(TypeScale.callout)
+                        .foregroundStyle(Palette.redText)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("restoreError")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button(L10n.text(.restoreAction)) { updates.pendingRestore = true }
+            if updates.restoredAwaitingRelaunch {
+                Button(L10n.text(.restoreRelaunch)) { updates.relaunchAfterRestore() }
+                    .disabled(updates.isRelaunchingAfterRestore)
+                    .accessibilityIdentifier("restoreRelaunch")
+            } else {
+                Button(L10n.text(.restoreAction)) { updates.pendingRestore = true }
+            }
         }
         .padding(.horizontal, Space.s4)
         .padding(.vertical, Space.s2)
@@ -395,6 +409,20 @@ struct RestoreBanner: View {
 
     static func date(_ date: Date) -> String {
         DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .short)
+    }
+
+    /// Offer, or "restored, relaunch needed" once the files are back.
+    @MainActor
+    static func title(_ updates: UpdateController, backup: DataBackup) -> String {
+        updates.restoredAwaitingRelaunch ? L10n.text(.restoreRestoredRelaunch)
+                                         : L10n.format(.restoreBanner, date(backup.info.createdAt))
+    }
+
+    /// Red line: the restore failed, or the files are back but the relaunch failed.
+    @MainActor
+    static func errorText(_ updates: UpdateController) -> String? {
+        guard let error = updates.restoreError else { return nil }
+        return L10n.format(updates.restoredAwaitingRelaunch ? .restoreRelaunchFailed : .restoreFailed, error)
     }
 }
 

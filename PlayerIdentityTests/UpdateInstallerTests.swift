@@ -262,9 +262,26 @@ final class UpdateInstallerTests: XCTestCase {
         let runner = FakeUpdateRunner()
         runner.adminResult = CommandOutput(status: 1, output: "execution error: User canceled. (-128)")
         let declined = await installError(installer(FakeUpdateDownloader(files), runner: runner, files: faulty), release)
-        XCTAssertEqual(declined, .notWritable)
+        XCTAssertEqual(declined, .cancelledByUser)
         assertOldAppInPlace()
         assertNoLeftovers()
+    }
+
+    func testAdministratorPromptThatCannotStartIsReportedSeparately() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let faulty = FaultyFileManager()
+        faulty.notWritable = [installed.deletingLastPathComponent().standardizedFileURL]
+        let runner = FakeUpdateRunner()
+        runner.adminLaunchFails = true
+        let error = await installError(installer(FakeUpdateDownloader(files), runner: runner, files: faulty), release)
+        XCTAssertEqual(error, .adminPromptFailed)
+        assertOldAppInPlace()
+        assertNoLeftovers()
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            XCTAssertTrue(UpdateStatusText.error(.cancelledByUser).hasPrefix("Kurulum iptal edildi"))
+            XCTAssertNotEqual(UpdateStatusText.error(.adminPromptFailed), UpdateStatusText.error(.notWritable))
+            XCTAssertNotEqual(UpdateStatusText.error(.cancelledByUser), UpdateStatusText.error(.notWritable))
+        }
     }
 
     // MARK: Allowlist

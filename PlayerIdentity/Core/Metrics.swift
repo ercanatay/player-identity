@@ -161,24 +161,45 @@ actor MetricsRecorder {
         self.now = now
     }
 
-    func record(_ samples: [MetricSample]) {
-        guard !samples.isEmpty else { return }
+    /// Consecutive failed writes: since when, and how many (`nil` after a successful write).
+    struct WriteFailure: Sendable, Equatable {
+        var since: Date
+        var count: Int
+        var reason: String
+    }
+
+    private(set) var writeFailure: WriteFailure?
+
+    /// Appends the samples; returns the write failure state afterwards (`nil` when this write worked).
+    @discardableResult
+    func record(_ samples: [MetricSample]) -> WriteFailure? {
+        guard !samples.isEmpty else { return writeFailure }
         var current = counts ?? Self.counts(of: (try? store.compact(now: now())) ?? store.load())
-        guard let written = try? store.append(samples) else {
+        let written: [MetricSample]
+        do {
+            written = try store.append(samples)
+        } catch {
             counts = current
-            return
+            var failure = writeFailure ?? WriteFailure(since: now(), count: 0, reason: "")
+            failure.count += 1
+            failure.reason = error.localizedDescription
+            writeFailure = failure
+            return failure
         }
+        writeFailure = nil
         for sample in written { current[sample.serverID, default: 0] += 1 }
         if current.values.contains(where: { $0 > MetricsRetention.maxSamplesPerServer }),
            let kept = try? store.compact(now: now()) {
             current = Self.counts(of: kept)
         }
         counts = current
+        return nil
     }
 
     /// Forgets the cached counts (after "Erase All Data" or a restore): the next write starts from the file again.
     func reset() {
         counts = nil
+        writeFailure = nil
     }
 
     private static func counts(of samples: [MetricSample]) -> [UUID: Int] {

@@ -144,6 +144,9 @@ final class AppModel {
     /// §49.3: newest `backups/auto-*.zip` (modification date) and the number of automatic backups.
     private(set) var latestAutomaticBackup: Date?
     private(set) var automaticBackupCount = 0
+    /// §49.3 error of the last automatic backup attempt (cleared by the next successful one).
+    private(set) var autoBackupLastError: FullBackupError?
+    @ObservationIgnored private var automaticBackupTask: Task<AutomaticBackupResult, Never>?
     /// Settings > "Notifications" (§23, on by default). When off, no notification is posted.
     var notificationsEnabled: Bool {
         didSet { deps.defaults.set(notificationsEnabled, forKey: DefaultsKey.notificationsEnabled) }
@@ -318,6 +321,13 @@ final class AppModel {
     @ObservationIgnored private let metrics: MetricsRecorder
     @ObservationIgnored private var historyTask: Task<Void, Never>?
     @ObservationIgnored private let notificationDispatcher: NotificationDispatcher
+    /// §36 reminders being posted (not offered again until that attempt finished).
+    @ObservationIgnored private var appealRemindersInFlight: Set<UUID> = []
+    @ObservationIgnored private var appealReminderTask: Task<Void, Never>?
+    /// §23: macOS refused the notification permission (seen when posting or opening Settings); Settings warns.
+    private(set) var notificationPermissionDenied = false
+    /// §42: `watch-state.json` could not be written (the error text); cleared by the next successful write.
+    private(set) var watchStateSaveError: String?
     /// Whether the user made changes while there is no record.
     private var editedWithoutSnapshot = false
 
@@ -541,6 +551,7 @@ final class AppModel {
             let contents = await operation(recorder)
             historyRevision += 1
             await dispatcher.handle(contents, enabled: enabled, policy: policy)
+            await updateNotificationPermission(from: dispatcher)
         }
     }
 
@@ -594,7 +605,12 @@ final class AppModel {
                 contents.append(WatchNotificationText.content(for: event, server: entry))
             }
         }
-        try? WatchStateStore(fileURL: deps.paths.watchStateFile).save(watchState)
+        do {
+            try WatchStateStore(fileURL: deps.paths.watchStateFile).save(watchState)
+            watchStateSaveError = nil
+        } catch {
+            watchStateSaveError = error.localizedDescription
+        }
         guard !entries.isEmpty else { return }
         let written = entries
         let notifications = contents
@@ -658,18 +674,23 @@ final class AppModel {
     // MARK: §36 appeal reminders
 
     /// Appeals whose follow-up date has passed and that were not notified yet (empty with notifications off).
-    /// The caller posts the notification, then calls `markAppealsNotified`.
+    /// The caller posts the notification, then calls `markAppealsNotified` with the ones actually posted.
     func dueAppealReminders() -> [AppealReminder.Due] {
         AppealReminder.due(servers, now: deps.now(), notificationsEnabled: notificationsEnabled)
     }
 
-    func markAppealsNotified(_ ids: Set<UUID>) {
-        guard !ids.isEmpty else { return }
+    /// Sets `notifiedAt` on the appeals. Returns `false` when the saved record could not be updated: the mark is
+    /// then taken back in memory too, so the reminder stays pending instead of being lost after a relaunch.
+    @discardableResult
+    func markAppealsNotified(_ ids: Set<UUID>) -> Bool {
+        guard !ids.isEmpty else { return true }
         let now = deps.now()
+        let previous = Dictionary(servers.filter { ids.contains($0.id) }.map { ($0.id, $0.appeal?.notifiedAt) },
+                                  uniquingKeysWith: { first, _ in first })
         servers = AppealReminder.markNotified(ids, in: servers, at: now)
         // The reminder must not come back after a relaunch: `notifiedAt` goes straight into the saved record
         // (only for appeals already saved with the same follow-up date). It is not an "unsaved" change.
-        guard var saved = snapshotState.snapshot else { return }
+        guard var saved = snapshotState.snapshot else { return true }
         var changed = false
         for index in saved.servers.indices where ids.contains(saved.servers[index].id) {
             guard let stored = saved.servers[index].appeal,
@@ -677,25 +698,74 @@ final class AppModel {
             saved.servers[index].appeal?.notifiedAt = now
             changed = changed || stored.notifiedAt != now
         }
-        guard changed, (try? deps.snapshotStore.save(saved)) != nil else { return }
+        guard changed else { return true }
+        do {
+            try deps.snapshotStore.save(saved)
+        } catch {
+            for index in servers.indices where servers[index].appeal?.notifiedAt == now {
+                guard let old = previous[servers[index].id] else { continue }
+                servers[index].appeal?.notifiedAt = old
+            }
+            return false
+        }
         snapshotState = .loaded(saved)
+        return true
     }
 
     /// §36: posts "İtiraz takibi: <server>" once per follow-up date (launch, refresh, menu bar timer).
+    /// Only the reminders that were actually posted are marked notified: with the permission refused, during quiet
+    /// hours or when the post fails they stay pending and the next check tries again.
     @discardableResult
     func checkAppealReminders() -> Task<Void, Never>? {
         // §45: during quiet hours the reminder stays pending (not marked notified) and fires later.
         guard !notificationPolicy.quiet.contains(deps.now()) else { return nil }
-        let due = dueAppealReminders()
+        let due = dueAppealReminders().filter { !appealRemindersInFlight.contains($0.serverID) }
         guard !due.isEmpty else { return nil }
-        let contents = due.compactMap { item in
-            servers.first { $0.id == item.serverID }?.appeal.map { AppealReminderText.content(for: item, status: $0.status) }
+        var serverByKey: [String: UUID] = [:]
+        var followUps: [UUID: Date] = [:]
+        let contents = due.compactMap { item -> NotificationContent? in
+            guard let appeal = servers.first(where: { $0.id == item.serverID })?.appeal else { return nil }
+            let content = AppealReminderText.content(for: item, status: appeal.status)
+            serverByKey[content.key] = item.serverID
+            followUps[item.serverID] = item.followUpAt
+            return content
         }
-        markAppealsNotified(Set(due.map(\.serverID)))
+        let ids = Set(serverByKey.values)
+        guard !ids.isEmpty else { return nil }
+        appealRemindersInFlight.formUnion(ids)
         let dispatcher = notificationDispatcher
         let enabled = notificationsEnabled
         let policy = notificationPolicy
-        return Task { await dispatcher.handle(contents, enabled: enabled, policy: policy) }
+        let previous = appealReminderTask
+        let task = Task {
+            await previous?.value
+            let posted = await dispatcher.handle(contents, enabled: enabled, policy: policy)
+            await updateNotificationPermission(from: dispatcher)
+            appealRemindersInFlight.subtract(ids)
+            // An appeal whose follow-up date changed meanwhile is armed for the new date: not marked.
+            let sent = posted.compactMap { serverByKey[$0.key] }.filter { id in
+                servers.first(where: { $0.id == id })?.appeal?.followUpAt == followUps[id]
+            }
+            markAppealsNotified(Set(sent))
+        }
+        appealReminderTask = task
+        return task
+    }
+
+    /// For tests: waits until the running reminder check finishes.
+    func waitForAppealReminders() async {
+        await appealReminderTask?.value
+    }
+
+    /// Re-reads the notification permission (Settings > Notifications warns when it was refused).
+    func refreshNotificationPermission() async {
+        _ = await notificationDispatcher.currentAuthorization()
+        await updateNotificationPermission(from: notificationDispatcher)
+    }
+
+    private func updateNotificationPermission(from dispatcher: NotificationDispatcher) async {
+        guard let status = await dispatcher.lastAuthorization else { return }
+        notificationPermissionDenied = status == .denied
     }
 
     // MARK: §38 ban matrix
@@ -718,6 +788,8 @@ final class AppModel {
     // MARK: §39 metrics
 
     @ObservationIgnored private var metricsTask: Task<Void, Never>?
+    /// Consecutive failed `metrics.jsonl` writes (server details show a line from the second one on).
+    private(set) var metricsWriteFailure: MetricsRecorder.WriteFailure?
 
     /// Appends one sample per finished check, after the previous writes.
     private func recordMetrics(_ samples: [MetricSample]) {
@@ -726,7 +798,7 @@ final class AppModel {
         let previous = metricsTask
         metricsTask = Task {
             await previous?.value
-            await recorder.record(samples)
+            metricsWriteFailure = await recorder.record(samples)
         }
     }
 
@@ -1617,6 +1689,7 @@ final class AppModel {
         }
         await history.reset()
         await metrics.reset()
+        metricsWriteFailure = nil
         reloadFromDisk(keepGamedirWithoutRecord: true)
         updates.dataFolderErased()
         refreshBackupInfo()
@@ -1638,21 +1711,61 @@ final class AppModel {
         }
     }
 
-    /// §49.3 launch backup: with "Automatic backups" on, at most one attempt per local day (`auto-YYYYMMDD.zip`,
-    /// skipped when the content did not change, the 5 newest kept). Runs off the main thread; `nil` if not due.
+    typealias AutomaticBackupResult = Result<FullBackupStore.AutomaticOutcome, FullBackupError>
+
+    /// §49.3 launch backup: with "Automatic backups" on, at most one successful attempt per local day
+    /// (`auto-YYYYMMDD.zip`, skipped when the content did not change, the 5 newest kept). Runs off the main thread;
+    /// `nil` if not due (or one is already running).
+    ///
+    /// The day is marked before the attempt (so a second launch path does not start another one) and the mark is
+    /// taken back when the attempt fails: the error stays in `autoBackupLastError` (Settings > Data shows it with
+    /// "Try Again") and the next launch tries again.
     @discardableResult
-    func runAutomaticBackupIfDue() -> Task<FullBackupStore.AutomaticOutcome?, Never>? {
-        guard autoBackupEnabled, !isDataOperationRunning else { return nil }
+    func runAutomaticBackupIfDue() -> Task<AutomaticBackupResult, Never>? {
+        guard autoBackupEnabled, !isDataOperationRunning, automaticBackupTask == nil else { return nil }
         let now = deps.now()
         let today = FullBackupNaming.day(now)
-        guard deps.defaults.string(forKey: DefaultsKey.autoBackupLastRun) != today else { return nil }
-        deps.defaults.set(today, forKey: DefaultsKey.autoBackupLastRun)
+        let defaults = deps.defaults
+        let previousRun = defaults.string(forKey: DefaultsKey.autoBackupLastRun)
+        guard previousRun != today else { return nil }
+        defaults.set(today, forKey: DefaultsKey.autoBackupLastRun)
         let store = fullBackupStore
-        return Task {
-            let outcome = await Task.detached { try? store.createAutomatic(now: now) }.value
+        let task = Task { () -> AutomaticBackupResult in
+            let result = await Task.detached { () -> AutomaticBackupResult in
+                do {
+                    return .success(try store.createAutomatic(now: now))
+                } catch let error as FullBackupError {
+                    return .failure(error)
+                } catch {
+                    return .failure(.writeFailed(error.localizedDescription))
+                }
+            }.value
+            switch result {
+            case .success:
+                autoBackupLastError = nil
+            case .failure(let error):
+                autoBackupLastError = error
+                // Not done for today: the next launch (or "Try Again") makes another attempt.
+                if defaults.string(forKey: DefaultsKey.autoBackupLastRun) == today {
+                    if let previousRun {
+                        defaults.set(previousRun, forKey: DefaultsKey.autoBackupLastRun)
+                    } else {
+                        defaults.removeObject(forKey: DefaultsKey.autoBackupLastRun)
+                    }
+                }
+            }
+            automaticBackupTask = nil
             refreshBackupInfo()
-            return outcome
+            return result
         }
+        automaticBackupTask = task
+        return task
+    }
+
+    /// "Try Again" next to a failed automatic backup (the failed attempt did not mark the day).
+    @discardableResult
+    func retryAutomaticBackup() -> Task<AutomaticBackupResult, Never>? {
+        runAutomaticBackupIfDue()
     }
 
     /// "Back Up All Data…": waits for queued writes, then writes the ZIP to the chosen file.
@@ -1749,11 +1862,13 @@ final class AppModel {
         } catch {
             await history.reset()
             await metrics.reset()
+            metricsWriteFailure = nil
             if let error = error as? FullBackupError { return .failure(error) }
             return .failure(.writeFailed(error.localizedDescription))
         }
         await history.reset()
         await metrics.reset()
+        metricsWriteFailure = nil
         reloadFromDisk(keepGamedirWithoutRecord: false)
         return .success(FullRestoreOutcome(safetyBackup: safety.url, keptPrevious: kept))
     }

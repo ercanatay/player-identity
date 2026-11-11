@@ -7,6 +7,8 @@ struct MetricsSection: View {
     let samples: [MetricSample]
     let serverID: UUID
     let now: Date
+    /// Consecutive failed sample writes (a red line from the second one on).
+    var writeFailure: MetricsRecorder.WriteFailure?
 
     var body: some View {
         let series = MetricsAnalysis.series(samples, serverID: serverID, now: now)
@@ -20,6 +22,14 @@ struct MetricsSection: View {
                 }
             }
         } content: {
+            if let text = MetricsChart.writeFailureText(writeFailure, now: now) {
+                Text(text)
+                    .font(TypeScale.callout)
+                    .foregroundStyle(Palette.redText)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("metricsWriteFailure")
+            }
             if series.isEmpty {
                 HStack(spacing: Space.s2) {
                     Image(systemName: "chart.xyaxis.line")
@@ -138,6 +148,13 @@ struct MetricsSection: View {
 enum MetricsChart {
     static let pingColor = Palette.accent
     static let playersColor = Palette.text2
+
+    /// "Samples could not be written in the last N hours" after two or more failed writes in a row.
+    static func writeFailureText(_ failure: MetricsRecorder.WriteFailure?, now: Date) -> String? {
+        guard let failure, failure.count >= 2 else { return nil }
+        let hours = max(1, Int((now.timeIntervalSince(failure.since) / 3600).rounded(.up)))
+        return L10n.format(.metricsWriteFailed, String(hours), String(failure.count), failure.reason)
+    }
 
     /// One chart point; `segment` changes at every offline sample (the line is not drawn across an outage).
     struct Point: Equatable {

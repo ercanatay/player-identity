@@ -736,3 +736,14 @@
 "fullRestore.error.rollback" = "Dosyalar yerine konamadı (%@) ve önceki dosyaların hepsi geri konamadı. Önceki dosyaların kopyası şurada: %@";
 "fullRestore.error.save" = "Geri yüklemeden önce kaydedilemedi; hiçbir şey geri yüklenmedi. %@";
 "fullRestore.error.preBackup" = "Mevcut veriler yedeklenemedi: %@";
+"fullBackup.auto.failed" = "Son otomatik yedek başarısız: %@";
+"settings.notifications.denied" = "Bildirim izni yok: macOS bu uygulamanın bildirimlerine izin vermiyor. Sistem Ayarları > Bildirimler'den izin verin; itiraz hatırlatmaları o zamana kadar bekler.";
+"watch.stateSaveFailed" = "İzleme durumu kaydedilemedi: %@. Yeniden açılışta aynı değişiklikler tekrar bildirilebilir.";
+"restore.relaunch" = "Yeniden başlat";
+"restore.restoredRelaunch" = "Yedek geri yüklendi; geçerli olması için uygulamayı yeniden başlatın.";
+"restore.relaunchFailed" = "Uygulama yeniden başlatılamadı: %@";
+"update.error.cancelledByUser" = "Kurulum iptal edildi: yönetici onayı verilmedi; hiçbir şey değiştirilmedi.";
+"update.error.adminPrompt" = "Yönetici onayı istenemedi (osascript başlatılamadı); hiçbir şey değiştirilmedi.";
+"update.error.rolledBackCopy" = "Kurulum başarısız oldu; önceki sürüm geri yüklendi. Yedeğin kopyası: %@";
+"update.error.notRolledBack" = "Kurulum başarısız oldu ve önceki sürüm geri yüklenemedi; yedeği de bulunamadı. Uygulamayı yeniden indirip kurun.";
+"metrics.writeFailed" = "Son %@ saatte ölçüm örnekleri yazılamadı (%@ başarısız deneme): %@";

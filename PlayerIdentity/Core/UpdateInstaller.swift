@@ -21,6 +21,10 @@ enum UpdateError: Error, Sendable, Equatable {
     case versionMismatch(found: String?)
     /// The install location is not writable and administrator approval is not available/declined.
     case notWritable
+    /// The administrator prompt was cancelled (`-128`): nothing was moved.
+    case cancelledByUser
+    /// The administrator prompt could not be shown (`osascript` did not start); nothing was moved.
+    case adminPromptFailed
     /// Replacing the app failed; `rolledBack` tells whether the previous app is back in place,
     /// otherwise it is still at `backup`.
     case installFailed(rolledBack: Bool, backup: URL?)
@@ -441,12 +445,15 @@ struct UpdateInstaller: Sendable {
         }
         guard allowAdministratorPrompt, let current = UpdatePath(installedApp), let backupPath = UpdatePath(backup),
               let stagedPath = UpdatePath(staged) else { throw UpdateError.notWritable }
-        guard let output = try? await runner.run(.adminReplace(current: current, backup: backupPath, staged: stagedPath)) else {
-            throw UpdateError.notWritable
+        let output: CommandOutput
+        do {
+            output = try await runner.run(.adminReplace(current: current, backup: backupPath, staged: stagedPath))
+        } catch {
+            throw UpdateError.adminPromptFailed
         }
         if output.status == 0 { return }
         // `-128` = the administrator prompt was cancelled: nothing moved.
-        if output.output.contains("-128") { throw UpdateError.notWritable }
+        if output.output.contains("-128") { throw UpdateError.cancelledByUser }
         // A failed second move is undone by the script itself (the backup goes back into place).
         throw fileManager.exists(installedApp) ? UpdateError.installFailed(rolledBack: true, backup: nil)
                                                : UpdateError.installFailed(rolledBack: false, backup: backup)

@@ -40,6 +40,10 @@ final class FakeUpdateRunner: UpdateCommandRunning, @unchecked Sendable {
     /// Admin script result: status and output (e.g. "User canceled. (-128)").
     var adminResult = CommandOutput(status: 0, output: "")
     var adminPerformsMoves = true
+    /// `osascript` cannot be started (the runner throws).
+    var adminLaunchFails = false
+
+    struct LaunchFailure: Error {}
 
     var commands: [UpdateCommand] { lock.withLock { log } }
 
@@ -63,6 +67,7 @@ final class FakeUpdateRunner: UpdateCommandRunning, @unchecked Sendable {
         case .open:
             return CommandOutput(status: openStatus, output: "")
         case .adminReplace(let current, let backup, let staged):
+            if adminLaunchFails { throw LaunchFailure() }
             if adminResult.status == 0, adminPerformsMoves {
                 let fileManager = FileManager.default
                 try? fileManager.removeItem(atPath: backup.value)

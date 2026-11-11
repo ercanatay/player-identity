@@ -127,6 +127,11 @@ struct NotificationSettingsSection: View {
             SettingsSwitchRow(title: L10n.text(.settingsNotificationsAllow),
                               caption: L10n.text(.settingsNotificationsCaption),
                               isOn: $model.notificationsEnabled, identifier: "settingsNotifications")
+            ForEach(NotificationSettingsText.warnings(model), id: \.self) { warning in
+                SettingsMessage(text: warning, isError: true)
+                    .padding(.bottom, Space.s2)
+                    .accessibilityIdentifier("settingsNotificationsWarning")
+            }
             VStack(alignment: .leading, spacing: 0) {
                 SettingsDivider()
                 SettingsCheckboxRow(symbol: "checkmark.shield.fill", title: L10n.text(.settingsNotifyBan),
@@ -153,6 +158,9 @@ struct NotificationSettingsSection: View {
             .opacity(model.notificationsEnabled ? 1 : 0.45)
             .help(model.notificationsEnabled ? "" : L10n.text(.settingsNotificationsOffNote))
         }
+        .task(id: model.notificationsEnabled) {
+            if model.notificationsEnabled { await model.refreshNotificationPermission() }
+        }
     }
 
     private func quietPicker(_ keyPath: ReferenceWritableKeyPath<AppModel, String>, label: L10nKey) -> some View {
@@ -162,6 +170,20 @@ struct NotificationSettingsSection: View {
             .monospacedDigit()
             .fixedSize()
             .accessibilityLabel(L10n.text(label))
+    }
+}
+
+/// Red lines under the notifications switch: macOS refused the permission (§23), the watch state could not be
+/// written (§42).
+enum NotificationSettingsText {
+    @MainActor
+    static func warnings(_ model: AppModel) -> [String] {
+        var lines: [String] = []
+        if model.notificationsEnabled, model.notificationPermissionDenied {
+            lines.append(L10n.text(.settingsNotificationsDenied))
+        }
+        if let error = model.watchStateSaveError { lines.append(L10n.format(.watchStateSaveFailed, error)) }
+        return lines
     }
 }
 

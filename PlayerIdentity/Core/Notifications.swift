@@ -13,7 +13,8 @@ protocol UserNotifying: Sendable {
     func authorization() async -> NotificationAuthorization
     /// Shows the system permission prompt; returns whether notifications are allowed.
     func requestAuthorization() async -> Bool
-    func post(_ content: NotificationContent) async
+    /// Throws when the notification center refused the request (nothing was shown).
+    func post(_ content: NotificationContent) async throws
 }
 
 struct NotificationContent: Sendable, Equatable {
@@ -30,7 +31,7 @@ struct NoopNotifier: UserNotifying {
     init() {}
     func authorization() async -> NotificationAuthorization { .denied }
     func requestAuthorization() async -> Bool { false }
-    func post(_ content: NotificationContent) async {}
+    func post(_ content: NotificationContent) async throws {}
 }
 
 struct SystemNotifier: UserNotifying {
@@ -49,12 +50,12 @@ struct SystemNotifier: UserNotifying {
         (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
     }
 
-    func post(_ content: NotificationContent) async {
+    func post(_ content: NotificationContent) async throws {
         let message = UNMutableNotificationContent()
         message.title = content.title
         message.body = content.body
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: message, trigger: nil)
-        try? await UNUserNotificationCenter.current().add(request)
+        try await UNUserNotificationCenter.current().add(request)
     }
 }
 
@@ -100,19 +101,26 @@ enum NotificationPlanner {
 
 /// Posts notifications for history transitions: setting gate, 10-minute dedupe per event, permission asked
 /// only right before the first notification.
+///
+/// The dedupe time of a notification is recorded only once it was actually posted: a refused permission or a
+/// failed post leaves it eligible for the next attempt. Notifications being posted are held back from a parallel
+/// `handle` call, so the same event is never posted twice at once.
 actor NotificationDispatcher {
     static let dedupeInterval: TimeInterval = 10 * 60
 
     private let notifier: any UserNotifying
     private let now: @Sendable () -> Date
     private var lastSent: [String: Date] = [:]
+    private var inFlight: Set<String> = []
+    /// Permission seen by the last `handle` call that had something to post (`nil` before that).
+    private(set) var lastAuthorization: NotificationAuthorization?
 
     init(notifier: any UserNotifying, now: @escaping @Sendable () -> Date) {
         self.notifier = notifier
         self.now = now
     }
 
-    /// Returns the notifications actually posted.
+    /// Returns the notifications actually posted (not the ones held back, refused or failed).
     @discardableResult
     func handle(_ contents: [NotificationContent], enabled: Bool,
                 policy: NotificationPolicy? = nil) async -> [NotificationContent] {
@@ -120,19 +128,39 @@ actor NotificationDispatcher {
         let time = now()
         let fresh = contents.filter { content in
             if let policy, !policy.allows(content.category, at: time) { return false }
+            guard !inFlight.contains(content.key) else { return false }
             guard let last = lastSent[content.key] else { return true }
             return time.timeIntervalSince(last) >= Self.dedupeInterval
         }
         guard !fresh.isEmpty else { return [] }
+        let keys = Set(fresh.map(\.key))
+        inFlight.formUnion(keys)
+        defer { inFlight.subtract(keys) }
+        let authorization: NotificationAuthorization
         switch await notifier.authorization() {
-        case .denied: return []
-        case .notDetermined: guard await notifier.requestAuthorization() else { return [] }
-        case .authorized: break
+        case .denied: authorization = .denied
+        case .notDetermined: authorization = await notifier.requestAuthorization() ? .authorized : .denied
+        case .authorized: authorization = .authorized
         }
+        lastAuthorization = authorization
+        guard authorization == .authorized else { return [] }
+        var posted: [NotificationContent] = []
         for content in fresh {
+            do {
+                try await notifier.post(content)
+            } catch {
+                continue   // not recorded: the next attempt may post it
+            }
             lastSent[content.key] = time
-            await notifier.post(content)
+            posted.append(content)
         }
-        return fresh
+        return posted
+    }
+
+    /// Current permission (Settings shows a warning when it was refused); also updates `lastAuthorization`.
+    func currentAuthorization() async -> NotificationAuthorization {
+        let status = await notifier.authorization()
+        lastAuthorization = status
+        return status
     }
 }

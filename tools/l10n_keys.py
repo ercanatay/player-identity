@@ -831,6 +831,18 @@ KEYS = [
     ("restoreErrorRollback", "fullRestore.error.rollback", "Dosyalar yerine konamadı (%@) ve önceki dosyaların hepsi geri konamadı. Önceki dosyaların kopyası şurada: %@", "The files could not be put in place (%@) and not every previous file could be put back. A copy of the previous files is in: %@"),
     ("restoreErrorSave", "fullRestore.error.save", "Geri yüklemeden önce kaydedilemedi; hiçbir şey geri yüklenmedi. %@", "Saving before the restore failed; nothing was restored. %@"),
     ("restoreErrorPreBackup", "fullRestore.error.preBackup", "Mevcut veriler yedeklenemedi: %@", "The current data could not be backed up: %@"),
+    # Failures that used to be silent: automatic backups, reminders, restore relaunch, update errors, writes.
+    ("fullBackupAutoFailed", "fullBackup.auto.failed", "Son otomatik yedek başarısız: %@", "The last automatic backup failed: %@"),
+    ("settingsNotificationsDenied", "settings.notifications.denied", "Bildirim izni yok: macOS bu uygulamanın bildirimlerine izin vermiyor. Sistem Ayarları > Bildirimler'den izin verin; itiraz hatırlatmaları o zamana kadar bekler.", "No notification permission: macOS does not allow notifications from this app. Allow them in System Settings > Notifications; appeal reminders wait until then."),
+    ("watchStateSaveFailed", "watch.stateSaveFailed", "İzleme durumu kaydedilemedi: %@. Yeniden açılışta aynı değişiklikler tekrar bildirilebilir.", "The watch state could not be saved: %@. The same changes may be notified again after a relaunch."),
+    ("restoreRelaunch", "restore.relaunch", "Yeniden başlat", "Relaunch"),
+    ("restoreRestoredRelaunch", "restore.restoredRelaunch", "Yedek geri yüklendi; geçerli olması için uygulamayı yeniden başlatın.", "The backup was restored; relaunch the app for it to take effect."),
+    ("restoreRelaunchFailed", "restore.relaunchFailed", "Uygulama yeniden başlatılamadı: %@", "The app could not relaunch: %@"),
+    ("updateErrorCancelledByUser", "update.error.cancelledByUser", "Kurulum iptal edildi: yönetici onayı verilmedi; hiçbir şey değiştirilmedi.", "The installation was cancelled: administrator approval was not given; nothing was changed."),
+    ("updateErrorAdminPrompt", "update.error.adminPrompt", "Yönetici onayı istenemedi (osascript başlatılamadı); hiçbir şey değiştirilmedi.", "Administrator approval could not be requested (osascript did not start); nothing was changed."),
+    ("updateErrorRolledBackCopy", "update.error.rolledBackCopy", "Kurulum başarısız oldu; önceki sürüm geri yüklendi. Yedeğin kopyası: %@", "The installation failed; the previous version was restored. Copy of the backup: %@"),
+    ("updateErrorNotRolledBack", "update.error.notRolledBack", "Kurulum başarısız oldu ve önceki sürüm geri yüklenemedi; yedeği de bulunamadı. Uygulamayı yeniden indirip kurun.", "The installation failed and the previous version could not be restored; no backup was found either. Download and install the app again."),
+    ("metricsWriteFailed", "metrics.writeFailed", "Son %@ saatte ölçüm örnekleri yazılamadı (%@ başarısız deneme): %@", "Samples could not be written in the last %@ hours (%@ failed attempts): %@"),
 ]
 
 INFOPLIST = {
