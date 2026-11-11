@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.0 · Tarih: 2026-11-11 · Durum: uygulanacak (v2.9 → v3.0: §50 URL/toplu sunucu ekleme)
+Sürüm: 3.1 · Tarih: 2026-11-11 · Durum: uygulanacak (v3.0 → v3.1: §49.5 veri güvenliği, §49.6 sessiz hata düzeltmeleri)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1198,6 +1198,13 @@ Davranış değişmez; yalnız sunum.
 - Otomatik yedek: günde bir, değişmeyince yazmama, 5 dosya rotasyonu.
 - Yedekte oyun dosyası/appbak/update klasörü **yok**; tr/en anahtar eşitliği.
 
+### 49.5 Veri bütünlüğü
+- **Geri alma:** dosyalar yerine konamazsa önce kenara alınan önceki dosyalar geri taşınır, sonra yeni dosyalar çıkarılır; adımlar `try?` ile yutulmaz. Geri alma tamamsa hata "mevcut veriler değişmedi" der ve geçici klasör silinir. Bir adım bile başarısızsa geçici klasör (`.restore-<UUID>/previous`) **silinmez**; hata "geri yükleme tamamlanamadı" der ve klasörün yolunu verir. Geçici klasör yalnız başarıda silinir.
+- **Eksik yedek:** dosya yoksa yedekte de yoktur (uyarı değil). Var olup okunamayan/bozuk dosya veya atlanan bozuk JSONL satırları manifest'e `skipped: [{file, reason[, lines]}]` (`unreadable`, `corrupt`, `corrupt-lines`) olarak yazılır; alan yalnız bir şey atlandığında bulunur (şema 1 geriye uyumlu). Manuel yedek sonucu "N dosya atlandı, bu yedek eksik" uyarısı gösterir. Eksik dosyalı yedeğin önizlemesi ve onayı "bu dosyaların mevcut sürümleri silinir" der. Geri yükleme öncesi yedek bir dosyayı alamadıysa önceki dosyalar geçici klasörde saklanır ve yolu gösterilir.
+- **Tüm Verileri Sil (§47.2):** klasör listelenemezse hiçbir şey silinmeden hata verilir. Silmeden sonra klasör yeniden listelenir; kalan öğe varsa adlarıyla raporlanır ve model diskte kalan veriden yeniden yüklenir (sonraki Kaydet eski listeyi geri yazmaz).
+- **Tek veri işlemi kilidi:** geri yükleme ve silme aynı kilidi kullanır; kilit sürerken başka geri yükleme/silme, kurulum, yenileme, otomatik yedek, **Kaydet** ve veri kökü değişikliği reddedilir. Silme, bekleyen yazmalardan sonra güncelleme durumunu yeniden kontrol eder.
+- **Kaydedilmemiş değişiklikler:** geri yükleme onayı bunları uyarır ve **"Önce kaydet"** seçeneği sunar (varsayılan açık); kayıt geri yükleme öncesi yedeğe girer. Kaydetme başarısızsa geri yükleme yapılmaz.
+
 ---
 
 ## 50. URL / toplu metinden sunucu ekleme (v3.0)
@@ -1227,3 +1234,16 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - Tüm biçimler + toleranslar; query/fragment; büyük harfli host; port aralığı; IPv6 parantezli/parantezsiz.
 - 100 kayıt sınırı; boş satır; yinelenen girdi; mevcut sunucuyla çakışma; geçersiz satırların raporlanması.
 - Ekleme sonrası model/kayıt durumu; l10n anahtar eşitliği; literal taraması 0.
+
+### 49.5 Veri güvenliği (v3.1)
+- Geri yükleme geri-alma: önce eski dosyalar geri taşınır, sonra yeni artıklar silinir; geri alma başarısızsa geçici klasör **silinmez**, `rollbackFailed(staging:reason:)` yolu raporlar ve arayüz "veriler değişmedi" demez.
+- Yedekte okunamayan/bozuk dosyalar `manifest.skipped` olarak yazılır; yedek sonucu uyarı taşır ve eksik yedeğin geri yükleme onayı "bu dosyalar silinecek" der.
+- Tüm Verileri Sil: envanter hatası throw eder; silme sonrası kalanlar adlarıyla raporlanır; kısmi silmede model diskten yeniden yüklenir; erase/restore/install aynı veri işlemi kilidini kullanır.
+- Geri yükleme kaydedilmemiş değişiklikleri uyarır ve "Önce kaydet" sunar; kilit sırasında `save`/`setDataRoot` reddedilir.
+
+### 49.6 Sessiz hata düzeltmeleri (v3.1)
+- Otomatik yedek başarısızsa gün işareti geri alınır, hata Ayarlar'da gösterilir ve sonraki açılışta yeniden denenir.
+- Bildirim yalnız gerçekten gönderildiyse "bildirildi" işaretlenir; izin reddi Ayarlar'da uyarır; başarısız gönderim dedupe'a girmez.
+- Sürüm düşürme sonrası yeniden başlatma hatası banner'da yerelleştirilmiş metin + "Yeniden başlat" ile gösterilir; `restoreOffer` yalnız başarılı relaunch'ta temizlenir.
+- Yönetici onayı iptali `cancelledByUser`, osascript başlatma hatası `adminPromptFailed` olarak ayrılır.
+- Watch-state ve metrik yazma hataları sessiz kalmaz; ilgili ekranlarda durum satırı gösterilir.

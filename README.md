@@ -30,6 +30,12 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.9.1
+
+- **Toolbar overflow fixed**: the title flexes and the toolbar switches to a compact layout when space is tight.
+- **Data safety**: restore rolls back on failure, a warning appears when a backup is missing, erase is locked and partial deletes are guarded, and unsaved changes prompt before closing.
+- **Silent failure fixes**: automatic backup errors, appeal reminders, relaunch errors and cancel/error messages are now reported to you.
+
 ## What's new in v2.9.0
 
 - **Add servers from URLs or pasted lists**: paste GameTracker links, `steam://connect` links, `host:port` entries (IPv4, hostnames and IPv6) or a list of them. Up to 100 entries per import.
@@ -526,7 +532,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **588 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **627 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests
@@ -546,7 +552,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 588 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 627 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -560,7 +566,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (588)
+PlayerIdentityTests/      Unit tests (627)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask
