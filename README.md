@@ -30,6 +30,11 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.9.0
+
+- **Add servers from URLs or pasted lists**: paste GameTracker links, `steam://connect` links, `host:port` entries (IPv4, hostnames and IPv6) or a list of them. Up to 100 entries per import.
+- Every entry is previewed before it is added, with duplicates and invalid lines flagged so you can decide what to keep.
+
 ## What's new in v2.8.0
 
 - **Full data backup and restore**: export everything (records, history, metrics, watch state) to one archive with a manifest, preview what a restore will change, and restore it. A pre-restore backup is written before any data is overwritten.
@@ -64,6 +69,7 @@ folder (`profile.json`, history, metrics, updates).
   - [Fix: what can and cannot be fixed](#fix-what-can-and-cannot-be-fixed)
   - [Full data backup and restore](#full-data-backup-and-restore)
   - [Servers: groups, favourites, filters](#servers-groups-favourites-filters)
+  - [Adding servers from URLs or pasted lists](#adding-servers-from-urls-or-pasted-lists)
   - [Notes and appeal tracking](#notes-and-appeal-tracking)
   - [Watched servers and notifications](#watched-servers-and-notifications)
   - [History](#history)
@@ -262,6 +268,17 @@ A single fix can run at a time, is cancellable, and always leaves the network in
 - Reorder rows with ▲/▼ inside a section; the order is persisted.
 - Filters: **only banned**, **only favourites**, **only watched** — they combine.
 - Per-server detail sheet shows the resolved IP, group, notes, appeals and metrics.
+
+### Adding servers from URLs or pasted lists
+
+Paste one or more entries and the app parses them into server addresses:
+
+- GameTracker server links
+- `steam://connect/<host>:<port>` links
+- `host:port` entries, with IPv4, hostnames or bracketed IPv6 (`[2001:db8::1]:27015`)
+
+Up to 100 entries are accepted per import. The preview shows what will be added, which entries are duplicates of
+existing servers, and which lines are invalid. Only the entries you confirm are saved.
 
 ### Notes and appeal tracking
 
@@ -509,7 +526,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **573 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **588 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests
@@ -529,7 +546,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 573 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 588 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -543,7 +560,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (573)
+PlayerIdentityTests/      Unit tests (588)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

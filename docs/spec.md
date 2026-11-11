@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 2.9 · Tarih: 2026-11-11 · Durum: uygulanacak (v2.8 → v2.9: §49 tam veri yedeği/geri yükleme + otomatik yedek)
+Sürüm: 3.0 · Tarih: 2026-11-11 · Durum: uygulanacak (v2.9 → v3.0: §50 URL/toplu sunucu ekleme)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1197,3 +1197,33 @@ Davranış değişmez; yalnız sunum.
 - Geri yükleme öncesi yedek dosyası; güncelleme sürerken ret; yenileme kilidi.
 - Otomatik yedek: günde bir, değişmeyince yazmama, 5 dosya rotasyonu.
 - Yedekte oyun dosyası/appbak/update klasörü **yok**; tr/en anahtar eşitliği.
+
+---
+
+## 50. URL / toplu metinden sunucu ekleme (v3.0)
+
+### 50.1 Girdi biçimleri
+Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şunlar kabul edilir:
+- `host:port` (IPv4, hostname, `[IPv6]:port`)
+- `https://www.gametracker.com/server_info/<host>:<port>/` (query/fragment yok sayılır)
+- `steam://connect/<host>:<port>`
+- Baştaki/sondaki boşluklar, `http`/`https` ve sondaki `/` toleranslı.
+
+### 50.2 Davranış
+- Ayrıştırma sonucu **önizleme**: etiket (host), host, port, **zaten var** (host+port çakışması), geçersiz satır + neden.
+- Geçersiz satırlar eklenmez; geçerli ve yeni olanlar seçili olarak gelir; kullanıcı seçimi değiştirebilir.
+- Ekleme sonrası satırlar kaydedilmiş sayılmaz ("Kaydedilmedi"); istenirse hemen A2S ile isim/harita alınır (mevcut yenileme).
+- Etiket varsayılanı host'tur; kullanıcı sonradan düzenleyebilir.
+- `port` yoksa **27015** varsayılır.
+- Aynı girdi içinde tekrarlanan kayıtlar tekilleştirilir.
+- IPv6 yalnız köşeli parantezle kabul edilir (`[2001:db8::1]:27015`).
+
+### 50.3 UI
+- Sunucular bölümündeki `+` menüsünde **"URL'den / toplu ekle…"**; sheet: metin alanı, "Ayrıştır" düğmesi, önizleme listesi (seçim kutuları), "Ekle" (seçili N), hata satırları.
+- Klavye: ⌘V yapıştırma, ⌘⏎ ekle; boş/geçersiz durumda düğme kapalı.
+- Tasarım tokenları; TR/EN; erişilebilirlik etiketleri.
+
+### 50.4 Testler
+- Tüm biçimler + toleranslar; query/fragment; büyük harfli host; port aralığı; IPv6 parantezli/parantezsiz.
+- 100 kayıt sınırı; boş satır; yinelenen girdi; mevcut sunucuyla çakışma; geçersiz satırların raporlanması.
+- Ekleme sonrası model/kayıt durumu; l10n anahtar eşitliği; literal taraması 0.
