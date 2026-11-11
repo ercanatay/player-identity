@@ -123,6 +123,15 @@ final class AppModel {
     var banCheckEnabled: Bool {
         didSet { deps.defaults.set(banCheckEnabled, forKey: Self.banCheckDefaultsKey) }
     }
+    /// §49.3 Settings > General > Data > "Automatic backups" (on by default).
+    var autoBackupEnabled: Bool {
+        didSet { deps.defaults.set(autoBackupEnabled, forKey: DefaultsKey.autoBackupEnabled) }
+    }
+    /// §49.2: a restore is replacing the data files; refreshing is locked meanwhile.
+    private(set) var isRestoring = false
+    /// §49.3: newest `backups/auto-*.zip` (modification date) and the number of automatic backups.
+    private(set) var latestAutomaticBackup: Date?
+    private(set) var automaticBackupCount = 0
     /// Settings > "Notifications" (§23, on by default). When off, no notification is posted.
     var notificationsEnabled: Bool {
         didSet { deps.defaults.set(notificationsEnabled, forKey: DefaultsKey.notificationsEnabled) }
@@ -321,6 +330,7 @@ final class AppModel {
         servers = snapshot?.servers ?? []
         banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
         notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
+        autoBackupEnabled = dependencies.defaults.object(forKey: DefaultsKey.autoBackupEnabled) as? Bool ?? true
         let defaults = dependencies.defaults
         notifyBanChanges = defaults.object(forKey: DefaultsKey.notifyBanChanges) as? Bool ?? true
         notifyOnlineChanges = defaults.object(forKey: DefaultsKey.notifyOnlineChanges) as? Bool ?? true
@@ -343,6 +353,7 @@ final class AppModel {
                 return []
             }
         }
+        refreshBackupInfo()
     }
 
     // MARK: Derived state
@@ -370,6 +381,8 @@ final class AppModel {
     }
 
     private func startRefresh(includeNetwork: Bool) -> Task<Void, Never> {
+        // §49.2: no refresh while a restore replaces the files (it refreshes itself when done).
+        guard !isRestoring else { return Task {} }
         generation += 1
         let current = generation
         refreshTask?.cancel()
@@ -1523,6 +1536,7 @@ final class AppModel {
     /// and the game folder are kept.
     func resetSettings() {
         applySettings(.defaults, includeDataRoot: false)
+        autoBackupEnabled = true
     }
 
     /// Home folder of the paths in use (for `~/…` display).
@@ -1539,6 +1553,7 @@ final class AppModel {
     /// the data root and the preferences are not touched. Returns an error text, `nil` on success.
     func eraseAllData() async -> String? {
         guard !updates.status.isBusy else { return L10n.text(.eraseBusy) }
+        guard !isRestoring else { return L10n.text(.restoreErrorBusy) }
         refreshTask?.cancel()
         generation += 1
         await historyTask?.value
@@ -1558,10 +1573,136 @@ final class AppModel {
         saveErrorMessage = nil
         historyRevision += 1
         updates.dataFolderErased()
+        await metrics.reset()
+        refreshBackupInfo()
         isRefreshing = false
         reevaluate()
         refresh()
         return nil
+    }
+
+    // MARK: §49 full data backup / restore
+
+    var fullBackupStore: FullBackupStore { FullBackupStore(paths: deps.paths, appVersion: deps.appVersion) }
+
+    /// Re-reads the automatic backup list (Settings > Data shows the newest one).
+    func refreshBackupInfo() {
+        let automatic = fullBackupStore.list(.automatic)
+        automaticBackupCount = automatic.count
+        latestAutomaticBackup = automatic.first.flatMap {
+            (try? $0.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        }
+    }
+
+    /// §49.3 launch backup: with "Automatic backups" on, at most one attempt per local day (`auto-YYYYMMDD.zip`,
+    /// skipped when the content did not change, the 5 newest kept). Runs off the main thread; `nil` if not due.
+    @discardableResult
+    func runAutomaticBackupIfDue() -> Task<FullBackupStore.AutomaticOutcome?, Never>? {
+        guard autoBackupEnabled, !isRestoring else { return nil }
+        let now = deps.now()
+        let today = FullBackupNaming.day(now)
+        guard deps.defaults.string(forKey: DefaultsKey.autoBackupLastRun) != today else { return nil }
+        deps.defaults.set(today, forKey: DefaultsKey.autoBackupLastRun)
+        let store = fullBackupStore
+        return Task {
+            let outcome = await Task.detached { try? store.createAutomatic(now: now) }.value
+            refreshBackupInfo()
+            return outcome
+        }
+    }
+
+    /// "Back Up All Data…": waits for queued writes, then writes the ZIP to the chosen file.
+    func writeFullBackup(to url: URL) async -> Result<FullBackupManifest, FullBackupError> {
+        await historyTask?.value
+        await metricsTask?.value
+        let store = fullBackupStore
+        let now = deps.now()
+        return await Task.detached { () -> Result<FullBackupManifest, FullBackupError> in
+            do {
+                return .success(try store.write(to: url, now: now))
+            } catch let error as FullBackupError {
+                return .failure(error)
+            } catch {
+                return .failure(.writeFailed(error.localizedDescription))
+            }
+        }.value
+    }
+
+    func fullBackupPreview(_ backup: ParsedFullBackup) -> FullBackupPreview {
+        FullBackupPreview.make(backup, currentVersion: deps.appVersion)
+    }
+
+    /// "Restore from Backup…" (confirmed): refused while an update downloads/installs. Refreshing is locked, queued
+    /// writes finish, the current data goes to `backups/pre-restore-…zip`, then the validated files are put in
+    /// place and everything is reloaded. On any error the current data stays as it was. Returns the pre-restore
+    /// backup (`nil` when there was no data).
+    func restoreFullBackup(_ backup: ParsedFullBackup) async -> Result<URL?, FullBackupError> {
+        guard !updates.status.isUpdating else { return .failure(.updateRunning) }
+        guard beginRestoreLock() else { return .failure(.busy) }
+        let result = await performRestore(backup)
+        endRestoreLock()
+        refreshBackupInfo()
+        if case .success = result { refresh() }
+        return result
+    }
+
+    /// Locks refreshing, installing, erasing and other restores; `false` if a restore is already running.
+    func beginRestoreLock() -> Bool {
+        guard !isRestoring, !updates.isDataOperationRunning else { return false }
+        isRestoring = true
+        updates.isDataOperationRunning = true
+        return true
+    }
+
+    func endRestoreLock() {
+        isRestoring = false
+        updates.isDataOperationRunning = false
+    }
+
+    private func performRestore(_ backup: ParsedFullBackup) async -> Result<URL?, FullBackupError> {
+        refreshTask?.cancel()
+        generation += 1
+        isRefreshing = false
+        await historyTask?.value
+        await metricsTask?.value
+        guard !updates.status.isUpdating else { return .failure(.updateRunning) }
+        let store = fullBackupStore
+        let safety: URL?
+        do {
+            safety = try store.create(.preRestore, now: deps.now())
+        } catch {
+            return .failure(.preRestoreBackupFailed(error.localizedDescription))
+        }
+        do {
+            try store.restore(backup)
+        } catch {
+            return .failure(.writeFailed(error.localizedDescription))
+        }
+        await history.reset()
+        await metrics.reset()
+        reloadData()
+        return .success(safety)
+    }
+
+    /// After a restore: record, servers, game folder and watch state come from the restored files.
+    private func reloadData() {
+        let loaded = deps.snapshotStore.load()
+        snapshotState = loaded
+        let snapshot = loaded.snapshot
+        servers = snapshot?.servers ?? []
+        selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
+        if (deps.defaults.string(forKey: Self.dataRootDefaultsKey) ?? "").isEmpty, let snapshot, !snapshot.dataRoot.isEmpty {
+            dataRoot = URL(fileURLWithPath: snapshot.dataRoot, isDirectory: true)
+        }
+        watchState = WatchStateStore(fileURL: deps.paths.watchStateFile).load()
+        for entry in servers { resolveIfNeeded(entry.host) }
+        editedWithoutSnapshot = false
+        appliedSinceSave = false
+        fixedSinceSave = false
+        saveErrorMessage = nil
+        historyRevision += 1
+        updates.evaluateRestore(snapshot: loaded)
+        reevaluate()
     }
 
     // MARK: Environment

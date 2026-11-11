@@ -25,6 +25,7 @@ struct AppDataEraser: Sendable {
         result.backups = Self.children(paths.dataBackups).filter(Self.isDirectory).count
             + Self.children(paths.updateAppBackups).filter { $0.pathExtension == "app" }.count
             + Self.children(directory).filter { $0.lastPathComponent.hasPrefix(recordBackupPrefix) }.count
+            + FullBackupStore(paths: paths, appVersion: "").count
         return result
     }
 

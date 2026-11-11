@@ -158,6 +158,12 @@ enum Metrics {
     /// Space the system traffic lights take in the in-content toolbar stand-in (offscreen renders).
     static let trafficLights: CGFloat = 64
 
+    /// §49 restore sheet width and the height of its preview rows.
+    static let backupSheet: CGFloat = 480
+    static let backupRow: CGFloat = 30
+    /// Symbol column in the backup preview rows.
+    static let backupSymbol: CGFloat = 16
+
     /// §48.1 History window.
     enum History {
         static let minWidth: CGFloat = 600

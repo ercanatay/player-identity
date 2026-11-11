@@ -27,6 +27,9 @@ final class UpdateController {
             }
         }
 
+        /// §49.2: an update is downloading, being verified or installed (a feed check does not count).
+        var isUpdating: Bool { isBusy && self != .checking }
+
         /// Download/verification can still be cancelled; replacing cannot.
         var isCancellable: Bool {
             switch self {
@@ -73,6 +76,8 @@ final class UpdateController {
     private(set) var dataBackupCount = 0
     /// Release being downloaded/installed (or prepared in the background); shown in the Updates status card.
     private(set) var activeRelease: AppRelease?
+    /// §49: a restore is replacing the data files; installing waits until it is done.
+    var isDataOperationRunning = false
 
     /// Called once per newly found release version (history `appUpdateAvailable`).
     @ObservationIgnored var onUpdateFound: (String) -> Void = { _ in }
@@ -248,9 +253,16 @@ final class UpdateController {
     /// Confirmed: back up the data (downgrade, if chosen), then download, verify, replace and relaunch.
     @discardableResult
     func confirmInstall() -> Task<Void, Never>? {
-        guard let request = pendingInstall, !status.isBusy else { return nil }
+        guard let request = pendingInstall, !status.isBusy, !isDataOperationRunning else { return nil }
         pendingInstall = nil
         status = .idle
+        // §49.3: full data backup (`backups/pre-update-…zip`) before every install; a failure stops the install.
+        do {
+            try FullBackupStore(paths: deps.paths, appVersion: appVersion).create(.preUpdate, now: deps.now())
+        } catch {
+            status = .backupFailed(error.localizedDescription)
+            return nil
+        }
         if request.change == .downgrade, request.backupData {
             do {
                 try backupStore.create(from: appVersion, to: request.release.versionString, now: deps.now(),

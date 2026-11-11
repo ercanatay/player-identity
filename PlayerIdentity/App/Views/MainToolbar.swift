@@ -39,7 +39,7 @@ struct RefreshToolbarButton: View {
             Label(L10n.text(.actionRefresh), systemImage: "arrow.clockwise")
         }
         .labelStyle(.iconOnly)
-        .disabled(model.isRefreshing)
+        .disabled(model.isRefreshing || model.isRestoring)
         .help(L10n.text(.helpRefresh))
         .accessibilityIdentifier("toolbarRefresh")
     }

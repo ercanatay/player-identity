@@ -176,6 +176,11 @@ actor MetricsRecorder {
         counts = current
     }
 
+    /// Forgets the cached counts (after "Erase All Data" or a restore): the next write starts from the file again.
+    func reset() {
+        counts = nil
+    }
+
     private static func counts(of samples: [MetricSample]) -> [UUID: Int] {
         samples.reduce(into: [:]) { $0[$1.serverID, default: 0] += 1 }
     }

@@ -51,7 +51,7 @@ struct MenuBarMenu: View {
         Divider()
         Button(L10n.text(.actionRefresh)) { model.refresh() }
             .keyboardShortcut("r")
-            .disabled(model.isRefreshing)
+            .disabled(model.isRefreshing || model.isRestoring)
         Button(L10n.text(.menuBarSettings)) {
             NSApp.activate(ignoringOtherApps: true)
             openSettings()

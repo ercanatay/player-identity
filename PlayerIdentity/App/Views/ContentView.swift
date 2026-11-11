@@ -50,6 +50,8 @@ struct ContentView: View {
         .toolbar { MainToolbarContent(model: model) }
         .task {
             guard !AppModel.isRunningTests else { return }
+            // §49.3: launch backup off the main thread (only whole, decodable lines are copied).
+            model.runAutomaticBackupIfDue()
             model.refresh()
             model.checkForUpdates()
             model.updates.startPeriodicChecks()

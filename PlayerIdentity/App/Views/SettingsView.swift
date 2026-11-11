@@ -24,7 +24,7 @@ struct SettingsView: View {
 // MARK: - General
 
 /// Settings > General: ban checks (§13.1), notifications (§23, §45), language (§35), menu bar and launch at login
-/// (§30), data (data root, export/import §46, diagnostics §41) and the separate Reset group.
+/// (§30), data (data root, export/import §46, full backup §49, diagnostics §41) and the separate Reset group.
 struct GeneralSettingsView: View {
     @Bindable var model: AppModel
 
@@ -38,6 +38,8 @@ struct GeneralSettingsView: View {
                 DataRootRow(model: model)
                 SettingsDivider()
                 DataSettingsRow(model: model)
+                SettingsDivider()
+                FullBackupSettingsRows(model: model)
                 SettingsDivider()
                 DiagnosticsSettingsRow(model: model)
             }

@@ -17,6 +17,9 @@ enum DefaultsKey {
     static let showInMenuBar = "showInMenuBar"
     /// §35 UI language: `system` (default) · `tr` · `en`.
     static let appLanguage = "appLanguage"
+    /// §49.3 automatic full backups at launch (default on) and the local day of the last attempt (`yyyyMMdd`).
+    static let autoBackupEnabled = "autoBackupEnabled"
+    static let autoBackupLastRun = "autoBackupLastRun"
 }
 
 /// One-time migration from the legacy `tr.ercanatay.oyuncukimlik` bundle (§19.3).
