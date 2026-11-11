@@ -106,6 +106,24 @@ KEYS = [
     ("serverProblemHostEmpty", "server.problem.hostEmpty", "Host boş olamaz.", "Host cannot be empty."),
     ("serverProblemPortInvalid", "server.problem.portInvalid", "Port 1–65535 arasında bir sayı olmalı.", "Port must be a number between 1 and 65535."),
 
+    # Server import (§50)
+    ("serverImportMenu", "server.import.menu", "URL'den / toplu ekle…", "Add from URL / Bulk…"),
+    ("serverImportTitle", "server.import.title", "URL'den / toplu sunucu ekle", "Add Servers from URL / Bulk"),
+    ("serverImportHint", "server.import.hint", "Her satıra veya virgülden sonra bir kayıt yazın: host:port, GameTracker bağlantısı veya steam://connect/… (en fazla 100). Port yoksa 27015 kullanılır.", "One entry per line or comma: host:port, a GameTracker link or steam://connect/… (up to 100). Without a port, 27015 is used."),
+    ("serverImportInput", "server.import.input", "Sunucu listesi", "Server list"),
+    ("serverImportParse", "server.import.parse", "Ayrıştır", "Parse"),
+    ("serverImportPreview", "server.import.preview", "Önizleme", "Preview"),
+    ("serverImportExists", "server.import.exists", "zaten var", "already added"),
+    ("serverImportSelect", "server.import.select", "Ekle: %@", "Add %@"),
+    ("serverImportAddCount", "server.import.addCount", "Ekle (%@)", "Add (%@)"),
+    ("serverImportInvalidTitle", "server.import.invalidTitle", "Geçersiz satırlar (%@)", "Invalid lines (%@)"),
+    ("serverImportInvalidLine", "server.import.invalidLine", "%@. kayıt: %@", "Entry %@: %@"),
+    ("serverImportNothing", "server.import.nothing", "Geçerli kayıt bulunamadı.", "No valid entries found."),
+    ("serverImportOverflow", "server.import.overflow", "En fazla 100 kayıt işlenir; %@ kayıt yok sayıldı.", "At most 100 entries are processed; %@ were ignored."),
+    ("serverImportDuplicates", "server.import.duplicates", "%@ yinelenen kayıt tekilleştirildi.", "%@ repeated entries were merged."),
+    ("serverImportReasonUnsupported", "server.import.reason.unsupported", "Desteklenmeyen bağlantı biçimi.", "Unsupported link format."),
+    ("serverImportReasonIPv6", "server.import.reason.ipv6", "IPv6 adresi köşeli parantezle yazılmalı: [adres]:port.", "IPv6 addresses need brackets: [address]:port."),
+
     # Reasons
     ("reasonsTitle", "reasons.title", "Gerekçeler", "Reasons"),
 

@@ -765,6 +765,25 @@ final class AppModel {
         resolveIfNeeded(draft.trimmedHost)
     }
 
+    /// §50: adds the imported candidates (label = host); entries that already exist (host + port) are skipped.
+    /// The rows start unsaved and unchecked; the normal refresh fetches their A2S info. Returns the added count.
+    @discardableResult
+    func addServers(_ candidates: [ServerURLImport.Candidate]) -> Int {
+        var known = Set(servers.map { "\(HostValidator.normalized($0.host)):\($0.port)" })
+        var added: [ServerEntry] = []
+        var order = ServerOrganization.nextOrder(servers)
+        for candidate in candidates where known.insert(candidate.id).inserted {
+            added.append(ServerEntry(label: candidate.label, host: candidate.host, port: candidate.port, order: order))
+            order += 1
+        }
+        guard !added.isEmpty else { return 0 }
+        servers.append(contentsOf: added)
+        markEdited()
+        reevaluate()
+        for entry in added { resolveIfNeeded(entry.host) }
+        return added.count
+    }
+
     func updateServer(id: UUID, with draft: ServerDraft) {
         guard draft.isValid, let port = draft.port,
               let index = servers.firstIndex(where: { $0.id == id }) else { return }

@@ -11,6 +11,8 @@ struct ContentView: View {
 
     enum SheetMode: Identifiable {
         case add
+        /// §50 add from URLs / pasted lists.
+        case importServers
         case edit(UUID)
         /// §32 notes and appeal.
         case details(UUID)
@@ -20,6 +22,7 @@ struct ContentView: View {
         var id: String {
             switch self {
             case .add: return "add"
+            case .importServers: return "import"
             case .edit(let id): return "edit-" + id.uuidString
             case .details(let id): return "details-" + id.uuidString
             case .shareCard(let id): return "share-" + id.uuidString
@@ -104,6 +107,7 @@ struct ContentView: View {
     private var presenter: MainWindowPresenter {
         MainWindowPresenter(
             addServer: { sheet = .add },
+            importServers: { sheet = .importServers },
             editServer: { sheet = .edit($0) },
             details: { sheet = .details($0) },
             shareCard: { sheet = .shareCard($0) },
@@ -120,6 +124,13 @@ struct ContentView: View {
                                 sheet = nil
                             },
                             onCancel: { sheet = nil })
+        case .importServers:
+            ServerImportSheet(existing: model.servers,
+                              onAdd: { candidates in
+                                  model.addServers(candidates)
+                                  sheet = nil
+                              },
+                              onCancel: { sheet = nil })
         case .edit(let id):
             if let entry = model.servers.first(where: { $0.id == id }) {
                 ServerFormSheet(title: L10n.text(.serverEditTitle), confirmTitle: L10n.text(.actionOK), groups: model.serverGroups,
@@ -141,6 +152,7 @@ struct ContentView: View {
 /// Callbacks the cards use to open window-level sheets (the cards hold no sheet state themselves).
 struct MainWindowPresenter {
     var addServer: () -> Void = {}
+    var importServers: () -> Void = {}
     var editServer: (UUID) -> Void = { _ in }
     var details: (UUID) -> Void = { _ in }
     var shareCard: (UUID) -> Void = { _ in }

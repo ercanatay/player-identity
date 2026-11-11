@@ -211,16 +211,37 @@ struct ServersCard: View {
         .fixedSize()
     }
 
+    /// `+` menu: the plain add form (also the primary click) and the §50 URL / bulk import.
     private func addServerButton(prominent: Bool) -> some View {
         Group {
             if prominent {
-                Button(action: presenter.addServer) { Label(L10n.text(.serverAdd), systemImage: "plus") }
-                    .prominentButton()
+                Menu {
+                    addServerMenuItems
+                } label: {
+                    Label(L10n.text(.serverAdd), systemImage: "plus")
+                } primaryAction: {
+                    presenter.addServer()
+                }
+                .prominentButton()
             } else {
-                Button(action: presenter.addServer) { Label(L10n.text(.serverAdd), systemImage: "plus") }
+                Menu {
+                    addServerMenuItems
+                } label: {
+                    Label(L10n.text(.serverAdd), systemImage: "plus")
+                } primaryAction: {
+                    presenter.addServer()
+                }
             }
         }
+        .fixedSize()
         .accessibilityIdentifier("addServer")
+    }
+
+    @ViewBuilder
+    private var addServerMenuItems: some View {
+        Button(L10n.text(.serverAdd), action: presenter.addServer)
+        Button(L10n.text(.serverImportMenu), action: presenter.importServers)
+            .accessibilityIdentifier("importServers")
     }
 
     // MARK: Filters popover
