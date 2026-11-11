@@ -3,7 +3,7 @@
 # (scripts/release.sh runs it after packaging; the release workflow commits the result).
 cask "player-identity" do
   version "2.9.0"
-  sha256 "88d379646e84c81170e43766b27b90b52489d718dd4fa750e8029a600b145343"
+  sha256 "c571eea8214b3cdf63547a829aa9861dafd09e95641457fb9152b45035ccf30c"
 
   url "https://github.com/ercanatay/player-identity/releases/download/v#{version}/PlayerIdentity-#{version}-macos.zip"
   name "Player Identity"
