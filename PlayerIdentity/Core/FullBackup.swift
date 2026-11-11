@@ -56,6 +56,7 @@ struct FullBackupManifest: Codable, Sendable, Equatable {
         var servers = 0
         var historyEntries = 0
         var metricSamples = 0
+        /// Servers marked "watch" in the record.
         var watchedServers = 0
     }
 
@@ -99,6 +100,7 @@ struct FullBackupContent: Sendable {
                 switch SnapshotStore.decode(data) {
                 case .loaded(let snapshot):
                     result.counts.servers = snapshot.servers.count
+                    result.counts.watchedServers = snapshot.servers.filter(\.watch).count
                     result.recordSavedAt = snapshot.savedAt
                 case .unsupportedSchema:
                     break   // kept as is; a restore with this version reports the schema
@@ -117,8 +119,7 @@ struct FullBackupContent: Sendable {
                 if file == .history { result.counts.historyEntries = lines.count } else { result.counts.metricSamples = lines.count }
                 result.files.append((file, joined))
             case .watchState:
-                guard let count = FullBackupValidator.watchCount(data) else { continue }
-                result.counts.watchedServers = count
+                guard FullBackupValidator.watchCount(data) != nil else { continue }
                 result.files.append((file, data))
             }
         }
