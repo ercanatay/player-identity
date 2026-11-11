@@ -60,6 +60,25 @@ struct FullBackupManifest: Codable, Sendable, Equatable {
         var watchedServers = 0
     }
 
+    /// A data file that existed but was left out of the backup (or only partly included).
+    struct SkippedFile: Codable, Sendable, Equatable {
+        enum Reason: String, Codable, Sendable {
+            /// The file could not be read; it is not in the backup.
+            case unreadable
+            /// The file could not be decoded; it is not in the backup.
+            case corrupt
+            /// The JSONL file is in the backup, but `lines` damaged lines were left out.
+            case corruptLines = "corrupt-lines"
+        }
+
+        var file: String
+        var reason: Reason
+        var lines: Int?
+
+        /// The file is missing from the backup entirely (a restore removes the current version).
+        var isMissingFromBackup: Bool { reason != .corruptLines }
+    }
+
     var schemaVersion = FullBackupManifest.currentSchemaVersion
     var appVersion: String
     var createdAt: Date
@@ -70,6 +89,15 @@ struct FullBackupManifest: Codable, Sendable, Equatable {
     var files: [FileRecord]
     /// SHA-256 over every file (name, length, bytes) in archive order: equal content ⇔ equal value.
     var contentSHA256: String
+    /// Files that existed but could not be backed up; absent when nothing was skipped (schema 1 stays readable by
+    /// older versions, which ignore the field).
+    var skipped: [SkippedFile]?
+
+    /// What a backup result reports to the user.
+    var warnings: [SkippedFile] { skipped ?? [] }
+
+    /// Names of the files the backup leaves out entirely although they existed when it was made.
+    var missingFiles: [String] { warnings.filter(\.isMissingFromBackup).map(\.file) }
 
     static func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
@@ -81,11 +109,14 @@ struct FullBackupManifest: Codable, Sendable, Equatable {
 
 /// The current data read from disk, ready to be archived. Unreadable parts are left out, so every backup can be
 /// restored again: a corrupt record or watch state is skipped and only decodable JSONL lines are kept (an append
-/// that is running at the same time can never leave a partial line in the backup).
+/// that is running at the same time can never leave a partial line in the backup). A file that does not exist is
+/// simply absent; a file that exists but is unreadable, corrupt or loses lines is listed in `skipped`, so the
+/// manifest and the backup result say that the backup is incomplete.
 struct FullBackupContent: Sendable {
     var files: [(FullBackupFile, Data)]
     var counts: FullBackupManifest.Counts
     var recordSavedAt: Date?
+    var skipped: [FullBackupManifest.SkippedFile] = []
 
     var isEmpty: Bool { files.isEmpty }
 
@@ -93,8 +124,16 @@ struct FullBackupContent: Sendable {
 
     static func collect(_ paths: AppPaths) -> FullBackupContent {
         var result = FullBackupContent(files: [], counts: .init(), recordSavedAt: nil)
+        func skip(_ file: FullBackupFile, _ reason: FullBackupManifest.SkippedFile.Reason, lines: Int? = nil) {
+            result.skipped.append(.init(file: file.rawValue, reason: reason, lines: lines))
+        }
         for file in FullBackupFile.allCases {
-            guard let data = try? Data(contentsOf: file.url(in: paths)) else { continue }
+            let url = file.url(in: paths)
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }   // no such file: nothing lost
+            guard let data = try? Data(contentsOf: url) else {
+                skip(file, .unreadable)
+                continue
+            }
             switch file {
             case .profile:
                 switch SnapshotStore.decode(data) {
@@ -105,12 +144,19 @@ struct FullBackupContent: Sendable {
                 case .unsupportedSchema:
                     break   // kept as is; a restore with this version reports the schema
                 case .corrupt, .missing:
+                    skip(file, .corrupt)
                     continue
                 }
                 result.files.append((file, data))
             case .history, .metrics:
-                let lines = FullBackupValidator.decodableLines(data, file: file)
-                guard !lines.isEmpty else { continue }
+                let all = FullBackupValidator.lines(data)
+                let lines = all.filter { FullBackupValidator.decodes($0, file: file) }
+                guard !all.isEmpty else { continue }   // empty file: no data
+                guard !lines.isEmpty else {
+                    skip(file, .corrupt)
+                    continue
+                }
+                if lines.count < all.count { skip(file, .corruptLines, lines: all.count - lines.count) }
                 var joined = Data()
                 for line in lines {
                     joined.append(line)
@@ -119,7 +165,10 @@ struct FullBackupContent: Sendable {
                 if file == .history { result.counts.historyEntries = lines.count } else { result.counts.metricSamples = lines.count }
                 result.files.append((file, joined))
             case .watchState:
-                guard FullBackupValidator.watchCount(data) != nil else { continue }
+                guard FullBackupValidator.watchCount(data) != nil else {
+                    skip(file, .corrupt)
+                    continue
+                }
                 result.files.append((file, data))
             }
         }
@@ -154,7 +203,7 @@ enum FullBackupArchive {
         }
         return FullBackupManifest(appVersion: appVersion, createdAt: now, kind: kind,
                                   recordSavedAt: content.recordSavedAt, counts: content.counts, files: records,
-                                  contentSHA256: content.sha256)
+                                  contentSHA256: content.sha256, skipped: content.skipped.isEmpty ? nil : content.skipped)
     }
 
     static func make(_ content: FullBackupContent, kind: FullBackupKind, appVersion: String,
@@ -211,7 +260,19 @@ enum FullBackupError: Error, Sendable, Equatable {
     case updateRunning
     case busy
     case preRestoreBackupFailed(String)
+    /// "Save first" before a restore failed (the save error text); nothing was restored.
+    case saveFailed(String)
+    /// The files could not be put in place, but every previous file was put back.
     case writeFailed(String)
+    /// The files could not be put in place and not every previous file could be put back: the copies of the
+    /// previous files are still in `staging` (never removed in this case).
+    case rollbackFailed(staging: URL, reason: String)
+
+    /// Whether the current data is known to be unchanged after this error.
+    var keptCurrentData: Bool {
+        if case .rollbackFailed = self { return false }
+        return true
+    }
 
     var text: String {
         switch self {
@@ -227,7 +288,9 @@ enum FullBackupError: Error, Sendable, Equatable {
         case .updateRunning: return L10n.text(.restoreErrorUpdate)
         case .busy: return L10n.text(.restoreErrorBusy)
         case .preRestoreBackupFailed(let reason): return L10n.format(.restoreErrorPreBackup, reason)
+        case .saveFailed(let reason): return L10n.format(.restoreErrorSave, reason)
         case .writeFailed(let reason): return L10n.format(.restoreErrorWrite, reason)
+        case .rollbackFailed(let staging, let reason): return L10n.format(.restoreErrorRollback, reason, staging.path)
         }
     }
 }
@@ -298,7 +361,10 @@ enum FullBackupParser {
             return .failure(.unsupportedSchema(header.schemaVersion))
         }
         guard let manifest = try? HistoryCoding.makeDecoder().decode(FullBackupManifest.self, from: manifestData),
-              Set(manifest.files.map(\.name)) == Set(byName.keys), manifest.files.count == byName.count else {
+              Set(manifest.files.map(\.name)) == Set(byName.keys), manifest.files.count == byName.count,
+              manifest.warnings.allSatisfy({ skipped in
+                  FullBackupFile(rawValue: skipped.file) != nil && (byName[skipped.file] == nil) == skipped.isMissingFromBackup
+              }) else {
             return .failure(.corruptManifest)
         }
         var ordered: [(String, Data)] = []
@@ -343,6 +409,8 @@ struct FullBackupPreview: Sendable, Equatable {
     var recordSavedAt: Date?
     var counts: FullBackupManifest.Counts
     var compatibility: Compatibility
+    /// Files that existed but are not in the backup: a restore removes their current versions.
+    var missingFiles: [String] = []
 
     static func make(_ backup: ParsedFullBackup, currentVersion: String) -> FullBackupPreview {
         let manifest = backup.manifest
@@ -354,7 +422,7 @@ struct FullBackupPreview: Sendable, Equatable {
         }
         return FullBackupPreview(createdAt: manifest.createdAt, appVersion: manifest.appVersion,
                                  recordSavedAt: manifest.recordSavedAt, counts: manifest.counts,
-                                 compatibility: compatibility)
+                                 compatibility: compatibility, missingFiles: manifest.missingFiles)
     }
 }
 
@@ -368,6 +436,8 @@ struct FullBackupStore: Sendable {
     let paths: AppPaths
     let appVersion: String
     var timeZone: TimeZone = .current
+    /// File operations of `restore` (tests inject failures).
+    var fileOperations: any DataFileOperating = LocalDataFileOperations()
 
     var directory: URL { paths.fullBackups }
 
@@ -396,15 +466,27 @@ struct FullBackupStore: Sendable {
     /// Backup into `backups/` (pre-restore, pre-update); `nil` when there is no data to back up. Prunes the kind.
     @discardableResult
     func create(_ kind: FullBackupKind, now: Date) throws -> URL? {
+        try createBackup(kind, now: now).url
+    }
+
+    /// Result of `createBackup`: the file (`nil` when there was nothing to back up) and the files that existed but
+    /// could not be backed up.
+    struct Created: Sendable, Equatable {
+        var url: URL?
+        var skipped: [FullBackupManifest.SkippedFile]
+    }
+
+    /// `create` that also reports the skipped files (also when nothing at all could be backed up).
+    func createBackup(_ kind: FullBackupKind, now: Date) throws -> Created {
         let content = FullBackupContent.collect(paths)
-        guard !content.isEmpty else { return nil }
+        guard !content.isEmpty else { return Created(url: nil, skipped: content.skipped) }
         let (data, _) = try FullBackupArchive.make(content, kind: kind, appVersion: appVersion, now: now)
         let url = directory.appendingPathComponent(FullBackupNaming.storedFileName(kind, now: now, timeZone: timeZone),
                                                    isDirectory: false)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
         try prune(kind)
-        return url
+        return Created(url: url, skipped: content.skipped)
     }
 
     /// Launch backup: once per day (`auto-YYYYMMDD.zip`), skipped when the content equals the newest automatic one.
@@ -442,23 +524,34 @@ struct FullBackupStore: Sendable {
         for url in list(kind).dropFirst(Self.maxPerKind) { try FileManager.default.removeItem(at: url) }
     }
 
-    /// Puts the backed-up files in place. The files are staged in a temporary folder next to the data first; the
-    /// current files are moved aside and only removed once every new file is in place. On any error the previous
-    /// files are put back, so the current data is never lost. Files missing from the backup are removed (the
-    /// backup is the complete state).
-    func restore(_ backup: ParsedFullBackup) throws {
-        let fileManager = FileManager.default
+    /// Puts the backed-up files in place. The files are staged in a temporary folder next to the data first
+    /// (`.restore-<UUID>/new`); the current files are moved aside into `.restore-<UUID>/previous` and only removed
+    /// once every new file is in place. Files missing from the backup are removed (the backup is the complete state).
+    ///
+    /// On an error the previous files are moved back first; only then are the new files taken out again. If every
+    /// step of that rollback works the current data is unchanged (`writeFailed`) and the staging folder, which then
+    /// holds nothing but copies of the backup, is removed. If any rollback step fails the staging folder is kept,
+    /// because it may hold the only copy of a previous file, and `rollbackFailed` reports its location.
+    ///
+    /// `keepPrevious` (the pre-restore backup could not include every current file): the staging folder with the
+    /// previous files is kept after a successful restore and returned, instead of being removed.
+    @discardableResult
+    func restore(_ backup: ParsedFullBackup, keepPrevious: Bool = false) throws -> URL? {
+        let files = fileOperations
         let dataFolder = paths.snapshotFile.deletingLastPathComponent()
         let staging = dataFolder.appendingPathComponent(".restore-\(UUID().uuidString)", isDirectory: true)
         let staged = staging.appendingPathComponent("new", isDirectory: true)
         let previous = staging.appendingPathComponent("previous", isDirectory: true)
-        try fileManager.createDirectory(at: staged, withIntermediateDirectories: true)
-        try fileManager.createDirectory(at: previous, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: staging) }
-
-        for file in FullBackupFile.allCases {
-            guard let data = backup.data(file) else { continue }
-            try data.write(to: staged.appendingPathComponent(file.rawValue, isDirectory: false))
+        do {
+            try files.createDirectory(staged)
+            try files.createDirectory(previous)
+            for file in FullBackupFile.allCases {
+                guard let data = backup.data(file) else { continue }
+                try files.write(data, to: staged.appendingPathComponent(file.rawValue, isDirectory: false))
+            }
+        } catch {
+            try? files.remove(staging)   // nothing was moved yet: the folder only holds copies of the backup
+            throw FullBackupError.writeFailed(error.localizedDescription)
         }
 
         var movedAside: [FullBackupFile] = []
@@ -466,21 +559,55 @@ struct FullBackupStore: Sendable {
         do {
             for file in FullBackupFile.allCases {
                 let target = file.url(in: paths)
-                if fileManager.fileExists(atPath: target.path) {
-                    try fileManager.moveItem(at: target, to: previous.appendingPathComponent(file.rawValue))
+                if files.exists(target) {
+                    try files.move(target, to: previous.appendingPathComponent(file.rawValue, isDirectory: false))
                     movedAside.append(file)
                 }
                 if backup.data(file) != nil {
-                    try fileManager.moveItem(at: staged.appendingPathComponent(file.rawValue), to: target)
+                    try files.move(staged.appendingPathComponent(file.rawValue, isDirectory: false), to: target)
                     placed.append(file)
                 }
             }
         } catch {
-            for file in placed { try? fileManager.removeItem(at: file.url(in: paths)) }
-            for file in movedAside {
-                try? fileManager.moveItem(at: previous.appendingPathComponent(file.rawValue), to: file.url(in: paths))
+            let failed = rollback(movedAside: movedAside, placed: placed, staged: staged, previous: previous)
+            guard failed.isEmpty else {
+                throw FullBackupError.rollbackFailed(staging: staging, reason: error.localizedDescription)
             }
-            throw error
+            try? files.remove(staging)
+            throw FullBackupError.writeFailed(error.localizedDescription)
         }
+        if keepPrevious {
+            try? files.remove(staged)
+            return staging
+        }
+        try? files.remove(staging)
+        return nil
+    }
+
+    /// Puts every moved-aside file back, then takes the placed new files out again. A new file that sits where a
+    /// previous one has to go is moved back into `staged` (never deleted) first. Returns the names whose step failed.
+    private func rollback(movedAside: [FullBackupFile], placed: [FullBackupFile], staged: URL, previous: URL) -> [String] {
+        let files = fileOperations
+        var failed: [String] = []
+        for file in movedAside {
+            let target = file.url(in: paths)
+            if placed.contains(file) {
+                do {
+                    try files.move(target, to: staged.appendingPathComponent(file.rawValue, isDirectory: false))
+                } catch {
+                    failed.append(file.rawValue)   // the previous file stays in `previous`
+                    continue
+                }
+            }
+            do {
+                try files.move(previous.appendingPathComponent(file.rawValue, isDirectory: false), to: target)
+            } catch {
+                failed.append(file.rawValue)
+            }
+        }
+        for file in placed where !movedAside.contains(file) {
+            do { try files.remove(file.url(in: paths)) } catch { failed.append(file.rawValue) }
+        }
+        return failed
     }
 }

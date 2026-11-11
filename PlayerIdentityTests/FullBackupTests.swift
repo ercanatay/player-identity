@@ -202,7 +202,8 @@ final class FullBackupTests: XCTestCase {
         let result = await model.restoreFullBackup(candidate.backup)
         await model.waitForRefresh()
 
-        guard case .success(let safety?) = result else { return XCTFail("restore: \(result)") }
+        guard case .success(let outcome) = result, let safety = outcome.safetyBackup else { return XCTFail("restore: \(result)") }
+        XCTAssertNil(outcome.keptPrevious)
         XCTAssertEqual(model.servers.map(\.label), ["Original A", "Original B"])
         XCTAssertNotNil(model.snapshotState.snapshot)
         XCTAssertFalse(model.hasUnsavedChanges)

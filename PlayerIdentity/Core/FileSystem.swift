@@ -30,6 +30,41 @@ struct LocalFileSystem: FileSystemReading {
     }
 }
 
+/// Writes inside the app's own data folder (§47.2 erase, §49 restore). Never used for game files; tests inject a
+/// fake that fails a chosen step.
+protocol DataFileOperating: Sendable {
+    func exists(_ url: URL) -> Bool
+    func createDirectory(_ url: URL) throws
+    func write(_ data: Data, to url: URL) throws
+    func move(_ source: URL, to destination: URL) throws
+    func remove(_ url: URL) throws
+    /// Every item in a folder, hidden ones included. Throws when the folder cannot be listed.
+    func contents(_ url: URL) throws -> [URL]
+}
+
+struct LocalDataFileOperations: DataFileOperating {
+    init() {}
+
+    func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path) }
+
+    func createDirectory(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    func write(_ data: Data, to url: URL) throws { try data.write(to: url) }
+
+    func move(_ source: URL, to destination: URL) throws {
+        try FileManager.default.moveItem(at: source, to: destination)
+    }
+
+    /// A symbolic link is removed, never its target.
+    func remove(_ url: URL) throws { try FileManager.default.removeItem(at: url) }
+
+    func contents(_ url: URL) throws -> [URL] {
+        try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: [])
+    }
+}
+
 /// Default locations (§2, §5).
 struct AppPaths: Sendable, Equatable {
     let home: URL

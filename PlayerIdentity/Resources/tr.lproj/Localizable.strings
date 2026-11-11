@@ -35,6 +35,7 @@
 "alert.manualModel.title" = "Model adı";
 "alert.saveFailed.title" = "Kayıt yazılamadı";
 "save.failed" = "Kayıt yazılamadı: %@";
+"save.busy" = "Bir veri işlemi (geri yükleme veya silme) sürerken kayıt yazılamaz.";
 "profile.title" = "Profil";
 "profile.name" = "Kullanıcı adı";
 "profile.model" = "Oyuncu modeli";
@@ -623,6 +624,7 @@
 "erase.confirm.action" = "Tüm Verileri Sil";
 "erase.busy" = "Güncelleme sürerken veriler silinemez.";
 "erase.failed" = "Veriler silinemedi: %@";
+"erase.incomplete" = "Veriler tamamen silinemedi: %@ öğe silindi, kalanlar: %@. Uygulama diskte kalan verilerle yeniden yüklendi.";
 "erase.done" = "Tüm veriler silindi.";
 "erase.exportCancelled" = "Dışa aktarma yapılmadı; hiçbir şey silinmedi.";
 "updates.versionBuild" = "Sürüm %@ (%@)";
@@ -688,6 +690,8 @@
 "fullBackup.failed" = "Yedek oluşturulamadı: %@";
 "fullBackup.nothing" = "Yedeklenecek veri yok.";
 "fullBackup.summary" = "%@ sunucu · %@ geçmiş satırı · %@ metrik satırı";
+"fullBackup.skipped" = "%@ dosya okunamadığı için atlandı (%@); bu yedek eksik.";
+"fullBackup.droppedLines" = "%@: %@ bozuk satır yedeğe alınmadı.";
 "fullRestore.title" = "Yedekten Geri Yükle";
 "fullRestore.body" = "Geri yüklemeden önce yedeğin içeriğini inceleyin.";
 "fullRestore.created" = "Yedek tarihi";
@@ -701,6 +705,9 @@
 "fullRestore.version.older" = "%@ · eski sürüm, uyumlu";
 "fullRestore.version.newer" = "%@ · daha yeni sürüm";
 "fullRestore.newerNote" = "Yedek daha yeni bir sürümden; bu sürümün tanımadığı alanlar yok sayılır.";
+"fullRestore.missingNote" = "Bu yedek eksik: %@ yedek alınırken okunamamıştı. Geri yükleme bu dosyaların mevcut sürümlerini siler.";
+"fullRestore.unsavedNote" = "Kaydedilmemiş değişiklikleriniz var; önce kaydetmezseniz geri yüklemede kaybolurlar.";
+"fullRestore.saveFirst" = "Önce kaydet (önceki veri yedeğine dahil edilir)";
 "fullRestore.note" = "Mevcut kayıt, geçmiş, metrikler ve izleme durumu bu yedekle değiştirilir. Önce mevcut veriler backups/ altına yedeklenir.";
 "fullRestore.action" = "Geri Yükle…";
 "fullRestore.confirm.title" = "Veriler geri yüklensin mi?";
@@ -710,8 +717,11 @@
 "fullRestore.done" = "Veriler geri yüklendi.";
 "fullRestore.done.backup" = "Önceki veriler: %@";
 "fullRestore.done.noBackup" = "Önceden veri yoktu; ek yedek gerekmedi.";
+"fullRestore.done.kept" = "Yedeğe alınamayan önceki dosyalar şurada saklandı: %@";
 "fullRestore.failed.title" = "Geri yükleme yapılmadı";
 "fullRestore.kept" = "Mevcut verileriniz değiştirilmedi.";
+"fullRestore.incomplete.title" = "Geri yükleme tamamlanamadı";
+"fullRestore.checkData" = "Mevcut veriler eksik olabilir. O klasördeki previous/ dosyalarını uygulama klasörüne geri kopyalayın; klasör kendiliğinden silinmez.";
 "fullRestore.error.unreadable" = "Yedek dosyası açılamadı: ZIP bozuk veya bu uygulamanın yedeği değil.";
 "fullRestore.error.tooLarge" = "Yedek dosyası çok büyük.";
 "fullRestore.error.unexpected" = "Yedekte beklenmeyen bir dosya var: %@";
@@ -723,4 +733,6 @@
 "fullRestore.error.update" = "Güncelleme sürerken geri yükleme yapılamaz.";
 "fullRestore.error.busy" = "Başka bir veri işlemi sürüyor.";
 "fullRestore.error.write" = "Dosyalar yerine konamadı: %@";
+"fullRestore.error.rollback" = "Dosyalar yerine konamadı (%@) ve önceki dosyaların hepsi geri konamadı. Önceki dosyaların kopyası şurada: %@";
+"fullRestore.error.save" = "Geri yüklemeden önce kaydedilemedi; hiçbir şey geri yüklenmedi. %@";
 "fullRestore.error.preBackup" = "Mevcut veriler yedeklenemedi: %@";

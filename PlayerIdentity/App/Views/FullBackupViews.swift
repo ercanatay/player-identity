@@ -17,7 +17,7 @@ struct FullBackupSettingsRows: View {
         _isError = State(initialValue: initialIsError)
     }
 
-    private var isLocked: Bool { isWorking || model.isRestoring || model.updates.status.isUpdating }
+    private var isLocked: Bool { isWorking || model.isDataOperationRunning || model.updates.status.isUpdating }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s1) {
@@ -86,13 +86,15 @@ struct FullBackupSettingsRows: View {
 
 /// Result texts of the manual backup.
 enum FullBackupText {
+    /// An incomplete backup is shown as an error: "N files skipped, this backup is incomplete" and dropped lines.
     static func result(_ result: Result<FullBackupManifest, FullBackupError>, url: URL) -> (String, Bool) {
         switch result {
         case .success(let manifest):
             let counts = manifest.counts
             let summary = L10n.format(.fullBackupSummary, String(counts.servers), String(counts.historyEntries),
                                       String(counts.metricSamples))
-            return (L10n.format(.fullBackupSaved, url.path) + "\n" + summary, false)
+            let lines = [L10n.format(.fullBackupSaved, url.path), summary] + warnings(manifest)
+            return (lines.joined(separator: "\n"), !manifest.warnings.isEmpty)
         case .failure(.nothingToBackUp):
             return (L10n.text(.backupNothing), true)
         case .failure(.writeFailed(let reason)):
@@ -100,6 +102,37 @@ enum FullBackupText {
         case .failure(let error):
             return (L10n.format(.fullBackupFailed, error.text), true)
         }
+    }
+
+    /// Warning lines of a backup that could not include everything (empty when it is complete).
+    static func warnings(_ manifest: FullBackupManifest) -> [String] {
+        var lines: [String] = []
+        let missing = manifest.missingFiles
+        if !missing.isEmpty {
+            lines.append(L10n.format(.fullBackupSkipped, String(missing.count), missing.joined(separator: ", ")))
+        }
+        for skipped in manifest.warnings where !skipped.isMissingFromBackup {
+            lines.append(L10n.format(.fullBackupDroppedLines, skipped.file, String(skipped.lines ?? 0)))
+        }
+        return lines
+    }
+
+    /// Confirmation text of a restore: the backup date and servers, then the warnings (files the backup leaves out
+    /// whose current versions are removed; unsaved changes that are lost unless saved first).
+    static func restoreConfirmation(_ preview: FullBackupPreview, hasUnsavedChanges: Bool) -> String {
+        var parts = [L10n.format(.fullRestoreConfirmBody, SettingsFormat.lastCheck(preview.createdAt),
+                                 String(preview.counts.servers))]
+        if !preview.missingFiles.isEmpty {
+            parts.append(L10n.format(.fullRestoreMissingNote, preview.missingFiles.joined(separator: ", ")))
+        }
+        if hasUnsavedChanges { parts.append(L10n.text(.fullRestoreUnsavedNote)) }
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// Result lines of a failed restore: the error, then whether the current data is unchanged or where the copy
+    /// of the previous files is.
+    static func failureLines(_ error: FullBackupError) -> [String] {
+        [error.text, L10n.text(error.keptCurrentData ? .fullRestoreKept : .fullRestoreCheckData)]
     }
 }
 
@@ -146,14 +179,17 @@ struct FullRestoreSheet: View {
         case preview
         case confirm
         case working
-        case done(URL?)
-        case failed(String)
+        /// Pre-restore backup and the folder with previous files that could not be backed up.
+        case done(URL?, kept: URL? = nil)
+        case failed(FullBackupError)
     }
 
     @Bindable var model: AppModel
     let candidate: FullRestoreCandidate
     let onClose: () -> Void
     @State private var phase: Phase
+    /// "Save first" in the confirmation (shown only with unsaved changes; on by default).
+    @State private var saveFirst = true
 
     init(model: AppModel, candidate: FullRestoreCandidate, initialPhase: Phase = .preview, onClose: @escaping () -> Void) {
         self.model = model
@@ -166,10 +202,11 @@ struct FullRestoreSheet: View {
 
     var body: some View {
         if phase == .confirm {
+            let unsaved = model.hasUnsavedChanges
             DestructiveConfirmSheet(title: L10n.text(.fullRestoreConfirmTitle),
-                                    message: L10n.format(.fullRestoreConfirmBody, SettingsFormat.lastCheck(preview.createdAt),
-                                                         String(preview.counts.servers)),
-                                    confirmTitle: L10n.text(.fullRestoreConfirmAction), checkbox: .constant(false),
+                                    message: FullBackupText.restoreConfirmation(preview, hasUnsavedChanges: unsaved),
+                                    confirmTitle: L10n.text(.fullRestoreConfirmAction),
+                                    checkboxTitle: unsaved ? L10n.text(.fullRestoreSaveFirst) : nil, checkbox: $saveFirst,
                                     onCancel: { phase = .preview }, onConfirm: restore)
         } else {
             content
@@ -195,13 +232,15 @@ struct FullRestoreSheet: View {
                     Text(L10n.text(.fullRestoreWorking)).foregroundStyle(Palette.text2)
                 }
                 .accessibilityElement(children: .combine)
-            case .done(let safety):
+            case .done(let safety, let kept):
                 result(symbol: "checkmark.circle.fill", color: Palette.green, title: L10n.text(.fullRestoreDone),
                        lines: [safety.map { L10n.format(.fullRestoreDoneBackup, $0.lastPathComponent) }
-                               ?? L10n.text(.fullRestoreDoneNoBackup)])
-            case .failed(let text):
-                result(symbol: "xmark.octagon.fill", color: Palette.red, title: L10n.text(.fullRestoreFailedTitle),
-                       lines: [text, L10n.text(.fullRestoreKept)], isError: true)
+                               ?? L10n.text(.fullRestoreDoneNoBackup)]
+                           + (kept.map { [L10n.format(.fullRestoreDoneKept, $0.path)] } ?? []))
+            case .failed(let error):
+                result(symbol: "xmark.octagon.fill", color: Palette.red,
+                       title: L10n.text(error.keptCurrentData ? .fullRestoreFailedTitle : .fullRestoreIncompleteTitle),
+                       lines: FullBackupText.failureLines(error), isError: true)
             }
             buttons
         }
@@ -277,6 +316,10 @@ struct FullRestoreSheet: View {
             if preview.compatibility == .newerVersion {
                 note(symbol: StatusLevel.orange.symbolName, text: L10n.text(.fullRestoreNewerNote), warning: true)
             }
+            if !preview.missingFiles.isEmpty {
+                note(symbol: StatusLevel.orange.symbolName,
+                     text: L10n.format(.fullRestoreMissingNote, preview.missingFiles.joined(separator: ", ")), warning: true)
+            }
             note(symbol: "externaldrive", text: L10n.text(.fullRestoreNote), warning: false)
         }
     }
@@ -331,7 +374,7 @@ struct FullRestoreSheet: View {
                 Button(L10n.text(.fullRestoreAction)) { phase = .confirm }
                     .prominentButton()
                     .keyboardShortcut(.defaultAction)
-                    .disabled(model.updates.status.isUpdating || model.isRestoring)
+                    .disabled(model.updates.status.isUpdating || model.isDataOperationRunning)
                     .accessibilityIdentifier("fullRestoreApply")
             case .working:
                 Button(L10n.text(.actionClose), action: onClose).disabled(true)
@@ -344,11 +387,12 @@ struct FullRestoreSheet: View {
     }
 
     private func restore() {
+        let saveFirst = model.hasUnsavedChanges && saveFirst
         phase = .working
         Task {
-            switch await model.restoreFullBackup(candidate.backup) {
-            case .success(let safety): phase = .done(safety)
-            case .failure(let error): phase = .failed(error.text)
+            switch await model.restoreFullBackup(candidate.backup, saveFirst: saveFirst) {
+            case .success(let outcome): phase = .done(outcome.safetyBackup, kept: outcome.keptPrevious)
+            case .failure(let error): phase = .failed(error)
             }
         }
     }

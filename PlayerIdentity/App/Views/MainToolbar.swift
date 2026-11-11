@@ -39,7 +39,7 @@ struct RefreshToolbarButton: View {
             Label(L10n.text(.actionRefresh), systemImage: "arrow.clockwise")
         }
         .labelStyle(.iconOnly)
-        .disabled(model.isRefreshing || model.isRestoring)
+        .disabled(model.isRefreshing || model.isDataOperationRunning)
         .help(L10n.text(.helpRefresh))
         .accessibilityIdentifier("toolbarRefresh")
     }
@@ -56,6 +56,7 @@ struct SaveToolbarButton: View {
             Label(L10n.text(.actionSave), systemImage: "square.and.arrow.down")
         }
         .labelStyle(.iconOnly)
+        .disabled(model.isDataOperationRunning)
         .help(L10n.text(.helpSave))
         .accessibilityIdentifier("toolbarSave")
     }

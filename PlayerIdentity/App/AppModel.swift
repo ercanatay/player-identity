@@ -45,6 +45,8 @@ struct AppDependencies {
     var urlOpener: any URLOpening = UnavailableURLOpener()
     /// §37: interfaces + egress interface (`getifaddrs` + route lookup; read-only, nothing is sent).
     var interfaceReporter = InterfaceReporter()
+    /// §47.2/§49: file operations of "Erase All Data" and the restore (tests inject failures).
+    var dataFileOperations: any DataFileOperating = LocalDataFileOperations()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -127,8 +129,18 @@ final class AppModel {
     var autoBackupEnabled: Bool {
         didSet { deps.defaults.set(autoBackupEnabled, forKey: DefaultsKey.autoBackupEnabled) }
     }
-    /// §49.2: a restore is replacing the data files; refreshing is locked meanwhile.
-    private(set) var isRestoring = false
+    /// A data operation that replaces or removes the data files (§47.2, §49.2).
+    enum DataOperation: Sendable, Equatable {
+        case restore
+        case erase
+    }
+
+    /// §47.2/§49.2: the running data operation. Refreshing, saving, changing the data root, installing, automatic
+    /// backups and any other data operation are locked meanwhile.
+    private(set) var dataOperation: DataOperation?
+    /// §49.2: a restore is replacing the data files.
+    var isRestoring: Bool { dataOperation == .restore }
+    var isDataOperationRunning: Bool { dataOperation != nil }
     /// §49.3: newest `backups/auto-*.zip` (modification date) and the number of automatic backups.
     private(set) var latestAutomaticBackup: Date?
     private(set) var automaticBackupCount = 0
@@ -381,8 +393,8 @@ final class AppModel {
     }
 
     private func startRefresh(includeNetwork: Bool) -> Task<Void, Never> {
-        // §49.2: no refresh while a restore replaces the files (it refreshes itself when done).
-        guard !isRestoring else { return Task {} }
+        // §49.2: no refresh while a restore or an erase replaces the files (each refreshes itself when done).
+        guard !isDataOperationRunning else { return Task {} }
         generation += 1
         let current = generation
         refreshTask?.cancel()
@@ -746,9 +758,11 @@ final class AppModel {
         return startRefresh(includeNetwork: isRefreshing)
     }
 
-    /// The data root choice is written to UserDefaults; rediscovery + refresh follow.
+    /// The data root choice is written to UserDefaults; rediscovery + refresh follow. Refused (nothing changes)
+    /// while a restore or an erase runs, because the reload afterwards would mix it with the restored record.
     @discardableResult
     func setDataRoot(_ url: URL) -> Task<Void, Never> {
+        guard !isDataOperationRunning else { return Task {} }
         dataRoot = url.standardizedFileURL
         deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
         markEdited()
@@ -1435,8 +1449,13 @@ final class AppModel {
 
     // MARK: Save (§5)
 
-    /// Only `profile.json` is written.
+    /// Only `profile.json` is written. Refused while a restore or an erase replaces the data files (the record
+    /// would be overwritten or recreated half way through); the error is shown like any other save error.
     func save() {
+        guard !isDataOperationRunning else {
+            saveErrorMessage = L10n.text(.saveBusy)
+            return
+        }
         let snapshot = SnapshotBuilder.make(savedAt: deps.now(),
                                             dataRoot: dataRoot,
                                             gamedir: selectedGamedir,
@@ -1570,34 +1589,40 @@ final class AppModel {
     /// "Erase All Data…": waits for queued writes, removes the app's own data folder contents (record with servers,
     /// identity history, metrics, watch state, backups, downloads) and starts over with an empty list. Game files,
     /// the data root and the preferences are not touched. Returns an error text, `nil` on success.
+    ///
+    /// Takes the same data operation lock as a restore (no restore, install, save or refresh meanwhile); the update
+    /// state is checked again after waiting for the queued writes. If the folder cannot be listed nothing is removed
+    /// and the model is unchanged. If only some items could be removed the error names what is left, and the model is
+    /// reloaded from what is still on disk, so a later Save never writes back the erased state.
     func eraseAllData() async -> String? {
         guard !updates.status.isBusy else { return L10n.text(.eraseBusy) }
-        guard !isRestoring else { return L10n.text(.restoreErrorBusy) }
+        guard beginDataOperation(.erase) else { return L10n.text(.restoreErrorBusy) }
         refreshTask?.cancel()
         generation += 1
+        isRefreshing = false
         await historyTask?.value
         await metricsTask?.value
+        guard !updates.status.isBusy else {
+            endDataOperation()
+            return L10n.text(.eraseBusy)
+        }
+        var failure: String?
         do {
-            try AppDataEraser(paths: deps.paths).erase()
+            try AppDataEraser(paths: deps.paths, fileOperations: deps.dataFileOperations).erase()
+        } catch let incomplete as AppDataEraser.Incomplete {
+            failure = L10n.format(.eraseIncomplete, String(incomplete.removed), incomplete.remaining.joined(separator: ", "))
         } catch {
+            endDataOperation()   // nothing was removed
             return L10n.format(.eraseFailed, error.localizedDescription)
         }
         await history.reset()
-        servers = []
-        snapshotState = .missing
-        watchState = [:]
-        editedWithoutSnapshot = false
-        appliedSinceSave = false
-        fixedSinceSave = false
-        saveErrorMessage = nil
-        historyRevision += 1
-        updates.dataFolderErased()
         await metrics.reset()
+        reloadFromDisk(keepGamedirWithoutRecord: true)
+        updates.dataFolderErased()
         refreshBackupInfo()
-        isRefreshing = false
-        reevaluate()
+        endDataOperation()
         refresh()
-        return nil
+        return failure
     }
 
     // MARK: §49 full data backup / restore
@@ -1617,7 +1642,7 @@ final class AppModel {
     /// skipped when the content did not change, the 5 newest kept). Runs off the main thread; `nil` if not due.
     @discardableResult
     func runAutomaticBackupIfDue() -> Task<FullBackupStore.AutomaticOutcome?, Never>? {
-        guard autoBackupEnabled, !isRestoring else { return nil }
+        guard autoBackupEnabled, !isDataOperationRunning else { return nil }
         let now = deps.now()
         let today = FullBackupNaming.day(now)
         guard deps.defaults.string(forKey: DefaultsKey.autoBackupLastRun) != today else { return nil }
@@ -1651,12 +1676,30 @@ final class AppModel {
         FullBackupPreview.make(backup, currentVersion: deps.appVersion)
     }
 
-    /// "Restore from Backup…" (confirmed): refused while an update downloads/installs. Refreshing is locked, queued
-    /// writes finish, the current data goes to `backups/pre-restore-…zip`, then the validated files are put in
-    /// place and everything is reloaded. On any error the current data stays as it was. Returns the pre-restore
-    /// backup (`nil` when there was no data).
-    func restoreFullBackup(_ backup: ParsedFullBackup) async -> Result<URL?, FullBackupError> {
+    /// Result of a completed restore.
+    struct FullRestoreOutcome: Sendable, Equatable {
+        /// `backups/pre-restore-…zip` (`nil` when there was no data to back up).
+        var safetyBackup: URL?
+        /// Folder that keeps the previous files the pre-restore backup could not include (unreadable or corrupt).
+        var keptPrevious: URL?
+    }
+
+    /// "Restore from Backup…" (confirmed): refused while an update downloads/installs or another data operation
+    /// runs. With `saveFirst` the unsaved changes are saved before anything else (so the pre-restore backup has
+    /// them); a failed save stops the restore. Refreshing, saving and erasing are locked, queued writes finish, the
+    /// current data goes to `backups/pre-restore-…zip`, then the validated files are put in place and everything is
+    /// reloaded. If the files cannot be put in place the previous files are put back (`writeFailed`); if even that
+    /// fails, `rollbackFailed` names the folder with the copies of the previous files.
+    func restoreFullBackup(_ backup: ParsedFullBackup, saveFirst: Bool = false) async -> Result<FullRestoreOutcome, FullBackupError> {
         guard !updates.status.isUpdating else { return .failure(.updateRunning) }
+        guard !isDataOperationRunning, !updates.isDataOperationRunning else { return .failure(.busy) }
+        if saveFirst, hasUnsavedChanges {
+            save()
+            if let message = saveErrorMessage {
+                saveErrorMessage = nil   // shown in the restore sheet instead of the main window alert
+                return .failure(.saveFailed(message))
+            }
+        }
         guard beginRestoreLock() else { return .failure(.busy) }
         let result = await performRestore(backup)
         endRestoreLock()
@@ -1665,51 +1708,67 @@ final class AppModel {
         return result
     }
 
-    /// Locks refreshing, installing, erasing and other restores; `false` if a restore is already running.
-    func beginRestoreLock() -> Bool {
-        guard !isRestoring, !updates.isDataOperationRunning else { return false }
-        isRestoring = true
+    /// Takes the data operation lock (§47.2/§49.2): locks refreshing, saving, the data root, installing, automatic
+    /// backups and every other data operation. `false` if one is already running (restore, erase or install backup).
+    func beginDataOperation(_ operation: DataOperation) -> Bool {
+        guard dataOperation == nil, !updates.isDataOperationRunning else { return false }
+        dataOperation = operation
         updates.isDataOperationRunning = true
         return true
     }
 
-    func endRestoreLock() {
-        isRestoring = false
+    func endDataOperation() {
+        dataOperation = nil
         updates.isDataOperationRunning = false
     }
 
-    private func performRestore(_ backup: ParsedFullBackup) async -> Result<URL?, FullBackupError> {
+    /// The restore's data operation lock; `false` if a data operation is already running.
+    func beginRestoreLock() -> Bool { beginDataOperation(.restore) }
+
+    func endRestoreLock() { endDataOperation() }
+
+    private func performRestore(_ backup: ParsedFullBackup) async -> Result<FullRestoreOutcome, FullBackupError> {
         refreshTask?.cancel()
         generation += 1
         isRefreshing = false
         await historyTask?.value
         await metricsTask?.value
         guard !updates.status.isUpdating else { return .failure(.updateRunning) }
-        let store = fullBackupStore
-        let safety: URL?
+        var store = fullBackupStore
+        store.fileOperations = deps.dataFileOperations
+        let safety: FullBackupStore.Created
         do {
-            safety = try store.create(.preRestore, now: deps.now())
+            safety = try store.createBackup(.preRestore, now: deps.now())
         } catch {
             return .failure(.preRestoreBackupFailed(error.localizedDescription))
         }
+        let kept: URL?
         do {
-            try store.restore(backup)
+            // Files the pre-restore backup could not include are kept next to the data instead of being removed.
+            kept = try store.restore(backup, keepPrevious: !safety.skipped.isEmpty)
         } catch {
+            await history.reset()
+            await metrics.reset()
+            if let error = error as? FullBackupError { return .failure(error) }
             return .failure(.writeFailed(error.localizedDescription))
         }
         await history.reset()
         await metrics.reset()
-        reloadData()
-        return .success(safety)
+        reloadFromDisk(keepGamedirWithoutRecord: false)
+        return .success(FullRestoreOutcome(safetyBackup: safety.url, keptPrevious: kept))
     }
 
-    /// After a restore: record, servers, game folder and watch state come from the restored files.
-    private func reloadData() {
+    /// After a restore or an erase: record, servers, game folder and watch state come from the files on disk.
+    /// `keepGamedirWithoutRecord`: without a record the chosen game folder stays (erase); a restore takes it from the
+    /// restored record only.
+    private func reloadFromDisk(keepGamedirWithoutRecord: Bool) {
         let loaded = deps.snapshotStore.load()
         snapshotState = loaded
         let snapshot = loaded.snapshot
         servers = snapshot?.servers ?? []
-        selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
+        if snapshot != nil || !keepGamedirWithoutRecord {
+            selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
+        }
         if (deps.defaults.string(forKey: Self.dataRootDefaultsKey) ?? "").isEmpty, let snapshot, !snapshot.dataRoot.isEmpty {
             dataRoot = URL(fileURLWithPath: snapshot.dataRoot, isDirectory: true)
         }

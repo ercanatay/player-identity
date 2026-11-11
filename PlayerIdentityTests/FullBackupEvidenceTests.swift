@@ -64,7 +64,7 @@ final class FullBackupEvidenceTests: XCTestCase {
                 try render(sheet(FullRestoreSheet(model: model, candidate: candidate, initialPhase: .done(safety)) {}),
                            size: CGSize(width: 600, height: 420), dark: dark, name: "restore-done-\(theme)-\(lang)")
                 try render(sheet(FullRestoreSheet(model: model, candidate: candidate,
-                                                  initialPhase: .failed(FullBackupError.updateRunning.text)) {}),
+                                                  initialPhase: .failed(.updateRunning)) {}),
                            size: CGSize(width: 600, height: 420), dark: dark, name: "restore-failed-\(theme)-\(lang)")
             }
         }

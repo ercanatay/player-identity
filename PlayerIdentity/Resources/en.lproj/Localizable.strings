@@ -35,6 +35,7 @@
 "alert.manualModel.title" = "Model name";
 "alert.saveFailed.title" = "Could not save the record";
 "save.failed" = "Could not save the record: %@";
+"save.busy" = "The record can't be saved while a data operation (restore or erase) is running.";
 "profile.title" = "Profile";
 "profile.name" = "Player name";
 "profile.model" = "Player model";
@@ -623,6 +624,7 @@
 "erase.confirm.action" = "Erase All Data";
 "erase.busy" = "Data can't be erased while an update is running.";
 "erase.failed" = "Could not erase the data: %@";
+"erase.incomplete" = "Not all data could be erased: %@ items were removed, still there: %@. The app reloaded what is left on disk.";
 "erase.done" = "All data was erased.";
 "erase.exportCancelled" = "Nothing was exported, so nothing was erased.";
 "updates.versionBuild" = "Version %@ (%@)";
@@ -688,6 +690,8 @@
 "fullBackup.failed" = "The backup could not be created: %@";
 "fullBackup.nothing" = "There is no data to back up.";
 "fullBackup.summary" = "%@ servers · %@ history lines · %@ metric lines";
+"fullBackup.skipped" = "%@ files could not be read and were skipped (%@); this backup is incomplete.";
+"fullBackup.droppedLines" = "%@: %@ damaged lines were left out.";
 "fullRestore.title" = "Restore from Backup";
 "fullRestore.body" = "Review the backup before restoring it.";
 "fullRestore.created" = "Backup date";
@@ -701,6 +705,9 @@
 "fullRestore.version.older" = "%@ · older version, compatible";
 "fullRestore.version.newer" = "%@ · newer version";
 "fullRestore.newerNote" = "The backup comes from a newer version; fields this version doesn't know are ignored.";
+"fullRestore.missingNote" = "This backup is incomplete: %@ could not be read when it was made. The restore removes the current versions of these files.";
+"fullRestore.unsavedNote" = "You have unsaved changes; they are lost in the restore unless you save them first.";
+"fullRestore.saveFirst" = "Save first (included in the backup of the current data)";
 "fullRestore.note" = "The current record, history, metrics and watch state are replaced by this backup. The current data is backed up to backups/ first.";
 "fullRestore.action" = "Restore…";
 "fullRestore.confirm.title" = "Restore the data?";
@@ -710,8 +717,11 @@
 "fullRestore.done" = "The data was restored.";
 "fullRestore.done.backup" = "Previous data: %@";
 "fullRestore.done.noBackup" = "There was no previous data to back up.";
+"fullRestore.done.kept" = "Previous files that could not be backed up were kept in: %@";
 "fullRestore.failed.title" = "Nothing was restored";
 "fullRestore.kept" = "Your current data was not changed.";
+"fullRestore.incomplete.title" = "The restore could not be completed";
+"fullRestore.checkData" = "The current data may be incomplete. Copy the files in that folder's previous/ back to the app's folder; the folder is never removed automatically.";
 "fullRestore.error.unreadable" = "The backup file could not be opened: the ZIP is damaged or not a backup of this app.";
 "fullRestore.error.tooLarge" = "The backup file is too large.";
 "fullRestore.error.unexpected" = "The backup contains an unexpected file: %@";
@@ -723,4 +733,6 @@
 "fullRestore.error.update" = "Data can't be restored while an update is running.";
 "fullRestore.error.busy" = "Another data operation is running.";
 "fullRestore.error.write" = "The files could not be put in place: %@";
+"fullRestore.error.rollback" = "The files could not be put in place (%@) and not every previous file could be put back. A copy of the previous files is in: %@";
+"fullRestore.error.save" = "Saving before the restore failed; nothing was restored. %@";
 "fullRestore.error.preBackup" = "The current data could not be backed up: %@";
