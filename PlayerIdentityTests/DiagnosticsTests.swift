@@ -113,7 +113,7 @@ final class DiagnosticsTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         let input = DiagnosticsInput(appInfo: .current(), paths: AppPaths(home: temp.url), defaults: defaults, now: Self.t0)
         let files = try XCTUnwrap(ZipArchive.read(DiagnosticsBundle.archive(input)))
-        XCTAssertEqual(files.count, 5)
+        XCTAssertEqual(files.count, DiagnosticsBundle.fileNames.count)
         XCTAssertTrue(String(decoding: files[1].data, as: UTF8.self).contains("missing"))
         XCTAssertEqual(files[2].data, Data())
         XCTAssertFalse(DiagnosticsAppInfo.current().architecture.isEmpty)

@@ -2,9 +2,10 @@ import Foundation
 
 // §34 `playeridentityctl`: argument parsing, commands and output. The tool is for terminals and scripts, so its
 // texts are English and not localized; JSON output has stable field names (`schemaVersion: 1`). Standard input is
-// only read for the `update --install` y/N answer, and only when it is a terminal (§51). Besides the update files
-// (`update --install`, see CLIUpdate.swift) the only file it writes is one §39 sample in `metrics.jsonl` after `ban`
-// (`--no-metrics` turns it off).
+// only read for the y/N answers of `update --install`, `restore` and `servers remove`, and only when it is a terminal
+// (§51, §52). Files it writes: the update files (`update --install`, see CLIUpdate.swift), one §39 sample in
+// `metrics.jsonl` after `ban` (`--no-metrics` turns it off) and, for the §52 data commands (CLIData.swift), the
+// backup / diagnostics ZIP, the restored data files and the edited record (`servers add/remove`). Never game files.
 
 /// Exit codes (§34).
 enum CLIExit {
@@ -41,6 +42,8 @@ struct CLIContext: Sendable {
     var updateFileManager: any UpdateFileManaging = LocalUpdateFileManager()
     var updateRunner: any UpdateCommandRunning = ProcessUpdateCommandRunner()
     var prompt: CLIPrompt = .none
+    /// §52 `diagnostics`: UserDefaults domain of the app (update state in the package); tests pass their own suite.
+    var defaultsSuite: String = UpdateInstaller.bundleID
 
     /// `profile.json` read by `status` (and for the identity/name defaults); `PLAYERIDENTITYCTL_SNAPSHOT` overrides it.
     var snapshotURL: URL {
@@ -79,6 +82,13 @@ enum CLICommand: Sendable, Equatable {
     case ban(host: String, port: Int, cid: String?, json: Bool, timeout: TimeInterval, recordMetrics: Bool = true)
     case status(json: Bool)
     case update(CLIUpdateOptions)
+    // §52 data commands (CLIData.swift).
+    case backup(out: String?, json: Bool)
+    case restore(path: String, yes: Bool, json: Bool)
+    case serversList(json: Bool)
+    case serversAdd(entry: String, label: String?, group: String?, watch: Bool, json: Bool)
+    case serversRemove(target: String, yes: Bool, json: Bool)
+    case diagnostics(out: String?, json: Bool)
 }
 
 struct CLIUsageError: Error, Sendable, Equatable {
@@ -112,10 +122,10 @@ enum CLIParser {
                 inlineValue = String(argument[argument.index(after: equals)...])
             }
             switch name {
-            case "--json", "--version", "--help", "-h", "--no-metrics", "--check", "--install", "--yes":
+            case "--json", "--version", "--help", "-h", "--no-metrics", "--check", "--install", "--yes", "--watch":
                 guard inlineValue == nil else { return .failure(CLIUsageError(message: "\(name) takes no value")) }
                 flags.insert(name == "-h" ? "--help" : name)
-            case "--raw-id", "--cid", "--timeout", "--app":
+            case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group":
                 guard options[name] == nil else { return .failure(CLIUsageError(message: "\(name) given twice")) }
                 if let inlineValue {
                     options[name] = inlineValue
@@ -139,8 +149,14 @@ enum CLIParser {
         if flags.contains("--no-metrics"), command != "ban" {
             return .failure(CLIUsageError(message: "--no-metrics is only valid for ban"))
         }
-        if command != "update", let flag = ["--check", "--install", "--yes"].first(where: flags.contains) {
+        if command != "update", let flag = ["--check", "--install"].first(where: flags.contains) {
             return .failure(CLIUsageError(message: "\(flag) is only valid for update"))
+        }
+        if flags.contains("--yes"), !["update", "restore", "servers"].contains(command) {
+            return .failure(CLIUsageError(message: "--yes is only valid for update, restore and servers remove"))
+        }
+        if flags.contains("--watch"), command != "servers" {
+            return .failure(CLIUsageError(message: "--watch is only valid for servers add"))
         }
         let rest = Array(positionals.dropFirst())
         func allow(_ allowed: Set<String>) -> CLIUsageError? {
@@ -209,8 +225,70 @@ enum CLIParser {
             }
             return .success(.update(CLIUpdateOptions(mode: .install, json: json, yes: flags.contains("--yes"), app: app)))
 
+        case "backup", "diagnostics":
+            if let error = allow(["--out"]) { return .failure(error) }
+            guard rest.isEmpty else { return .failure(CLIUsageError(message: "\(command) takes no arguments")) }
+            var out: String?
+            if let path = options["--out"] {
+                guard !path.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    return .failure(CLIUsageError(message: "--out needs a path"))
+                }
+                out = path
+            }
+            return .success(command == "backup" ? .backup(out: out, json: json) : .diagnostics(out: out, json: json))
+
+        case "restore":
+            if let error = allow([]) { return .failure(error) }
+            guard rest.count == 1, !rest[0].trimmingCharacters(in: .whitespaces).isEmpty else {
+                return .failure(CLIUsageError(message: "restore needs exactly one <zip>"))
+            }
+            return .success(.restore(path: rest[0], yes: flags.contains("--yes"), json: json))
+
+        case "servers":
+            return parseServers(Array(rest), options: options, flags: flags, json: json)
+
         default:
             return .failure(CLIUsageError(message: "unknown command \(command)"))
+        }
+    }
+
+    /// `servers list | add <host:port> [--label] [--group] [--watch] | remove <host:port|index> [--yes]`.
+    private static func parseServers(_ rest: [String], options: [String: String], flags: Set<String>,
+                                     json: Bool) -> Result<CLICommand, CLIUsageError> {
+        guard let action = rest.first else { return .failure(CLIUsageError(message: "servers needs list, add or remove")) }
+        let arguments = Array(rest.dropFirst())
+        func allow(_ allowed: Set<String>) -> CLIUsageError? {
+            options.keys.first { !allowed.contains($0) }
+                .map { CLIUsageError(message: "\($0) is not valid for servers \(action)") }
+        }
+        let yes = flags.contains("--yes")
+        let watch = flags.contains("--watch")
+        switch action {
+        case "list":
+            if let error = allow([]) { return .failure(error) }
+            if yes || watch { return .failure(CLIUsageError(message: "servers list takes no --yes or --watch")) }
+            guard arguments.isEmpty else { return .failure(CLIUsageError(message: "servers list takes no arguments")) }
+            return .success(.serversList(json: json))
+        case "add":
+            if let error = allow(["--label", "--group"]) { return .failure(error) }
+            if yes { return .failure(CLIUsageError(message: "--yes is only valid for servers remove")) }
+            guard arguments.count == 1, !arguments[0].trimmingCharacters(in: .whitespaces).isEmpty else {
+                return .failure(CLIUsageError(message: "servers add needs exactly one <host:port>"))
+            }
+            func value(_ name: String) -> String? {
+                options[name].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 }
+            }
+            return .success(.serversAdd(entry: arguments[0], label: value("--label"), group: value("--group"), watch: watch,
+                                        json: json))
+        case "remove":
+            if let error = allow([]) { return .failure(error) }
+            if watch { return .failure(CLIUsageError(message: "--watch is only valid for servers add")) }
+            guard arguments.count == 1, !arguments[0].trimmingCharacters(in: .whitespaces).isEmpty else {
+                return .failure(CLIUsageError(message: "servers remove needs exactly one <host:port|index>"))
+            }
+            return .success(.serversRemove(target: arguments[0], yes: yes, json: json))
+        default:
+            return .failure(CLIUsageError(message: "unknown servers action \(action) (list, add or remove)"))
         }
     }
 
@@ -280,12 +358,27 @@ enum CLIRunner {
       update --install [--yes] [--app <path>] [--json]       download, verify and replace the app
                                                              (default: the app containing this tool);
                                                              asks y/N unless --yes; does not relaunch it
+      backup [--out <path>] [--json]                         full data backup (ZIP); default
+                                                             ~/Documents/playeridentity-backup-<time>.zip
+      restore <zip> [--yes] [--json]                         validate a backup, back up the current data
+                                                             (backups/pre-restore-*.zip), then restore it
+      servers list [--json]                                  servers of the saved record (with index)
+      servers add <host:port> [--label <text>] [--group <name>] [--watch] [--json]
+                                                             add a server to the saved record
+      servers remove <host:port|index> [--yes] [--json]      remove a server from the saved record
+      diagnostics [--out <path>] [--json]                    redacted diagnostics ZIP; default
+                                                             ~/Documents/PlayerIdentity-diagnostics-<time>.zip
       --version                                              print the version
 
     exit codes: 0 ok, 1 usage error, 2 network or resolution error, 3 banned
       update: 0 up to date or installed, 1 usage error or not confirmed, 2 network, download or
               verification error, 3 no update to install, 4 update available (--check)
-    environment: PLAYERIDENTITYCTL_SNAPSHOT=<path> reads another profile.json
+      backup, restore, servers, diagnostics: 0 ok, 1 usage error or not confirmed, 2 validation or
+              write error, 3 not found (no data, no record, no such server, already added)
+    restore and servers remove ask y/N on a terminal; without one they need --yes.
+    servers add/remove edit profile.json (a copy is kept as profile.json.appbak-<time>); a running app
+    keeps its own list until it is reopened.
+    environment: PLAYERIDENTITYCTL_SNAPSHOT=<path> reads another profile.json (status, servers)
 
     """
 
@@ -314,6 +407,18 @@ enum CLIRunner {
             return status(json: json, context: context)
         case .update(let options):
             return await update(options, context: context)
+        case .backup(let out, let json):
+            return backup(out: out, json: json, context: context)
+        case .restore(let path, let yes, let json):
+            return restore(path: path, yes: yes, json: json, context: context)
+        case .serversList(let json):
+            return serversList(json: json, context: context)
+        case .serversAdd(let entry, let label, let group, let watch, let json):
+            return serversAdd(entry: entry, label: label, group: group, watch: watch, json: json, context: context)
+        case .serversRemove(let target, let yes, let json):
+            return serversRemove(target: target, yes: yes, json: json, context: context)
+        case .diagnostics(let out, let json):
+            return diagnostics(out: out, json: json, context: context)
         }
     }
 

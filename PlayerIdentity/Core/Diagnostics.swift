@@ -102,11 +102,13 @@ struct DiagnosticsInput {
     var now: Date
     var historyTail = 200
     var metricsTail = 500
+    /// §54: the app's error log (`errors.json`); empty outside the app (e.g. the CLI).
+    var errors: [ErrorLogEntry] = []
 }
 
 enum DiagnosticsBundle {
     static let fileNames = ["app-info.json", "snapshot.redacted.json", "history.tail.jsonl", "metrics.tail.jsonl",
-                            "update-state.json"]
+                            "update-state.json", "errors.json"]
 
     /// File name offered in the save panel, e.g. `PlayerIdentity-diagnostics-20261109-1033.zip`.
     static func defaultFileName(now: Date, timeZone: TimeZone = .current) -> String {
@@ -118,7 +120,7 @@ enum DiagnosticsBundle {
         return name
     }
 
-    /// The five files of the package; nothing is written to disk.
+    /// The files of the package (`fileNames`); nothing is written to disk.
     static func entries(_ input: DiagnosticsInput) -> [ZipEntry] {
         let redactor = Redactor(home: input.paths.home)
         let iso = ISO8601DateFormatter()
@@ -156,6 +158,7 @@ enum DiagnosticsBundle {
             ZipEntry(name: fileNames[2], data: tail(input.paths.historyFile, lines: input.historyTail, redactor: redactor)),
             ZipEntry(name: fileNames[3], data: tail(input.paths.metricsFile, lines: input.metricsTail, redactor: redactor)),
             ZipEntry(name: fileNames[4], data: updateState),
+            ZipEntry(name: fileNames[5], data: ErrorLog.diagnosticsJSON(input.errors, redactor: redactor)),
         ]
     }
 

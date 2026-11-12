@@ -124,6 +124,14 @@ KEYS = [
     ("serverImportDuplicates", "server.import.duplicates", "%@ yinelenen kayıt tekilleştirildi.", "%@ repeated entries were merged."),
     ("serverImportReasonUnsupported", "server.import.reason.unsupported", "Desteklenmeyen bağlantı biçimi.", "Unsupported link format."),
     ("serverImportReasonIPv6", "server.import.reason.ipv6", "IPv6 adresi köşeli parantezle yazılmalı: [adres]:port.", "IPv6 addresses need brackets: [address]:port."),
+    # §53 playeridentity://add links
+    ("serverLinkTitle", "server.link.title", "Bağlantıdan sunucu ekleme", "Add Servers from Link"),
+    ("serverLinkAdded", "server.link.added", "%@ sunucu eklendi (Kaydedilmedi).", "%@ servers added (unsaved)."),
+    ("serverLinkExisting", "server.link.existing", "%@ sunucu zaten listede.", "%@ servers were already in the list."),
+    ("serverLinkErrorScheme", "server.link.error.scheme", "Desteklenmeyen bağlantı: %@", "Unsupported link: %@"),
+    ("serverLinkErrorAction", "server.link.error.action", "Bilinmeyen bağlantı işlemi: %@", "Unknown link action: %@"),
+    ("serverLinkErrorNoHost", "server.link.error.noHost", "Bağlantıda sunucu adresi (host) yok.", "The link has no server address (host)."),
+    ("serverLinkBusy", "server.link.busy", "Bir veri işlemi sürerken bağlantıdan sunucu eklenemez; işlem bitince tekrar deneyin.", "Servers can't be added from a link while a data operation is running; try again when it is done."),
 
     # Reasons
     ("reasonsTitle", "reasons.title", "Gerekçeler", "Reasons"),

@@ -300,6 +300,25 @@ Paste one or more entries and the app parses them into server addresses:
 Up to 100 entries are accepted per import. The preview shows what will be added, which entries are duplicates of
 existing servers, and which lines are invalid. Only the entries you confirm are saved.
 
+#### `playeridentity://` links
+
+The app registers the `playeridentity` URL scheme, so a link on a web page, in a chat or from the terminal adds
+servers directly:
+
+```sh
+open "playeridentity://add?host=example.com&port=27015&label=Demo&group=EU&watch=1"
+open "playeridentity://add?host=198.51.100.10&host=198.51.100.11:27016&host=%5B2001:db8::1%5D"
+```
+
+- `host` may be repeated (or comma-separated); each value follows the import rules above (`host:port`,
+  bracketed IPv6, GameTracker and `steam://connect/` links). `port` applies to hosts given without one; otherwise
+  27015 is used.
+- `label` (default: the host), `group` (an existing group keeps its spelling) and `watch=1` apply to every added
+  server.
+- The main window comes to the front and an alert reports how many servers were added, which were already in the
+  list and which entries were invalid (and why). Added rows are **unsaved** (“Kaydedilmedi”) until you press Save.
+- Nothing is added while a restore, an erase or a settings import is running.
+
 ### Notes and appeal tracking
 
 - A free-form note per server (up to 2000 characters); changes are recorded in history.
@@ -420,8 +439,15 @@ bar follows the system language by design.
 ### Diagnostics
 
 **Settings → General → Create diagnostics bundle…** produces a ZIP with app version/build, OS/architecture,
-a **redacted** snapshot (IPs and the home path masked), history and metrics tails, and update state. Useful
-for bug reports without leaking personal data.
+a **redacted** snapshot (IPs and the home path masked), history and metrics tails, update state and
+`errors.json`. Useful for bug reports without leaking personal data.
+
+`errors.json` lists the **last 50 app errors** (time, area, message), with areas `update`, `backup`, `metrics`,
+`watch` and `login` — e.g. a failed update check or install, a failed automatic/manual backup or restore, a
+`metrics.jsonl` or `watch-state.json` write error, or a refused launch-at-login registration. The list is kept in
+memory only (it starts empty at every launch), is redacted like the other files, and never shows anything new to
+the user. `playeridentityctl diagnostics` writes the same package (its `errors.json` is empty, since the errors
+belong to the running app).
 
 ### Shortcuts and Siri
 
@@ -445,6 +471,12 @@ playeridentityctl status --json
 playeridentityctl update --check --json
 playeridentityctl update --install
 playeridentityctl update --install --yes --app /Applications/PlayerIdentity.app --json
+playeridentityctl backup --out ~/Desktop --json
+playeridentityctl restore ~/Documents/playeridentity-backup-20261112-093015.zip
+playeridentityctl servers list --json
+playeridentityctl servers add play.example.com:27016 --label Demo --group EU --watch
+playeridentityctl servers remove 2 --yes
+playeridentityctl diagnostics --out ~/Desktop
 playeridentityctl --version
 ```
 
@@ -459,7 +491,26 @@ playeridentityctl --version
   **not** started (`relaunchRequired: true`): quit and reopen the app yourself. JSON fields `from`, `to`,
   `installed`, `relaunchRequired`. With a Homebrew install, `brew upgrade --cask player-identity` keeps the cask
   version in step
+- `backup [--out <path>]` — full data backup (same ZIP as Settings → Data); default
+  `~/Documents/playeridentity-backup-<time>.zip`, a folder gets that name inside it, an existing file is never
+  overwritten. JSON fields `path`, `counts`, `files`, `skipped`, `complete`
+- `restore <zip> [--yes]` — validates the backup (manifest, checksums, counts) first, then backs up the current
+  data to `backups/pre-restore-<time>.zip` and puts the files in place (rolled back on failure). It asks `y/N` on a
+  terminal; without one it needs `--yes`. Reopen the app afterwards if it was running. JSON fields `backup`,
+  `preRestoreBackup`, `keptPrevious`, `restored`
+- `servers list` — the saved record's servers with their **index** (position in `profile.json`)
+- `servers add <host:port> [--label <text>] [--group <name>] [--watch]` — same rules as the import sheet
+  (GameTracker and `steam://connect/` links too); an entry already in the list is refused
+- `servers remove <host:port|index> [--yes]` — asks `y/N` on a terminal, otherwise needs `--yes`; an address
+  that appears twice must be removed by index
+- `servers add/remove` write `profile.json` (honouring `PLAYERIDENTITYCTL_SNAPSHOT`) and keep the previous version as
+  `profile.json.appbak-<time>`; a running app keeps its own list until it is reopened (its next Save would replace
+  the change)
+- `diagnostics [--out <path>]` — the redacted diagnostics ZIP (default `~/Documents/PlayerIdentity-diagnostics-<time>.zip`)
 - Exit codes: `0` success, `1` usage error, `2` network/resolution error, `3` a ban was found
+- `backup` / `restore` / `servers` / `diagnostics` exit codes: `0` success, `1` usage error or not confirmed,
+  `2` validation or write error, `3` not found (no data to back up, no saved record, no such file or server,
+  server already added). None of them uses the network.
 - `update` exit codes: `0` up to date / installed, `1` usage error or not confirmed, `2` network, download or
   verification error, `3` no update to install, `4` update available (`--check`)
 - JSON output uses a stable `schemaVersion: 1`

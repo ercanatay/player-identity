@@ -36,6 +36,17 @@ expect 1 "$CTL" frobnicate
 expect 1 "$CTL" update
 expect 1 "$CTL" update --check --install
 expect 1 "$CTL" update --install
+# §52: offline data commands that never write the real data (missing files, read-only list, refused remove)
+expect 1 "$CTL" restore
+expect 3 "$CTL" restore "$FIXTURES/does-not-exist.zip" --yes
+expect 1 "$CTL" servers
+expect 1 "$CTL" servers frobnicate
+expect 3 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/does-not-exist.json" "$CTL" servers list
+expect 0 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CTL" servers list --json
+expect 1 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CTL" servers remove 1
+expect 2 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CTL" servers add 2001:db8::9
+expect 3 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CTL" servers add 192.0.2.20
+expect 1 "$CTL" diagnostics --yes
 
 cid=$("$CTL" cid 51.68.190.91 --raw-id 0 </dev/null)
 if [[ "$cid" == "d9de0eb4419608a8423241430581e91c" ]]; then echo "ok   cid vector"; else echo "FAIL cid vector: $cid"; failures=$((failures + 1)); fi

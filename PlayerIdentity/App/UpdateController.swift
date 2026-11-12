@@ -66,7 +66,17 @@ final class UpdateController {
     private(set) var releases: [AppRelease] = []
     /// Banner: newer stable release that is not ignored.
     private(set) var availableUpdate: AppUpdate?
-    private(set) var status: Status = .idle
+    private(set) var status: Status = .idle {
+        // §54: failures also go into the diagnostics error log (no new message for the user).
+        didSet {
+            guard status != oldValue else { return }
+            switch status {
+            case .failed(let error): deps.errorLog.record(.update, "update: \(error)", at: deps.now())
+            case .backupFailed(let text): deps.errorLog.record(.update, "updateBackup: \(text)", at: deps.now())
+            default: break
+            }
+        }
+    }
     private(set) var lastCheck: Date?
     var preferences: UpdatePreferences {
         didSet { preferences.save(to: deps.defaults) }
@@ -75,7 +85,13 @@ final class UpdateController {
     /// §28.2/5: backup offered when the record cannot be read by this version.
     private(set) var restoreOffer: DataBackup?
     var pendingRestore = false
-    private(set) var restoreError: String?
+    private(set) var restoreError: String? {
+        didSet {
+            if let restoreError, restoreError != oldValue {
+                deps.errorLog.record(.backup, "dataBackupRestore: \(restoreError)", at: deps.now())
+            }
+        }
+    }
     /// The backup is back in place but the app has not relaunched yet (the banner offers "Relaunch").
     private(set) var restoredAwaitingRelaunch = false
     private(set) var isRelaunchingAfterRestore = false

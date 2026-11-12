@@ -39,6 +39,10 @@ targets:
         CFBundleLocalizations: [en, tr]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # §53: `playeridentity://add?host=…` links.
+        CFBundleURLTypes:
+          - CFBundleURLName: tr.ercanatay.playeridentity
+            CFBundleURLSchemes: [playeridentity]
     entitlements:
       path: PlayerIdentity/PlayerIdentity.entitlements
       properties:

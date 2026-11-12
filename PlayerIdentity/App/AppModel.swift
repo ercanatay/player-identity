@@ -47,6 +47,8 @@ struct AppDependencies {
     var interfaceReporter = InterfaceReporter()
     /// §47.2/§49: file operations of "Erase All Data" and the restore (tests inject failures).
     var dataFileOperations: any DataFileOperating = LocalDataFileOperations()
+    /// §54: in-memory log of the last app errors (diagnostics `errors.json`).
+    var errorLog = ErrorLog()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -621,6 +623,7 @@ final class AppModel {
             watchStateSaveError = nil
         } catch {
             watchStateSaveError = error.localizedDescription
+            logError(.watch, "watchState: \(error.localizedDescription)")
         }
         guard !entries.isEmpty else { return }
         let written = entries
@@ -793,7 +796,7 @@ final class AppModel {
         await historyTask?.value
         await metricsTask?.value
         return DiagnosticsBundle.archive(DiagnosticsInput(appInfo: appInfo, paths: deps.paths, defaults: deps.defaults,
-                                                           now: deps.now()))
+                                                           now: deps.now(), errors: deps.errorLog.entries))
     }
 
     // MARK: §39 metrics
@@ -810,6 +813,7 @@ final class AppModel {
         metricsTask = Task {
             await previous?.value
             metricsWriteFailure = await recorder.record(samples)
+            if let failure = metricsWriteFailure { logError(.metrics, "metricsWrite: \(failure.reason)") }
         }
     }
 
@@ -864,13 +868,17 @@ final class AppModel {
 
     /// §50: adds the imported candidates (label = host); entries that already exist (host + port) are skipped.
     /// The rows start unsaved and unchecked; the normal refresh fetches their A2S info. Returns the added count.
+    /// §53 links may also set the label (instead of the host), the group and "watch" of every added row.
     @discardableResult
-    func addServers(_ candidates: [ServerURLImport.Candidate]) -> Int {
+    func addServers(_ candidates: [ServerURLImport.Candidate], label: String? = nil, group: String? = nil,
+                    watch: Bool = false) -> Int {
         var known = Set(servers.map { "\(HostValidator.normalized($0.host)):\($0.port)" })
         var added: [ServerEntry] = []
         var order = ServerOrganization.nextOrder(servers)
+        let resolvedGroup = ServerOrganization.resolveGroup(group, existing: ServerOrganization.groups(servers))
         for candidate in candidates where known.insert(candidate.id).inserted {
-            added.append(ServerEntry(label: candidate.label, host: candidate.host, port: candidate.port, order: order))
+            added.append(ServerEntry(label: label ?? candidate.label, host: candidate.host, port: candidate.port,
+                                     group: resolvedGroup, order: order, watch: watch))
             order += 1
         }
         guard !added.isEmpty else { return 0 }
@@ -879,6 +887,35 @@ final class AppModel {
         reevaluate()
         for entry in added { resolveIfNeeded(entry.host) }
         return added.count
+    }
+
+    // MARK: §53 playeridentity:// links
+
+    /// Result of the last handled link (the main window shows it once).
+    var serverLinkOutcome: ServerLink.Outcome?
+
+    /// `playeridentity://add?host=…`: the valid, new entries are added unsaved (like the §50 import); existing,
+    /// repeated and invalid entries are reported. Refused while a data operation runs.
+    @discardableResult
+    func handleServerLink(_ url: URL) -> ServerLink.Outcome {
+        var outcome = ServerLink.Outcome()
+        if isDataOperationRunning {
+            outcome.failure = L10n.text(.serverLinkBusy)
+        } else {
+            switch ServerLink.parse(url, existing: servers) {
+            case .failure(let failure):
+                outcome.failure = failure.text
+            case .success(let request):
+                let entries = request.entries
+                outcome.added = addServers(entries.fresh, label: request.label, group: request.group, watch: request.watch)
+                outcome.existing = entries.existing.count
+                outcome.duplicates = entries.duplicates
+                outcome.overflow = entries.overflow
+                outcome.invalid = entries.invalid
+            }
+        }
+        serverLinkOutcome = outcome
+        return outcome
     }
 
     func updateServer(id: UUID, with draft: ServerDraft) {
@@ -1040,6 +1077,7 @@ final class AppModel {
         case .failure(let error):
             loginItemStatus = item.status()
             loginItemError = error
+            logError(.login, "loginItem: \(error)")
         }
     }
 
@@ -1826,6 +1864,7 @@ final class AppModel {
                 autoBackupLastError = nil
             case .failure(let error):
                 autoBackupLastError = error
+                logError(.backup, "autoBackup: \(error)")
                 // Not done for today: the next launch (or "Try Again") makes another attempt.
                 if defaults.string(forKey: DefaultsKey.autoBackupLastRun) == today {
                     if let previousRun {
@@ -1855,7 +1894,7 @@ final class AppModel {
         await metricsTask?.value
         let store = fullBackupStore
         let now = deps.now()
-        return await Task.detached { () -> Result<FullBackupManifest, FullBackupError> in
+        let result = await Task.detached { () -> Result<FullBackupManifest, FullBackupError> in
             do {
                 return .success(try store.write(to: url, now: now))
             } catch let error as FullBackupError {
@@ -1864,6 +1903,8 @@ final class AppModel {
                 return .failure(.writeFailed(error.localizedDescription))
             }
         }.value
+        if case .failure(let error) = result { logError(.backup, "manualBackup: \(error)") }
+        return result
     }
 
     func fullBackupPreview(_ backup: ParsedFullBackup) -> FullBackupPreview {
@@ -1898,7 +1939,10 @@ final class AppModel {
         let result = await performRestore(backup)
         endRestoreLock()
         refreshBackupInfo()
-        if case .success = result { refresh() }
+        switch result {
+        case .success: refresh()
+        case .failure(let error): logError(.backup, "restore: \(error)")
+        }
         return result
     }
 
@@ -2000,6 +2044,16 @@ final class AppModel {
         historyRevision += 1
         updates.evaluateRestore(snapshot: loaded)
         reevaluate()
+    }
+
+    // MARK: §54 error log
+
+    /// The app's error log (diagnostics `errors.json`).
+    var errorLog: ErrorLog { deps.errorLog }
+
+    /// Records an error for the diagnostics package only; nothing is shown to the user.
+    func logError(_ area: ErrorLogArea, _ message: String) {
+        deps.errorLog.record(area, message, at: deps.now())
     }
 
     // MARK: Environment

@@ -92,6 +92,13 @@
 "server.import.duplicates" = "%@ repeated entries were merged.";
 "server.import.reason.unsupported" = "Unsupported link format.";
 "server.import.reason.ipv6" = "IPv6 addresses need brackets: [address]:port.";
+"server.link.title" = "Add Servers from Link";
+"server.link.added" = "%@ servers added (unsaved).";
+"server.link.existing" = "%@ servers were already in the list.";
+"server.link.error.scheme" = "Unsupported link: %@";
+"server.link.error.action" = "Unknown link action: %@";
+"server.link.error.noHost" = "The link has no server address (host).";
+"server.link.busy" = "Servers can't be added from a link while a data operation is running; try again when it is done.";
 "reasons.title" = "Reasons";
 "settings.banCheck" = "Ban check";
 "error.identityMissing" = "Identity file not found. Try again after launching the game once.";

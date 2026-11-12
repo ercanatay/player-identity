@@ -93,6 +93,20 @@ struct ContentView: View {
         } message: {
             Text(model.joinError.map(GameLaunchText.error) ?? "")
         }
+        // §53 `playeridentity://add?…`: the servers are added unsaved, the window comes to the front and the result
+        // (added / already there / invalid) is shown once.
+        .onOpenURL { url in
+            model.handleServerLink(url)
+            NSApp.activate()
+        }
+        .alert(L10n.text(.serverLinkTitle), isPresented: Binding(
+            get: { model.serverLinkOutcome != nil },
+            set: { if !$0 { model.serverLinkOutcome = nil } }
+        )) {
+            Button(L10n.text(.actionOK), role: .cancel) {}
+        } message: {
+            Text(model.serverLinkOutcome?.lines.joined(separator: "\n") ?? "")
+        }
         .alert(L10n.text(.alertSaveFailedTitle), isPresented: Binding(
             get: { model.saveErrorMessage != nil },
             set: { if !$0 { model.saveErrorMessage = nil } }

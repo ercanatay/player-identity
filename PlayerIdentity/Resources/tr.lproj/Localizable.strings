@@ -92,6 +92,13 @@
 "server.import.duplicates" = "%@ yinelenen kayıt tekilleştirildi.";
 "server.import.reason.unsupported" = "Desteklenmeyen bağlantı biçimi.";
 "server.import.reason.ipv6" = "IPv6 adresi köşeli parantezle yazılmalı: [adres]:port.";
+"server.link.title" = "Bağlantıdan sunucu ekleme";
+"server.link.added" = "%@ sunucu eklendi (Kaydedilmedi).";
+"server.link.existing" = "%@ sunucu zaten listede.";
+"server.link.error.scheme" = "Desteklenmeyen bağlantı: %@";
+"server.link.error.action" = "Bilinmeyen bağlantı işlemi: %@";
+"server.link.error.noHost" = "Bağlantıda sunucu adresi (host) yok.";
+"server.link.busy" = "Bir veri işlemi sürerken bağlantıdan sunucu eklenemez; işlem bitince tekrar deneyin.";
 "reasons.title" = "Gerekçeler";
 "settings.banCheck" = "Ban kontrolü";
 "error.identityMissing" = "Kimlik dosyası bulunamadı. Oyun bir kez açıldıktan sonra tekrar deneyin.";

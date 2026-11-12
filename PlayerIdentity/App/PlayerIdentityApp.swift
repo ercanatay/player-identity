@@ -14,6 +14,8 @@ struct PlayerIdentityApp: App {
         }
         .defaultSize(width: 900, height: 760)
         .windowResizability(.contentMinSize)
+        // §53: `playeridentity://` links open (or bring up) the main window, which adds the servers.
+        .handlesExternalEvents(matching: [ServerLink.scheme])
         // Unified toolbar; the title is drawn by the toolbar status group (title → status, leading).
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
