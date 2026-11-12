@@ -23,7 +23,7 @@ jobs:
             -resultBundlePath .build-ui/TestResults.xcresult
       - name: Upload UI test result bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-test-results
           path: .build-ui/TestResults.xcresult
@@ -56,7 +56,7 @@ jobs:
           log show --last 5m --predicate 'process == "PlayerIdentity"' --style compact | tail -80 > /tmp/pi-log.txt || true
       - name: Upload UI diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ui-diagnostics
           path: |
