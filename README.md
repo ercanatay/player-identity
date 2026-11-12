@@ -436,13 +436,26 @@ playeridentityctl cid 198.51.100.10 --json
 playeridentityctl ban example.com:27015 --json
 playeridentityctl ban 203.0.113.10:27015 --no-metrics
 playeridentityctl status --json
+playeridentityctl update --check --json
+playeridentityctl update --install
+playeridentityctl update --install --yes --app /Applications/PlayerIdentity.app --json
 playeridentityctl --version
 ```
 
 - `cid <ip>` — derive the CID for an address (uses the local identity unless `--raw-id <hex>` is given)
 - `ban <host:port>` — run the ban checks; `--cid`, `--timeout`, `--json`, `--no-metrics`
 - `status` — summarize the saved record (servers, ban states, watched count)
+- `update --check` — compare the installed app (the bundle containing the CLI) with the newest stable GitHub
+  release; JSON fields `current`, `latest`, `updateAvailable`, `asset`, `sha256`, `notesURL`
+- `update --install` — download and verify the release exactly like the app does (HTTPS, size, SHA-256, code
+  signature/team/bundle/version, Gatekeeper), back up the data, then replace the app. It asks `y/N` on a terminal;
+  without a terminal it refuses unless `--yes` is given. `--app <path>` picks another bundle. The new version is
+  **not** started (`relaunchRequired: true`): quit and reopen the app yourself. JSON fields `from`, `to`,
+  `installed`, `relaunchRequired`. With a Homebrew install, `brew upgrade --cask player-identity` keeps the cask
+  version in step
 - Exit codes: `0` success, `1` usage error, `2` network/resolution error, `3` a ban was found
+- `update` exit codes: `0` up to date / installed, `1` usage error or not confirmed, `2` network, download or
+  verification error, `3` no update to install, `4` update available (`--check`)
 - JSON output uses a stable `schemaVersion: 1`
 
 The CLI appends a metrics sample for successful A2S replies unless `--no-metrics` is used.

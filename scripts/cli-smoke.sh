@@ -32,6 +32,10 @@ expect 2 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/does-not-exist.json" "$CTL" s
 expect 1 "$CTL" cid
 expect 1 "$CTL" ban 192.0.2.1:99999
 expect 1 "$CTL" frobnicate
+# §51: parse errors and the refused --install (stdin is not a terminal) stay offline; --check needs the network
+expect 1 "$CTL" update
+expect 1 "$CTL" update --check --install
+expect 1 "$CTL" update --install
 
 cid=$("$CTL" cid 51.68.190.91 --raw-id 0 </dev/null)
 if [[ "$cid" == "d9de0eb4419608a8423241430581e91c" ]]; then echo "ok   cid vector"; else echo "FAIL cid vector: $cid"; failures=$((failures + 1)); fi

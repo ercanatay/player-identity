@@ -351,6 +351,12 @@ final class CLITests: XCTestCase {
         let banned = try execute(binary, ["status"], environment: [CLIContext.snapshotEnvironmentKey: try fixture("cli-status-banned").path])
         XCTAssertEqual(banned.status, 3)
         XCTAssertEqual(try execute(binary, ["nope"]).status, 1)
+
+        // §51: standard input is a pipe, not a terminal: `update --install` without --yes is refused offline.
+        let install = try execute(binary, ["update", "--install"])
+        XCTAssertEqual(install.status, 1)
+        XCTAssertTrue(install.stderr.contains("--yes"), install.stderr)
+        XCTAssertEqual(try execute(binary, ["update"]).status, 1)
     }
 
     private func execute(_ binary: URL, _ arguments: [String],

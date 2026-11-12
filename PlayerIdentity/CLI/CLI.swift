@@ -1,8 +1,10 @@
 import Foundation
 
 // §34 `playeridentityctl`: argument parsing, commands and output. The tool is for terminals and scripts, so its
-// texts are English and not localized; JSON output has stable field names (`schemaVersion: 1`). It never reads
-// standard input; the only file it writes is one §39 sample in `metrics.jsonl` after `ban` (`--no-metrics` turns it off).
+// texts are English and not localized; JSON output has stable field names (`schemaVersion: 1`). Standard input is
+// only read for the `update --install` y/N answer, and only when it is a terminal (§51). Besides the update files
+// (`update --install`, see CLIUpdate.swift) the only file it writes is one §39 sample in `metrics.jsonl` after `ban`
+// (`--no-metrics` turns it off).
 
 /// Exit codes (§34).
 enum CLIExit {
@@ -31,6 +33,14 @@ struct CLIContext: Sendable {
     var resolver: any ServerAddressResolver
     var udpTransport: any UDPTransport
     var now: @Sendable () -> Date
+    // §51 `update`: the release feed, the running executable (to find the enclosing app), the installer's effects
+    // and the y/N prompt. Tests pass fakes; `.none` prompt = no terminal.
+    var updateHTTP: any HTTPClient = URLSessionHTTPClient()
+    var executableURL: URL?
+    var updateDownloader: any UpdateDownloading = URLSessionUpdateDownloader()
+    var updateFileManager: any UpdateFileManaging = LocalUpdateFileManager()
+    var updateRunner: any UpdateCommandRunning = ProcessUpdateCommandRunner()
+    var prompt: CLIPrompt = .none
 
     /// `profile.json` read by `status` (and for the identity/name defaults); `PLAYERIDENTITYCTL_SNAPSHOT` overrides it.
     var snapshotURL: URL {
@@ -54,7 +64,9 @@ struct CLIContext: Sendable {
                    fileSystem: LocalFileSystem(),
                    resolver: SystemAddressResolver(),
                    udpTransport: BSDUDPTransport(),
-                   now: { Date() })
+                   now: { Date() },
+                   executableURL: bundle.executableURL,
+                   prompt: .terminal)
     }
 }
 
@@ -66,6 +78,7 @@ enum CLICommand: Sendable, Equatable {
     case cid(host: String, rawID: UInt64?, json: Bool)
     case ban(host: String, port: Int, cid: String?, json: Bool, timeout: TimeInterval, recordMetrics: Bool = true)
     case status(json: Bool)
+    case update(CLIUpdateOptions)
 }
 
 struct CLIUsageError: Error, Sendable, Equatable {
@@ -99,10 +112,10 @@ enum CLIParser {
                 inlineValue = String(argument[argument.index(after: equals)...])
             }
             switch name {
-            case "--json", "--version", "--help", "-h", "--no-metrics":
+            case "--json", "--version", "--help", "-h", "--no-metrics", "--check", "--install", "--yes":
                 guard inlineValue == nil else { return .failure(CLIUsageError(message: "\(name) takes no value")) }
                 flags.insert(name == "-h" ? "--help" : name)
-            case "--raw-id", "--cid", "--timeout":
+            case "--raw-id", "--cid", "--timeout", "--app":
                 guard options[name] == nil else { return .failure(CLIUsageError(message: "\(name) given twice")) }
                 if let inlineValue {
                     options[name] = inlineValue
@@ -125,6 +138,9 @@ enum CLIParser {
         if flags.contains("--version") { return .failure(CLIUsageError(message: "--version takes no command")) }
         if flags.contains("--no-metrics"), command != "ban" {
             return .failure(CLIUsageError(message: "--no-metrics is only valid for ban"))
+        }
+        if command != "update", let flag = ["--check", "--install", "--yes"].first(where: flags.contains) {
+            return .failure(CLIUsageError(message: "\(flag) is only valid for update"))
         }
         let rest = Array(positionals.dropFirst())
         func allow(_ allowed: Set<String>) -> CLIUsageError? {
@@ -172,6 +188,26 @@ enum CLIParser {
             if let error = allow([]) { return .failure(error) }
             guard rest.isEmpty else { return .failure(CLIUsageError(message: "status takes no arguments")) }
             return .success(.status(json: json))
+
+        case "update":
+            if let error = allow(["--app"]) { return .failure(error) }
+            guard rest.isEmpty else { return .failure(CLIUsageError(message: "update takes no arguments")) }
+            let check = flags.contains("--check")
+            let install = flags.contains("--install")
+            guard check != install else { return .failure(CLIUsageError(message: "update needs --check or --install")) }
+            if check {
+                if flags.contains("--yes") { return .failure(CLIUsageError(message: "--yes is only valid with --install")) }
+                if options["--app"] != nil { return .failure(CLIUsageError(message: "--app is only valid with --install")) }
+                return .success(.update(CLIUpdateOptions(mode: .check, json: json)))
+            }
+            var app: String?
+            if let path = options["--app"] {
+                guard !path.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    return .failure(CLIUsageError(message: "--app needs a path"))
+                }
+                app = path
+            }
+            return .success(.update(CLIUpdateOptions(mode: .install, json: json, yes: flags.contains("--yes"), app: app)))
 
         default:
             return .failure(CLIUsageError(message: "unknown command \(command)"))
@@ -240,9 +276,15 @@ enum CLIRunner {
                                                              ban check of one server; an answering
                                                              server adds a sample to metrics.jsonl
       status [--json]                                        summary of the saved record
+      update --check [--json]                                is a newer stable release on GitHub?
+      update --install [--yes] [--app <path>] [--json]       download, verify and replace the app
+                                                             (default: the app containing this tool);
+                                                             asks y/N unless --yes; does not relaunch it
       --version                                              print the version
 
     exit codes: 0 ok, 1 usage error, 2 network or resolution error, 3 banned
+      update: 0 up to date or installed, 1 usage error or not confirmed, 2 network, download or
+              verification error, 3 no update to install, 4 update available (--check)
     environment: PLAYERIDENTITYCTL_SNAPSHOT=<path> reads another profile.json
 
     """
@@ -270,6 +312,8 @@ enum CLIRunner {
                              context: context)
         case .status(let json):
             return status(json: json, context: context)
+        case .update(let options):
+            return await update(options, context: context)
         }
     }
 
@@ -459,12 +503,12 @@ enum CLIRunner {
         return "\(host):\(port)"
     }
 
-    private static func success(json object: [String: Any]) -> CLIResult {
+    static func success(json object: [String: Any]) -> CLIResult {
         CLIResult(exitCode: CLIExit.ok, stdout: CLIJSON.string(object), stderr: "")
     }
 
     /// Runtime error: JSON on stdout with `--json`, a message on stderr otherwise. Exit 2 unless given.
-    private static func failure(_ error: String, _ message: String, command: String, json: Bool,
+    static func failure(_ error: String, _ message: String, command: String, json: Bool,
                                 code exitCode: Int32 = CLIExit.network) -> CLIResult {
         if json {
             let object: [String: Any] = ["schemaVersion": CLIContext.jsonSchemaVersion, "command": command,
