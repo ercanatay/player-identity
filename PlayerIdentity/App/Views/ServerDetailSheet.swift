@@ -43,7 +43,8 @@ struct AppealDraft: Equatable {
     }
 }
 
-/// Row details: notes (§32), appeal + timeline + postpone (§32, §36), ping/uptime charts (§39), ban list URL (§40).
+/// Row details: notes (§32), appeal + timeline + postpone (§32, §36), ping/uptime charts (§39), ban list URL (§40),
+/// per-server notifications (§56).
 struct ServerDetailSheet: View {
     @Bindable var model: AppModel
     let serverID: UUID
@@ -56,11 +57,13 @@ struct ServerDetailSheet: View {
     @State private var banListText: String
     @State private var banListError: String?
     @State private var samples: [MetricSample]
+    @State private var notifications: ServerNotificationDraft
     private let fixedSamples: [MetricSample]?
     private let maxContentHeight: CGFloat
 
     init(model: AppModel, serverID: UUID, onClose: @escaping () -> Void, editingAppeal: AppealDraft? = nil,
-         metrics: [MetricSample]? = nil, maxContentHeight: CGFloat = 620, banListDraft: String? = nil) {
+         metrics: [MetricSample]? = nil, maxContentHeight: CGFloat = 620, banListDraft: String? = nil,
+         notificationDraft: ServerNotificationDraft? = nil) {
         self.maxContentHeight = maxContentHeight
         self.model = model
         self.serverID = serverID
@@ -70,6 +73,7 @@ struct ServerDetailSheet: View {
         _draft = State(initialValue: editingAppeal)
         _banListText = State(initialValue: banListDraft ?? entry?.banListURL ?? "")
         _samples = State(initialValue: metrics ?? [])
+        _notifications = State(initialValue: notificationDraft ?? ServerNotificationDraft(entry?.notifications))
         fixedSamples = metrics
     }
 
@@ -83,6 +87,8 @@ struct ServerDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     watchSection
+                    Divider()
+                    ServerNotificationSection(draft: $notifications)
                     Divider()
                     notesSection
                     Divider()
@@ -102,7 +108,7 @@ struct ServerDetailSheet: View {
                     .keyboardShortcut(.cancelAction)
                 Button(L10n.text(.actionOK), action: confirm)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(!ServerNote.isValid(note) || draft != nil)
+                    .disabled(!ServerNote.isValid(note) || draft != nil || !notifications.isValid)
             }
         }
         .padding(20)
@@ -112,8 +118,11 @@ struct ServerDetailSheet: View {
         }
     }
 
-    /// Note and ban list URL are applied together; an invalid URL keeps the sheet open.
+    /// Note, ban list URL and notification settings are applied together; an invalid URL or threshold keeps the
+    /// sheet open.
     private func confirm() {
+        guard let settings = notifications.settings else { return }
+        model.setServerNotifications(settings, for: serverID)
         if let error = model.setBanListURL(banListText, for: serverID) {
             banListError = BanListText.error(error)
             return

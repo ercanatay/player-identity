@@ -92,6 +92,7 @@ folder (`profile.json`, history, metrics, updates).
   - [Adding servers from URLs or pasted lists](#adding-servers-from-urls-or-pasted-lists)
   - [Notes and appeal tracking](#notes-and-appeal-tracking)
   - [Watched servers and notifications](#watched-servers-and-notifications)
+  - [Per-server notification thresholds](#per-server-notification-thresholds)
   - [History](#history)
   - [Metrics and charts](#metrics-and-charts)
   - [Ban matrix](#ban-matrix)
@@ -103,6 +104,7 @@ folder (`profile.json`, history, metrics, updates).
   - [Menu bar and launch at login](#menu-bar-and-launch-at-login)
   - [Updates and downgrade](#updates-and-downgrade)
   - [Language](#language)
+  - [Accessibility and keyboard](#accessibility-and-keyboard)
   - [Diagnostics](#diagnostics)
   - [Shortcuts and Siri](#shortcuts-and-siri)
   - [Command-line tool](#command-line-tool)
@@ -346,6 +348,28 @@ deduplicated within 10 minutes. Notification categories can be toggled individua
 the master switch and **quiet hours** (default 23:00–08:00, may cross midnight) apply on top. History entries
 are written even when notifications are muted.
 
+### Per-server notification thresholds
+
+The server details have a **Notifications** section that overrides the general settings for that server
+(stored as an optional `notifications` object in the server record; old records and the defaults mean
+*inherit*):
+
+| Setting | Values | Effect |
+|---|---|---|
+| Mode | Use general settings / All changes / Ban events only / Off | *All* ignores the category switches, *Ban events only* keeps ban appeared/lifted, *Off* notifies nothing for this server. The master switch is never overridden. |
+| Ping threshold (ms) | empty or 0 = off, 1–5000 | "Back online" and "map changed" are notified only while the measured ping is at most this value. |
+| Minimum players | empty or 0 = off, 1–256 | The same two events are notified only with at least this many players on the server. |
+| Quiet hours | Use general setting / Apply to this server / Don't apply to this server | *Apply* uses the general window even when quiet hours are off in Settings; *Don't apply* lets this server through during quiet hours. |
+
+- Thresholds hold back only the online and map notifications of watched servers; ban and unreachable
+  notifications are never held back by a threshold. A threshold that cannot be checked (no ping or player
+  count in the reply) holds the event back.
+- An event below a threshold is **not notified, but the history entry is still written**.
+- The mode and quiet-hours override also apply to the regular ban notifications of unwatched servers.
+  Fix-attempt results and appeal reminders keep following the general settings only.
+- Invalid thresholds (letters, signs, decimals, values above the limit) are rejected in the sheet and OK stays
+  disabled; a hand-edited record with unknown values falls back to *inherit* / 0 instead of becoming unreadable.
+
 ### History
 
 An append-only `history.jsonl` records meaningful transitions: refreshes, IP changes, ban appeared/lifted,
@@ -435,6 +459,32 @@ every 30 minutes. **Launch at login** uses `SMAppService`; registration errors a
 **Settings → General → Language**: `System (default)`, `Türkçe`, `English`. The default follows the system
 language (`tr*` → Turkish, anything else → English). The switch is immediate; the app name in the Dock/menu
 bar follows the system language by design.
+
+### Accessibility and keyboard
+
+The main window can be used without a mouse:
+
+| Key | Where | Action |
+|---|---|---|
+| ⌘F | main window | focus the server search field |
+| Tab / ⇧Tab | main window | the search field and the server table are always Tab stops; the filter chips, filter options, ban matrix button and the **+** menu join the Tab order (in reading order) when *Keyboard navigation* is on in System Settings › Keyboard |
+| ↑ / ↓ | server table | select the previous / next server (the first press starts at the top / bottom) |
+| Home / End | server table | select the first / last server |
+| Return | server table | open the details of the selected server |
+| Esc | server table | clear the selection (otherwise Esc reaches the sheet / window as usual) |
+
+- The search field and the server table draw a visible focus ring (2 pt accent text colour inside the focus
+  halo token, at least 3 : 1 against every surface); the selected row has an accent tint and a leading bar.
+- VoiceOver: filter chips read their name and "N servers, On/Off"; the ★ / 🔔 row switches read the action and
+  "Favorite: On/Off" / "Watching: On/Off"; the ban cell reads "Ban: <status>" with the last check; charts read
+  their summary; a row with its own notification settings reads "Custom notifications: <mode>". Status is
+  never shown by colour alone.
+- High-contrast appearances keep the design tokens (every text token stays at WCAG AA, ≥ 4.5 : 1, on every
+  surface in light, dark and both high-contrast variants); with *Increase contrast* the table border uses the
+  strong border token. Clickable controls are at least 24 × 24 pt.
+- Covered by tests: the key map and selection model, label coverage of every chip / switch / ban status /
+  appeal status / notification option in both languages, contrast ratios of the tokens, minimum targets and a
+  real ⌘F key event focusing the search field.
 
 ### Diagnostics
 
@@ -610,7 +660,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **676 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **720 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests

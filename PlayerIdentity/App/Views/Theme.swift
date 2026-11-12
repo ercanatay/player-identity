@@ -116,6 +116,10 @@ enum Metrics {
     static let toolbar: CGFloat = 52
     static let control: CGFloat = 24
     static let smallControl: CGFloat = 22
+    /// §55 minimum hit target of every clickable control (icon buttons, row switches, row menu).
+    static let minTarget: CGFloat = 24
+    /// ★ / 🔔 switch at the start of a server row.
+    static let markButton: CGFloat = 24
     static let row: CGFloat = 48
     static let groupHeader: CGFloat = 28
     static let keyValueRow: CGFloat = 22
@@ -138,11 +142,12 @@ enum Metrics {
 
     /// Servers table columns: star + bell | server (flex) | CID | map · players · ping | ban | row menu.
     enum Column {
-        static let marks: CGFloat = 44
+        /// Two 24 pt switches + 2 pt gap.
+        static let marks: CGFloat = 50
         static let cid: CGFloat = 150
         static let info: CGFloat = 112
         static let ban: CGFloat = 196
-        static let menu: CGFloat = 20
+        static let menu: CGFloat = 24
         static let gap: CGFloat = 12
         /// Below this table width the map · players · ping column folds into the server tooltip (720 pt windows).
         static let compactTable: CGFloat = 720

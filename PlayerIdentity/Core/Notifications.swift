@@ -24,6 +24,8 @@ struct NotificationContent: Sendable, Equatable {
     let body: String
     /// §45 which switch gates this notification.
     var category: NotificationCategory = .general
+    /// §56 override of the server the notification is about (`nil` = general settings only).
+    var server: ServerNotificationSettings? = nil
 }
 
 /// Does nothing (default in tests and when notifications are unavailable).
@@ -127,7 +129,9 @@ actor NotificationDispatcher {
         guard enabled else { return [] }
         let time = now()
         let fresh = contents.filter { content in
-            if let policy, !policy.allows(content.category, at: time) { return false }
+            // §56: the server's override (mode, quiet hours) on top of the general policy.
+            if let policy = policy ?? content.server.map({ _ in NotificationPolicy() }),
+               !policy.applying(content.server).allows(content.category, at: time) { return false }
             guard !inFlight.contains(content.key) else { return false }
             guard let last = lastSent[content.key] else { return true }
             return time.timeIntervalSince(last) >= Self.dedupeInterval

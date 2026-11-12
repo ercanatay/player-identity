@@ -24,11 +24,13 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
     var banListURL: String?
     /// §42: notify about changes of this server (absent in old records → `false`).
     var watch: Bool
+    /// §56: per-server notification override; `nil` (absent in old records) = inherit the general settings.
+    var notifications: ServerNotificationSettings?
 
     init(id: UUID = UUID(), label: String, host: String, port: Int = ServerEntry.defaultPort,
          cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil,
          group: String? = nil, favorite: Bool = false, order: Int = 0, note: String = "", appeal: Appeal? = nil,
-         banListURL: String? = nil, watch: Bool = false) {
+         banListURL: String? = nil, watch: Bool = false, notifications: ServerNotificationSettings? = nil) {
         self.id = id
         self.label = label
         self.host = host
@@ -43,10 +45,12 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         self.appeal = appeal
         self.banListURL = banListURL
         self.watch = watch
+        self.notifications = notifications
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal, banListURL, watch
+        case notifications
     }
 
     /// Fields added after schema 1 are optional when decoding (old records stay readable).
@@ -66,6 +70,8 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         appeal = try container.decodeIfPresent(Appeal.self, forKey: .appeal)
         banListURL = try container.decodeIfPresent(String.self, forKey: .banListURL)
         watch = try container.decodeIfPresent(Bool.self, forKey: .watch) ?? false
+        // A broken override never makes the record unreadable: it falls back to inherit.
+        notifications = try? container.decodeIfPresent(ServerNotificationSettings.self, forKey: .notifications)
     }
 }
 

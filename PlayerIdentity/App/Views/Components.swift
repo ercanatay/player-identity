@@ -213,11 +213,11 @@ struct StateBlock<Actions: View>: View {
     }
 }
 
-/// Icon-only borderless button with a hover fill (22×22 in rows, 32×28 in the toolbar).
+/// Icon-only borderless button with a hover fill (24×24 in rows — the §55 minimum target — 32×28 in the toolbar).
 struct IconButton: View {
     let symbol: String
     let label: String
-    var size = CGSize(width: Metrics.smallControl, height: Metrics.smallControl)
+    var size = CGSize(width: Metrics.minTarget, height: Metrics.minTarget)
     var symbolSize: CGFloat = 12
     var tint: Color = Palette.text2
     let action: () -> Void
@@ -241,20 +241,21 @@ struct IconButton: View {
 }
 
 /// Filter chip: capsule 24 pt. Off: control fill + symbol; on: accent tint + accent border + checkmark.
+/// VoiceOver: title + "N servers, On/Off" (§55).
 struct FilterChip: View {
-    let title: String
-    let symbol: String
+    let kind: ServerFilterChipKind
     let count: Int
     @Binding var isOn: Bool
 
     var body: some View {
+        let text = AccessibilityText.filterChip(kind, count: count, isOn: isOn)
         Button {
             isOn.toggle()
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: isOn ? "checkmark" : symbol)
+                Image(systemName: isOn ? "checkmark" : kind.symbol)
                     .font(.system(size: 10, weight: .semibold))
-                Text(title)
+                Text(kind.title)
                 Text(verbatim: String(count))
                     .foregroundStyle(Palette.text3)
                     .monospacedDigit()
@@ -269,8 +270,8 @@ struct FilterChip: View {
             .fixedSize()
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(title)
-        .accessibilityValue(String(count))
+        .accessibilityLabel(text.label)
+        .accessibilityValue(text.value)
         .accessibilityAddTraits(isOn ? [.isSelected, .isButton] : .isButton)
     }
 }

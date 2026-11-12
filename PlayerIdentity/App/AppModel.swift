@@ -589,13 +589,17 @@ final class AppModel {
             servers: servers.map { HistoryObservation.Server(id: $0.id, host: $0.host, ban: $0.banCheck?.status) })
         let labels = serverLabels()
         let watched = Set(servers.filter(\.watch).map(\.id))
+        let overrides = serverNotificationOverrides()
         recordHistory { recorder in
             await recorder.observe(observation).compactMap { entry in
                 // §42: watched servers get the more detailed watch notifications instead.
                 if let id = entry.serverID, watched.contains(id), entry.kind == .banAppeared || entry.kind == .banLifted {
                     return nil
                 }
-                return NotificationPlanner.content(for: entry, serverLabel: entry.serverID.flatMap { labels[$0] })
+                var content = NotificationPlanner.content(for: entry, serverLabel: entry.serverID.flatMap { labels[$0] })
+                // §56: ban notifications of a server follow its override (mode, quiet hours).
+                if content?.category == .ban, let id = entry.serverID { content?.server = overrides[id] }
+                return content
             }
         }
     }
@@ -614,8 +618,14 @@ final class AppModel {
             watchState[id] = next
             guard entry.watch else { continue }
             for event in events {
+                // §56: the history entry is always written; an event below the server's thresholds is not notified.
                 entries.append(WatchTransitions.historyEntry(event, server: entry, at: check.checkedAt))
-                contents.append(WatchNotificationText.content(for: event, server: entry))
+                guard ServerNotificationRules.passesThresholds(event, settings: entry.notifications, info: check.info) else {
+                    continue
+                }
+                var content = WatchNotificationText.content(for: event, server: entry)
+                content.server = entry.notifications
+                contents.append(content)
             }
         }
         do {
@@ -642,6 +652,26 @@ final class AppModel {
     }
 
     var hasWatchedServers: Bool { servers.contains(where: \.watch) }
+
+    // MARK: §56 per-server notification thresholds
+
+    private func serverNotificationOverrides() -> [UUID: ServerNotificationSettings] {
+        Dictionary(servers.compactMap { entry in entry.notifications.map { (entry.id, $0) } },
+                   uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Sets the server's notification override ("Bildirimler" in the details); the default settings are stored as
+    /// `nil` (inherit). Invalid thresholds are rejected and nothing changes. Saved with the record.
+    @discardableResult
+    func setServerNotifications(_ settings: ServerNotificationSettings, for id: UUID) -> Bool {
+        guard settings.isValid else { return false }
+        guard let index = servers.firstIndex(where: { $0.id == id }) else { return false }
+        let stored: ServerNotificationSettings? = settings.isDefault ? nil : settings
+        guard servers[index].notifications != stored else { return true }
+        servers[index].notifications = stored
+        markEdited()
+        return true
+    }
 
     // MARK: §40 ban list URL
 

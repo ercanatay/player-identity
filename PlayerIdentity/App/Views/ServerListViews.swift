@@ -87,13 +87,34 @@ struct ServerListOptions: Equatable {
 struct ServersCard: View {
     @Bindable var model: AppModel
     let presenter: MainWindowPresenter
+    /// Offscreen renders only: draw this focus (an offscreen window has no real keyboard focus).
+    var previewFocus: ServerListFocus?
 
     @State private var options = ServerListOptions()
+    @Environment(\.colorSchemeContrast) private var contrast
     @State private var showsFilters = false
     @State private var collapsed: Set<String> = []
     @State private var copiedKey: String?
     /// Width of the table; below `Metrics.Column.compactTable` the map · players · ping column folds into the tooltip.
     @State private var tableWidth: CGFloat = 900
+    /// §55 keyboard: ⌘F focuses the search field; the table takes ↑/↓ (selection), Return (details) and Esc.
+    @FocusState private var focus: ServerListFocus?
+    @State private var selection: UUID?
+
+    init(model: AppModel, presenter: MainWindowPresenter, previewFocus: ServerListFocus? = nil,
+         previewSelection: UUID? = nil) {
+        self.model = model
+        self.presenter = presenter
+        self.previewFocus = previewFocus
+        _selection = State(initialValue: previewSelection)
+    }
+
+    private var shownFocus: ServerListFocus? { focus ?? previewFocus }
+
+    enum ServerListFocus: Hashable {
+        case search
+        case table
+    }
 
     var body: some View {
         ThemedCard {
@@ -111,6 +132,17 @@ struct ServersCard: View {
             }
         }
         .accessibilityLabel(L10n.text(.serversTitle))
+        .background { findShortcut }
+    }
+
+    /// ⌘F anywhere in the main window (in-window shortcuts are handled before the Edit menu's Find).
+    private var findShortcut: some View {
+        Button(L10n.text(.a11yFindServers)) { focus = .search }
+            .keyboardShortcut("f", modifiers: .command)
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+            .disabled(model.servers.isEmpty)
     }
 
     // MARK: Header
@@ -155,14 +187,11 @@ struct ServersCard: View {
 
     private var chips: some View {
         HStack(spacing: 6) {
-            FilterChip(title: L10n.text(.serversChipBanned), symbol: "xmark.octagon.fill", count: counts.banned,
-                       isOn: $model.serverFilter.onlyBanned)
+            FilterChip(kind: .banned, count: counts.banned, isOn: $model.serverFilter.onlyBanned)
                 .accessibilityIdentifier("filterBanned")
-            FilterChip(title: L10n.text(.serversChipFavorites), symbol: "star.fill", count: counts.favorites,
-                       isOn: $model.serverFilter.onlyFavorites)
+            FilterChip(kind: .favorites, count: counts.favorites, isOn: $model.serverFilter.onlyFavorites)
                 .accessibilityIdentifier("filterFavorites")
-            FilterChip(title: L10n.text(.serversChipWatched), symbol: "bell.fill", count: counts.watched,
-                       isOn: $model.serverFilter.onlyWatched)
+            FilterChip(kind: .watched, count: counts.watched, isOn: $model.serverFilter.onlyWatched)
                 .accessibilityIdentifier("filterWatched")
         }
         .disabled(model.servers.isEmpty)
@@ -181,12 +210,15 @@ struct ServersCard: View {
                 TextField(L10n.text(.serversSearch), text: $options.search)
                     .textFieldStyle(.plain)
                     .font(TypeScale.callout)
+                    .focused($focus, equals: .search)
+                    .help(L10n.text(.helpSearch))
                     .accessibilityIdentifier("serverSearch")
             }
             .padding(.horizontal, Space.s2)
             .frame(width: Metrics.searchField, height: Metrics.control)
             .background(RoundedRectangle(cornerRadius: Radius.control).fill(Palette.field))
             .overlay(RoundedRectangle(cornerRadius: Radius.control).strokeBorder(Palette.controlBorder, lineWidth: 1))
+            .focusRing(shownFocus == .search, cornerRadius: Radius.control)
             .disabled(model.servers.isEmpty)
             .opacity(model.servers.isEmpty ? 0.45 : 1)
 
@@ -251,9 +283,9 @@ struct ServersCard: View {
             Text(L10n.text(.serversShowOnly))
                 .font(TypeScale.captionStrong)
                 .foregroundStyle(Palette.text2)
-            filterToggle(L10n.text(.serversChipBanned), counts.banned, $model.serverFilter.onlyBanned)
-            filterToggle(L10n.text(.serversChipFavorites), counts.favorites, $model.serverFilter.onlyFavorites)
-            filterToggle(L10n.text(.serversChipWatched), counts.watched, $model.serverFilter.onlyWatched)
+            filterToggle(.banned, counts.banned, $model.serverFilter.onlyBanned)
+            filterToggle(.favorites, counts.favorites, $model.serverFilter.onlyFavorites)
+            filterToggle(.watched, counts.watched, $model.serverFilter.onlyWatched)
             ThemedDivider().padding(.vertical, 2)
             HStack(spacing: Space.s2) {
                 Text(L10n.text(.serversGroupBy))
@@ -281,16 +313,19 @@ struct ServersCard: View {
         .frame(width: Metrics.filtersPopover)
     }
 
-    private func filterToggle(_ title: String, _ count: Int, _ isOn: Binding<Bool>) -> some View {
+    private func filterToggle(_ kind: ServerFilterChipKind, _ count: Int, _ isOn: Binding<Bool>) -> some View {
         HStack(spacing: Space.s2) {
-            Toggle(title, isOn: isOn).toggleStyle(.checkbox)
+            Toggle(kind.title, isOn: isOn)
+                .toggleStyle(.checkbox)
+                .accessibilityValue(AccessibilityText.filterChip(kind, count: count, isOn: isOn.wrappedValue).value)
             Spacer(minLength: Space.s2)
             Text(verbatim: String(count))
                 .font(TypeScale.callout)
                 .foregroundStyle(Palette.text3)
                 .monospacedDigit()
+                .accessibilityHidden(true)
         }
-        .frame(height: Metrics.smallControl)
+        .frame(height: Metrics.minTarget)
     }
 
     private var filtersActive: Bool { model.serverFilter != ServerListFilter() || options.isActive }
@@ -390,13 +425,15 @@ struct ServersCard: View {
                                       copied: copiedKey == entry.id.uuidString,
                                       followUpDue: model.isFollowUpDue(entry),
                                       showsInfo: showsInfo,
+                                      isSelected: selection == entry.id,
                                       actions: rowActions(entry))
                     }
                 }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: Radius.inner))
-        .overlay(RoundedRectangle(cornerRadius: Radius.inner).strokeBorder(Palette.border, lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: Radius.inner)
+            .strokeBorder(contrast == .increased ? Palette.borderStrong : Palette.border, lineWidth: 1))
         .background {
             GeometryReader { proxy in
                 Color.clear
@@ -404,8 +441,47 @@ struct ServersCard: View {
                     .onChange(of: proxy.size.width) { _, width in tableWidth = width }
             }
         }
+        // §55: the table is one Tab stop (like a text field, whatever the Keyboard navigation setting);
+        // ↑/↓/Home/End select, Return opens the details, Esc clears.
+        .focusable(true, interactions: .edit)
+        .focused($focus, equals: .table)
+        .focusEffectDisabled()
+        .focusRing(shownFocus == .table, cornerRadius: Radius.inner)
+        .onKeyPress(keys: [.upArrow, .downArrow, .home, .end, .return, .escape]) { press in
+            handleTableKey(press.key)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(L10n.text(.serversTitle))
+        .accessibilityHint(L10n.text(.a11yServerTableHint))
+    }
+
+    /// Rows in display order without collapsed groups (what ↑/↓ walks through).
+    private var visibleRowIDs: [UUID] {
+        displaySections.flatMap { section -> [UUID] in
+            if showsGroupHeaders, collapsed.contains(section.group ?? "") { return [] }
+            return section.servers.map(\.id)
+        }
+    }
+
+    private func handleTableKey(_ key: KeyEquivalent) -> KeyPress.Result {
+        let mapped: MainWindowKey
+        switch key {
+        case .upArrow: mapped = .upArrow
+        case .downArrow: mapped = .downArrow
+        case .home: mapped = .home
+        case .end: mapped = .end
+        case .return: mapped = .returnKey
+        case .escape: mapped = .escape
+        default: return .ignored
+        }
+        switch MainWindowKeyboard.handle(mapped, selection: selection, rows: visibleRowIDs) {
+        case .focusSearch: focus = .search
+        case .select(let id): selection = id
+        case .open(let id): presenter.details(id)
+        case .clearSelection: selection = nil
+        case .ignored: return .ignored
+        }
+        return .handled
     }
 
     private func rowActions(_ entry: ServerEntry) -> ServerRowActions {
@@ -517,6 +593,8 @@ struct ServerRowView: View {
     var followUpDue = false
     /// `false` in narrow windows: map · players · ping move into the server cell tooltip.
     var showsInfo = true
+    /// §55 keyboard selection of the table (accent tint + leading bar; VoiceOver "selected").
+    var isSelected = false
     let actions: ServerRowActions
 
     @State private var hovering = false
@@ -535,45 +613,52 @@ struct ServerRowView: View {
         }
         .padding(.horizontal, Space.s2)
         .frame(height: Metrics.row)
-        .background(hovering ? Palette.rowHover : Color.clear)
+        .background(isSelected ? Palette.accentTint : hovering ? Palette.rowHover : Color.clear)
+        .overlay(alignment: .leading) {
+            if isSelected {
+                Rectangle().fill(Palette.accentText).frame(width: 3).accessibilityHidden(true)
+            }
+        }
         .overlay(alignment: .bottom) { ThemedDivider() }
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu { menuItems }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(entry.label)
+        .accessibilityValue(AccessibilityText.serverNotifications(entry.notifications) ?? "")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: Cells
 
     private var marks: some View {
         HStack(spacing: 2) {
-            markButton(symbol: entry.favorite ? "star.fill" : "star",
+            markButton(.favorite, symbol: entry.favorite ? "star.fill" : "star",
                        color: entry.favorite ? Palette.orange : Palette.text3,
-                       label: L10n.text(entry.favorite ? .serverFavoriteRemove : .serverFavoriteAdd),
-                       isOn: entry.favorite, value: L10n.text(.serverFavorite), action: actions.toggleFavorite)
+                       isOn: entry.favorite, action: actions.toggleFavorite)
                 .accessibilityIdentifier("favorite")
-            markButton(symbol: entry.watch ? "bell.fill" : "bell",
+            markButton(.watch, symbol: entry.watch ? "bell.fill" : "bell",
                        color: entry.watch ? Palette.accentText : Palette.text3,
-                       label: L10n.text(entry.watch ? .watchToggleOff : .watchToggleOn),
-                       isOn: entry.watch, value: L10n.text(.watchBadge), action: actions.toggleWatch)
+                       isOn: entry.watch, action: actions.toggleWatch)
                 .accessibilityIdentifier("watchToggle")
         }
     }
 
-    private func markButton(symbol: String, color: Color, label: String, isOn: Bool, value: String,
+    /// ★ / 🔔 switch: 24 × 24 hit target (§55); VoiceOver says the action and "Favorite: On/Off".
+    private func markButton(_ mark: ServerRowMark, symbol: String, color: Color, isOn: Bool,
                             action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        let text = AccessibilityText.mark(mark, isOn: isOn)
+        return Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12))
                 .foregroundStyle(color)
-                .frame(width: 20, height: 20)
+                .frame(width: Metrics.markButton, height: Metrics.markButton)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(label)
-        .accessibilityLabel(label)
-        .accessibilityValue(isOn ? value : "")
+        .help(text.label)
+        .accessibilityLabel(text.label)
+        .accessibilityValue(text.value)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
@@ -740,8 +825,8 @@ struct ServerRowView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .help(ban.help)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(L10n.format(.a11yBan, ban.title))
-            .accessibilityValue(ban.detail)
+            .accessibilityLabel(AccessibilityText.ban(ban).label)
+            .accessibilityValue(AccessibilityText.ban(ban).value)
             if actions.fix != nil, !ban.isChecking {
                 // Claude Design deviation (agreed): Fix… opens an inline popover with this server's actions only.
                 Button {
@@ -771,8 +856,8 @@ struct ServerRowView: View {
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
-        .fixedSize()
-        .opacity(hovering ? 1 : 0.55)
+        .frame(minWidth: Metrics.minTarget, minHeight: Metrics.minTarget)
+        .opacity(hovering || isSelected ? 1 : 0.55)
         .help(L10n.text(.serversRowMenu))
         .accessibilityLabel(L10n.text(.serversRowMenu))
         .accessibilityIdentifier("rowMenu")
@@ -930,7 +1015,9 @@ struct AppealStatusBadge: View {
 
     var body: some View {
         TintBadge(text: status.label, foreground: textColor, background: tint)
-            .accessibilityLabel(L10n.text(.appealTitle) + " · " + status.label)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(AccessibilityText.appeal(status).label)
+            .accessibilityValue(AccessibilityText.appeal(status).value)
     }
 
     private var textColor: Color {

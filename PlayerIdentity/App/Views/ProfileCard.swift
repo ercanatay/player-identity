@@ -270,7 +270,7 @@ struct ProfileCard: View {
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
-                .frame(width: Metrics.smallControl, height: Metrics.smallControl)
+                .frame(width: Metrics.minTarget, height: Metrics.minTarget)
                 .help(L10n.text(.profileChooseFolder))
                 .accessibilityLabel(L10n.text(.profileChooseFolder))
                 .accessibilityIdentifier("dataRootMenu")
@@ -290,7 +290,7 @@ struct ProfileCard: View {
             value()
                 .frame(maxWidth: .infinity, minHeight: Metrics.keyValueRow, alignment: .leading)
             action()
-                .frame(width: Metrics.smallControl, height: Metrics.smallControl)
+                .frame(width: Metrics.minTarget, height: Metrics.minTarget)
         }
         .accessibilityElement(children: .contain)
     }
