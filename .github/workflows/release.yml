@@ -117,6 +117,15 @@ jobs:
           gh release create "$GITHUB_REF_NAME" "$ZIP" dist/SHA256SUMS.txt \
             --title "PlayerIdentity $VERSION" --verify-tag --notes-file "$NOTES"
 
+      - name: Verify cask matches the built asset
+        if: env.RELEASE_STATUS == 'notarized'
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA=$(awk '{print $1}' dist/SHA256SUMS.txt)
+          grep -q "^  version \"$VERSION\"$" Casks/player-identity.rb
+          grep -q "^  sha256 \"$SHA\"$" Casks/player-identity.rb
+
       - name: Update Homebrew cask (§41, optional)
         if: env.RELEASE_STATUS == 'notarized'
         continue-on-error: true

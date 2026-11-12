@@ -1,0 +1,32 @@
+name: CodeQL
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 3 * * 1'
+permissions:
+  security-events: write
+  contents: read
+  actions: read
+jobs:
+  analyze:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: swift
+          build-mode: manual
+      - name: Build
+        run: |
+          xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
+            -destination 'platform=macOS' -derivedDataPath .build-codeql build
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3

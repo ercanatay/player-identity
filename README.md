@@ -619,6 +619,8 @@ when you ask for them, and they are redacted.
   replacing anything, and roll back on failure.
 - Writes to game files are limited to `name`/`model` in `config.cfg` / `userconfig.cfg`, with backups.
 - Supported versions, how to report a vulnerability privately, and what the app writes: see [SECURITY.md](SECURITY.md).
+- CI security: CodeQL analysis (Swift) runs on pushes, pull requests and weekly; Dependabot keeps GitHub Actions up to date; secret scanning and push protection are enabled.
+- Release check: the Homebrew cask's `version` and `sha256` must match the published `SHA256SUMS.txt` asset, or the release job fails.
 
 Verify a download yourself (the full vulnerability reporting process and update verification chain are in [SECURITY.md](SECURITY.md)):
 
