@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.5 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.4 → v3.5: §54 kalıcı hata kaydı, §57 tap'siz otomasyon)
+Sürüm: 3.6 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.5 → v3.6: §54 hata dosyası açılışta oluşturulur)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1282,7 +1282,7 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - Doğrulama mevcut import kurallarıyla; geçersizler yok sayılır ve sonuç bildirilir; eklendikten sonra ana pencere açılır, "Kaydedilmedi".
 
 ## 54. Teşhis hataları (v3.4)
-- Teşhis ZIP'ine `errors.json` eklenir: son 50 uygulama hatası (zaman, alan: update/backup/metrics/watch/login, mesaj) — **diskte kalıcı** (`errors.json`, atomik, 50 kayıt); açılışta yüklenir; IP/ev yolu redaksiyonu aynı.
+- Teşhis ZIP'ine `errors.json` eklenir: son 50 uygulama hatası (zaman, alan: update/backup/metrics/watch/login, mesaj) — **diskte kalıcı** (`errors.json`, atomik, 50 kayıt); açılışta yüklenir; dosya yoksa **boş dizi ile oluşturulur** (teşhis her zaman dosyayı içerir); IP/ev yolu redaksiyonu aynı.
 - Hata kaydı kullanıcıya yeni uyarı üretmez; yalnız teşhis. Yazma hatası sessizce yutulmaz (diagnostics notu).
 
 ## 55. Erişilebilirlik ve klavye (v3.4)

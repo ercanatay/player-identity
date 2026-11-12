@@ -165,6 +165,43 @@ final class ErrorLogTests: XCTestCase {
         XCTAssertFalse(text.contains(temp.url.path))
     }
 
+    func testMissingFileIsCreatedEmptyAtLaunch() throws {
+        let temp = try TempDirectory()
+        let file = AppPaths(home: temp.url).errorsFile
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        let log = ErrorLog(fileURL: file)
+        XCTAssertEqual(log.status, .ok)
+        XCTAssertEqual(log.entries, [])
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        XCTAssertEqual((object["errors"] as? [Any])?.count, 0)
+    }
+
+    func testExistingRecordsSurviveLaunch() throws {
+        let temp = try TempDirectory()
+        let file = AppPaths(home: temp.url).errorsFile
+        ErrorLog(fileURL: file).record(.update, "update: kept", at: Self.t0)
+        let before = try Data(contentsOf: file)
+        let reopened = ErrorLog(fileURL: file)
+        XCTAssertEqual(reopened.entries.map(\.message), ["update: kept"])
+        XCTAssertEqual(try Data(contentsOf: file), before, "an existing file is not rewritten")
+    }
+
+    func testDiagnosticsZipHasErrorsJSONWithEmptyPersistedLog() throws {
+        let temp = try TempDirectory()
+        let paths = AppPaths(home: temp.url)
+        let log = ErrorLog(fileURL: paths.errorsFile)
+        let suite = "ErrorLogTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let input = DiagnosticsInput(appInfo: .current(), paths: paths, defaults: defaults, now: Self.t0,
+                                     errors: log.entries, errorLogStatus: log.status)
+        let files = try XCTUnwrap(ZipArchive.read(DiagnosticsBundle.archive(input)))
+        let errors = try XCTUnwrap(files.first { $0.name == "errors.json" })
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: errors.data) as? [String: Any])
+        XCTAssertEqual((object["errors"] as? [Any])?.count, 0)
+    }
+
     func testRemoveAllDeletesTheFile() throws {
         let temp = try TempDirectory()
         let file = AppPaths(home: temp.url).errorsFile

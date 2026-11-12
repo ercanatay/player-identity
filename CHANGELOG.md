@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.2] - 2026-11-12
+
+### Changed
+- Test suite grows to 730 tests.
+- README describes the deploy-key tap sync (`TAP_DEPLOY_KEY`) instead of a token-free tap.
+
+### Fixed
+- `errors.json` is now created empty (`[]` list) at launch when missing, so diagnostics always include it; an existing file is never overwritten.
+
 ## [2.10.1] - 2026-11-12
 
 ### Added

@@ -27,7 +27,8 @@ enum ErrorLogStatus: String, Sendable, Equatable {
 
 /// Ring buffer of the last `capacity` app errors. With a `fileURL` it is persisted to `errors.json` (atomic write
 /// after every record, loaded at start, oldest first); without one it lives in memory only. A write failure is never
-/// shown to the user but is kept in `status` and reported in the diagnostics package. A damaged file is ignored.
+/// shown to the user but is kept in `status` and reported in the diagnostics package. A missing file is created empty (`[]` list) at start;
+/// a damaged file is ignored and overwritten by the first record.
 final class ErrorLog: Sendable {
     static let capacity = 50
     /// Longest message kept (longer ones are cut).
@@ -43,7 +44,13 @@ final class ErrorLog: Sendable {
 
     init(fileURL: URL? = nil) {
         self.fileURL = fileURL
-        guard let fileURL, let data = try? Data(contentsOf: fileURL), let loaded = Self.decode(data) else { return }
+        guard let fileURL else { return }
+        // §54: a missing file is created empty at launch (an existing one, even a damaged one, is never touched here).
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            state.withLock { persist(&$0) }
+            return
+        }
+        guard let data = try? Data(contentsOf: fileURL), let loaded = Self.decode(data) else { return }
         state.withLock { $0.entries = loaded }
     }
 
