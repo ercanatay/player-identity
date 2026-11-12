@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.1 · Tarih: 2026-11-11 · Durum: uygulanacak (v3.0 → v3.1: §49.5 veri güvenliği, §49.6 sessiz hata düzeltmeleri)
+Sürüm: 3.2 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.1 → v3.2: §49.7 hardening)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1247,3 +1247,12 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - Sürüm düşürme sonrası yeniden başlatma hatası banner'da yerelleştirilmiş metin + "Yeniden başlat" ile gösterilir; `restoreOffer` yalnız başarılı relaunch'ta temizlenir.
 - Yönetici onayı iptali `cancelledByUser`, osascript başlatma hatası `adminPromptFailed` olarak ayrılır.
 - Watch-state ve metrik yazma hataları sessiz kalmaz; ilgili ekranlarda durum satırı gösterilir.
+
+### 49.7 Hardening (v3.2)
+- **Arka plan:** geri yükleme öncesi/sonrası yedek ve geri yükleme adımları ana thread dışında; arayüz adım gösterir ("yedekleniyor", "geri yükleniyor").
+- **Alt süreçler:** güncelleme komutlarında 120 sn sınır; süre/iptalde `terminate` + gerekirse `SIGKILL`; `cancelled`/`processTimedOut` ayrı hata; indirilen dosyalar temizlenir.
+- **Gatekeeper:** kurulum öncesi `spctl -a -vv -t exec`; `accepted` yoksa `gatekeeperRejected`.
+- **Yedek doğrulama:** sayaçlar ve kayıt tarihi dosyalardan yeniden hesaplanır; manifest uyuşmazsa yedek reddedilir. Budama mtime ile; yeni yedek asla silinmez. Tüm veri okunamıyorsa `noUsableData`.
+- **Ayar arşivi:** `autoBackupEnabled` dahil; eski arşivler uyumlu.
+- **Ayar import:** veri işlemi kilidi; `dataRoot` yalnız var olan dizin ve güvenli yol; sonuçta geçersiz/atlanan sayıları, veri kökü ve launch-at-login yan etkileri.
+- **Güncelleme UI:** eşleşmeyen hazır indirme silinir; veri işlemi sürerken onay penceresi nedeni gösterip Yükle'yi devre dışı bırakır. Sürüm düşürme tercih yedeği arka planda.

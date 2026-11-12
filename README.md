@@ -30,6 +30,14 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.9.2
+
+- **Backup and restore in the background**: automatic backups and restores no longer block the UI; failures are reported.
+- **Safer updates**: update checks have timeouts, stuck updaters are killed (SIGKILL), and downloaded updates are verified with Gatekeeper before install.
+- **Backup integrity**: manifest counters are verified against the files, old manifests are pruned by modification time, and `autoBackupEnabled` is respected in archives.
+- **Import safety**: settings import is locked against concurrent runs and produces a clear report; pre-downloaded update files are cleaned up.
+- **Clearer install blocking**: when installation is blocked, the app now states the reason.
+
 ## What's new in v2.9.1
 
 - **Toolbar overflow fixed**: the title flexes and the toolbar switches to a compact layout when space is tight.
@@ -532,7 +540,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **627 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **660 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests
@@ -552,7 +560,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 627 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 660 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -566,7 +574,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (627)
+PlayerIdentityTests/      Unit tests (660)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

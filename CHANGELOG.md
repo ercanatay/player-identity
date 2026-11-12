@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.2] - 2026-11-12
+
+### Fixed
+- Automatic backup and restore run in the background; failures are reported.
+- Update checks use timeouts; stuck updaters are killed (SIGKILL).
+- Updates are verified with Gatekeeper before install.
+- Backup manifest counters are verified; old manifests are pruned by modification time.
+- `autoBackupEnabled` is respected in archives.
+- Settings import is locked against concurrent runs and reports its result.
+- Pre-downloaded update files are cleaned up.
+- Installation blocking shows the reason.
+
 ## [2.9.1] - 2026-11-11
 
 ### Fixed
@@ -13,6 +25,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - Erase is locked and partial deletes are guarded.
 - Unsaved changes prompt before closing.
 - Automatic backup errors, appeal reminders, relaunch errors and cancel/error messages are reported instead of failing silently.
+
+## [2.9.0] - 2026-11-11
+
+### Added
+- Add servers from URLs (GameTracker, `steam://connect`) or pasted `host:port` lists, with preview and duplicate/invalid detection (up to 100 entries per import).
+
 
 ## [2.7.0] - 2026-11-10
 
