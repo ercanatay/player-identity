@@ -105,7 +105,7 @@ jobs:
           esac
           NOTES="$RUNNER_TEMP/notes.md"
           {
-            echo "## PlayerIdentity $VERSION"
+            echo "## Cybokron Player Identity $VERSION"
             echo
             echo "**Signing:** $SIGNING"
             echo
@@ -116,7 +116,7 @@ jobs:
             echo '```'
           } > "$NOTES"
           gh release create "$GITHUB_REF_NAME" "$ZIP" dist/SHA256SUMS.txt \
-            --title "PlayerIdentity $VERSION" --verify-tag --notes-file "$NOTES"
+            --title "Cybokron Player Identity $VERSION" --verify-tag --notes-file "$NOTES"
 
       - name: Verify cask matches the built asset
         if: env.RELEASE_STATUS == 'notarized'

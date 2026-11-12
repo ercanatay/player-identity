@@ -7,6 +7,8 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
+## [2.10.3] - 2026-11-13
+
 ### Added
 - **English feature reference** (`docs/FEATURES.md`): a detailed walkthrough of every window, CLI command, URL scheme, notification rule, backup format, accessibility behaviour and privacy model.
 - **Live screenshots** in `docs/screenshots/` (main window light/dark, history, metrics, ban matrix, settings, backup & restore, updates, per-server notifications) plus a 1024 pt app icon.

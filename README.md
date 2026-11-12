@@ -49,6 +49,11 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.10.3
+
+- **New name**: the app is now shown as **Cybokron Player Identity** (Turkish: **Cybokron Oyuncu Kimlik Kartı**). The bundle identifier, `PlayerIdentity.app`, your data and the Homebrew cask stay the same, so updates and settings carry over.
+- **English feature reference** in [`docs/FEATURES.md`](docs/FEATURES.md) and a refreshed screenshot set.
+
 ## What's new in v2.10.2
 
 - **Error log file**: `errors.json` is created empty at launch, so diagnostics always include it.
