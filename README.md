@@ -689,6 +689,15 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 - **730 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
+### Live UI evidence
+
+```sh
+scripts/evidence.sh [outdir]   # default: docs/evidence (gitignored)
+```
+
+- Generates live UI evidence screenshots in one command.
+- Note: `xcodebuild` forwards environment variables to the test process only with the **`TEST_RUNNER_`** prefix. Passing `PI_UI_EVIDENCE_DIR` directly makes the evidence tests skip silently (`XCTSkip`).
+
 ### UI tests
 
 Separate scheme, not part of the main CI:
