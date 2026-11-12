@@ -170,9 +170,14 @@ optionally update itself in `/Applications`.
 ### Homebrew (recommended)
 
 ```sh
-brew tap ercanatay/tap
+brew tap ercanatay/tap https://github.com/ercanatay/player-identity
 brew install --cask ercanatay/tap/player-identity
 ```
+
+The tap is this repository itself (the cask lives in `Casks/`), so the release workflow updates the cask in the same
+repo and **no `TAP_TOKEN` secret is needed**. The separate
+[`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) repository is kept for backward compatibility:
+existing `brew tap ercanatay/tap` setups keep working.
 
 This installs `PlayerIdentity.app` into `/Applications` and links the CLI to `/opt/homebrew/bin/playeridentityctl`.
 Upgrade later with:
@@ -504,8 +509,9 @@ a **redacted** snapshot (IPs and the home path masked), history and metrics tail
 `errors.json` lists the **last 50 app errors** (time, area, message), with areas `update`, `backup`, `metrics`,
 `watch` and `login` — e.g. a failed update check or install, a failed automatic/manual backup or restore, a
 `metrics.jsonl` or `watch-state.json` write error, or a refused launch-at-login registration. The list is kept in
-memory only (it starts empty at every launch), is redacted like the other files, and never shows anything new to
-the user. `playeridentityctl diagnostics` writes the same package (its `errors.json` is empty, since the errors
+persisted in `errors.json` next to the record (atomic write, ring buffer of 50, loaded again at launch; a damaged
+file is ignored), is redacted in the package like the other files, and never shows anything new to the user.
+`app-info.json` carries `errorLogStatus` (`ok` or `writeFailed` when the log file could not be written). `playeridentityctl diagnostics` writes the same package (its `errors.json` is empty, since the errors
 belong to the running app).
 
 ### Shortcuts and Siri
@@ -719,11 +725,11 @@ scripts/                  release, cask, CLI smoke, spec sync, icon tooling
 
 - Every `vX.Y.Z` tag builds and publishes a **signed, notarized** ZIP plus `SHA256SUMS.txt`.
 - Release history is kept in [`CHANGELOG.md`](CHANGELOG.md) (Keep a Changelog format).
-- The cask is updated automatically by the release workflow; the public tap is
-  [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap).
-- Tap sync in the release workflow is automatic when the `TAP_TOKEN` secret is set: a fine-grained PAT with
-  `contents: write` on the tap repository. Without it, run `scripts/sync-tap.sh` manually (uses your local `gh` login;
-  `--dry-run` shows the diff first).
+- The cask is updated automatically by the release workflow in this repository, which is the tap
+  (`brew tap ercanatay/tap https://github.com/ercanatay/player-identity`); no `TAP_TOKEN` is required.
+- Legacy tap: [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) is kept for backward
+  compatibility. Its sync step in the release workflow runs only when the optional `TAP_TOKEN` secret is set;
+  otherwise run `scripts/sync-tap.sh` manually (uses your local `gh` login; `--dry-run` shows the diff first).
 - Version history inside the app can install older stable releases with the same verification and a data backup.
 
 ---

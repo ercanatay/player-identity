@@ -69,6 +69,112 @@ final class ErrorLogTests: XCTestCase {
         XCTAssertEqual((object["errors"] as? [Any])?.count, 0)
     }
 
+    // MARK: Persistence
+
+    func testRecordsArePersistedAndReloaded() throws {
+        let temp = try TempDirectory()
+        let file = AppPaths(home: temp.url).errorsFile
+        XCTAssertEqual(file.lastPathComponent, "errors.json")
+        let log = ErrorLog(fileURL: file)
+        log.record(.update, "update: feedUnavailable", at: Self.t0)
+        log.record(.backup, "manualBackup: x", at: Self.t0 + 5)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(log.status, .ok)
+
+        let reloaded = ErrorLog(fileURL: file)
+        XCTAssertEqual(reloaded.entries, log.entries)
+        XCTAssertEqual(reloaded.entries.map(\.area), [.update, .backup])   // oldest first, same as in memory
+        reloaded.record(.login, "loginItem: y", at: Self.t0 + 9)
+        XCTAssertEqual(ErrorLog(fileURL: file).entries.map(\.message), ["update: feedUnavailable", "manualBackup: x", "loginItem: y"])
+    }
+
+    func testFiftyFirstRecordDropsTheOldestOnDiskToo() throws {
+        let temp = try TempDirectory()
+        let file = AppPaths(home: temp.url).errorsFile
+        let log = ErrorLog(fileURL: file)
+        for index in 0...ErrorLog.capacity {
+            log.record(.metrics, "error\(index)", at: Self.t0 + Double(index))
+        }
+        let reloaded = ErrorLog(fileURL: file).entries
+        XCTAssertEqual(reloaded.count, 50)
+        XCTAssertEqual(reloaded.first?.message, "error1")
+        XCTAssertEqual(reloaded.last?.message, "error50")
+    }
+
+    func testDamagedFileIsIgnoredAndOverwritten() throws {
+        let temp = try TempDirectory()
+        let file = AppPaths(home: temp.url).errorsFile
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("{ not json".utf8).write(to: file)
+        let log = ErrorLog(fileURL: file)
+        XCTAssertEqual(log.entries, [])
+        XCTAssertEqual(log.status, .ok)
+        log.record(.watch, "watchState: z", at: Self.t0)
+        XCTAssertEqual(ErrorLog(fileURL: file).entries.map(\.message), ["watchState: z"])
+    }
+
+    func testAtomicWriteLeavesOnlyErrorsJSON() throws {
+        let temp = try TempDirectory()
+        let file = AppPaths(home: temp.url).errorsFile
+        let log = ErrorLog(fileURL: file)
+        for index in 0..<10 { log.record(.update, "e\(index)", at: Self.t0 + Double(index)) }
+        let names = try FileManager.default.contentsOfDirectory(atPath: file.deletingLastPathComponent().path)
+        XCTAssertEqual(names, ["errors.json"], "no temporary files are left behind")
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        XCTAssertEqual((object["errors"] as? [Any])?.count, 10)
+    }
+
+    func testWriteFailureIsReportedInTheDiagnosticsManifest() throws {
+        let temp = try TempDirectory()
+        // The log's folder is a regular file, so the write cannot succeed.
+        let blocker = temp.url.appendingPathComponent("blocker")
+        try Data().write(to: blocker)
+        let log = ErrorLog(fileURL: blocker.appendingPathComponent("errors.json"))
+        log.record(.backup, "manualBackup: x", at: Self.t0)
+        XCTAssertEqual(log.status, .writeFailed)
+        XCTAssertEqual(log.entries.count, 1, "the entry stays in memory")
+
+        let suite = "ErrorLogTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        func manifest(_ status: ErrorLogStatus) throws -> [String: Any] {
+            let input = DiagnosticsInput(appInfo: .current(), paths: AppPaths(home: temp.url), defaults: defaults, now: Self.t0,
+                                         errors: log.entries, errorLogStatus: status)
+            let files = try XCTUnwrap(ZipArchive.read(DiagnosticsBundle.archive(input)))
+            let info = try XCTUnwrap(files.first { $0.name == "app-info.json" })
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: info.data) as? [String: Any])
+        }
+        XCTAssertEqual(try manifest(log.status)["errorLogStatus"] as? String, "writeFailed")
+        XCTAssertEqual(try manifest(.ok)["errorLogStatus"] as? String, "ok")
+    }
+
+    func testDiagnosticsZipCarriesPersistedRecords() throws {
+        let temp = try TempDirectory()
+        let paths = AppPaths(home: temp.url)
+        ErrorLog(fileURL: paths.errorsFile).record(.update, "update: from \(temp.url.path) 203.0.113.9", at: Self.t0)
+        let reloaded = ErrorLog(fileURL: paths.errorsFile)   // as after a restart
+        let suite = "ErrorLogTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let input = DiagnosticsInput(appInfo: .current(), paths: paths, defaults: defaults, now: Self.t0,
+                                     errors: reloaded.entries, errorLogStatus: reloaded.status)
+        let files = try XCTUnwrap(ZipArchive.read(DiagnosticsBundle.archive(input)))
+        let text = String(decoding: try XCTUnwrap(files.first { $0.name == "errors.json" }).data, as: UTF8.self)
+        XCTAssertTrue(text.contains("update: from ~ 203.0.x.x"), text)
+        XCTAssertFalse(text.contains(temp.url.path))
+    }
+
+    func testRemoveAllDeletesTheFile() throws {
+        let temp = try TempDirectory()
+        let file = AppPaths(home: temp.url).errorsFile
+        let log = ErrorLog(fileURL: file)
+        log.record(.update, "x", at: Self.t0)
+        log.removeAll()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+        XCTAssertEqual(ErrorLog(fileURL: file).entries, [])
+    }
+
     // MARK: App error points
 
     func testAppErrorsAreLoggedWithoutNewUserMessages() async throws {

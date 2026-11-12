@@ -142,6 +142,8 @@ jobs:
           git commit -m "Update Homebrew cask to $VERSION" -- Casks/player-identity.rb
           git push origin HEAD:main
 
+      # Legacy tap (ercanatay/homebrew-tap); normally not needed: this repository is the tap and the cask step above
+      # updates it, so no TAP_TOKEN is required. Kept for backward compatibility; runs only if TAP_TOKEN is set.
       - name: Sync Homebrew tap (optional)
         if: env.RELEASE_STATUS == 'notarized' && env.TAP_TOKEN != ''
         continue-on-error: true

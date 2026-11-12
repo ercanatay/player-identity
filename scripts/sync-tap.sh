@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# LEGACY TAP: the main flow no longer needs this — this repository is the tap
+# (brew tap ercanatay/tap https://github.com/ercanatay/player-identity). Kept only for the old homebrew-tap repo.
 # Sync Casks/player-identity.rb to ercanatay/homebrew-tap using the local gh login.
 # Usage: scripts/sync-tap.sh [--dry-run]
 set -euo pipefail

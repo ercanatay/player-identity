@@ -47,7 +47,7 @@ struct AppDependencies {
     var interfaceReporter = InterfaceReporter()
     /// §47.2/§49: file operations of "Erase All Data" and the restore (tests inject failures).
     var dataFileOperations: any DataFileOperating = LocalDataFileOperations()
-    /// §54: in-memory log of the last app errors (diagnostics `errors.json`).
+    /// §54: log of the last app errors (diagnostics `errors.json`); the live app persists it to `errors.json`.
     var errorLog = ErrorLog()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
@@ -72,12 +72,13 @@ struct AppDependencies {
                                    sleeper: TaskSleeper(),
                                    resolver: SystemAddressResolver())
         deps.defaultsDomain = suite
+        deps.errorLog = ErrorLog(fileURL: paths.errorsFile)
         return deps
     }
 
     static func live() -> AppDependencies {
         let paths = AppPaths()
-        return AppDependencies(paths: paths,
+        var deps = AppDependencies(paths: paths,
                                fileSystem: LocalFileSystem(),
                                localIPProvider: SystemLocalIPProvider(),
                                publicIPClient: PublicIPClient(),
@@ -96,6 +97,8 @@ struct AppDependencies {
                                gameLaunchRunner: ProcessGameLaunchRunner(),
                                loginItem: MainAppLoginItem(),
                                urlOpener: WorkspaceURLOpener())
+        deps.errorLog = ErrorLog(fileURL: paths.errorsFile)
+        return deps
     }
 }
 
@@ -826,7 +829,8 @@ final class AppModel {
         await historyTask?.value
         await metricsTask?.value
         return DiagnosticsBundle.archive(DiagnosticsInput(appInfo: appInfo, paths: deps.paths, defaults: deps.defaults,
-                                                           now: deps.now(), errors: deps.errorLog.entries))
+                                                           now: deps.now(), errors: deps.errorLog.entries,
+                                                           errorLogStatus: deps.errorLog.status))
     }
 
     // MARK: §39 metrics
@@ -1838,6 +1842,7 @@ final class AppModel {
         }
         await history.reset()
         await metrics.reset()
+        deps.errorLog.removeAll()
         metricsWriteFailure = nil
         reloadFromDisk(keepGamedirWithoutRecord: true)
         updates.dataFolderErased()

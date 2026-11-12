@@ -104,6 +104,11 @@ struct AppPaths: Sendable, Equatable {
         snapshotFile.deletingLastPathComponent().appendingPathComponent("watch-state.json", isDirectory: false)
     }
 
+    /// §54: `~/Library/Application Support/tr.ercanatay.playeridentity/errors.json` (persisted error log).
+    var errorsFile: URL {
+        snapshotFile.deletingLastPathComponent().appendingPathComponent("errors.json", isDirectory: false)
+    }
+
     /// Snapshot of the legacy bundle (§19.3): `~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json`.
     /// Only ever read by `DataMigration`; never written.
     var legacySnapshotFile: URL {

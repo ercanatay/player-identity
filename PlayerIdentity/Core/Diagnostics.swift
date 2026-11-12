@@ -104,6 +104,8 @@ struct DiagnosticsInput {
     var metricsTail = 500
     /// §54: the app's error log (`errors.json`); empty outside the app (e.g. the CLI).
     var errors: [ErrorLogEntry] = []
+    /// §54: whether the persisted error log could be written (`errorLogStatus` in `app-info.json`).
+    var errorLogStatus: ErrorLogStatus = .ok
 }
 
 enum DiagnosticsBundle {
@@ -132,7 +134,8 @@ enum DiagnosticsBundle {
         let info = input.appInfo
         let appInfo = json(["app": "PlayerIdentity", "version": info.version, "build": info.build, "os": info.osVersion,
                             "architecture": info.architecture, "language": info.language,
-                            "generatedAt": iso.string(from: input.now)])
+                            "generatedAt": iso.string(from: input.now),
+                            "errorLogStatus": input.errorLogStatus.rawValue])
 
         let snapshot: Data
         if let raw = try? Data(contentsOf: input.paths.snapshotFile) {
