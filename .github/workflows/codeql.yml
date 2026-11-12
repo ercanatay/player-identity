@@ -20,7 +20,7 @@ jobs:
       - name: Generate project
         run: xcodegen generate
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: swift
           build-mode: manual
@@ -29,4 +29,4 @@ jobs:
           xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
             -destination 'platform=macOS' -derivedDataPath .build-codeql build
       - name: Analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
