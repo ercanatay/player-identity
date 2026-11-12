@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.0] - 2026-11-12
+
+### Added
+- CLI backup, restore, servers and diagnostics commands in `playeridentityctl`.
+- `playeridentity://` URL scheme.
+- `errors.json` in the diagnostic bundle.
+- Keyboard and VoiceOver accessibility improvements.
+- Per-server notification thresholds.
+- CodeQL, Dependabot and secret scanning; release cask verification.
+
+### Changed
+- Test suite grows to 720 tests.
+
 ## [2.9.3] - 2026-11-12
 
 ### Added

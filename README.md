@@ -30,6 +30,15 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.10.0
+
+- **CLI data tools**: `playeridentityctl` gains backup, restore, servers and diagnostics commands.
+- **URL scheme**: `playeridentity://` links open the matching app actions.
+- **Diagnostics**: `errors.json` is written with the diagnostic bundle.
+- **Accessibility**: keyboard navigation and VoiceOver labels are improved.
+- **Per-server notification thresholds**: each server can set its own alert threshold.
+- **CI security**: CodeQL, Dependabot and secret scanning are enabled; release cask is verified after publishing.
+
 ## What's new in v2.9.3
 
 - **CLI updates**: `playeridentityctl update --check` compares the installed app with the latest stable release; `update --install` downloads and verifies it like the app does (HTTPS, size, SHA-256, Gatekeeper). Exit codes are documented in the CLI section; `brew upgrade` is the alternative for cask installs.
@@ -682,7 +691,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 660 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 720 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -696,7 +705,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (660)
+PlayerIdentityTests/      Unit tests (720)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

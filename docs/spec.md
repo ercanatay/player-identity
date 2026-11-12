@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.3 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.2 → v3.3: §49.8 doğrulama sıkılaştırma, §51 CLI güncelleme)
+Sürüm: 3.4 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.3 → v3.4: §52–§57 CLI, URL şeması, teşhis, erişilebilirlik, bildirim eşikleri, CI güvenlik)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1267,3 +1267,37 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - Ortak `UpdateInstaller`; CLI, uygulamanın çalıştığı bundle'ı değiştirebilir; değişim sonrası `open` ile yeni sürüm başlatılmaz (çağıran yapar).
 - Çıkış kodları: 0 başarı, 1 kullanım, 2 ağ/indirme/doğrulama hatası, 3 güncelleme yok/atlandı, 4 güncelleme var (check).
 - Testler: feed/check JSON, `--install` sahte installer ile, onay reddi, doğrulama hatası, çıkış kodları.
+
+## 52. CLI genişletme (v3.4)
+- `playeridentityctl backup [--out <path>] [--json]` — tam yedek; varsayılan `~/Documents` altında `playeridentity-backup-*.zip`.
+- `restore <zip> [--yes] [--json]` — önce pre-restore yedeği; TTY yoksa `--yes` zorunlu; doğrulama hataları çıkış 2.
+- `servers list [--json]`, `servers add <host:port> [--label] [--group] [--watch] [--json]`, `servers remove <host:port|index> [--yes] [--json]`.
+- `diagnostics [--out <path>] [--json]` — redakte ZIP.
+- Tümü aynı Core; JSON `schemaVersion: 1`; çıkış kodları: 0 başarı, 1 kullanım/onay, 2 doğrulama/ağ, 3 bulunamadı/güncel.
+
+## 53. URL şeması (v3.4)
+- `CFBundleURLTypes`: `playeridentity`.
+- `playeridentity://add?host=example.com&port=27015&label=Demo&group=EU&watch=1`; `host` birden çok kez verilebilir.
+- Doğrulama mevcut import kurallarıyla; geçersizler yok sayılır ve sonuç bildirilir; eklendikten sonra ana pencere açılır, "Kaydedilmedi".
+
+## 54. Teşhis hataları (v3.4)
+- Teşhis ZIP'ine `errors.json` eklenir: son 50 uygulama hatası (zaman, alan: update/backup/metrics/watch/login, mesaj) — yalnız bellekte tutulan halka tampon; IP/ev yolu redaksiyonu aynı.
+- Hata kaydı kullanıcıya yeni uyarı üretmez; yalnız teşhis.
+
+## 55. Erişilebilirlik ve klavye (v3.4)
+- Ana pencerede tam klavye: Tab sırası, sunucu tablosunda ↑/↓ seçim, ⌘F arama, filtreler ve + menüsü klavyeyle; VoiceOver etiketleri özel çip/anahtar/grafikler için.
+- Durum yalnız renkle anlatılmaz (mevcut). Yüksek kontrast görünümde tokenlar korunur; min hedef 24 pt.
+- Testler: etiket kapsamı, klavye eylem eşlemeleri (saf model), kontrast oranı hesabı.
+
+## 56. Sunucu bazlı bildirim eşikleri (v3.4)
+- `ServerEntry.notifications`: `mode` (inherit/all/bansOnly/off), `pingThresholdMs`, `playersAtLeast`, `quietHoursOverride` (yok/açık/kapalı).
+- Değerlendirme: genel ayarlar + sunucu override; eşik altı olay bildirilmez; geçmiş yine yazılır.
+- UI: sunucu detayında "Bildirimler" bölümü; geçersiz eşikler reddedilir.
+- Testler: mod/eşik/override kombinasyonları, sessiz saat, geçmiş.
+
+## 57. CI güvenlik paketi (v3.4)
+- **CodeQL (Swift):** `codeql.yml`, push/PR/haftalık; `xcodegen generate` + `xcodebuild build` (manual build) ile analiz.
+- **Dependabot:** GitHub Actions sürümleri için haftalık `dependabot.yml`.
+- **Secret scanning / push protection:** repo ayarlarında etkinleştirilir (API); desteklenmiyorsa README'de not.
+- **Release bütünlüğü:** release işi, cask'taki `version`/`sha256` ile yayınlanan asset'in `SHA256SUMS.txt` değerini karşılaştırır; uyuşmazsa job **fail** (mevcut `continue-on-error` yalnız cask commit'i için).
+- **Doğrulama:** YAML lint; cask/asset karşılaştırma adımının kuru çalıştırması.
