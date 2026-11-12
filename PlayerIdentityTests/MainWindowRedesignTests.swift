@@ -104,7 +104,7 @@ final class MainWindowRedesignTests: XCTestCase {
             XCTAssertEqual(idle.detail, "")
             XCTAssertEqual(idle.lastCheck, "Last check: —")
         }
-        model.addServer(ServerDraft(label: "POLIGON RPG", host: "192.0.2.10"))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "192.0.2.10"))
         await model.refresh().value
         let report = try XCTUnwrap(model.report)
         XCTAssertGreaterThan(report.reasons.count, 1)

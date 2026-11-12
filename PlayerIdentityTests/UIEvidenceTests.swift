@@ -22,7 +22,7 @@ final class UIEvidenceTests: XCTestCase {
     func testRenderShareCard() throws {
         var rect = CGRect(x: 0, y: 0, width: 256, height: 256)
         let icon = NSApplication.shared.applicationIconImage.cgImage(forProposedRect: &rect, context: nil, hints: nil)
-        let content = ShareCardContent(serverName: "POLIGON RPG | Turkiye'nin en uzun sunucu adi denemesi 2026",
+        let content = ShareCardContent(serverName: "Demo RPG | An intentionally very long demo server name 2026",
                                        hostPort: "play.example.com:27015", cid: "d9de0eb4419608a8423241430581e91c",
                                        playerName: "TestPlayer", dateText: "09.11.2026 13:45",
                                        labels: ShareCardLabels(title: "Player Identity", server: "Server", cid: "CID",
@@ -71,11 +71,11 @@ final class UIEvidenceTests: XCTestCase {
         let clock = env.clock
         let udp = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
             info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.042)))
-        let resolver = FakeAddressResolver(["play.example.test": .success([TestAddresses.v4("51.68.190.91")]),
+        let resolver = FakeAddressResolver(["play.example.test": .success([TestAddresses.v4("198.51.100.23")]),
                                             "down.example.test": .failure(.network)])
         let api = HTTPScript(defaultBody: #"{"tag_name":"v1.1.0","html_url":"https://github.com/ercanatay/player-identity/releases/tag/v1.1.0"}"#)
         let model = env.makeModel(udp: udp, resolver: resolver, updates: api, appVersion: "1.0")
-        model.addServer(ServerDraft(label: "POLIGON RPG", host: "play.example.test"))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "play.example.test"))
         model.addServer(ServerDraft(label: "Missing", host: "nx.example.test"))
         model.addServer(ServerDraft(label: "Offline DNS", host: "down.example.test"))
         await model.waitForResolutions()
@@ -205,7 +205,7 @@ final class UIEvidenceTests: XCTestCase {
             deps.gameLaunchRunner = FakeGameLaunchRunner()
             deps.loginItem = item
         }
-        model.addServer(ServerDraft(label: "POLIGON RPG", host: "192.0.2.10", group: "Europe", favorite: true))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "192.0.2.10", group: "Europe", favorite: true))
         model.addServer(ServerDraft(label: "Deathmatch EU", host: "192.0.2.20", group: "Europe"))
         model.addServer(ServerDraft(label: "Zombie TR", host: "192.0.2.30", group: "Turkey"))
         model.addServer(ServerDraft(label: "LAN", host: "192.0.2.40"))
@@ -280,7 +280,7 @@ final class UIEvidenceTests: XCTestCase {
         let model = env.makeModel(udp: udp) { deps in
             deps.interfaceReporter = InterfaceReporter(lister: FakeInterfaceLister(records), egress: FakeEgressRoute("utun4"))
         }
-        model.addServer(ServerDraft(label: "POLIGON RPG", host: "192.0.2.10"))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "192.0.2.10"))
         model.addServer(ServerDraft(label: "Zombie TR", host: "192.0.2.30"))
         model.addServer(ServerDraft(label: "Plugin EU", host: "192.0.2.40"))
         model.addServer(ServerDraft(label: "Surf, Classic", host: "192.0.2.50"))
@@ -349,7 +349,7 @@ final class UIEvidenceTests: XCTestCase {
         let env = try TestAppEnvironment()
         let model = env.makeModel(udp: FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(
             info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))))
-        model.addServer(ServerDraft(label: "POLIGON RPG", host: "192.0.2.10", favorite: true))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "192.0.2.10", favorite: true))
         model.addServer(ServerDraft(label: "Zombie TR", host: "192.0.2.30"))
         model.addServer(ServerDraft(label: "Surf EU", host: "192.0.2.50"))
         await model.refresh().value
@@ -391,16 +391,16 @@ final class UIEvidenceTests: XCTestCase {
         defer { L10n.setting = .system }
         let env = try TestAppEnvironment()
         let model = env.makeModel()
-        model.addServer(ServerDraft(label: "POLIGON RPG", host: "play.example.com", portText: "27015", group: "RPG", favorite: true))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "play.example.com", portText: "27015", group: "RPG", favorite: true))
         model.addServer(ServerDraft(label: "Yerel", host: "local.example.com", portText: "27016"))
         await model.refresh().value
         try render(GeneralSettingsView(model: model), size: CGSize(width: 600, height: 640), name: "v26-settings-data")
         try render(SettingsExportSheet(model: model) {}, size: CGSize(width: 460, height: 360), name: "v26-export-sheet")
-        let rows = [ArchivedServer(label: "POLIGON RPG (yeni ad)", host: "play.example.com", port: 27015, group: "RPG"),
+        let rows = [ArchivedServer(label: "Demo RPG (yeni ad)", host: "play.example.com", port: 27015, group: "RPG"),
                     ArchivedServer(label: "Yeni sunucu", host: "new.example.com", port: 27015)]
         var settings = model.currentArchivedSettings()
         settings.dataRoot = "/Users/ornek/Library/Application Support"
-        let parsed = ParsedSettingsArchive(archive: SettingsArchive(appVersion: "2.6.0", exportedAt: Date(), scope: .settingsAndServers,
+        let parsed = ParsedSettingsArchive(archive: SettingsArchive(appVersion: "2.11.0", exportedAt: Date(), scope: .settingsAndServers,
                                                                     settings: settings, servers: rows),
                                            invalidSettings: 0, invalidServers: 1)
         let candidate = DataSettingsRow.ImportCandidate(fileName: "playeridentity-settings-20261110-101500.json", parsed: parsed)

@@ -186,7 +186,7 @@ final class MainWindowEvidenceTests: XCTestCase {
 
     private func makeDefaultModel(_ language: AppLanguageSetting) async throws -> (AppModel, TestAppEnvironment) {
         let env = try TestAppEnvironment()
-        let api = HTTPScript(defaultBody: #"{"tag_name":"v2.6.0","html_url":"https://github.com/ercanatay/player-identity/releases/tag/v2.6.0"}"#)
+        let api = HTTPScript(defaultBody: #"{"tag_name":"v2.11.0","html_url":"https://github.com/ercanatay/player-identity/releases/tag/v2.11.0"}"#)
         let model = env.makeModel(udp: healthyUDP(env), resolver: resolver, updates: api, appVersion: "2.5.0",
                                   configure: interfaces)
         model.appLanguage = language   // the model applies the stored language at init
