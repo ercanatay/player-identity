@@ -1,3 +1,4 @@
+<!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
 Sürüm: 3.5 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.4 → v3.5: §54 kalıcı hata kaydı, §57 tap'siz otomasyon)
@@ -1299,6 +1300,6 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - **CodeQL (Swift):** `codeql.yml`, push/PR/haftalık; `xcodegen generate` + `xcodebuild build` (manual build) ile analiz.
 - **Dependabot:** GitHub Actions sürümleri için haftalık `dependabot.yml`.
 - **Secret scanning / push protection:** repo ayarlarında etkinleştirilir (API); desteklenmiyorsa README'de not.
-- **Tap'siz otomasyon:** ana repo `brew tap ercanatay/tap https://github.com/ercanatay/player-identity` ile tap olarak kullanılabilir; cask aynı repoda güncellendiği için `TAP_TOKEN` gerekmez. Ayrı `ercanatay/homebrew-tap` yalnız geriye uyumluluk içindir.
+- **Homebrew tap:** Homebrew, tap adı ile `homebrew-<ad>` repo adının eşleşmesini zorunlu kılar; bu yüzden ana repo tap olarak kullanılamaz. `ercanatay/homebrew-tap` ayrı ve zorunludur. Release'te otomatik sync için `TAP_TOKEN` gerekir; yoksa `scripts/sync-tap.sh` ile manuel yapılır.
 - **Release bütünlüğü:** release işi, cask'taki `version`/`sha256` ile yayınlanan asset'in `SHA256SUMS.txt` değerini karşılaştırır; uyuşmazsa job **fail** (mevcut `continue-on-error` yalnız cask commit'i için).
 - **Doğrulama:** YAML lint; cask/asset karşılaştırma adımının kuru çalıştırması.

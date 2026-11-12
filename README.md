@@ -175,7 +175,7 @@ optionally update itself in `/Applications`.
 ### Homebrew (recommended)
 
 ```sh
-brew tap ercanatay/tap https://github.com/ercanatay/player-identity
+brew tap ercanatay/tap
 brew install --cask ercanatay/tap/player-identity
 ```
 
