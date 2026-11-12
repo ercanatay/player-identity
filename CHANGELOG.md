@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.1] - 2026-11-12
+
+### Added
+- Persistent `errors.json` error log (last 50 entries), written atomically; diagnostics report its state as `errorLogStatus`.
+- Tap flow that no longer requires a `TAP_TOKEN`.
+
+### Changed
+- Test suite grows to 727 tests.
+
 ## [2.10.0] - 2026-11-12
 
 ### Added

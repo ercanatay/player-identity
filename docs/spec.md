@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.4 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.3 → v3.4: §52–§57 CLI, URL şeması, teşhis, erişilebilirlik, bildirim eşikleri, CI güvenlik)
+Sürüm: 3.5 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.4 → v3.5: §54 kalıcı hata kaydı, §57 tap'siz otomasyon)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1281,8 +1281,8 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - Doğrulama mevcut import kurallarıyla; geçersizler yok sayılır ve sonuç bildirilir; eklendikten sonra ana pencere açılır, "Kaydedilmedi".
 
 ## 54. Teşhis hataları (v3.4)
-- Teşhis ZIP'ine `errors.json` eklenir: son 50 uygulama hatası (zaman, alan: update/backup/metrics/watch/login, mesaj) — yalnız bellekte tutulan halka tampon; IP/ev yolu redaksiyonu aynı.
-- Hata kaydı kullanıcıya yeni uyarı üretmez; yalnız teşhis.
+- Teşhis ZIP'ine `errors.json` eklenir: son 50 uygulama hatası (zaman, alan: update/backup/metrics/watch/login, mesaj) — **diskte kalıcı** (`errors.json`, atomik, 50 kayıt); açılışta yüklenir; IP/ev yolu redaksiyonu aynı.
+- Hata kaydı kullanıcıya yeni uyarı üretmez; yalnız teşhis. Yazma hatası sessizce yutulmaz (diagnostics notu).
 
 ## 55. Erişilebilirlik ve klavye (v3.4)
 - Ana pencerede tam klavye: Tab sırası, sunucu tablosunda ↑/↓ seçim, ⌘F arama, filtreler ve + menüsü klavyeyle; VoiceOver etiketleri özel çip/anahtar/grafikler için.
@@ -1299,5 +1299,6 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - **CodeQL (Swift):** `codeql.yml`, push/PR/haftalık; `xcodegen generate` + `xcodebuild build` (manual build) ile analiz.
 - **Dependabot:** GitHub Actions sürümleri için haftalık `dependabot.yml`.
 - **Secret scanning / push protection:** repo ayarlarında etkinleştirilir (API); desteklenmiyorsa README'de not.
+- **Tap'siz otomasyon:** ana repo `brew tap ercanatay/tap https://github.com/ercanatay/player-identity` ile tap olarak kullanılabilir; cask aynı repoda güncellendiği için `TAP_TOKEN` gerekmez. Ayrı `ercanatay/homebrew-tap` yalnız geriye uyumluluk içindir.
 - **Release bütünlüğü:** release işi, cask'taki `version`/`sha256` ile yayınlanan asset'in `SHA256SUMS.txt` değerini karşılaştırır; uyuşmazsa job **fail** (mevcut `continue-on-error` yalnız cask commit'i için).
 - **Doğrulama:** YAML lint; cask/asset karşılaştırma adımının kuru çalıştırması.

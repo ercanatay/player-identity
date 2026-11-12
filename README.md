@@ -30,6 +30,11 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.10.1
+
+- **Persistent error log**: `errors.json` keeps the last 50 errors, written atomically; diagnostics show its status as `errorLogStatus`.
+- **Token-free tap**: the tap flow no longer requires a `TAP_TOKEN`.
+
 ## What's new in v2.10.0
 
 - **CLI data tools**: `playeridentityctl` gains backup, restore, servers and diagnostics commands.
@@ -677,7 +682,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **720 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **727 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests
@@ -697,7 +702,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 720 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 727 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -711,7 +716,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (720)
+PlayerIdentityTests/      Unit tests (727)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask
