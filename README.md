@@ -179,10 +179,9 @@ brew tap ercanatay/tap
 brew install --cask ercanatay/tap/player-identity
 ```
 
-The tap is this repository itself (the cask lives in `Casks/`), so the release workflow updates the cask in the same
-repo and **no `TAP_TOKEN` secret is needed**. The separate
-[`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) repository is kept for backward compatibility:
-existing `brew tap ercanatay/tap` setups keep working.
+The tap is the separate [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) repository; Homebrew
+requires the `homebrew-<name>` repository naming. The release workflow updates it automatically when the optional
+`TAP_TOKEN` secret is set; otherwise run `scripts/sync-tap.sh` after a release.
 
 This installs `PlayerIdentity.app` into `/Applications` and links the CLI to `/opt/homebrew/bin/playeridentityctl`.
 Upgrade later with:
@@ -730,11 +729,10 @@ scripts/                  release, cask, CLI smoke, spec sync, icon tooling
 
 - Every `vX.Y.Z` tag builds and publishes a **signed, notarized** ZIP plus `SHA256SUMS.txt`.
 - Release history is kept in [`CHANGELOG.md`](CHANGELOG.md) (Keep a Changelog format).
-- The cask is updated automatically by the release workflow in this repository, which is the tap
-  (`brew tap ercanatay/tap https://github.com/ercanatay/player-identity`); no `TAP_TOKEN` is required.
-- Legacy tap: [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) is kept for backward
-  compatibility. Its sync step in the release workflow runs only when the optional `TAP_TOKEN` secret is set;
-  otherwise run `scripts/sync-tap.sh` manually (uses your local `gh` login; `--dry-run` shows the diff first).
+- The cask lives in this repository (`Casks/`) and the release workflow keeps it current.
+- The Homebrew tap is the separate [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) repository.
+  Its sync step runs when the optional `TAP_TOKEN` secret is set; otherwise run `scripts/sync-tap.sh` manually
+  (uses your local `gh` login; `--dry-run` shows the diff first).
 - Version history inside the app can install older stable releases with the same verification and a data backup.
 
 ---
