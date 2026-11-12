@@ -25,7 +25,7 @@ final class UIEvidenceTests: XCTestCase {
         let content = ShareCardContent(serverName: "Demo RPG | An intentionally very long demo server name 2026",
                                        hostPort: "play.example.com:27015", cid: "d9de0eb4419608a8423241430581e91c",
                                        playerName: "TestPlayer", dateText: "09.11.2026 13:45",
-                                       labels: ShareCardLabels(title: "Player Identity", server: "Server", cid: "CID",
+                                       labels: ShareCardLabels(title: "Cybokron Player Identity", server: "Server", cid: "CID",
                                                                player: "Player", date: "Date"),
                                        icon: icon)
         let png = try XCTUnwrap(ShareCardRenderer.png(content))

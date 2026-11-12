@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/screenshots/app-icon.png" width="140" alt="Player Identity app icon">
+  <img src="docs/screenshots/app-icon.png" width="140" alt="Cybokron Player Identity app icon">
 </p>
 
-<h1 align="center">Player Identity</h1>
+<h1 align="center">Cybokron Player Identity</h1>
 
 <p align="center">
   Xash3D FWGS / GoldSrc player identity, per-server CID and ban checks on macOS.
@@ -775,7 +775,7 @@ scripts/                  release, cask, CLI smoke, spec sync, icon tooling
 
 - [`docs/design/ui-brief.md`](docs/design/ui-brief.md): UI brief for the redesign.
 - [`docs/design/claude-design-prompt.md`](docs/design/claude-design-prompt.md): prompt used with Claude Design.
-- [`docs/design/handoff/`](docs/design/handoff/): handoff bundle: `tokens.css`, `MainWindow.dc.html`, `SettingsWindow.dc.html`, `icons.js`, and `Player Identity Canvas.dc.html` (canvas notes).
+- [`docs/design/handoff/`](docs/design/handoff/): handoff bundle: `tokens.css`, `MainWindow.dc.html`, `SettingsWindow.dc.html`, `icons.js`, and `Cybokron Player Identity Canvas.dc.html` (canvas notes).
 - **Deviations from the handoff:** the light theme uses teal tones adjusted for contrast; the Fix action opens an inline popover instead of a separate sheet.
 
 ## Design spec

@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="screenshots/app-icon.png" alt="Player Identity app icon" width="96">
+  <img src="screenshots/app-icon.png" alt="Cybokron Player Identity app icon" width="96">
 </p>
 
-# Player Identity — Feature Reference
-A complete, behaviour-level description of **Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
+# Cybokron Player Identity — Feature Reference
+A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
 > **Documentation version:** written for app **v2.10.2** (730 automated tests), against behaviour specification **v3.6** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
@@ -597,7 +597,7 @@ Three App Intents are exposed to Shortcuts and Siri, with Turkish and English ph
 | **Show My CID** | `Server` | Returns `CID for <server>: <32-hex>` |
 | **Refresh** | none | Refreshes and returns the overall status |
 
-Example phrases: "Check server ban with Player Identity", "Show my CID with Player Identity", "Refresh Player Identity". Errors are explicit: no saved record, no servers, server not found, more than one match (choose the server), identity file missing, address could not be resolved. Launch the app once so macOS indexes the shortcuts.
+Example phrases: "Check server ban with Cybokron Player Identity", "Show my CID with Cybokron Player Identity", "Refresh Cybokron Player Identity". Errors are explicit: no saved record, no servers, server not found, more than one match (choose the server), identity file missing, address could not be resolved. Launch the app once so macOS indexes the shortcuts.
 
 ## Data and privacy
 ### Files

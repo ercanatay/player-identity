@@ -10,7 +10,7 @@ final class ShareCardTests: XCTestCase {
     private func content(name: String = "POLIGON RPG", player: String = "Oyuncu") -> ShareCardContent {
         ShareCardContent(serverName: name, hostPort: "192.0.2.10:27015", cid: Self.cid, playerName: player,
                          dateText: "09.11.2026 13:45",
-                         labels: ShareCardLabels(title: "Oyuncu Kimlik Kartı", server: "Sunucu", cid: "CID",
+                         labels: ShareCardLabels(title: "Cybokron Oyuncu Kimlik Kartı", server: "Sunucu", cid: "CID",
                                                  player: "Oyuncu", date: "Tarih"),
                          icon: Self.icon())
     }

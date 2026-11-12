@@ -223,7 +223,7 @@ final class CLIUpdateTests: XCTestCase {
     func testInstallTextOutput() async throws {
         let result = await run(["update", "--install", "--yes"], try context())
         XCTAssertEqual(result.exitCode, 0, result.stderr)
-        XCTAssertTrue(result.stdout.hasPrefix("installed Player Identity 2.10.0 (was 2.9.2): \(appPath)\n"), result.stdout)
+        XCTAssertTrue(result.stdout.hasPrefix("installed Cybokron Player Identity 2.10.0 (was 2.9.2): \(appPath)\n"), result.stdout)
         XCTAssertTrue(result.stdout.contains("relaunch required"))
     }
 
@@ -242,7 +242,7 @@ final class CLIUpdateTests: XCTestCase {
         let no = await run(["update", "--install"], try context(prompt: declined.prompt, downloader: downloader))
         XCTAssertEqual(no.exitCode, 1)
         XCTAssertTrue(no.stderr.contains("not confirmed"), no.stderr)
-        XCTAssertEqual(declined.questions, ["Install Player Identity 2.10.0 over 2.9.2 at \(appPath)? [y/N] "])
+        XCTAssertEqual(declined.questions, ["Install Cybokron Player Identity 2.10.0 over 2.9.2 at \(appPath)? [y/N] "])
         XCTAssertEqual(downloader.requestedURLs, [])
         XCTAssertEqual(runner.commands, [])
         assertOldAppInPlace()

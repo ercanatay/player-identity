@@ -57,12 +57,12 @@ final class LocalizationTests: XCTestCase {
     }
 
     func testAppNameIsLocalized() throws {
-        XCTAssertEqual(try table("InfoPlist", "tr")["CFBundleDisplayName"], "Oyuncu Kimlik Kartı")
-        XCTAssertEqual(try table("InfoPlist", "en")["CFBundleDisplayName"], "Player Identity")
-        XCTAssertEqual(try table("InfoPlist", "tr")["CFBundleName"], "Oyuncu Kimlik Kartı")
-        XCTAssertEqual(try table("InfoPlist", "en")["CFBundleName"], "Player Identity")
-        try inTurkish { XCTAssertEqual(L10n.text(.appWindowTitle), "Oyuncu Kimlik Kartı") }
-        try inEnglish { XCTAssertEqual(L10n.text(.appWindowTitle), "Player Identity") }
+        XCTAssertEqual(try table("InfoPlist", "tr")["CFBundleDisplayName"], "Cybokron Oyuncu Kimlik Kartı")
+        XCTAssertEqual(try table("InfoPlist", "en")["CFBundleDisplayName"], "Cybokron Player Identity")
+        XCTAssertEqual(try table("InfoPlist", "tr")["CFBundleName"], "Cybokron Oyuncu Kimlik Kartı")
+        XCTAssertEqual(try table("InfoPlist", "en")["CFBundleName"], "Cybokron Player Identity")
+        try inTurkish { XCTAssertEqual(L10n.text(.appWindowTitle), "Cybokron Oyuncu Kimlik Kartı") }
+        try inEnglish { XCTAssertEqual(L10n.text(.appWindowTitle), "Cybokron Player Identity") }
     }
 
     // MARK: Turkish regression (§18.4, §18.7/2)

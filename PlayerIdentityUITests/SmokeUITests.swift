@@ -36,7 +36,7 @@ final class SmokeUITests: XCTestCase {
 
         // App menu: by title (TR/EN), fallback to the item after the Apple menu.
         let menuBar = app.menuBars.firstMatch
-        let titledMenu = ["Oyuncu Kimlik Kartı", "Player Identity"]
+        let titledMenu = ["Cybokron Oyuncu Kimlik Kartı", "Cybokron Player Identity"]
             .map { menuBar.menuBarItems[$0] }
             .first { $0.exists }
         let appMenu = titledMenu ?? menuBar.menuBarItems.element(boundBy: 1)

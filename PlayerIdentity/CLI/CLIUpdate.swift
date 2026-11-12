@@ -174,7 +174,7 @@ extension CLIRunner {
         case .failure(.notFound):
             return failure("appNotFound", "no app bundle at \(url.path)", command: "update", json: json, code: CLIExit.usage)
         case .failure(.notPlayerIdentity(let found)):
-            return failure("appMismatch", "\(url.path) is not Player Identity (bundle identifier \(found ?? "none"))",
+            return failure("appMismatch", "\(url.path) is not Cybokron Player Identity (bundle identifier \(found ?? "none"))",
                            command: "update", json: json, code: CLIExit.usage)
         case .failure(.noVersion):
             return failure("appVersionMissing", "\(url.path) has no readable version", command: "update", json: json,
@@ -202,11 +202,11 @@ extension CLIRunner {
                 return CLIResult(exitCode: CLIExit.noUpdate, stdout: CLIJSON.string(object), stderr: "")
             }
             return CLIResult(exitCode: CLIExit.noUpdate,
-                             stdout: "Player Identity \(app.version) is up to date (latest \(latest ?? "-")); nothing installed\n",
+                             stdout: "Cybokron Player Identity \(app.version) is up to date (latest \(latest ?? "-")); nothing installed\n",
                              stderr: "")
         }
         if !options.yes {
-            let question = "Install Player Identity \(release.versionString) over \(app.version) at \(app.url.path)? [y/N] "
+            let question = "Install Cybokron Player Identity \(release.versionString) over \(app.version) at \(app.url.path)? [y/N] "
             guard context.prompt.ask(question) else {
                 return failure("declined", "not confirmed; nothing installed", command: "update", json: json,
                                code: CLIExit.usage)
@@ -236,7 +236,7 @@ extension CLIRunner {
             ])
         }
         let lines = [
-            "installed Player Identity \(result.version) (was \(app.version)): \(result.installed.path)",
+            "installed Cybokron Player Identity \(result.version) (was \(app.version)): \(result.installed.path)",
             "previous version: \(result.backup.path)",
             "relaunch required: quit and reopen the app to use \(result.version)",
         ]

@@ -1,5 +1,5 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
-# Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
+# Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
 Sürüm: 3.6 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.5 → v3.6: §54 hata dosyası açılışta oluşturulur)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
@@ -704,7 +704,7 @@ TR değerleri, §10/§13.5/§14.3/§17'deki metinlerle **birebir aynı** olacak.
 | Erişilemiyor | Unreachable |
 
 ### 18.6 Uygulama adı
-- tr: **Oyuncu Kimlik Kartı** · en: **Player Identity**
+- tr: **Cybokron Oyuncu Kimlik Kartı** · en: **Cybokron Player Identity**
 - `InfoPlist.strings` ile `CFBundleDisplayName` yerelleştirilir.
 
 ### 18.7 Testler

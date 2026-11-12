@@ -74,7 +74,7 @@ extension CLIRunner {
                            command: "restore", json: json, code: CLIExit.usage)
         }
         if !yes {
-            var question = "Restore the backup of \(iso(preview.createdAt)) (Player Identity \(preview.appVersion), "
+            var question = "Restore the backup of \(iso(preview.createdAt)) (Cybokron Player Identity \(preview.appVersion), "
                 + "\(preview.counts.servers) servers, \(preview.counts.historyEntries) history entries, "
                 + "\(preview.counts.metricSamples) metric samples) over the current data?"
             if !preview.missingFiles.isEmpty {
@@ -118,7 +118,7 @@ extension CLIRunner {
             "previous data: \(safety.url?.path ?? "none (there was no data to back up)")",
         ]
         if let kept { lines.append("files the pre-restore backup could not include: \(kept.path)") }
-        lines.append("reopen Player Identity if it is running")
+        lines.append("reopen Cybokron Player Identity if it is running")
         return CLIResult(exitCode: CLIExit.ok, stdout: lines.joined(separator: "\n") + "\n", stderr: "")
     }
 
@@ -187,7 +187,7 @@ extension CLIRunner {
         }
         return CLIResult(exitCode: CLIExit.ok,
                          stdout: "added \(snapshot.servers.count)  \(entry.label)  \(address(entry))\n"
-                             + "reopen Player Identity if it is running\n",
+                             + "reopen Cybokron Player Identity if it is running\n",
                          stderr: "")
     }
 
@@ -248,7 +248,7 @@ extension CLIRunner {
         return CLIResult(exitCode: CLIExit.ok,
                          stdout: "removed \(index + 1)  \(entry.label)  \(address(entry))\n"
                              + "previous record: \(backup?.path ?? "-")\n"
-                             + "reopen Player Identity if it is running\n",
+                             + "reopen Cybokron Player Identity if it is running\n",
                          stderr: "")
     }
 
@@ -336,7 +336,7 @@ extension CLIRunner {
         case .loaded(let snapshot):
             return .success(snapshot)
         case .missing:
-            return .failure(CLIResultFailure(failure("snapshotMissing", "no saved record at \(url.path); open Player Identity and save first",
+            return .failure(CLIResultFailure(failure("snapshotMissing", "no saved record at \(url.path); open Cybokron Player Identity and save first",
                                                      command: command, json: json, code: CLIExit.notFound)))
         case .corrupt:
             return .failure(CLIResultFailure(failure("snapshotCorrupt", "the saved record cannot be read: \(url.path)",

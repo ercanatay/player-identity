@@ -178,7 +178,7 @@ final class SettingsRedesignTests: XCTestCase {
             XCTAssertTrue(downloading.body.contains(" of "), downloading.body)
             XCTAssertEqual(downloading.actions, [.cancel])
 
-            XCTAssertEqual(card(.upToDate).title, "Player Identity is up to date")
+            XCTAssertEqual(card(.upToDate).title, "Cybokron Player Identity is up to date")
             XCTAssertEqual(card(.upToDate).body, "Version 2.4.1 is the latest release.")
             XCTAssertEqual(card(.idle, lastCheck: Date()).tone, .green)
             XCTAssertEqual(card(.idle).title, "Not checked yet")

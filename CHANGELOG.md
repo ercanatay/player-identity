@@ -12,6 +12,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - **Live screenshots** in `docs/screenshots/` (main window light/dark, history, metrics, ban matrix, settings, backup & restore, updates, per-server notifications) plus a 1024 pt app icon.
 
 ### Changed
+- The app's visible name is now **Cybokron Player Identity** (Turkish: **Cybokron Oyuncu Kimlik Kartı**): Dock, menu bar, window title, Finder, the CLI messages and the Homebrew cask name. The bundle identifier (`tr.ercanatay.playeridentity`), the `PlayerIdentity.app` file name, the data folder and the repository stay the same, so updates, settings and the Homebrew cask keep working.
 - README now leads with the app icon and a screenshot gallery, and links to the feature reference.
 
 ## [2.10.2] - 2026-11-12

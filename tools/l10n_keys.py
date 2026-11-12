@@ -14,7 +14,7 @@ import os
 
 KEYS = [
     # App, menus, common actions
-    ("appWindowTitle", "app.windowTitle", "Oyuncu Kimlik Kartı", "Player Identity"),
+    ("appWindowTitle", "app.windowTitle", "Cybokron Oyuncu Kimlik Kartı", "Cybokron Player Identity"),
     ("actionRefresh", "action.refresh", "Yenile", "Refresh"),
     ("actionSave", "action.save", "Kaydet", "Save"),
     ("actionApply", "action.apply", "Uygula", "Apply"),
@@ -744,7 +744,7 @@ KEYS = [
     ("updatesDownloadAndInstall", "updates.downloadAndInstall", "İndir ve Kur…", "Download & Install…"),
     ("updatesDownloadingTitle", "updates.downloading.title", "%@ indiriliyor…", "Downloading %@…"),
     ("updatesDownloadedOf", "updates.downloadedOf", "%@ / %@ indirildi", "%@ of %@"),
-    ("updatesUpToDateTitle", "updates.upToDate.title", "Oyuncu Kimlik Kartı güncel", "Player Identity is up to date"),
+    ("updatesUpToDateTitle", "updates.upToDate.title", "Cybokron Oyuncu Kimlik Kartı güncel", "Cybokron Player Identity is up to date"),
     ("updatesUpToDateBody", "updates.upToDate.body", "%@ en son sürüm.", "Version %@ is the latest release."),
     ("updatesCheckFailedTitle", "updates.checkFailed.title", "Güncellemeler denetlenemedi", "Couldn't check for updates"),
     ("updatesInstallFailedTitle", "updates.installFailed.title", "Güncelleme kurulamadı", "The update couldn't be installed"),
@@ -898,8 +898,8 @@ KEYS = [
 ]
 
 INFOPLIST = {
-    "tr": {"CFBundleDisplayName": "Oyuncu Kimlik Kartı", "CFBundleName": "Oyuncu Kimlik Kartı"},
-    "en": {"CFBundleDisplayName": "Player Identity", "CFBundleName": "Player Identity"},
+    "tr": {"CFBundleDisplayName": "Cybokron Oyuncu Kimlik Kartı", "CFBundleName": "Cybokron Oyuncu Kimlik Kartı"},
+    "en": {"CFBundleDisplayName": "Cybokron Player Identity", "CFBundleName": "Cybokron Player Identity"},
 }
 
 

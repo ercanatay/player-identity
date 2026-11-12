@@ -249,7 +249,7 @@ final class InterfaceV2Tests: XCTestCase {
             XCTAssertEqual(content.hostPort, "51.68.190.91:27015")
             XCTAssertEqual(content.playerName, "N")
             XCTAssertEqual(content.labels.server, "Sunucu")
-            XCTAssertEqual(content.labels.title, "Oyuncu Kimlik Kartı")
+            XCTAssertEqual(content.labels.title, "Cybokron Oyuncu Kimlik Kartı")
             XCTAssertFalse(content.dateText.isEmpty)
         }
         let v6 = try XCTUnwrap(model.shareCardContent(for: try XCTUnwrap(model.servers.last?.id), icon: nil))
