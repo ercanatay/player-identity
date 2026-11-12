@@ -574,6 +574,7 @@ KEYS = [
     ("importSettingsInvalid", "import.settingsInvalid", "Geçersiz ayar (uygulanmadı): %@", "Invalid settings (not applied): %@"),
     ("importDataRootChanged", "import.dataRootChanged", "Veri kökü değişti: %@", "Data root changed: %@"),
     ("importDataRootRejected", "import.dataRootRejected", "Veri kökü uygulanmadı (klasör yok veya geçersiz): %@", "Data root not applied (missing or invalid folder): %@"),
+    ("importDataRootInvalidPreview", "import.dataRootInvalidPreview", "Veri kökü var olan bir klasör değil; uygulanmayacak", "Data root is not an existing folder; it will not be applied"),
     ("importLaunchAtLoginOn", "import.launchAtLogin.on", "Açılışta başlat açıldı", "Launch at login turned on"),
     ("importLaunchAtLoginOff", "import.launchAtLogin.off", "Açılışta başlat kapatıldı", "Launch at login turned off"),
     ("importErrorBusy", "import.error.busy", "Bir veri işlemi (geri yükleme, silme veya güncelleme) sürerken içe aktarılamaz; bittiğinde yeniden deneyin.", "Can't import while a data operation (restore, erase or update) is running; try again when it is done."),

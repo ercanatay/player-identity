@@ -489,6 +489,7 @@
 "import.settingsInvalid" = "Invalid settings (not applied): %@";
 "import.dataRootChanged" = "Data root changed: %@";
 "import.dataRootRejected" = "Data root not applied (missing or invalid folder): %@";
+"import.dataRootInvalidPreview" = "Data root is not an existing folder; it will not be applied";
 "import.launchAtLogin.on" = "Launch at login turned on";
 "import.launchAtLogin.off" = "Launch at login turned off";
 "import.error.busy" = "Can't import while a data operation (restore, erase or update) is running; try again when it is done.";

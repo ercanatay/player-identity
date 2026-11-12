@@ -1698,7 +1698,7 @@ final class AppModel {
         if includeDataRoot, let value = settings.dataRoot {
             if let folder = Self.importableDataRoot(value) {
                 report.applied += 1
-                if folder.path != dataRoot.standardizedFileURL.path {
+                if !ArchivedSettings.samePath(folder.path, dataRoot.path) {
                     dataRoot = folder
                     deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
                     report.dataRootChanged = folder.path

@@ -491,6 +491,7 @@ enum L10nKey: String, CaseIterable, Sendable {
     case importSettingsInvalid = "import.settingsInvalid"
     case importDataRootChanged = "import.dataRootChanged"
     case importDataRootRejected = "import.dataRootRejected"
+    case importDataRootInvalidPreview = "import.dataRootInvalidPreview"
     case importLaunchAtLoginOn = "import.launchAtLogin.on"
     case importLaunchAtLoginOff = "import.launchAtLogin.off"
     case importErrorBusy = "import.error.busy"

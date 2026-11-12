@@ -346,6 +346,7 @@ extension UpdateInstallerTests {
             CommandOutput(status: 3, output: "/x/PlayerIdentity.app: rejected\nsource=Unnotarized Developer ID"),
             CommandOutput(status: 0, output: "/x/PlayerIdentity.app: rejected"),   // exit 0 alone is not enough
             CommandOutput(status: 0, output: ""),
+            CommandOutput(status: 0, output: "/x/PlayerIdentity.app: accepted"),   // no notarized source
         ]
         for result in rejections {
             let runner = FakeUpdateRunner()
@@ -364,6 +365,12 @@ extension UpdateInstallerTests {
         XCTAssertTrue(UpdateInstaller.gatekeeperAccepted(CommandOutput(
             status: 0, output: "/Applications/PlayerIdentity.app: accepted\nsource=Notarized Developer ID\n")))
         XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(status: 3, output: "/a.app: accepted")))
+        // §49.8: "accepted" alone is not enough; the notarized Developer ID source is required.
+        XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(status: 0, output: "/a.app: accepted\n")))
+        XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(
+            status: 0, output: "/a.app: accepted\nsource=Developer ID\n")))
+        XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(
+            status: 0, output: "/a.app: rejected\nsource=Notarized Developer ID\n")))
         XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(
             status: 0, output: "/bin/ls: rejected (the code is valid but does not seem to be an app)")))
         // A folder named "accepted" in the path does not count.

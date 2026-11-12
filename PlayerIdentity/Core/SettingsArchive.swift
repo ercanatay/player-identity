@@ -59,7 +59,7 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
             + differs(autoDownloadUpdates, current.autoDownloadUpdates)
             + differs(banCheckEnabled, current.banCheckEnabled) + differs(autoBackupEnabled, current.autoBackupEnabled)
             + differs(gamedir, current.gamedir)
-            + (includingDataRoot ? differs(dataRoot, current.dataRoot) : 0)
+            + (includingDataRoot ? (dataRoot.map { Self.samePath($0, current.dataRoot) ? 0 : 1 } ?? 0) : 0)
     }
 
     /// Drops invalid values (never applied) and returns how many were dropped.
@@ -75,6 +75,21 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
         }
         if let dataRoot, !Self.isPlausibleDataRoot(dataRoot) { copy.dataRoot = nil; invalid += 1 }
         return (copy, invalid)
+    }
+
+    /// Path equality that ignores symbolic links (`/var` and `/private/var` are the same folder) and `.`/trailing `/`.
+    static func samePath(_ a: String, _ b: String?) -> Bool {
+        guard let b else { return false }
+        func url(_ path: String) -> URL { URL(fileURLWithPath: path, isDirectory: true) }
+        let x = url(a), y = url(b)
+        if x.standardizedFileURL.path == y.standardizedFileURL.path { return true }
+        return x.standardizedFileURL.resolvingSymlinksInPath().path == y.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    /// An existing folder (follows symbolic links).
+    static func isExistingFolder(_ path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
     }
 
     /// Shape check of an imported data root (no file system access): an absolute path without NUL and without a
@@ -296,16 +311,21 @@ struct SettingsImportPreview: Sendable, Equatable {
     var conflictCount: Int
     var invalidCount: Int
     var hasServers: Bool
+    /// §49.8: the data root to be imported is not an existing folder (also counted in `invalidCount`).
+    var dataRootInvalid = false
 
-    static func make(_ parsed: ParsedSettingsArchive, existing: [ServerEntry], includeDataRoot: Bool) -> SettingsImportPreview {
+    static func make(_ parsed: ParsedSettingsArchive, existing: [ServerEntry], includeDataRoot: Bool,
+                     isFolder: (String) -> Bool = ArchivedSettings.isExistingFolder) -> SettingsImportPreview {
         let incoming = parsed.archive.servers ?? []
         let local = Set(existing.map { SettingsArchiveKey.make(host: $0.host, port: $0.port) })
         var seen = Set<String>()
         var conflicts = 0
         for row in incoming where seen.insert(row.key).inserted && local.contains(row.key) { conflicts += 1 }
+        let rootInvalid = includeDataRoot && (parsed.archive.settings.dataRoot.map { !isFolder($0) } ?? false)
         return SettingsImportPreview(settingCount: parsed.archive.settings.count(includingDataRoot: includeDataRoot),
                                      serverCount: incoming.count, conflictCount: conflicts,
-                                     invalidCount: parsed.invalidCount, hasServers: parsed.archive.servers != nil)
+                                     invalidCount: parsed.invalidCount + (rootInvalid ? 1 : 0),
+                                     hasServers: parsed.archive.servers != nil, dataRootInvalid: rootInvalid)
     }
 }
 

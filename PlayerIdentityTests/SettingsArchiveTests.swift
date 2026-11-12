@@ -509,6 +509,40 @@ extension SettingsArchiveTests {
         }
     }
 
+    func testDataRootSymlinkEquivalenceAndPreviewValidation() throws {
+        // /var and /private/var are the same folder.
+        let temp = try TempDirectory()
+        let real = try temp.makeDirectory("real").standardizedFileURL.resolvingSymlinksInPath().path
+        let link = temp.url.appendingPathComponent("link").path
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: real)
+        XCTAssertTrue(ArchivedSettings.samePath("/var", "/private/var"))
+        XCTAssertTrue(ArchivedSettings.samePath(link, real))
+        XCTAssertTrue(ArchivedSettings.samePath(real + "/./", real))
+        XCTAssertFalse(ArchivedSettings.samePath("/usr", "/private/var"))
+        XCTAssertFalse(ArchivedSettings.samePath(real, nil))
+        var incoming = ArchivedSettings(); incoming.dataRoot = "/var"
+        var current = ArchivedSettings(); current.dataRoot = "/private/var"
+        XCTAssertEqual(incoming.differences(from: current, includingDataRoot: true), 0)
+        current.dataRoot = "/usr"
+        XCTAssertEqual(incoming.differences(from: current, includingDataRoot: true), 1)
+
+        // Preview: a missing folder is invalid and counted; an existing one is not.
+        let missing = temp.url.appendingPathComponent("yok").path
+        for (root, invalid) in [(missing, true), (real, false)] {
+            var settings = ArchivedSettings(); settings.dataRoot = root
+            let preview = SettingsImportPreview.make(archive(nil, settings: settings), existing: [], includeDataRoot: true)
+            XCTAssertEqual(preview.dataRootInvalid, invalid, root)
+            XCTAssertEqual(preview.invalidCount, invalid ? 1 : 0, root)
+            let off = SettingsImportPreview.make(archive(nil, settings: settings), existing: [], includeDataRoot: false)
+            XCTAssertFalse(off.dataRootInvalid)
+        }
+        // `..` and `/` are refused when the file is read.
+        for bad in ["/", "/a/../b"] {
+            var settings = ArchivedSettings(); settings.dataRoot = bad
+            XCTAssertEqual(settings.sanitized().invalid, 1, bad)
+        }
+    }
+
     func testDataRootIsAppliedOnlyAsAnExistingFolder() throws {
         let environment = try TestAppEnvironment()
         let model = environment.makeModel()

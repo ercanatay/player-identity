@@ -565,10 +565,11 @@ struct UpdateInstaller: Sendable {
     /// `spctl -a -vv` accepted the app: exit status 0 and a `<path>: accepted` line (a rejection prints `rejected`).
     static func gatekeeperAccepted(_ output: CommandOutput) -> Bool {
         guard output.status == 0 else { return false }
-        return output.output.split(whereSeparator: \.isNewline).contains { line in
-            let text = line.trimmingCharacters(in: .whitespaces)
-            return text == "accepted" || text.hasSuffix(": accepted")
-        }
+        let lines = output.output.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        let accepted = lines.contains { $0 == "accepted" || $0.hasSuffix(": accepted") }
+        // §49.8: the release is notarized, so the assessment must name the notarized Developer ID source too.
+        let notarized = lines.contains { $0.contains("Notarized Developer ID") }
+        return accepted && notarized
     }
 
     /// Current app → backup, staged app → current location; on failure the backup is moved back.

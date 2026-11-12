@@ -390,6 +390,12 @@ struct SettingsImportSheet: View {
                 }
                 .frame(minHeight: 32)
             }
+            if stats.dataRootInvalid {
+                SettingsDivider()
+                ImportSummaryRow(symbol: "exclamationmark.triangle.fill", color: Palette.orange,
+                                 title: L10n.text(.profileDataRoot),
+                                 value: L10n.text(.importDataRootInvalidPreview))
+            }
             if stats.invalidCount > 0 {
                 SettingsDivider()
                 ImportSummaryRow(symbol: "exclamationmark.triangle.fill", color: Palette.orange,
