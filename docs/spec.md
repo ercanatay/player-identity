@@ -1300,6 +1300,6 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - **CodeQL (Swift):** `codeql.yml`, push/PR/haftalık; `xcodegen generate` + `xcodebuild build` (manual build) ile analiz.
 - **Dependabot:** GitHub Actions sürümleri için haftalık `dependabot.yml`.
 - **Secret scanning / push protection:** repo ayarlarında etkinleştirilir (API); desteklenmiyorsa README'de not.
-- **Homebrew tap:** Homebrew, tap adı ile `homebrew-<ad>` repo adının eşleşmesini zorunlu kılar; bu yüzden ana repo tap olarak kullanılamaz. `ercanatay/homebrew-tap` ayrı ve zorunludur. Release'te otomatik sync için `TAP_TOKEN` gerekir; yoksa `scripts/sync-tap.sh` ile manuel yapılır.
+- **Homebrew tap:** Homebrew, tap adı ile `homebrew-<ad>` repo adının eşleşmesini zorunlu kılar; bu yüzden ana repo tap olarak kullanılamaz. `ercanatay/homebrew-tap` ayrı ve zorunludur. Release'te otomatik sync için `TAP_DEPLOY_KEY` (deploy key, write) veya `TAP_TOKEN` gerekir; yoksa manuel script `scripts/sync-tap.sh` ile yapılır.
 - **Release bütünlüğü:** release işi, cask'taki `version`/`sha256` ile yayınlanan asset'in `SHA256SUMS.txt` değerini karşılaştırır; uyuşmazsa job **fail** (mevcut `continue-on-error` yalnız cask commit'i için).
 - **Doğrulama:** YAML lint; cask/asset karşılaştırma adımının kuru çalıştırması.

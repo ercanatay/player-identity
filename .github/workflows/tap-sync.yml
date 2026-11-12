@@ -1,0 +1,50 @@
+name: Tap sync
+
+# Manual re-sync of Casks/player-identity.rb into ercanatay/homebrew-tap (deploy key, write access).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tap-sync:
+    name: Sync Homebrew tap
+    runs-on: macos-26
+    timeout-minutes: 10
+    env:
+      TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Clone tap over SSH
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_DEPLOY_KEY:-}" ]; then
+            echo "::error::TAP_DEPLOY_KEY secret is not set"; exit 1
+          fi
+          KEY="$RUNNER_TEMP/tap_key"
+          printf '%s\n' "$TAP_DEPLOY_KEY" > "$KEY"
+          chmod 600 "$KEY"
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          TMP="$RUNNER_TEMP/tap"; rm -rf "$TMP"
+          git clone --depth 1 git@github.com:ercanatay/homebrew-tap.git "$TMP"
+          echo "GIT_SSH_COMMAND=$GIT_SSH_COMMAND" >> "$GITHUB_ENV"
+          echo "TAP_DIR=$TMP" >> "$GITHUB_ENV"
+
+      - name: Copy cask and push if changed
+        run: |
+          set -euo pipefail
+          cd "$TAP_DIR"
+          mkdir -p Casks
+          cp "$GITHUB_WORKSPACE/Casks/player-identity.rb" Casks/player-identity.rb
+          git add Casks/player-identity.rb
+          if git diff --cached --quiet; then
+            echo "tap is up to date"; exit 0
+          fi
+          VERSION="$(sed -n 's/^  version "\(.*\)"$/\1/p' Casks/player-identity.rb | head -1)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "player-identity ${VERSION:-sync}"
+          git push origin HEAD:main

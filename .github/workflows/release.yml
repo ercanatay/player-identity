@@ -16,6 +16,7 @@ jobs:
       # §26: without these secrets the release falls back to an ad-hoc build (marked "not notarized").
       HAS_SIGNING: ${{ secrets.APPLE_DEVID_CERT_P12 != '' && secrets.APPLE_DEVID_CERT_PASSWORD != '' }}
       HAS_NOTARY: ${{ secrets.APPLE_DEVID_CERT_P12 != '' && secrets.APPLE_ASC_KEY_P8 != '' && secrets.APPLE_ASC_KEY_ID != '' && secrets.APPLE_ASC_ISSUER_ID != '' }}
+      TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
       TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
     steps:
       - uses: actions/checkout@v7
@@ -143,15 +144,23 @@ jobs:
           git push origin HEAD:main
 
       # Legacy tap (ercanatay/homebrew-tap); normally not needed: this repository is the tap and the cask step above
-      # updates it, so no TAP_TOKEN is required. Kept for backward compatibility; runs only if TAP_TOKEN is set.
+      # updates it. Runs only if TAP_DEPLOY_KEY (deploy key, write access) or TAP_TOKEN is set; TAP_DEPLOY_KEY wins.
       - name: Sync Homebrew tap (optional)
-        if: env.RELEASE_STATUS == 'notarized' && env.TAP_TOKEN != ''
+        if: env.RELEASE_STATUS == 'notarized' && (env.TAP_DEPLOY_KEY != '' || env.TAP_TOKEN != '')
         continue-on-error: true
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
           TMP="$RUNNER_TEMP/tap"; rm -rf "$TMP"
-          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/ercanatay/homebrew-tap.git" "$TMP"
+          if [ -n "${TAP_DEPLOY_KEY:-}" ]; then
+            KEY="$RUNNER_TEMP/tap_key"
+            printf '%s\n' "$TAP_DEPLOY_KEY" > "$KEY"
+            chmod 600 "$KEY"
+            export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+            git clone --depth 1 git@github.com:ercanatay/homebrew-tap.git "$TMP"
+          else
+            git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/ercanatay/homebrew-tap.git" "$TMP"
+          fi
           mkdir -p "$TMP/Casks"
           cp Casks/player-identity.rb "$TMP/Casks/player-identity.rb"
           cd "$TMP"

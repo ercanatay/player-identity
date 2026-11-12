@@ -180,8 +180,9 @@ brew install --cask ercanatay/tap/player-identity
 ```
 
 The tap is the separate [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) repository; Homebrew
-requires the `homebrew-<name>` repository naming. The release workflow updates it automatically when the optional
-`TAP_TOKEN` secret is set; otherwise run `scripts/sync-tap.sh` after a release.
+requires the `homebrew-<name>` repository naming. The release workflow updates it automatically when the
+`TAP_DEPLOY_KEY` secret (deploy key with write access) is set; `TAP_TOKEN` works as an alternative. If neither is set,
+run `scripts/sync-tap.sh` after a release.
 
 This installs `PlayerIdentity.app` into `/Applications` and links the CLI to `/opt/homebrew/bin/playeridentityctl`.
 Upgrade later with:
@@ -731,8 +732,9 @@ scripts/                  release, cask, CLI smoke, spec sync, icon tooling
 - Release history is kept in [`CHANGELOG.md`](CHANGELOG.md) (Keep a Changelog format).
 - The cask lives in this repository (`Casks/`) and the release workflow keeps it current.
 - The Homebrew tap is the separate [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) repository.
-  Its sync step runs when the optional `TAP_TOKEN` secret is set; otherwise run `scripts/sync-tap.sh` manually
-  (uses your local `gh` login; `--dry-run` shows the diff first).
+  Automatic sync runs through a **deploy key** (`TAP_DEPLOY_KEY` secret, write access on the tap repo); `TAP_TOKEN`
+  is an alternative. If neither is set, run `scripts/sync-tap.sh` manually (uses your local `gh` login; `--dry-run`
+  shows the diff first). The `tap-sync` workflow re-syncs the cask on demand (`workflow_dispatch`).
 - Version history inside the app can install older stable releases with the same verification and a data backup.
 
 ---
