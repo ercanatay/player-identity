@@ -304,16 +304,18 @@ final class SettingsArchiveTests: XCTestCase {
         let before = model.dataRoot
         XCTAssertNil(model.settingsArchive(scope: .settingsOnly, includeDataRoot: false).settings.dataRoot)
         XCTAssertNotNil(model.settingsArchive(scope: .settingsOnly, includeDataRoot: true).settings.dataRoot)
+        // An imported data root is applied only as an existing folder.
+        let elsewhere = try environment.temp.makeDirectory("elsewhere").standardizedFileURL.path
         var settings = ArchivedSettings()
-        settings.dataRoot = "/tmp/elsewhere"
+        settings.dataRoot = elsewhere
         let parsed = archive(nil, settings: settings)
         XCTAssertEqual(model.importPreview(parsed, includeDataRoot: false).settingCount, 0)
         XCTAssertEqual(model.importPreview(parsed, includeDataRoot: true).settingCount, 1)
         _ = try model.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
         XCTAssertEqual(model.dataRoot, before)
         _ = try model.importSettings(parsed, mode: .merge, includeDataRoot: true).get()
-        XCTAssertEqual(model.dataRoot.path, "/tmp/elsewhere")
-        XCTAssertEqual(environment.defaults.string(forKey: DefaultsKey.dataRoot), "/tmp/elsewhere")
+        XCTAssertEqual(model.dataRoot.path, elsewhere)
+        XCTAssertEqual(environment.defaults.string(forKey: DefaultsKey.dataRoot), elsewhere)
     }
 
     // MARK: Applying values
@@ -390,5 +392,204 @@ final class SettingsArchiveTests: XCTestCase {
         XCTAssertEqual(SettingsArchiveError.notJSON.text, "Dosya geçerli bir JSON değil.")
         L10n.setting = .en
         XCTAssertEqual(SettingsArchiveError.notJSON.text, "The file is not valid JSON.")
+    }
+}
+
+// MARK: - Hardening: automatic backups in the archive, import lock, data root checks, result summary
+
+extension SettingsArchiveTests {
+    func testAutoBackupEnabledRoundtripsThroughTheArchive() throws {
+        let source = try TestAppEnvironment()
+        let from = source.makeModel()
+        from.autoBackupEnabled = false
+        let archive = from.settingsArchive(scope: .settingsOnly, includeDataRoot: false)
+        XCTAssertEqual(archive.settings.autoBackupEnabled, false)
+        XCTAssertTrue(String(decoding: try archive.encoded(), as: UTF8.self).contains("\"autoBackupEnabled\" : false"))
+        let parsed = try parse(archive)
+        XCTAssertEqual(parsed.archive.settings.autoBackupEnabled, false)
+
+        let target = try TestAppEnvironment()
+        let into = target.makeModel()
+        XCTAssertTrue(into.autoBackupEnabled)
+        XCTAssertEqual(parsed.archive.settings.differences(from: into.currentArchivedSettings(), includingDataRoot: false),
+                       parsed.archive.settings.differences(from: from.currentArchivedSettings(), includingDataRoot: false) + 1)
+        let summary = try into.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
+        XCTAssertFalse(into.autoBackupEnabled)
+        XCTAssertEqual(target.defaults.object(forKey: DefaultsKey.autoBackupEnabled) as? Bool, false)
+        // The counter matches the fields really carried (applied + skipped).
+        XCTAssertEqual(summary.settingsApplied + summary.settingsSkipped,
+                       parsed.archive.settings.count(includingDataRoot: false))
+        XCTAssertEqual(into.importPreview(parsed, includeDataRoot: false).settingCount,
+                       parsed.archive.settings.count(includingDataRoot: false))
+    }
+
+    func testOldArchiveWithoutAutoBackupKeepsTheCurrentSetting() throws {
+        var object = validObject()
+        object["appVersion"] = "2.6.0"
+        object["settings"] = ["language": "en", "banCheckEnabled": false]
+        let parsed = try SettingsArchiveParser.parse(json(object)).get()
+        XCTAssertNil(parsed.archive.settings.autoBackupEnabled)
+        XCTAssertEqual(parsed.archive.settings.count(includingDataRoot: true), 2)
+        let environment = try TestAppEnvironment()
+        let model = environment.makeModel()
+        model.autoBackupEnabled = false
+        let summary = try model.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
+        XCTAssertEqual(summary.settingsApplied, 2)
+        XCTAssertFalse(model.autoBackupEnabled, "a missing field is not applied")
+        XCTAssertFalse(model.banCheckEnabled)
+    }
+
+    func testResetMatchesTheArchivedDefaultsIncludingAutomaticBackups() throws {
+        let environment = try TestAppEnvironment()
+        let login = FakeLoginItem(.enabled)
+        let model = environment.makeModel { $0.loginItem = login }
+        model.autoBackupEnabled = false
+        model.banCheckEnabled = false
+        XCTAssertEqual(ArchivedSettings.defaults.autoBackupEnabled, true)
+        model.resetSettings()
+        XCTAssertTrue(model.autoBackupEnabled)
+        XCTAssertEqual(environment.defaults.object(forKey: DefaultsKey.autoBackupEnabled) as? Bool, true)
+        XCTAssertEqual(ArchivedSettings.defaults.differences(from: model.currentArchivedSettings(), includingDataRoot: false), 0)
+    }
+
+    func testImportIsRefusedWhileADataOperationRuns() throws {
+        let environment = try TestAppEnvironment()
+        let model = environment.makeModel()
+        model.addServer(draft("A", "a.example.com"))
+        let parsed = archive([ArchivedServer(label: "Z", host: "z.example.com", port: 1)],
+                             settings: ArchivedSettings(notifyBanChanges: false))
+        for operation: AppModel.DataOperation in [.restore, .erase] {
+            XCTAssertTrue(model.beginDataOperation(operation))
+            XCTAssertEqual(model.importSettings(parsed, mode: .replace, includeDataRoot: false), .failure(.busy))
+            XCTAssertEqual(model.servers.map(\.host), ["a.example.com"], "nothing changed")
+            XCTAssertTrue(model.notifyBanChanges)
+            model.endDataOperation()
+        }
+        // An install backup takes the same lock through the update controller.
+        model.updates.isDataOperationRunning = true
+        XCTAssertEqual(model.importSettings(parsed, mode: .merge, includeDataRoot: false), .failure(.busy))
+        model.updates.isDataOperationRunning = false
+
+        _ = try model.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
+        XCTAssertFalse(model.isDataOperationRunning, "the lock is released after the import")
+        XCTAssertFalse(model.updates.isDataOperationRunning)
+        XCTAssertEqual(Set(model.servers.map(\.host)), ["a.example.com", "z.example.com"])
+        XCTAssertFalse(model.notifyBanChanges)
+
+        // A failed Replace backup releases the lock too.
+        model.save()
+        let folder = AppPaths(home: environment.home).snapshotFile.deletingLastPathComponent()
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: folder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: folder.path) }
+        guard case .failure(.backupFailed) = model.importSettings(parsed, mode: .replace, includeDataRoot: false) else {
+            return XCTFail("expected backup failure")
+        }
+        XCTAssertFalse(model.isDataOperationRunning)
+    }
+
+    func testImportBusyTextIsLocalized() throws {
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            XCTAssertTrue(SettingsImportError.busy.text.hasPrefix("Bir veri işlemi"))
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("en"))) {
+            XCTAssertTrue(SettingsImportError.busy.text.hasPrefix("Can't import"))
+        }
+    }
+
+    func testDataRootShapeIsCheckedWhenTheFileIsRead() {
+        for bad in ["/", "//", "/..", "/a/../b", "/Users/x/..", "relative", "", "/a\0b"] {
+            XCTAssertFalse(ArchivedSettings.isPlausibleDataRoot(bad), bad)
+            var settings = ArchivedSettings()
+            settings.dataRoot = bad
+            XCTAssertEqual(settings.sanitized().invalid, 1, bad)
+            XCTAssertNil(settings.sanitized().settings.dataRoot, bad)
+        }
+        for good in ["/Users/x/Library/Application Support", "/Volumes/Games/Xash3D", "/a/./b", "/a..b/c"] {
+            XCTAssertTrue(ArchivedSettings.isPlausibleDataRoot(good), good)
+        }
+    }
+
+    func testDataRootIsAppliedOnlyAsAnExistingFolder() throws {
+        let environment = try TestAppEnvironment()
+        let model = environment.makeModel()
+        let before = model.dataRoot
+        let file = try environment.temp.write("not-a-folder", "x").path
+        let missing = environment.temp.url.appendingPathComponent("missing", isDirectory: true).path
+        for rejected in [file, missing] {
+            var settings = ArchivedSettings(banCheckEnabled: false)
+            settings.dataRoot = rejected
+            let summary = try model.importSettings(archive(nil, settings: settings), mode: .merge, includeDataRoot: true).get()
+            XCTAssertEqual(model.dataRoot, before, rejected)
+            XCTAssertEqual(summary.dataRootRejected, rejected)
+            XCTAssertNil(summary.dataRootChanged)
+            XCTAssertEqual(summary.settingsApplied, 1)
+            XCTAssertEqual(summary.settingsSkipped, 1)
+        }
+        let folder = try environment.temp.makeDirectory("Games/Xash").standardizedFileURL.path
+        var settings = ArchivedSettings()
+        settings.dataRoot = folder + "/./"
+        let summary = try model.importSettings(archive(nil, settings: settings), mode: .merge, includeDataRoot: true).get()
+        XCTAssertEqual(model.dataRoot.path, folder)
+        XCTAssertEqual(summary.dataRootChanged, folder)
+        XCTAssertNil(summary.dataRootRejected)
+        // The same root again is applied but is no change.
+        let again = try model.importSettings(archive(nil, settings: settings), mode: .merge, includeDataRoot: true).get()
+        XCTAssertNil(again.dataRootChanged)
+        XCTAssertEqual(again.settingsApplied, 1)
+    }
+
+    func testSummaryNamesLaunchAtLoginInvalidAndSkippedSettings() throws {
+        let environment = try TestAppEnvironment()
+        let login = FakeLoginItem(.notRegistered)
+        let model = environment.makeModel { $0.loginItem = login }
+        var parsed = archive(nil, settings: ArchivedSettings(notifyMapChanges: false, launchAtLogin: true))
+        parsed.invalidSettings = 2
+        var summary = try model.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
+        XCTAssertEqual(summary.launchAtLoginChanged, true)
+        XCTAssertEqual([summary.settingsApplied, summary.settingsSkipped, summary.invalidSettings], [2, 0, 2])
+        XCTAssertEqual(login.log.last, "register")
+
+        // Same value again: applied, no side effect.
+        summary = try model.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
+        XCTAssertNil(summary.launchAtLoginChanged)
+        XCTAssertEqual(summary.settingsApplied, 2)
+
+        summary = try model.importSettings(archive(nil, settings: ArchivedSettings(launchAtLogin: false)),
+                                           mode: .merge, includeDataRoot: false).get()
+        XCTAssertEqual(summary.launchAtLoginChanged, false)
+
+        // Refused by the system: skipped, not reported as changed.
+        login.fails = true
+        summary = try model.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
+        XCTAssertNil(summary.launchAtLoginChanged)
+        XCTAssertEqual([summary.settingsApplied, summary.settingsSkipped], [1, 1])
+
+        // No login item support: skipped.
+        let plain = try TestAppEnvironment().makeModel()
+        summary = try plain.importSettings(parsed, mode: .merge, includeDataRoot: false).get()
+        XCTAssertEqual([summary.settingsApplied, summary.settingsSkipped], [1, 1])
+    }
+
+    func testResultLinesInBothLanguages() throws {
+        let result = SettingsImportSummary(added: 1, updated: 0, skipped: 0, settingsApplied: 12, backupFile: nil,
+                                           settingsSkipped: 1, invalidSettings: 2, dataRootChanged: "/Volumes/G/Xash",
+                                           dataRootRejected: nil, launchAtLoginChanged: true)
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            XCTAssertEqual(SettingsImportSheet.settingsLines(result),
+                           ["Uygulanan ayar: 12", "Atlanan ayar: 1", "Geçersiz ayar (uygulanmadı): 2",
+                            "Veri kökü değişti: /Volumes/G/Xash", "Açılışta başlat açıldı"])
+            var off = SettingsImportSummary(settingsApplied: 3)
+            off.launchAtLoginChanged = false
+            off.dataRootRejected = "/nope"
+            XCTAssertEqual(SettingsImportSheet.settingsLines(off),
+                           ["Uygulanan ayar: 3", "Veri kökü uygulanmadı (klasör yok veya geçersiz): /nope",
+                            "Açılışta başlat kapatıldı"])
+            XCTAssertEqual(SettingsImportSheet.settingsLines(SettingsImportSummary(settingsApplied: 4)), ["Uygulanan ayar: 4"])
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("en"))) {
+            XCTAssertEqual(SettingsImportSheet.settingsLines(result),
+                           ["Settings applied: 12", "Settings skipped: 1", "Invalid settings (not applied): 2",
+                            "Data root changed: /Volumes/G/Xash", "Launch at login turned on"])
+        }
     }
 }

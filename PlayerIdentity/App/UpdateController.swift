@@ -256,42 +256,55 @@ final class UpdateController {
         pendingInstall = nil
     }
 
+    /// Why "Install" / "Revert" in the confirmation sheet cannot run now (`nil` = it can). The sheet shows it and
+    /// disables the button, so a refused confirmation never looks like a frozen sheet.
+    var installBlockedReason: String? {
+        if isDataOperationRunning { return L10n.text(.updateConfirmBlockedData) }
+        if status.isBusy { return L10n.text(.updateConfirmBlockedBusy) }
+        return nil
+    }
+
     /// Confirmed: back up the data (downgrade, if chosen), then download, verify, replace and relaunch.
+    ///
+    /// While a data operation or another update task runs nothing starts: the request (and the sheet) stays open and
+    /// `installBlockedReason` says why, so the user can wait and press the button again or cancel.
     @discardableResult
     func confirmInstall() -> Task<Void, Never>? {
-        guard let request = pendingInstall, !status.isBusy, !isDataOperationRunning else { return nil }
+        guard let request = pendingInstall, installBlockedReason == nil else { return nil }
         pendingInstall = nil
         // `backingUp` counts as updating: restores, erases and a second install are refused until it is done.
         status = .backingUp
         activeRelease = request.release
         let installer = self.installer
         let ready = prepared?.release == request.release ? prepared : nil
+        // A download prepared for another release is not used: its files are removed before anything else.
+        let stale = prepared?.release == request.release ? nil : prepared
         prepared = nil
         let fullBackups = FullBackupStore(paths: deps.paths, appVersion: appVersion)
         let dataBackups = request.change == .downgrade && request.backupData ? backupStore : nil
+        // UserDefaults is read here (main actor); the files are written off the main thread.
+        let dataDefaults = dataBackups.map { store in
+            Result { try DataBackupStore.defaultsPlist(deps.defaults, domain: store.defaultsDomain) }
+        }
         let from = appVersion
         let to = request.release.versionString
         let now = deps.now()
-        let defaults = deps.defaults
         let task = Task {
-            // §49.3: full data backup (`backups/pre-update-…zip`) before every install, off the main thread; then
-            // (downgrade, if chosen) the small data backup with the preferences export. A failure stops the install.
-            var failure = await Task.detached { () -> (any Error)? in
+            // §49.3: full data backup (`backups/pre-update-…zip`) before every install, then (downgrade, if chosen)
+            // the small data backup with the preferences export, both off the main thread. A failure stops the install.
+            let failure = await Task.detached { () -> (any Error)? in
+                if let stale { installer.discard(stale) }
                 do {
                     try fullBackups.create(.preUpdate, now: now)
+                    if let dataBackups, let dataDefaults {
+                        try dataBackups.create(from: from, to: to, now: now, defaultsPlist: dataDefaults.get())
+                    }
                     return nil
                 } catch {
                     return error
                 }
             }.value
-            if failure == nil, let dataBackups {
-                do {
-                    try dataBackups.create(from: from, to: to, now: now, defaults: defaults)
-                } catch {
-                    failure = error
-                }
-                dataBackupCount = backupStore.list().count
-            }
+            if dataBackups != nil { dataBackupCount = backupStore.list().count }
             if let failure {
                 if prepared == nil { prepared = ready }   // a prepared download stays ready for the next attempt
                 status = .backupFailed(Self.errorText(failure))
@@ -338,7 +351,11 @@ final class UpdateController {
         guard installTask == nil, prepared?.release != release else { return }
         activeRelease = release
         let installer = self.installer
+        // A download prepared for an older release is removed first (the files may share names, e.g. SHA256SUMS.txt).
+        let stale = prepared
+        prepared = nil
         installTask = Task {
+            if let stale { await Task.detached { installer.discard(stale) }.value }
             do {
                 let ready = try await installer.prepare(release) { phase in await self.setPhase(phase) }
                 prepared = ready

@@ -497,13 +497,18 @@ struct UpdateInstaller: Sendable {
     /// Replace + quarantine removal + relaunch (§27.1/5–6). Not cancellable: it completes or rolls back.
     func finish(_ prepared: Prepared,
                 progress: @escaping @Sendable (InstallPhase) async -> Void = { _ in }) async throws -> Result {
-        guard fileManager.exists(prepared.staged) else { throw UpdateError.appMissing }
+        // Every failure before the replacement removes the downloaded and staged files (nothing is left behind in
+        // `updates/downloads` or `updates/staging`).
+        guard fileManager.exists(prepared.staged) else {
+            discard(prepared)
+            throw UpdateError.appMissing
+        }
         await progress(.installing)
         let backup = paths.updateAppBackups.appendingPathComponent("PlayerIdentity-\(currentVersion).app", isDirectory: true)
         do {
             try fileManager.createDirectory(paths.updateAppBackups)
             try await replace(staged: prepared.staged, backup: backup)
-        } catch let error as UpdateError {
+        } catch {
             discard(prepared)
             throw error
         }

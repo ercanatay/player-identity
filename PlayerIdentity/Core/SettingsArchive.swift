@@ -23,6 +23,8 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
     var autoCheckUpdates: Bool?
     var autoDownloadUpdates: Bool?
     var banCheckEnabled: Bool?
+    /// §49.3 "Automatic backups" (added in 2.9.2; older files simply do not carry it).
+    var autoBackupEnabled: Bool?
     var gamedir: String?
     /// Only present when the user asked for it (§46.1).
     var dataRoot: String?
@@ -31,7 +33,7 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
     func count(includingDataRoot: Bool) -> Int {
         let values: [Any?] = [language, notificationsEnabled, notifyBanChanges, notifyOnlineChanges, notifyMapChanges,
                               quietHoursEnabled, quietHoursStart, quietHoursEnd, showInMenuBar, launchAtLogin,
-                              autoCheckUpdates, autoDownloadUpdates, banCheckEnabled, gamedir,
+                              autoCheckUpdates, autoDownloadUpdates, banCheckEnabled, autoBackupEnabled, gamedir,
                               includingDataRoot ? dataRoot : nil]
         return values.compactMap { $0 }.count
     }
@@ -43,7 +45,7 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
         notifyOnlineChanges: true, notifyMapChanges: true, quietHoursEnabled: false,
         quietHoursStart: QuietHours.defaultStart, quietHoursEnd: QuietHours.defaultEnd, showInMenuBar: false,
         launchAtLogin: false, autoCheckUpdates: UpdatePreferences().autoCheck,
-        autoDownloadUpdates: UpdatePreferences().autoDownload, banCheckEnabled: true)
+        autoDownloadUpdates: UpdatePreferences().autoDownload, banCheckEnabled: true, autoBackupEnabled: true)
 
     /// How many carried values differ from `current` (import preview: "14 values · 3 differ").
     func differences(from current: ArchivedSettings, includingDataRoot: Bool) -> Int {
@@ -55,7 +57,8 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
             + differs(showInMenuBar, current.showInMenuBar) + differs(launchAtLogin, current.launchAtLogin)
             + differs(autoCheckUpdates, current.autoCheckUpdates)
             + differs(autoDownloadUpdates, current.autoDownloadUpdates)
-            + differs(banCheckEnabled, current.banCheckEnabled) + differs(gamedir, current.gamedir)
+            + differs(banCheckEnabled, current.banCheckEnabled) + differs(autoBackupEnabled, current.autoBackupEnabled)
+            + differs(gamedir, current.gamedir)
             + (includingDataRoot ? differs(dataRoot, current.dataRoot) : 0)
     }
 
@@ -70,8 +73,16 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
             let ok = !gamedir.isEmpty && gamedir != "." && gamedir != ".." && !gamedir.contains("/")
             if !ok { copy.gamedir = nil; invalid += 1 }
         }
-        if let dataRoot, !dataRoot.hasPrefix("/") || dataRoot.contains("\0") { copy.dataRoot = nil; invalid += 1 }
+        if let dataRoot, !Self.isPlausibleDataRoot(dataRoot) { copy.dataRoot = nil; invalid += 1 }
         return (copy, invalid)
+    }
+
+    /// Shape check of an imported data root (no file system access): an absolute path without NUL and without a
+    /// `..` component that is not the file system root. Whether it is an existing folder is checked when applied.
+    static func isPlausibleDataRoot(_ path: String) -> Bool {
+        guard path.hasPrefix("/"), !path.contains("\0") else { return false }
+        guard !path.split(separator: "/", omittingEmptySubsequences: true).contains("..") else { return false }
+        return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path != "/"
     }
 }
 
@@ -303,8 +314,19 @@ struct SettingsImportSummary: Sendable, Equatable {
     var added = 0
     var updated = 0
     var skipped = 0
+    /// Carried settings that were applied (unchanged values count as applied).
     var settingsApplied = 0
     var backupFile: URL?
+    /// Carried settings that could not be applied (launch at login unavailable or refused, data root not a folder).
+    var settingsSkipped = 0
+    /// Settings dropped as invalid when the file was read (never applied).
+    var invalidSettings = 0
+    /// New data root path when the import changed it.
+    var dataRootChanged: String?
+    /// Data root from the file that was not applied (missing folder or not a folder).
+    var dataRootRejected: String?
+    /// `true`/`false` when the import turned launch at login on/off; `nil` when it did not change.
+    var launchAtLoginChanged: Bool?
 }
 
 /// Merge / replace planning for the server list.
@@ -389,10 +411,13 @@ enum RecordBackup {
 
 enum SettingsImportError: Error, Sendable, Equatable {
     case backupFailed(String)
+    /// A restore, an erase or an update is running (data operation lock).
+    case busy
 
     var text: String {
         switch self {
         case .backupFailed(let detail): return L10n.format(.importErrorBackup, detail)
+        case .busy: return L10n.text(.importErrorBusy)
         }
     }
 }

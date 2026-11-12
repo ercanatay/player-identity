@@ -38,7 +38,7 @@ final class UpdateControllerTests: XCTestCase {
 
     private func makeModel(feed: String?, files: [URL: Data] = [:], runner: FakeUpdateRunner = FakeUpdateRunner(),
                            relauncher: FakeRelauncher = FakeRelauncher(), downloader: FakeUpdateDownloader? = nil,
-                           appVersion: String = "1.1.0") -> (AppModel, FakeUpdateDownloader) {
+                           appVersion: String = "1.1.0", feedBodies: [Int: String] = [:]) -> (AppModel, FakeUpdateDownloader) {
         let downloader = downloader ?? FakeUpdateDownloader(files)
         let clock = env.clock
         let paths = AppPaths(home: env.home)
@@ -55,7 +55,7 @@ final class UpdateControllerTests: XCTestCase {
             commandRunner: FakeCommandRunner(),
             sleeper: FakeSleeper(clock: clock),
             resolver: FakeAddressResolver())
-        deps.updateHTTP = ScriptedHTTPClient(script: HTTPScript(defaultBody: feed))
+        deps.updateHTTP = ScriptedHTTPClient(script: HTTPScript(bodies: feedBodies, defaultBody: feed))
         deps.appVersion = appVersion
         deps.installedApp = installed
         deps.updateDownloader = downloader
@@ -378,3 +378,126 @@ extension UpdateControllerTests {
         XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
     }
 }
+
+// MARK: - Hardening: blocked confirmation, stale prepared downloads, background data backup
+
+extension UpdateControllerTests {
+    private func leftovers(_ paths: AppPaths) -> [String] {
+        let downloads = (try? FileManager.default.contentsOfDirectory(atPath: paths.updateDownloads.path)) ?? []
+        let staging = (try? FileManager.default.contentsOfDirectory(atPath: paths.updateStaging.path)) ?? []
+        return (downloads + staging).sorted()
+    }
+
+    func testConfirmWhileADataOperationRunsKeepsTheSheetWithAReason() async throws {
+        let (json, files) = Self.feed(["1.2.0", "1.1.0"])
+        let (model, downloader) = makeModel(feed: json, files: files)
+        await model.checkForUpdates()?.value
+        model.updates.requestInstallOfAvailableUpdate()
+        XCTAssertNil(model.updates.installBlockedReason)
+
+        XCTAssertTrue(model.beginDataOperation(.restore))
+        XCTAssertNil(model.updates.confirmInstall())
+        XCTAssertNotNil(model.updates.pendingInstall, "the sheet stays open instead of silently doing nothing")
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            XCTAssertEqual(model.updates.installBlockedReason, L10n.text(.updateConfirmBlockedData))
+            XCTAssertTrue(try XCTUnwrap(model.updates.installBlockedReason).hasPrefix("Bir veri işlemi"))
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("en"))) {
+            XCTAssertTrue(try XCTUnwrap(model.updates.installBlockedReason).hasPrefix("Can't install"))
+            XCTAssertFalse(L10n.text(.updateConfirmBlockedBusy).isEmpty)
+        }
+        XCTAssertEqual(downloader.requestedURLs, [])
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "old")
+
+        model.endDataOperation()
+        XCTAssertNil(model.updates.installBlockedReason)
+        let install = try XCTUnwrap(model.updates.confirmInstall())
+        XCTAssertNil(model.updates.pendingInstall)
+        // While backing up another confirmation is blocked by the running update.
+        model.updates.request(try XCTUnwrap(model.updates.availableRelease))
+        XCTAssertEqual(model.updates.installBlockedReason, L10n.text(.updateConfirmBlockedBusy))
+        XCTAssertNil(model.updates.confirmInstall())
+        model.updates.cancelRequest()
+        await install.value
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
+    }
+
+    func testAPreparedDownloadForAnotherReleaseIsRemovedAndTheDowngradeBacksUpTheDefaults() async throws {
+        let paths = AppPaths(home: env.home)
+        try env.temp.write("home/Library/Application Support/tr.ercanatay.playeridentity/profile.json", #"{"schemaVersion":1}"#)
+        env.defaults.set("marker-value", forKey: "hardeningMarker")
+        let (json, files) = Self.feed(["1.2.0", "1.1.0", "1.0.0"])
+        let runner = FakeUpdateRunner()
+        let (model, _) = makeModel(feed: json, files: files, runner: runner)
+        model.updates.preferences.autoDownload = true
+        await model.checkForUpdates()?.value
+        await model.updates.waitForTasks()
+        XCTAssertEqual(model.updates.status, .ready("1.2.0"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: paths.updateStaging.appendingPathComponent("1.2.0").path))
+        XCTAssertFalse(leftovers(paths).isEmpty)
+
+        // Revert to 1.0.0 instead: the 1.2.0 download is not used and must not stay on disk.
+        runner.appVersion = "1.0.0"
+        model.updates.request(try XCTUnwrap(model.updates.history.first { $0.versionString == "1.0.0" }))
+        XCTAssertEqual(model.updates.pendingInstall?.change, .downgrade)
+        await model.updates.confirmInstall()?.value
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
+        XCTAssertEqual(leftovers(paths), [], "no downloads or staged apps are left behind")
+
+        // The small data backup (preferences read on the main actor, written in the background) is complete.
+        let backup = try XCTUnwrap(DataBackupStore(paths: paths, defaultsDomain: env.suiteName).list().first)
+        XCTAssertEqual(backup.info.toVersion, "1.0.0")
+        XCTAssertEqual(backup.info.schemaVersion, 1)
+        XCTAssertTrue(Set(backup.info.files).isSuperset(of: [DataBackupStore.profileFile, DataBackupStore.defaultsFile]))
+        let plist = try Data(contentsOf: backup.directory.appendingPathComponent(DataBackupStore.defaultsFile))
+        let domain = try XCTUnwrap(PropertyListSerialization.propertyList(from: plist, format: nil) as? [String: Any])
+        XCTAssertEqual(domain["hardeningMarker"] as? String, "marker-value")
+        XCTAssertEqual(model.updates.dataBackupCount, 1)
+    }
+
+    func testANewerAutomaticDownloadReplacesTheOlderPreparedOne() async throws {
+        let paths = AppPaths(home: env.home)
+        let (first, firstFiles) = Self.feed(["1.2.0", "1.1.0"])
+        let (second, secondFiles) = Self.feed(["1.3.0", "1.2.0", "1.1.0"])
+        let runner = FakeUpdateRunner()
+        let (model, _) = makeModel(feed: second, files: firstFiles.merging(secondFiles) { a, _ in a }, runner: runner,
+                                   feedBodies: [1: first])
+        model.updates.preferences.autoDownload = true
+        await model.checkForUpdates()?.value
+        await model.updates.waitForTasks()
+        XCTAssertEqual(model.updates.status, .ready("1.2.0"))
+        let oldStaging = paths.updateStaging.appendingPathComponent("1.2.0")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: oldStaging.path))
+
+        // The next check finds 1.3.0: the unused 1.2.0 files are removed before the new download starts.
+        runner.appVersion = "1.3.0"
+        await model.checkForUpdates(manual: true)?.value
+        await model.updates.waitForTasks()
+        XCTAssertEqual(model.updates.status, .ready("1.3.0"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oldStaging.path))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: paths.updateDownloads.appendingPathComponent(AppRelease.zipName(version: "1.2.0")).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: paths.updateStaging.appendingPathComponent("1.3.0").path))
+    }
+
+    func testDataBackupFromExportedDefaultsWorksOffTheMainThread() async throws {
+        let paths = AppPaths(home: env.home)
+        env.defaults.set(42, forKey: "offMainMarker")
+        let store = DataBackupStore(paths: paths, defaultsDomain: env.suiteName)
+        let plist = try DataBackupStore.defaultsPlist(env.defaults, domain: env.suiteName)
+        let now = env.clock.now
+        let (onMain, backup) = try await Task.detached { () throws -> (Bool, DataBackup) in
+            (isMainThread(), try store.create(from: "1.1.0", to: "1.0.0", now: now, defaultsPlist: plist))
+        }.value
+        XCTAssertFalse(onMain)
+        XCTAssertEqual(backup.info.files, [DataBackupStore.defaultsFile])
+        let written = try Data(contentsOf: backup.directory.appendingPathComponent(DataBackupStore.defaultsFile))
+        XCTAssertEqual(written, plist)
+        // Same content as the UserDefaults overload.
+        let direct = try store.create(from: "1.1.0", to: "0.9.0", now: now, defaults: env.defaults)
+        XCTAssertEqual(try Data(contentsOf: direct.directory.appendingPathComponent(DataBackupStore.defaultsFile)), plist)
+    }
+}
+
+/// `Thread.isMainThread` is unavailable in async contexts; a synchronous helper reads it.
+private func isMainThread() -> Bool { Thread.isMainThread }

@@ -474,6 +474,11 @@ struct InstallConfirmSheet: View {
                 .font(TypeScale.callout)
                 .foregroundStyle(Palette.text2)
                 .fixedSize(horizontal: false, vertical: true)
+            if let blocked = updates.installBlockedReason {
+                NoticeBox(symbol: StatusLevel.orange.symbolName, symbolColor: Palette.orange, text: blocked,
+                          textColor: Palette.orangeText, background: Palette.orangeTint)
+                    .accessibilityIdentifier("installBlocked")
+            }
             HStack(spacing: Space.s2) {
                 if let page = release.pageURL {
                     Button(L10n.text(.updateReleaseNotes)) { NSWorkspace.shared.open(page) }
@@ -485,6 +490,7 @@ struct InstallConfirmSheet: View {
                 Button(L10n.text(downgrade ? .updateDowngrade : .updateInstall)) { updates.confirmInstall() }
                     .prominentButton()
                     .keyboardShortcut(.defaultAction)
+                    .disabled(updates.installBlockedReason != nil)
             }
             .padding(.top, Space.s1)
         }

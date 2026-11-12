@@ -56,7 +56,8 @@ final class SettingsRedesignTests: XCTestCase {
 
     func testDefaultsCarryEveryPreferenceButTheFolders() {
         let defaults = ArchivedSettings.defaults
-        XCTAssertEqual(defaults.count(includingDataRoot: true), 13)
+        XCTAssertEqual(defaults.count(includingDataRoot: true), 14)   // + automatic backups (2.9.2)
+        XCTAssertEqual(defaults.autoBackupEnabled, true)
         XCTAssertNil(defaults.gamedir)
         XCTAssertNil(defaults.dataRoot)
         XCTAssertEqual(defaults.language, AppLanguageSetting.system.rawValue)

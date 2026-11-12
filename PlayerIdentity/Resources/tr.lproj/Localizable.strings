@@ -310,6 +310,8 @@
 "update.confirm.downgradeWarning" = "Eski sürüm, yeni sürümün yazdığı verileri okuyamayabilir. Gerekirse yedekten geri yükleyebilirsiniz.";
 "update.confirm.backupData" = "Önce veriyi yedekle";
 "update.confirm.relaunch" = "İmza ve sürüm doğrulandıktan sonra uygulama değiştirilir ve yeniden başlatılır.";
+"update.confirm.blockedData" = "Bir veri işlemi (geri yükleme, silme veya içe aktarma) sürerken yüklenemez; bittiğinde yeniden deneyin.";
+"update.confirm.blockedBusy" = "Başka bir güncelleme işlemi sürüyor; bittiğinde yeniden deneyin.";
 "update.notesEmpty" = "Sürüm notu yok.";
 "update.backups.count" = "Veri yedekleri: %@";
 "update.backups.clear" = "Yedekleri temizle";
@@ -483,6 +485,13 @@
 "import.done" = "İçe aktarıldı.";
 "import.summary" = "Eklenen: %@ · Güncellenen: %@ · Atlanan: %@";
 "import.settingsApplied" = "Uygulanan ayar: %@";
+"import.settingsSkipped" = "Atlanan ayar: %@";
+"import.settingsInvalid" = "Geçersiz ayar (uygulanmadı): %@";
+"import.dataRootChanged" = "Veri kökü değişti: %@";
+"import.dataRootRejected" = "Veri kökü uygulanmadı (klasör yok veya geçersiz): %@";
+"import.launchAtLogin.on" = "Açılışta başlat açıldı";
+"import.launchAtLogin.off" = "Açılışta başlat kapatıldı";
+"import.error.busy" = "Bir veri işlemi (geri yükleme, silme veya güncelleme) sürerken içe aktarılamaz; bittiğinde yeniden deneyin.";
 "import.backupFile" = "Yedek: %@";
 "import.unsavedNote" = "Değişiklikler henüz kaydedilmedi; kalıcı olması için Kaydet'e basın.";
 "import.error.unreadable" = "Dosya okunamadı.";

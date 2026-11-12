@@ -310,6 +310,8 @@
 "update.confirm.downgradeWarning" = "An older version may not be able to read data written by the newer one. You can restore from a backup if needed.";
 "update.confirm.backupData" = "Back up data first";
 "update.confirm.relaunch" = "After the signature and version are verified, the app is replaced and relaunched.";
+"update.confirm.blockedData" = "Can't install while a data operation (restore, erase or import) is running; try again when it is done.";
+"update.confirm.blockedBusy" = "Another update task is running; try again when it is done.";
 "update.notesEmpty" = "No release notes.";
 "update.backups.count" = "Data backups: %@";
 "update.backups.clear" = "Remove Backups";
@@ -483,6 +485,13 @@
 "import.done" = "Import finished.";
 "import.summary" = "Added: %@ · Updated: %@ · Skipped: %@";
 "import.settingsApplied" = "Settings applied: %@";
+"import.settingsSkipped" = "Settings skipped: %@";
+"import.settingsInvalid" = "Invalid settings (not applied): %@";
+"import.dataRootChanged" = "Data root changed: %@";
+"import.dataRootRejected" = "Data root not applied (missing or invalid folder): %@";
+"import.launchAtLogin.on" = "Launch at login turned on";
+"import.launchAtLogin.off" = "Launch at login turned off";
+"import.error.busy" = "Can't import while a data operation (restore, erase or update) is running; try again when it is done.";
 "import.backupFile" = "Backup: %@";
 "import.unsavedNote" = "The changes are not saved yet; press Save to keep them.";
 "import.error.unreadable" = "The file could not be read.";

@@ -60,6 +60,21 @@ struct DataBackupStore: Sendable {
     /// Copies the current data; prunes to the 10 newest backups.
     @discardableResult
     func create(from fromVersion: String, to toVersion: String, now: Date, defaults: UserDefaults) throws -> DataBackup {
+        try create(from: fromVersion, to: toVersion, now: now,
+                   defaultsPlist: Self.defaultsPlist(defaults, domain: defaultsDomain))
+    }
+
+    /// The app's UserDefaults domain as XML property list data. Read where the defaults live (the main actor in the
+    /// app: `UserDefaults` is not `Sendable`); the resulting `Data` can be written by `create` on any thread.
+    static func defaultsPlist(_ defaults: UserDefaults, domain: String) throws -> Data {
+        let values = defaults.persistentDomain(forName: domain) ?? [:]
+        return try PropertyListSerialization.data(fromPropertyList: values, format: .xml, options: 0)
+    }
+
+    /// Same as `create(from:to:now:defaults:)` with the preferences already exported (`defaultsPlist(_:domain:)`):
+    /// only file work, safe off the main thread.
+    @discardableResult
+    func create(from fromVersion: String, to toVersion: String, now: Date, defaultsPlist plist: Data) throws -> DataBackup {
         let fileManager = FileManager.default
         let directory = paths.dataBackups.appendingPathComponent(
             "data-\(Self.component(fromVersion))-to-\(Self.component(toVersion))-\(Self.timestamp(now))", isDirectory: true)
@@ -70,8 +85,6 @@ struct DataBackupStore: Sendable {
             try fileManager.copyItem(at: source, to: directory.appendingPathComponent(name, isDirectory: false))
             files.append(name)
         }
-        let domain = defaults.persistentDomain(forName: defaultsDomain) ?? [:]
-        let plist = try PropertyListSerialization.data(fromPropertyList: domain, format: .xml, options: 0)
         try plist.write(to: directory.appendingPathComponent(Self.defaultsFile, isDirectory: false), options: .atomic)
         files.append(Self.defaultsFile)
 

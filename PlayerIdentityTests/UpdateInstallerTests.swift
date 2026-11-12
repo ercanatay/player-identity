@@ -513,3 +513,40 @@ final class SystemProcessTests: XCTestCase {
         XCTAssertEqual(output.status, 0)
     }
 }
+
+// MARK: - Hardening: a prepared download never stays behind when finishing fails
+
+extension UpdateInstallerTests {
+    func testFinishWithAMissingStagedAppRemovesTheDownload() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let installer = installer(FakeUpdateDownloader(files))
+        let prepared = try await installer.prepare(release)
+        try FileManager.default.removeItem(at: prepared.staged)
+        do {
+            _ = try await installer.finish(prepared)
+            XCTFail("expected appMissing")
+        } catch {
+            XCTAssertEqual(error as? UpdateError, .appMissing)
+        }
+        assertOldAppInPlace()
+        assertNoLeftovers()
+    }
+
+    func testFinishThatCannotCreateTheBackupFolderRemovesTheDownload() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let installer = installer(FakeUpdateDownloader(files))
+        let prepared = try await installer.prepare(release)
+        // A file where the app backup folder should be: creating the folder fails with a non-update error.
+        try FileManager.default.createDirectory(at: paths.updateAppBackups.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try Data("x".utf8).write(to: paths.updateAppBackups)
+        do {
+            _ = try await installer.finish(prepared)
+            XCTFail("expected a failure")
+        } catch {
+            XCTAssertNil(error as? UpdateError, "the original error is passed on")
+        }
+        assertOldAppInPlace()
+        assertNoLeftovers()
+    }
+}

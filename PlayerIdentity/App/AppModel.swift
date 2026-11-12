@@ -133,6 +133,8 @@ final class AppModel {
     enum DataOperation: Sendable, Equatable {
         case restore
         case erase
+        /// §46 settings import (applies preferences, the server list and possibly the data root at once).
+        case importSettings
     }
 
     /// §47.2/§49.2: the running data operation. Refreshing, saving, changing the data root, installing, automatic
@@ -1580,6 +1582,7 @@ final class AppModel {
                          autoCheckUpdates: updates.preferences.autoCheck,
                          autoDownloadUpdates: updates.preferences.autoDownload,
                          banCheckEnabled: banCheckEnabled,
+                         autoBackupEnabled: autoBackupEnabled,
                          gamedir: selectedGamedir,
                          dataRoot: dataRoot.path)
     }
@@ -1595,9 +1598,15 @@ final class AppModel {
 
     /// Applies a validated archive. Replace first copies `profile.json` to `profile.json.appbak-<time>`; if that
     /// fails nothing is changed. The record is left "unsaved" and the files are re-read (refresh is started).
+    ///
+    /// Takes the data operation lock: refused (`busy`) while a restore, an erase, an install backup or an update
+    /// runs, so the record, the data root and the server list never change under them. The summary names what was
+    /// applied and skipped, the invalid values of the file and the side effects (data root, launch at login).
     func importSettings(_ parsed: ParsedSettingsArchive, mode: SettingsImportMode,
                         includeDataRoot: Bool) -> Result<SettingsImportSummary, SettingsImportError> {
+        guard !updates.status.isUpdating, beginDataOperation(.importSettings) else { return .failure(.busy) }
         var summary = SettingsImportSummary()
+        summary.invalidSettings = parsed.invalidSettings
         let settings = parsed.archive.settings
         let plan = parsed.archive.servers.map {
             ServerImportPlanner.plan(existing: servers, incoming: $0, invalidRows: parsed.invalidServers, mode: mode)
@@ -1606,11 +1615,16 @@ final class AppModel {
             do {
                 summary.backupFile = try RecordBackup.make(of: deps.paths.snapshotFile, at: deps.now())
             } catch {
+                endDataOperation()
                 return .failure(.backupFailed(error.localizedDescription))
             }
         }
-        summary.settingsApplied = settings.count(includingDataRoot: includeDataRoot)
-        applySettings(settings, includeDataRoot: includeDataRoot)
+        let report = applySettings(settings, includeDataRoot: includeDataRoot)
+        summary.settingsApplied = report.applied
+        summary.settingsSkipped = report.skipped
+        summary.dataRootChanged = report.dataRootChanged
+        summary.dataRootRejected = report.dataRootRejected
+        summary.launchAtLoginChanged = report.launchAtLoginChanged
         if let plan {
             servers = plan.servers
             summary.added = plan.added
@@ -1621,32 +1635,91 @@ final class AppModel {
         appliedSinceSave = true
         markEdited()
         reevaluate()
+        endDataOperation()
         refresh()
         return .success(summary)
     }
 
-    /// Applies every carried preference; missing values are left unchanged.
-    private func applySettings(_ settings: ArchivedSettings, includeDataRoot: Bool) {
-        if let value = settings.language, let setting = AppLanguageSetting(rawValue: value) { appLanguage = setting }
-        if let value = settings.notificationsEnabled { notificationsEnabled = value }
-        if let value = settings.notifyBanChanges { notifyBanChanges = value }
-        if let value = settings.notifyOnlineChanges { notifyOnlineChanges = value }
-        if let value = settings.notifyMapChanges { notifyMapChanges = value }
-        if let value = settings.quietHoursEnabled { quietHoursEnabled = value }
-        if let value = settings.quietHoursStart { quietHoursStart = value }
-        if let value = settings.quietHoursEnd { quietHoursEnd = value }
-        if let value = settings.showInMenuBar { menuBarEnabled = value }
-        if let value = settings.launchAtLogin, isLoginItemAvailable, value != loginItemStatus.isOn {
-            setLaunchAtLogin(value)
+    /// What `applySettings` did: carried values applied / skipped and the side effects worth naming.
+    struct SettingsApplyReport: Sendable, Equatable {
+        var applied = 0
+        var skipped = 0
+        var dataRootChanged: String?
+        var dataRootRejected: String?
+        var launchAtLoginChanged: Bool?
+    }
+
+    /// Applies every carried preference; missing values are left unchanged. `applied + skipped` equals
+    /// `settings.count(includingDataRoot:)`.
+    @discardableResult
+    private func applySettings(_ settings: ArchivedSettings, includeDataRoot: Bool) -> SettingsApplyReport {
+        var report = SettingsApplyReport()
+        func apply<T>(_ value: T?, _ set: (T) -> Void) {
+            guard let value else { return }
+            set(value)
+            report.applied += 1
         }
-        if let value = settings.autoCheckUpdates { updates.preferences.autoCheck = value }
-        if let value = settings.autoDownloadUpdates { updates.preferences.autoDownload = value }
-        if let value = settings.banCheckEnabled { banCheckEnabled = value }
-        if let value = settings.gamedir { selectedGamedir = value }
+        if let value = settings.language {
+            if let setting = AppLanguageSetting(rawValue: value) {
+                appLanguage = setting
+                report.applied += 1
+            } else {
+                report.skipped += 1   // unknown language (the parser already drops it)
+            }
+        }
+        apply(settings.notificationsEnabled) { notificationsEnabled = $0 }
+        apply(settings.notifyBanChanges) { notifyBanChanges = $0 }
+        apply(settings.notifyOnlineChanges) { notifyOnlineChanges = $0 }
+        apply(settings.notifyMapChanges) { notifyMapChanges = $0 }
+        apply(settings.quietHoursEnabled) { quietHoursEnabled = $0 }
+        apply(settings.quietHoursStart) { quietHoursStart = $0 }
+        apply(settings.quietHoursEnd) { quietHoursEnd = $0 }
+        apply(settings.showInMenuBar) { menuBarEnabled = $0 }
+        if let value = settings.launchAtLogin {
+            if !isLoginItemAvailable {
+                report.skipped += 1
+            } else if value == loginItemStatus.isOn {
+                report.applied += 1
+            } else {
+                setLaunchAtLogin(value)
+                if loginItemStatus.isOn == value {
+                    report.applied += 1
+                    report.launchAtLoginChanged = value
+                } else {
+                    report.skipped += 1   // refused: `loginItemError` shows why in Settings > General
+                }
+            }
+        }
+        apply(settings.autoCheckUpdates) { updates.preferences.autoCheck = $0 }
+        apply(settings.autoDownloadUpdates) { updates.preferences.autoDownload = $0 }
+        apply(settings.banCheckEnabled) { banCheckEnabled = $0 }
+        apply(settings.autoBackupEnabled) { autoBackupEnabled = $0 }
+        apply(settings.gamedir) { selectedGamedir = $0 }
         if includeDataRoot, let value = settings.dataRoot {
-            dataRoot = URL(fileURLWithPath: value, isDirectory: true).standardizedFileURL
-            deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
+            if let folder = Self.importableDataRoot(value) {
+                report.applied += 1
+                if folder.path != dataRoot.standardizedFileURL.path {
+                    dataRoot = folder
+                    deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
+                    report.dataRootChanged = folder.path
+                }
+            } else {
+                report.skipped += 1
+                report.dataRootRejected = value
+            }
         }
+        return report
+    }
+
+    /// An imported data root is applied only as an existing folder (not `/`, no `..` component).
+    static func importableDataRoot(_ path: String) -> URL? {
+        guard ArchivedSettings.isPlausibleDataRoot(path) else { return nil }
+        let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return nil
+        }
+        return url
     }
 
     // MARK: Reset and erase (Settings > Reset)
@@ -1654,8 +1727,7 @@ final class AppModel {
     /// "Reset Settings…": preferences return to their defaults. Servers, the record, identity history, the data root
     /// and the game folder are kept.
     func resetSettings() {
-        applySettings(.defaults, includeDataRoot: false)
-        autoBackupEnabled = true
+        applySettings(.defaults, includeDataRoot: false)   // `.defaults` also turns automatic backups back on
     }
 
     /// Home folder of the paths in use (for `~/…` display).

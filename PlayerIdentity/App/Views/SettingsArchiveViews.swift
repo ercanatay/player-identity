@@ -276,6 +276,9 @@ struct SettingsImportSheet: View {
         _summary = State(initialValue: initialSummary)
     }
 
+    /// A restore, an erase or an update runs: importing is refused (the reason is shown above the buttons).
+    private var isBlocked: Bool { model.isDataOperationRunning || model.updates.status.isUpdating }
+
     private var preview: SettingsImportPreview {
         model.importPreview(candidate.parsed, includeDataRoot: includeDataRoot)
     }
@@ -295,8 +298,8 @@ struct SettingsImportSheet: View {
                 previewTable
                 modeAndNote
             }
-            if let errorText {
-                Text(errorText)
+            if let message = errorText ?? (summary == nil && isBlocked ? SettingsImportError.busy.text : nil) {
+                Text(message)
                     .font(TypeScale.callout)
                     .foregroundStyle(Palette.redText)
                     .textSelection(.enabled)
@@ -310,6 +313,7 @@ struct SettingsImportSheet: View {
                 if summary == nil {
                     Button(L10n.text(.importAction), action: apply)
                         .prominentButton()
+                        .disabled(isBlocked)
                         .keyboardShortcut(.defaultAction)
                         .accessibilityIdentifier("importApply")
                 }
@@ -440,7 +444,9 @@ struct SettingsImportSheet: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Space.s1) {
                 Text(L10n.text(.importDone)).font(TypeScale.label)
-                Text(L10n.format(.importSettingsApplied, String(result.settingsApplied))).monospacedDigit()
+                ForEach(Self.settingsLines(result, home: model.homeDirectory), id: \.self) { line in
+                    Text(line).monospacedDigit().fixedSize(horizontal: false, vertical: true)
+                }
                 Text(L10n.format(.importSummary, String(result.added), String(result.updated), String(result.skipped)))
                     .monospacedDigit()
                     .accessibilityIdentifier("importSummary")
@@ -461,6 +467,25 @@ struct SettingsImportSheet: View {
         .background(RoundedRectangle(cornerRadius: Radius.inner).fill(Palette.inset))
         .overlay(RoundedRectangle(cornerRadius: Radius.inner).strokeBorder(Palette.border, lineWidth: 1))
         .accessibilityElement(children: .combine)
+    }
+
+    /// Result lines about the settings: applied, skipped, invalid, then the side effects (data root, launch at login).
+    static func settingsLines(_ result: SettingsImportSummary, home: URL? = nil) -> [String] {
+        var lines = [L10n.format(.importSettingsApplied, String(result.settingsApplied))]
+        if result.settingsSkipped > 0 { lines.append(L10n.format(.importSettingsSkipped, String(result.settingsSkipped))) }
+        if result.invalidSettings > 0 { lines.append(L10n.format(.importSettingsInvalid, String(result.invalidSettings))) }
+        if let root = result.dataRootChanged {
+            lines.append(L10n.format(.importDataRootChanged, SettingsFormat.abbreviated(root, home: home)))
+        }
+        if let root = result.dataRootRejected {
+            lines.append(L10n.format(.importDataRootRejected, SettingsFormat.abbreviated(root, home: home)))
+        }
+        switch result.launchAtLoginChanged {
+        case true?: lines.append(L10n.text(.importLaunchAtLoginOn))
+        case false?: lines.append(L10n.text(.importLaunchAtLoginOff))
+        case nil: break
+        }
+        return lines
     }
 
     private func chooseOther() {
