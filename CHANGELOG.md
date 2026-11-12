@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **English feature reference** (`docs/FEATURES.md`): a detailed walkthrough of every window, CLI command, URL scheme, notification rule, backup format, accessibility behaviour and privacy model.
+- **Live screenshots** in `docs/screenshots/` (main window light/dark, history, metrics, ban matrix, settings, backup & restore, updates, per-server notifications) plus a 1024 pt app icon.
+
+### Changed
+- README now leads with the app icon and a screenshot gallery, and links to the feature reference.
+
 ## [2.10.2] - 2026-11-12
 
 ### Changed

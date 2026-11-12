@@ -1,4 +1,14 @@
-# Player Identity (macOS)
+<p align="center">
+  <img src="docs/screenshots/app-icon.png" width="140" alt="Player Identity app icon">
+</p>
+
+<h1 align="center">Player Identity</h1>
+
+<p align="center">
+  Xash3D FWGS / GoldSrc player identity, per-server CID and ban checks on macOS.
+</p>
+
+## Overview
 
 [![CI](https://github.com/ercanatay/player-identity/actions/workflows/ci.yml/badge.svg)](https://github.com/ercanatay/player-identity/actions/workflows/ci.yml)
 [![UI Tests](https://github.com/ercanatay/player-identity/actions/workflows/ui-tests.yml/badge.svg)](https://github.com/ercanatay/player-identity/actions/workflows/ui-tests.yml)
@@ -17,16 +27,25 @@ folder (`profile.json`, history, metrics, updates).
 
 **Turkish and English UI** — follows the system language by default and can be switched at runtime.
 
+📖 **Full feature reference:** [`docs/FEATURES.md`](docs/FEATURES.md) — every screen, CLI command, URL scheme, notification rule and backup format.
+
 ---
 
 ## Screenshots
 
-| | |
+| Main window (light) | Main window (dark) |
 |---|---|
 | ![Main window — light](docs/screenshots/main-light.png) | ![Main window — dark](docs/screenshots/main-dark.png) |
-| Main window — light | Main window — dark |
-| ![Settings — light](docs/screenshots/settings-general-light.png) | ![Settings — dark](docs/screenshots/settings-general-dark.png) |
-| Settings — light | Settings — dark |
+| **Server notifications** | **Ban matrix** |
+| ![Server notifications](docs/screenshots/server-notifications-light.png) | ![Ban matrix](docs/screenshots/ban-matrix-light.png) |
+| **History** | **Metrics** |
+| ![History](docs/screenshots/history-light.png) | ![Metrics](docs/screenshots/metrics-light.png) |
+| **Settings (light)** | **Settings (dark)** |
+| ![Settings](docs/screenshots/settings-general-light.png) | ![Settings — dark](docs/screenshots/settings-general-dark.png) |
+| **Backup & restore** | **Updates** |
+| ![Backup and restore](docs/screenshots/backup-restore-light.png) | ![Updates](docs/screenshots/settings-updates-light.png) |
+
+> All screenshots use a fictional player, servers and IP addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ---
 
