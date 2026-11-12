@@ -1,6 +1,6 @@
 # Ürün Spesifikasyonu — Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.2 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.1 → v3.2: §49.7 hardening)
+Sürüm: 3.3 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.2 → v3.3: §49.8 doğrulama sıkılaştırma, §51 CLI güncelleme)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1256,3 +1256,14 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - **Ayar arşivi:** `autoBackupEnabled` dahil; eski arşivler uyumlu.
 - **Ayar import:** veri işlemi kilidi; `dataRoot` yalnız var olan dizin ve güvenli yol; sonuçta geçersiz/atlanan sayıları, veri kökü ve launch-at-login yan etkileri.
 - **Güncelleme UI:** eşleşmeyen hazır indirme silinir; veri işlemi sürerken onay penceresi nedeni gösterip Yükle'yi devre dışı bırakır. Sürüm düşürme tercih yedeği arka planda.
+
+### 49.8 Doğrulama sıkılaştırma (v3.3)
+- **Ayar import / veri kökü:** yol mutlak, `..` yok, `/` değil; karşılaştırma `standardizedFileURL` + **`resolvingSymlinksInPath()`** ile ( `/var` ↔ `/private/var` eşdeğer). Önizlemede var olmayan/dizin olmayan yol **geçersiz** olarak işaretlenir; uygulama anında da reddedilir.
+- **Gatekeeper:** `spctl -a -vv -t exec` çıktısında `accepted` **ve** `Notarized Developer ID` birlikte aranır; eksikse `gatekeeperRejected`.
+
+## 51. CLI güncelleme (v3.3)
+- `playeridentityctl update --check [--json]`: GitHub feed'den yeni sürüm var mı; sürüm/URL/asset/sha özeti; çıkış 0 (güncel), 4 (güncelleme var).
+- `playeridentityctl update --install [--yes] [--json]`: aynı doğrulama zinciri (HTTPS, boyut, SHA-256, imza/team/bundle/sürüm, Gatekeeper), uygulamayı değiştirir; `--yes` yoksa onay ister (TTY yoksa reddeder). Sonuç JSON: `from`, `to`, `installed`, `relaunchRequired`.
+- Ortak `UpdateInstaller`; CLI, uygulamanın çalıştığı bundle'ı değiştirebilir; değişim sonrası `open` ile yeni sürüm başlatılmaz (çağıran yapar).
+- Çıkış kodları: 0 başarı, 1 kullanım, 2 ağ/indirme/doğrulama hatası, 3 güncelleme yok/atlandı, 4 güncelleme var (check).
+- Testler: feed/check JSON, `--install` sahte installer ile, onay reddi, doğrulama hatası, çıkış kodları.

@@ -30,6 +30,12 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
+## What's new in v2.9.3
+
+- **CLI updates**: `playeridentityctl update --check` compares the installed app with the latest stable release; `update --install` downloads and verifies it like the app does (HTTPS, size, SHA-256, Gatekeeper). Exit codes are documented in the CLI section; `brew upgrade` is the alternative for cask installs.
+- **Stricter validation**: dataRoot symlinks and previews are validated more strictly.
+- **Gatekeeper**: updates must be `Notarized Developer ID`.
+
 ## What's new in v2.9.2
 
 - **Backup and restore in the background**: automatic backups and restores no longer block the UI; failures are reported.
@@ -553,7 +559,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **660 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **676 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### UI tests

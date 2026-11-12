@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.9.3] - 2026-11-12
+
+### Added
+- CLI `update --check` and `update --install` (with `--yes`, `--app`, `--json`); documented exit codes.
+
+### Fixed
+- Stricter dataRoot symlink and preview validation.
+- Updates must pass Gatekeeper as `Notarized Developer ID`.
+
 ## [2.9.2] - 2026-11-12
 
 ### Fixed
