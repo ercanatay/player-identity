@@ -10,6 +10,7 @@ enum UpdateStatusText {
         case .upToDate: return L10n.text(.updateStatusUpToDate)
         case .downloading(let fraction): return L10n.format(.updateStatusDownloading, percent(fraction))
         case .verifying: return L10n.text(.updateStatusVerifying)
+        case .backingUp: return L10n.text(.updateStatusBackingUp)
         case .ready(let version): return L10n.format(.updateStatusReady, version)
         case .installing: return L10n.text(.updateStatusInstalling)
         case .relaunching: return L10n.text(.updateStatusRelaunching)
@@ -40,6 +41,8 @@ enum UpdateStatusText {
         case .teamMismatch: return L10n.text(.updateErrorTeam)
         case .bundleMismatch: return L10n.text(.updateErrorBundle)
         case .versionMismatch: return L10n.text(.updateErrorVersion)
+        case .gatekeeperRejected: return L10n.text(.updateErrorGatekeeper)
+        case .processTimedOut(let tool): return L10n.format(.updateErrorTimeout, tool)
         case .notWritable: return L10n.text(.updateErrorNotWritable)
         case .cancelledByUser: return L10n.text(.updateErrorCancelledByUser)
         case .adminPromptFailed: return L10n.text(.updateErrorAdminPrompt)
@@ -80,7 +83,7 @@ struct UpdateStatusRow: View {
                         .frame(width: 140)
                         .accessibilityLabel(L10n.text(.a11yUpdateProgress))
                         .accessibilityValue(UpdateStatusText.percent(fraction))
-                case .checking, .verifying, .installing, .relaunching:
+                case .checking, .backingUp, .verifying, .installing, .relaunching:
                     ProgressView().controlSize(.small)
                 default:
                     EmptyView()
@@ -152,7 +155,7 @@ struct UpdateCardContent: Equatable {
             return UpdateCardContent(symbol: busySymbol, tone: .accent,
                                      title: L10n.format(.updatesDownloadingTitle, version), body: body,
                                      progress: clamped, percent: UpdateStatusText.percent(clamped), actions: [.cancel])
-        case .verifying, .installing, .relaunching:
+        case .backingUp, .verifying, .installing, .relaunching:
             return UpdateCardContent(symbol: busySymbol, tone: .accent, title: UpdateStatusText.text(status) ?? "",
                                      body: version.isEmpty ? "" : L10n.format(.updatesVersion, version),
                                      isIndeterminate: true, actions: status.isCancellable ? [.cancel] : [])

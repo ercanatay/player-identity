@@ -249,6 +249,8 @@ enum FullBackupNaming {
 
 enum FullBackupError: Error, Sendable, Equatable {
     case nothingToBackUp
+    /// Data files exist, but none of them could be read or decoded (their names): no backup was made.
+    case noUsableData([String])
     case unreadableArchive
     case tooLarge
     case unexpectedEntry(String)
@@ -277,6 +279,7 @@ enum FullBackupError: Error, Sendable, Equatable {
     var text: String {
         switch self {
         case .nothingToBackUp: return L10n.text(.backupNothing)
+        case .noUsableData(let files): return L10n.format(.backupNoUsableData, String(files.count), files.joined(separator: ", "))
         case .unreadableArchive: return L10n.text(.restoreErrorUnreadable)
         case .tooLarge: return L10n.text(.restoreErrorTooLarge)
         case .unexpectedEntry(let name): return L10n.format(.restoreErrorUnexpected, name)
@@ -327,6 +330,10 @@ struct ParsedFullBackup: Sendable, Equatable {
     let manifest: FullBackupManifest
     /// Data files by name (only `FullBackupFile` names).
     let files: [String: Data]
+    /// Counted from the files themselves while parsing (the manifest's `counts` must match them).
+    let counts: FullBackupManifest.Counts
+    /// `savedAt` of the record in the backup (the manifest's `recordSavedAt` must match it).
+    let recordSavedAt: Date?
 
     func data(_ file: FullBackupFile) -> Data? { files[file.rawValue] }
 }
@@ -368,6 +375,8 @@ enum FullBackupParser {
             return .failure(.corruptManifest)
         }
         var ordered: [(String, Data)] = []
+        var counts = FullBackupManifest.Counts()
+        var recordSavedAt: Date?
         for file in FullBackupFile.allCases {
             guard let content = byName[file.rawValue] else { continue }
             guard let record = manifest.files.first(where: { $0.name == file.rawValue }),
@@ -377,7 +386,10 @@ enum FullBackupParser {
             switch file {
             case .profile:
                 switch SnapshotStore.decode(content) {
-                case .loaded: break
+                case .loaded(let snapshot):
+                    counts.servers = snapshot.servers.count
+                    counts.watchedServers = snapshot.servers.filter(\.watch).count
+                    recordSavedAt = snapshot.savedAt
                 case .unsupportedSchema(let version): return .failure(.unsupportedRecordSchema(version))
                 case .corrupt, .missing: return .failure(.corruptFile(file.rawValue))
                 }
@@ -386,13 +398,17 @@ enum FullBackupParser {
                 guard lines.allSatisfy({ FullBackupValidator.decodes($0, file: file) }), record.lines == lines.count else {
                     return .failure(.corruptFile(file.rawValue))
                 }
+                if file == .history { counts.historyEntries = lines.count } else { counts.metricSamples = lines.count }
             case .watchState:
                 guard FullBackupValidator.watchCount(content) != nil else { return .failure(.corruptFile(file.rawValue)) }
             }
             ordered.append((file.rawValue, content))
         }
         guard FullBackupContent.combinedSHA256(ordered) == manifest.contentSHA256 else { return .failure(.corruptManifest) }
-        return .success(ParsedFullBackup(manifest: manifest, files: byName))
+        // The preview shows what is really in the files; a manifest whose counts or record date say otherwise (a
+        // hand-made or edited ZIP) does not match the backup and is refused.
+        guard manifest.counts == counts, manifest.recordSavedAt == recordSavedAt else { return .failure(.corruptManifest) }
+        return .success(ParsedFullBackup(manifest: manifest, files: byName, counts: counts, recordSavedAt: recordSavedAt))
     }
 }
 
@@ -421,7 +437,7 @@ struct FullBackupPreview: Sendable, Equatable {
             compatibility = .sameVersion
         }
         return FullBackupPreview(createdAt: manifest.createdAt, appVersion: manifest.appVersion,
-                                 recordSavedAt: manifest.recordSavedAt, counts: manifest.counts,
+                                 recordSavedAt: backup.recordSavedAt, counts: backup.counts,
                                  compatibility: compatibility, missingFiles: manifest.missingFiles)
     }
 }
@@ -448,11 +464,18 @@ struct FullBackupStore: Sendable {
         case empty
     }
 
-    /// The ZIP of the current data. Throws `nothingToBackUp` when there is no data at all.
+    /// The ZIP of the current data. Throws `nothingToBackUp` when there is no data at all and `noUsableData` when
+    /// data files exist but none of them could be read.
     func archive(kind: FullBackupKind, now: Date) throws -> (data: Data, manifest: FullBackupManifest) {
         let content = FullBackupContent.collect(paths)
-        guard !content.isEmpty else { throw FullBackupError.nothingToBackUp }
+        try Self.requireUsable(content)
         return try FullBackupArchive.make(content, kind: kind, appVersion: appVersion, now: now)
+    }
+
+    private static func requireUsable(_ content: FullBackupContent) throws {
+        guard content.isEmpty else { return }
+        guard content.skipped.isEmpty else { throw FullBackupError.noUsableData(content.skipped.map(\.file)) }
+        throw FullBackupError.nothingToBackUp
     }
 
     /// Manual backup to a user-chosen file.
@@ -463,7 +486,8 @@ struct FullBackupStore: Sendable {
         return manifest
     }
 
-    /// Backup into `backups/` (pre-restore, pre-update); `nil` when there is no data to back up. Prunes the kind.
+    /// Backup into `backups/` (pre-restore, pre-update); `nil` when there is no usable data to back up (a restore
+    /// then keeps the unreadable previous files, see `createBackup`). Prunes the kind, never the new file.
     @discardableResult
     func create(_ kind: FullBackupKind, now: Date) throws -> URL? {
         try createBackup(kind, now: now).url
@@ -485,17 +509,21 @@ struct FullBackupStore: Sendable {
                                                    isDirectory: false)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
-        try prune(kind)
+        try prune(kind, keeping: url)
         return Created(url: url, skipped: content.skipped)
     }
 
     /// Launch backup: once per day (`auto-YYYYMMDD.zip`), skipped when the content equals the newest automatic one.
+    /// Throws `noUsableData` when data files exist but none could be read (the failure is shown, the day not marked).
     func createAutomatic(now: Date) throws -> AutomaticOutcome {
         let today = directory.appendingPathComponent(FullBackupNaming.storedFileName(.automatic, now: now, timeZone: timeZone),
                                                      isDirectory: false)
         guard !FileManager.default.fileExists(atPath: today.path) else { return .alreadyToday }
         let content = FullBackupContent.collect(paths)
-        guard !content.isEmpty else { return .empty }
+        guard !content.isEmpty else {
+            guard content.skipped.isEmpty else { throw FullBackupError.noUsableData(content.skipped.map(\.file)) }
+            return .empty
+        }
         if let newest = list(.automatic).first, let data = try? Data(contentsOf: newest),
            case .success(let previous) = FullBackupParser.parse(data),
            previous.manifest.contentSHA256 == content.sha256 {
@@ -504,24 +532,36 @@ struct FullBackupStore: Sendable {
         let (data, _) = try FullBackupArchive.make(content, kind: .automatic, appVersion: appVersion, now: now)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: today, options: .atomic)
-        try prune(.automatic)
+        try prune(.automatic, keeping: today)
         return .created(today)
     }
 
-    /// Backups of a kind in `backups/`, newest first (the time stamp in the name sorts chronologically).
+    /// Backups of a kind in `backups/`, newest first by modification date (the name's time stamp only breaks ties),
+    /// so a backup written after the clock was set back still counts as the newest one.
     func list(_ kind: FullBackupKind) -> [URL] {
         let prefix = kind.rawValue + "-"
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
-        return names.filter { $0.hasPrefix(prefix) && $0.hasSuffix(".zip") }
-            .sorted(by: >)
-            .map { directory.appendingPathComponent($0, isDirectory: false) }
+        let dated = names.filter { $0.hasPrefix(prefix) && $0.hasSuffix(".zip") }.map { name -> (URL, Date) in
+            let url = directory.appendingPathComponent(name, isDirectory: false)
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            return (url, modified ?? .distantPast)
+        }
+        return dated.sorted { $0.1 != $1.1 ? $0.1 > $1.1 : $0.0.lastPathComponent > $1.0.lastPathComponent }.map(\.0)
     }
 
     /// Every ZIP in `backups/` (for the erase inventory).
     var count: Int { FullBackupKind.allCases.reduce(0) { $0 + list($1).count } }
 
-    func prune(_ kind: FullBackupKind) throws {
-        for url in list(kind).dropFirst(Self.maxPerKind) { try FileManager.default.removeItem(at: url) }
+    /// Keeps the `maxPerKind` newest backups of a kind. `keeping` (the file just written) is always kept, whatever
+    /// its date says, and counts as the newest one.
+    func prune(_ kind: FullBackupKind, keeping newest: URL? = nil) throws {
+        var urls = list(kind)
+        if let newest {
+            let path = newest.standardizedFileURL.path
+            urls.removeAll { $0.standardizedFileURL.path == path }
+            urls.insert(newest, at: 0)
+        }
+        for url in urls.dropFirst(Self.maxPerKind) { try FileManager.default.removeItem(at: url) }
     }
 
     /// Puts the backed-up files in place. The files are staged in a temporary folder next to the data first

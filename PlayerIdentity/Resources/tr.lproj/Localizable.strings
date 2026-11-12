@@ -747,3 +747,8 @@
 "update.error.rolledBackCopy" = "Kurulum başarısız oldu; önceki sürüm geri yüklendi. Yedeğin kopyası: %@";
 "update.error.notRolledBack" = "Kurulum başarısız oldu ve önceki sürüm geri yüklenemedi; yedeği de bulunamadı. Uygulamayı yeniden indirip kurun.";
 "metrics.writeFailed" = "Son %@ saatte ölçüm örnekleri yazılamadı (%@ başarısız deneme): %@";
+"update.status.backingUp" = "Veriler yedekleniyor…";
+"update.error.gatekeeper" = "Gatekeeper uygulamayı kabul etmedi (notarize edilmemiş veya imzası geçersiz); kurulum yapılmadı.";
+"update.error.timeout" = "%@ yanıt vermedi ve durduruldu; kurulum yapılmadı.";
+"fullRestore.working.backup" = "Mevcut veriler yedekleniyor…";
+"fullBackup.noUsableData" = "%@ dosya okunamadı (%@); yedek oluşturulamadı.";

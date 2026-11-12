@@ -79,6 +79,10 @@ struct CommandOutput: Sendable, Equatable {
 enum CommandError: Error, Equatable {
     case notAllowed
     case launchFailed
+    /// The process ran longer than its time limit and was stopped.
+    case timedOut
+    /// The task waiting for the process was cancelled and the process was stopped.
+    case cancelled
 }
 
 protocol CommandRunning: Sendable {

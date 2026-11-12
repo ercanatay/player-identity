@@ -749,4 +749,9 @@ enum L10nKey: String, CaseIterable, Sendable {
     case updateErrorRolledBackCopy = "update.error.rolledBackCopy"
     case updateErrorNotRolledBack = "update.error.notRolledBack"
     case metricsWriteFailed = "metrics.writeFailed"
+    case updateStatusBackingUp = "update.status.backingUp"
+    case updateErrorGatekeeper = "update.error.gatekeeper"
+    case updateErrorTimeout = "update.error.timeout"
+    case fullRestoreWorkingBackup = "fullRestore.working.backup"
+    case backupNoUsableData = "fullBackup.noUsableData"
 }

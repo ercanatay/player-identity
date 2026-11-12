@@ -843,6 +843,12 @@ KEYS = [
     ("updateErrorRolledBackCopy", "update.error.rolledBackCopy", "Kurulum başarısız oldu; önceki sürüm geri yüklendi. Yedeğin kopyası: %@", "The installation failed; the previous version was restored. Copy of the backup: %@"),
     ("updateErrorNotRolledBack", "update.error.notRolledBack", "Kurulum başarısız oldu ve önceki sürüm geri yüklenemedi; yedeği de bulunamadı. Uygulamayı yeniden indirip kurun.", "The installation failed and the previous version could not be restored; no backup was found either. Download and install the app again."),
     ("metricsWriteFailed", "metrics.writeFailed", "Son %@ saatte ölçüm örnekleri yazılamadı (%@ başarısız deneme): %@", "Samples could not be written in the last %@ hours (%@ failed attempts): %@"),
+    # Backups and updater hardening: background work, tool time limits, Gatekeeper, unusable data.
+    ("updateStatusBackingUp", "update.status.backingUp", "Veriler yedekleniyor…", "Backing up the data…"),
+    ("updateErrorGatekeeper", "update.error.gatekeeper", "Gatekeeper uygulamayı kabul etmedi (notarize edilmemiş veya imzası geçersiz); kurulum yapılmadı.", "Gatekeeper did not accept the app (not notarized or invalid signature); nothing was installed."),
+    ("updateErrorTimeout", "update.error.timeout", "%@ yanıt vermedi ve durduruldu; kurulum yapılmadı.", "%@ did not respond and was stopped; nothing was installed."),
+    ("fullRestoreWorkingBackup", "fullRestore.working.backup", "Mevcut veriler yedekleniyor…", "Backing up the current data…"),
+    ("backupNoUsableData", "fullBackup.noUsableData", "%@ dosya okunamadı (%@); yedek oluşturulamadı.", "%@ files could not be read (%@); no backup was created."),
 ]
 
 INFOPLIST = {

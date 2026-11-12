@@ -10,6 +10,8 @@ final class UpdateController {
         case idle
         case checking
         case upToDate
+        /// §49.3: the data backups before an install are being written (off the main thread).
+        case backingUp
         case downloading(Double)
         case verifying
         /// Downloaded and verified in the background (automatic download); waiting for "Install".
@@ -22,12 +24,13 @@ final class UpdateController {
 
         var isBusy: Bool {
             switch self {
-            case .checking, .downloading, .verifying, .installing, .relaunching: return true
+            case .checking, .backingUp, .downloading, .verifying, .installing, .relaunching: return true
             default: return false
             }
         }
 
-        /// §49.2: an update is downloading, being verified or installed (a feed check does not count).
+        /// §49.2: an update is backing up the data, downloading, being verified or installed (a feed check does not
+        /// count).
         var isUpdating: Bool { isBusy && self != .checking }
 
         /// Download/verification can still be cancelled; replacing cannot.
@@ -258,29 +261,43 @@ final class UpdateController {
     func confirmInstall() -> Task<Void, Never>? {
         guard let request = pendingInstall, !status.isBusy, !isDataOperationRunning else { return nil }
         pendingInstall = nil
-        status = .idle
-        // §49.3: full data backup (`backups/pre-update-…zip`) before every install; a failure stops the install.
-        do {
-            try FullBackupStore(paths: deps.paths, appVersion: appVersion).create(.preUpdate, now: deps.now())
-        } catch {
-            status = .backupFailed(error.localizedDescription)
-            return nil
-        }
-        if request.change == .downgrade, request.backupData {
-            do {
-                try backupStore.create(from: appVersion, to: request.release.versionString, now: deps.now(),
-                                       defaults: deps.defaults)
-                dataBackupCount = backupStore.list().count
-            } catch {
-                status = .backupFailed(error.localizedDescription)
-                return nil
-            }
-        }
+        // `backingUp` counts as updating: restores, erases and a second install are refused until it is done.
+        status = .backingUp
         activeRelease = request.release
         let installer = self.installer
         let ready = prepared?.release == request.release ? prepared : nil
         prepared = nil
+        let fullBackups = FullBackupStore(paths: deps.paths, appVersion: appVersion)
+        let dataBackups = request.change == .downgrade && request.backupData ? backupStore : nil
+        let from = appVersion
+        let to = request.release.versionString
+        let now = deps.now()
+        let defaults = deps.defaults
         let task = Task {
+            // §49.3: full data backup (`backups/pre-update-…zip`) before every install, off the main thread; then
+            // (downgrade, if chosen) the small data backup with the preferences export. A failure stops the install.
+            var failure = await Task.detached { () -> (any Error)? in
+                do {
+                    try fullBackups.create(.preUpdate, now: now)
+                    return nil
+                } catch {
+                    return error
+                }
+            }.value
+            if failure == nil, let dataBackups {
+                do {
+                    try dataBackups.create(from: from, to: to, now: now, defaults: defaults)
+                } catch {
+                    failure = error
+                }
+                dataBackupCount = backupStore.list().count
+            }
+            if let failure {
+                if prepared == nil { prepared = ready }   // a prepared download stays ready for the next attempt
+                status = .backupFailed(Self.errorText(failure))
+                installTask = nil
+                return
+            }
             do {
                 let progress: @Sendable (InstallPhase) async -> Void = { phase in
                     await self.setPhase(phase)

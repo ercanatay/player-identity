@@ -141,6 +141,15 @@ final class AppModel {
     /// §49.2: a restore is replacing the data files.
     var isRestoring: Bool { dataOperation == .restore }
     var isDataOperationRunning: Bool { dataOperation != nil }
+    /// Step of a running restore (shown in the restore sheet); `nil` when no restore runs.
+    enum RestoreStep: Sendable, Equatable {
+        /// The current data goes to `backups/pre-restore-…zip`.
+        case backingUp
+        /// The backed-up files are put in place.
+        case replacing
+    }
+
+    private(set) var restoreStep: RestoreStep?
     /// §49.3: newest `backups/auto-*.zip` (modification date) and the number of automatic backups.
     private(set) var latestAutomaticBackup: Date?
     private(set) var automaticBackupCount = 0
@@ -1847,24 +1856,47 @@ final class AppModel {
         await historyTask?.value
         await metricsTask?.value
         guard !updates.status.isUpdating else { return .failure(.updateRunning) }
-        var store = fullBackupStore
-        store.fileOperations = deps.dataFileOperations
+        var configured = fullBackupStore
+        configured.fileOperations = deps.dataFileOperations
+        let store = configured
+        let now = deps.now()
+        defer { restoreStep = nil }
+        // Both steps run off the main thread in detached tasks: they are never cancelled halfway (the restore
+        // completes or rolls back) and the window stays responsive meanwhile.
+        restoreStep = .backingUp
+        let created = await Task.detached { () -> Result<FullBackupStore.Created, FullBackupError> in
+            do {
+                return .success(try store.createBackup(.preRestore, now: now))
+            } catch {
+                return .failure(.preRestoreBackupFailed(error.localizedDescription))
+            }
+        }.value
         let safety: FullBackupStore.Created
-        do {
-            safety = try store.createBackup(.preRestore, now: deps.now())
-        } catch {
-            return .failure(.preRestoreBackupFailed(error.localizedDescription))
+        switch created {
+        case .success(let value): safety = value
+        case .failure(let error): return .failure(error)
         }
+        restoreStep = .replacing
+        // Files the pre-restore backup could not include are kept next to the data instead of being removed.
+        let keepPrevious = !safety.skipped.isEmpty
+        let restored = await Task.detached { () -> Result<URL?, FullBackupError> in
+            do {
+                return .success(try store.restore(backup, keepPrevious: keepPrevious))
+            } catch let error as FullBackupError {
+                return .failure(error)
+            } catch {
+                return .failure(.writeFailed(error.localizedDescription))
+            }
+        }.value
         let kept: URL?
-        do {
-            // Files the pre-restore backup could not include are kept next to the data instead of being removed.
-            kept = try store.restore(backup, keepPrevious: !safety.skipped.isEmpty)
-        } catch {
+        switch restored {
+        case .success(let url):
+            kept = url
+        case .failure(let error):
             await history.reset()
             await metrics.reset()
             metricsWriteFailure = nil
-            if let error = error as? FullBackupError { return .failure(error) }
-            return .failure(.writeFailed(error.localizedDescription))
+            return .failure(error)
         }
         await history.reset()
         await metrics.reset()

@@ -747,3 +747,8 @@
 "update.error.rolledBackCopy" = "The installation failed; the previous version was restored. Copy of the backup: %@";
 "update.error.notRolledBack" = "The installation failed and the previous version could not be restored; no backup was found either. Download and install the app again.";
 "metrics.writeFailed" = "Samples could not be written in the last %@ hours (%@ failed attempts): %@";
+"update.status.backingUp" = "Backing up the data…";
+"update.error.gatekeeper" = "Gatekeeper did not accept the app (not notarized or invalid signature); nothing was installed.";
+"update.error.timeout" = "%@ did not respond and was stopped; nothing was installed.";
+"fullRestore.working.backup" = "Backing up the current data…";
+"fullBackup.noUsableData" = "%@ files could not be read (%@); no backup was created.";

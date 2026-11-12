@@ -336,3 +336,45 @@ final class UpdateControllerTests: XCTestCase {
         XCTAssertTrue(UpdateStatusText.percent(0.42).contains("42"))
     }
 }
+
+// MARK: - Hardening: the pre-update backup runs in the background
+
+extension UpdateControllerTests {
+    func testPreUpdateBackupRunsInTheBackgroundAndAFailureStopsTheInstall() async throws {
+        let paths = AppPaths(home: env.home)
+        // `backups` is a file: the pre-update backup cannot be written.
+        try env.temp.write("home/Library/Application Support/tr.ercanatay.playeridentity/backups", "not a folder")
+        let (json, files) = Self.feed(["1.2.0", "1.1.0"])
+        let (model, downloader) = makeModel(feed: json, files: files)
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.30"))
+        model.save()
+        XCTAssertNil(model.saveErrorMessage)
+        await model.checkForUpdates()?.value
+        model.updates.requestInstallOfAvailableUpdate()
+
+        let failed = try XCTUnwrap(model.updates.confirmInstall())
+        // Returned at once: the backup is written off the main thread while the status says so.
+        XCTAssertEqual(model.updates.status, .backingUp)
+        XCTAssertTrue(model.updates.status.isUpdating)
+        XCTAssertFalse(model.updates.status.isCancellable)
+        XCTAssertNil(model.updates.confirmInstall(), "no second install while backing up")
+        let restore = await model.restoreFullBackup(ParsedFullBackup(manifest: FullBackupManifest(
+            appVersion: "1.1.0", createdAt: Date(), kind: .manual, counts: .init(), files: [], contentSHA256: ""),
+            files: [:], counts: .init(), recordSavedAt: nil))
+        XCTAssertEqual(restore, .failure(.updateRunning))
+        await failed.value
+        guard case .backupFailed(let reason) = model.updates.status else { return XCTFail("\(model.updates.status)") }
+        XCTAssertFalse(reason.isEmpty)
+        XCTAssertEqual(downloader.requestedURLs, [], "nothing was downloaded")
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "old")
+
+        // With a writable folder the same install backs up first, then installs.
+        try FileManager.default.removeItem(at: paths.fullBackups)
+        model.updates.requestInstallOfAvailableUpdate()
+        let install = try XCTUnwrap(model.updates.confirmInstall())
+        XCTAssertEqual(model.updates.status, .backingUp)
+        await install.value
+        XCTAssertEqual(FullBackupStore(paths: paths, appVersion: "1.1.0").list(.preUpdate).count, 1)
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
+    }
+}

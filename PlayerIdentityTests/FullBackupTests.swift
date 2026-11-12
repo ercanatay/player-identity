@@ -482,7 +482,7 @@ final class FullBackupTests: XCTestCase {
         let errors: [FullBackupError] = [.nothingToBackUp, .unreadableArchive, .tooLarge, .unexpectedEntry("x"),
                                          .missingManifest, .corruptManifest, .unsupportedSchema(2), .corruptFile("x"),
                                          .unsupportedRecordSchema(3), .updateRunning, .busy,
-                                         .preRestoreBackupFailed("x"), .writeFailed("x")]
+                                         .preRestoreBackupFailed("x"), .writeFailed("x"), .noUsableData(["x"])]
         for language in ["tr", "en"] {
             let texts = try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle(language))) { errors.map(\.text) }
             XCTAssertEqual(Set(texts).count, errors.count, language)
@@ -497,5 +497,186 @@ final class FullBackupTests: XCTestCase {
         let source = try String(contentsOf: views.appendingPathComponent("FullBackupViews.swift"), encoding: .utf8)
         let violations = ThemeScanner.violations(in: source)
         XCTAssertEqual(violations, [], violations.joined(separator: "\n"))
+    }
+}
+
+/// Blocks the first `write` (the restore's staging step) until released and records whether any call ran on the
+/// main thread.
+final class GatedDataFiles: DataFileOperating, @unchecked Sendable {
+    private let lock = NSLock()
+    private let real = LocalDataFileOperations()
+    private let gate = DispatchSemaphore(value: 0)
+    private var waiting = false
+    private var gated = false
+    private var mainThreadCalls = 0
+
+    var isWaiting: Bool { lock.withLock { waiting } }
+    var callsOnTheMainThread: Int { lock.withLock { mainThreadCalls } }
+
+    func release() { gate.signal() }
+
+    private func note() {
+        let main = Thread.isMainThread
+        lock.withLock { if main { mainThreadCalls += 1 } }
+    }
+
+    func exists(_ url: URL) -> Bool { note(); return real.exists(url) }
+    func createDirectory(_ url: URL) throws { note(); try real.createDirectory(url) }
+
+    func write(_ data: Data, to url: URL) throws {
+        note()
+        let first = lock.withLock { () -> Bool in
+            defer { gated = true }
+            if !gated { waiting = true }
+            return !gated
+        }
+        if first {
+            _ = gate.wait(timeout: .now() + 10)   // never hangs the suite, even if the test fails
+            lock.withLock { waiting = false }
+        }
+        try real.write(data, to: url)
+    }
+
+    func move(_ source: URL, to destination: URL) throws { note(); try real.move(source, to: destination) }
+    func remove(_ url: URL) throws { note(); try real.remove(url) }
+    func contents(_ url: URL) throws -> [URL] { note(); return try real.contents(url) }
+}
+
+// MARK: - Hardening: background restore, recounted manifests, pruning by date, unusable data
+
+extension FullBackupTests {
+    func testRestoreRunsOffTheMainThreadAndReportsItsStep() async throws {
+        let env = try TestAppEnvironment()
+        let paths = AppPaths(home: env.home)
+        let files = GatedDataFiles()
+        let model = env.makeModel(appVersion: "2.7.0") { $0.dataFileOperations = files }
+        model.addServer(ServerDraft(label: "Backed up", host: "192.0.2.30"))
+        model.save()
+        guard case .success(let backup) = FullBackupParser.parse(try backupData(paths)) else { return XCTFail("parse") }
+        model.addServer(ServerDraft(label: "Later", host: "192.0.2.31"))
+        model.save()
+        XCTAssertNil(model.restoreStep)
+
+        let restore = Task { await model.restoreFullBackup(backup) }
+        // The main actor keeps running (this loop) while the restore is held inside its file step.
+        for _ in 0..<250 where !files.isWaiting { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertTrue(files.isWaiting, "the restore reached its staging step")
+        XCTAssertEqual(model.restoreStep, .replacing)
+        XCTAssertTrue(model.isRestoring)
+        XCTAssertEqual(FullBackupStore(paths: paths, appVersion: "2.7.0").list(.preRestore).count, 1,
+                       "the pre-restore backup was written first")
+        files.release()
+
+        guard case .success = await restore.value else { return XCTFail("restore") }
+        await model.waitForRefresh()
+        XCTAssertEqual(files.callsOnTheMainThread, 0)
+        XCTAssertNil(model.restoreStep)
+        XCTAssertFalse(model.isRestoring)
+        XCTAssertEqual(model.servers.map(\.label), ["Backed up"])
+    }
+
+    func testRestoreSheetShowsTheBackupStep() throws {
+        let views = try XCTUnwrap(Bundle(for: Self.self).resourceURL).appendingPathComponent("App/Views", isDirectory: true)
+        let source = try String(contentsOf: views.appendingPathComponent("FullBackupViews.swift"), encoding: .utf8)
+        XCTAssertTrue(source.contains("model.restoreStep == .backingUp ? .fullRestoreWorkingBackup : .fullRestoreWorking"))
+        for language in ["tr", "en"] {
+            let text = try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle(language))) { L10n.text(.fullRestoreWorkingBackup) }
+            XCTAssertFalse(text.isEmpty || text.hasPrefix("fullRestore."), language)
+        }
+    }
+
+    func testPreviewCountsComeFromTheFilesAndAManifestThatSaysOtherwiseIsRefused() throws {
+        let temp = try TempDirectory()
+        let paths = AppPaths(home: temp.url)
+        let saved = Date(timeIntervalSince1970: 1_792_000_000)
+        try seed(paths, servers: 3, history: 5, metrics: 7, now: saved)
+        let data = try backupData(paths)
+        guard case .success(let parsed) = FullBackupParser.parse(data) else { return XCTFail("parse") }
+        let real = FullBackupManifest.Counts(servers: 3, historyEntries: 5, metricSamples: 7, watchedServers: 1)
+        XCTAssertEqual(parsed.counts, real)
+        XCTAssertEqual(parsed.recordSavedAt, saved)
+        XCTAssertEqual(FullBackupPreview.make(parsed, currentVersion: "2.7.0").counts, real)
+
+        let forgeries: [(String, (inout FullBackupManifest) -> Void)] = [
+            ("servers", { $0.counts.servers = 99 }),
+            ("history", { $0.counts.historyEntries = 1 }),
+            ("metrics", { $0.counts.metricSamples = 0 }),
+            ("watched", { $0.counts.watchedServers = 3 }),
+            ("record date", { $0.recordSavedAt = Date(timeIntervalSince1970: 1_700_000_000) }),
+            ("no record date", { $0.recordSavedAt = nil }),
+        ]
+        for (name, forge) in forgeries {
+            let forged = try rewrite(data, manifest: forge)
+            XCTAssertEqual(FullBackupParser.parse(forged), .failure(.corruptManifest), name)
+        }
+    }
+
+    func testListSortsByModificationDateAndPruneNeverRemovesTheNewBackup() throws {
+        let temp = try TempDirectory()
+        let paths = AppPaths(home: temp.url)
+        try seed(paths)
+        let store = FullBackupStore(paths: paths, appVersion: "2.7.0")
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: store.directory, withIntermediateDirectories: true)
+        func place(_ name: String, modified: Date) throws -> URL {
+            let url = store.directory.appendingPathComponent(name)
+            try Data("old".utf8).write(to: url)
+            try fileManager.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
+            return url
+        }
+        // The name sorts later but the file is older: the modification date decides.
+        let laterName = try place("auto-20991231.zip", modified: Date(timeIntervalSince1970: 1_600_000_000))
+        let newer = try place("auto-20200101.zip", modified: Date(timeIntervalSince1970: 1_700_000_000))
+        XCTAssertEqual(store.list(.automatic), [newer, laterName])
+
+        // Five backups made before the clock was set back: names and dates in the future.
+        let future = Date(timeIntervalSince1970: 4_000_000_000)
+        var existing: [URL] = []
+        for index in 0..<FullBackupStore.maxPerKind {
+            existing.append(try place("pre-restore-2096100\(index)-000000.zip", modified: future.addingTimeInterval(Double(index))))
+        }
+        let created = try store.createBackup(.preRestore, now: Date(timeIntervalSince1970: 1_793_000_000))
+        let url = try XCTUnwrap(created.url)
+        XCTAssertTrue(fileManager.fileExists(atPath: url.path), "the backup just written is never pruned")
+        let kept = store.list(.preRestore)
+        XCTAssertEqual(kept.count, FullBackupStore.maxPerKind)
+        XCTAssertTrue(kept.contains(url))
+        XCTAssertFalse(fileManager.fileExists(atPath: existing[0].path), "the oldest other backup goes instead")
+        XCTAssertEqual(Set(kept), Set([url] + existing.dropFirst()))
+    }
+
+    func testUnreadableDataIsReportedInsteadOfNothingToBackUp() throws {
+        let temp = try TempDirectory()
+        let paths = AppPaths(home: temp.url)
+        try FileManager.default.createDirectory(at: paths.snapshotFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("{not json".utf8).write(to: paths.snapshotFile)
+        try Data("garbage\nmore garbage\n".utf8).write(to: paths.historyFile)
+        let store = FullBackupStore(paths: paths, appVersion: "2.7.0")
+        let expected = FullBackupError.noUsableData(["profile.json", "history.jsonl"])
+
+        XCTAssertThrowsError(try store.archive(kind: .manual, now: Date())) { XCTAssertEqual($0 as? FullBackupError, expected) }
+        XCTAssertThrowsError(try store.write(to: temp.url.appendingPathComponent("b.zip"), now: Date())) {
+            XCTAssertEqual($0 as? FullBackupError, expected)
+        }
+        XCTAssertThrowsError(try store.createAutomatic(now: Date())) { XCTAssertEqual($0 as? FullBackupError, expected) }
+        // The pre-restore backup reports the skipped files (the restore then keeps the previous files).
+        let created = try store.createBackup(.preRestore, now: Date())
+        XCTAssertNil(created.url)
+        XCTAssertEqual(created.skipped.map(\.file), ["profile.json", "history.jsonl"])
+        XCTAssertTrue(store.list(.automatic).isEmpty)
+
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            let (text, isError) = FullBackupText.result(.failure(expected), url: temp.url)
+            XCTAssertTrue(isError)
+            XCTAssertEqual(text, "2 dosya okunamadı (profile.json, history.jsonl); yedek oluşturulamadı.")
+            XCTAssertNotEqual(text, L10n.text(.backupNothing))
+            XCTAssertTrue(FullBackupText.automaticFailure(expected).contains("2 dosya okunamadı"))
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("en"))) {
+            XCTAssertEqual(expected.text, "2 files could not be read (profile.json, history.jsonl); no backup was created.")
+        }
+        // An empty data folder still says there is nothing to back up.
+        let empty = FullBackupStore(paths: AppPaths(home: try TempDirectory().url), appVersion: "2.7.0")
+        XCTAssertThrowsError(try empty.archive(kind: .manual, now: Date())) { XCTAssertEqual($0 as? FullBackupError, .nothingToBackUp) }
     }
 }

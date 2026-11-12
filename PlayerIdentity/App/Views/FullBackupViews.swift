@@ -116,6 +116,9 @@ enum FullBackupText {
             return (lines.joined(separator: "\n"), !manifest.warnings.isEmpty)
         case .failure(.nothingToBackUp):
             return (L10n.text(.backupNothing), true)
+        case .failure(.noUsableData(let files)):
+            // "N files could not be read (…); no backup was created."
+            return (FullBackupError.noUsableData(files).text, true)
         case .failure(.writeFailed(let reason)):
             return (L10n.format(.fullBackupFailed, reason), true)
         case .failure(let error):
@@ -254,7 +257,8 @@ struct FullRestoreSheet: View {
             case .working:
                 HStack(spacing: Space.s2) {
                     ProgressView().controlSize(.small)
-                    Text(L10n.text(.fullRestoreWorking)).foregroundStyle(Palette.text2)
+                    Text(L10n.text(model.restoreStep == .backingUp ? .fullRestoreWorkingBackup : .fullRestoreWorking))
+                        .foregroundStyle(Palette.text2)
                 }
                 .accessibilityElement(children: .combine)
             case .done(let safety, let kept):

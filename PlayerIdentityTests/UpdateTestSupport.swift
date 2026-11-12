@@ -42,14 +42,26 @@ final class FakeUpdateRunner: UpdateCommandRunning, @unchecked Sendable {
     var adminPerformsMoves = true
     /// `osascript` cannot be started (the runner throws).
     var adminLaunchFails = false
+    /// `spctl -a -vv -t exec` result (accepted, notarized by default).
+    var gatekeeperResult = CommandOutput(status: 0, output: "/x/PlayerIdentity.app: accepted\nsource=Notarized Developer ID\n"
+                                         + "origin=Developer ID Application: Rigicon, Inc. (NY) (GJ3Y762WQ9)")
 
     struct LaunchFailure: Error {}
+
+    /// Thrown instead of running the command (e.g. `UpdateError.processTimedOut` as the real runner reports it).
+    var failure: (@Sendable (UpdateCommand) -> (any Error)?)?
+    /// `spctl` waits until the task is cancelled (a hanging verification step that the user cancels).
+    var assessWaitsForCancellation = false
 
     var commands: [UpdateCommand] { lock.withLock { log } }
 
     func run(_ command: UpdateCommand) async throws -> CommandOutput {
         precondition(UpdateCommandAllowlist.isAllowed(command.argv), "not allowlisted: \(command.argv)")
         lock.withLock { log.append(command) }
+        if let error = failure?(command) { throw error }
+        if case .assess = command, assessWaitsForCancellation {
+            try await Task.sleep(for: .seconds(30))   // throws CancellationError when the install is cancelled
+        }
         switch command {
         case .unzip(_, let directory):
             guard unzipStatus == 0 else { return CommandOutput(status: unzipStatus, output: "ditto: error") }
@@ -62,7 +74,9 @@ final class FakeUpdateRunner: UpdateCommandRunning, @unchecked Sendable {
             var lines = ["Executable=/x", "Identifier=\(bundleID)", "Format=app bundle with Mach-O universal (x86_64 arm64)"]
             if let teamID { lines.append("TeamIdentifier=\(teamID)") } else { lines.append("TeamIdentifier=not set") }
             return CommandOutput(status: 0, output: lines.joined(separator: "\n"))
-        case .assess, .removeQuarantine:
+        case .assess:
+            return gatekeeperResult
+        case .removeQuarantine:
             return CommandOutput(status: 0, output: "")
         case .open:
             return CommandOutput(status: openStatus, output: "")

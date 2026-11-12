@@ -66,11 +66,12 @@ final class UpdateInstallerTests: XCTestCase {
             case .unzip: return "unzip"
             case .verifySignature: return "verify"
             case .signingInfo: return "info"
+            case .assess: return "gatekeeper"
             case .removeQuarantine: return "quarantine"
             default: return "other"
             }
         }
-        XCTAssertEqual(kinds, ["unzip", "verify", "info", "quarantine"])
+        XCTAssertEqual(kinds, ["unzip", "verify", "info", "gatekeeper", "quarantine"])
         let recorded = await phases.phases
         XCTAssertEqual(recorded, [.downloading(1), .verifying, .installing, .relaunching])
         assertNoLeftovers()
@@ -334,4 +335,181 @@ final class UpdateInstallerTests: XCTestCase {
 actor PhaseLog {
     private(set) var phases: [InstallPhase] = []
     func add(_ phase: InstallPhase) { phases.append(phase) }
+}
+
+// MARK: - Hardening: Gatekeeper, tool time limits and cancellation
+
+extension UpdateInstallerTests {
+    func testGatekeeperRejectionStopsTheInstallAndDeletesTheDownload() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let rejections = [
+            CommandOutput(status: 3, output: "/x/PlayerIdentity.app: rejected\nsource=Unnotarized Developer ID"),
+            CommandOutput(status: 0, output: "/x/PlayerIdentity.app: rejected"),   // exit 0 alone is not enough
+            CommandOutput(status: 0, output: ""),
+        ]
+        for result in rejections {
+            let runner = FakeUpdateRunner()
+            runner.gatekeeperResult = result
+            let relauncher = FakeRelauncher()
+            let error = await installError(installer(FakeUpdateDownloader(files), runner: runner, relauncher: relauncher), release)
+            XCTAssertEqual(error, .gatekeeperRejected, result.output)
+            assertOldAppInPlace()
+            assertNoLeftovers()
+            XCTAssertEqual(relauncher.relaunched, [])
+            XCTAssertTrue(runner.commands.contains { if case .assess = $0 { return true } else { return false } })
+        }
+    }
+
+    func testGatekeeperOutputParsing() {
+        XCTAssertTrue(UpdateInstaller.gatekeeperAccepted(CommandOutput(
+            status: 0, output: "/Applications/PlayerIdentity.app: accepted\nsource=Notarized Developer ID\n")))
+        XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(status: 3, output: "/a.app: accepted")))
+        XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(
+            status: 0, output: "/bin/ls: rejected (the code is valid but does not seem to be an app)")))
+        // A folder named "accepted" in the path does not count.
+        XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(CommandOutput(status: 0, output: "/tmp/accepted/App.app: rejected")))
+    }
+
+    /// Real `spctl` through the allowlisted runner on the installed notarized app (read-only; skipped if absent).
+    func testRealGatekeeperAssessmentOfTheInstalledApp() async throws {
+        let app = URL(fileURLWithPath: "/Applications/PlayerIdentity.app", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: app.path), let path = UpdatePath(app) else {
+            throw XCTSkip("PlayerIdentity.app is not installed")
+        }
+        let runner = ProcessUpdateCommandRunner()
+        let fields = UpdateInstaller.signingFields(try await runner.run(.signingInfo(path)).output)
+        guard fields["TeamIdentifier"] == UpdateInstaller.teamID else { throw XCTSkip("installed copy is not Developer ID signed") }
+        let output = try await runner.run(.assess(path))
+        XCTAssertTrue(UpdateInstaller.gatekeeperAccepted(output), output.output)
+    }
+
+    func testATimedOutToolStopsTheInstallAndDeletesTheDownload() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let runner = FakeUpdateRunner()
+        runner.failure = { command in
+            if case .verifySignature = command { return UpdateError.processTimedOut(tool: command.toolName) }
+            return nil
+        }
+        let error = await installError(installer(FakeUpdateDownloader(files), runner: runner), release)
+        XCTAssertEqual(error, .processTimedOut(tool: "codesign"))
+        assertOldAppInPlace()
+        assertNoLeftovers()
+    }
+
+    func testCancellingAHangingVerificationStepCleansUp() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let runner = FakeUpdateRunner()
+        runner.assessWaitsForCancellation = true
+        let installer = installer(FakeUpdateDownloader(files), runner: runner)
+        let task = Task { try await installer.prepare(release) }
+        for _ in 0..<250 where !runner.commands.contains(where: { if case .assess = $0 { return true } else { return false } }) {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("prepare should be cancelled")
+        } catch {
+            XCTAssertEqual(error as? UpdateError, .cancelled)
+        }
+        assertOldAppInPlace()
+        assertNoLeftovers()
+    }
+
+    func testCommandTimeLimitsCancellationAndErrorMapping() throws {
+        let app = try XCTUnwrap(UpdatePath(URL(fileURLWithPath: "/Applications/PlayerIdentity.app")))
+        let zip = try XCTUnwrap(UpdatePath(URL(fileURLWithPath: "/tmp/a.zip")))
+        for command in [UpdateCommand.unzip(zip, into: app), .verifySignature(app), .signingInfo(app), .assess(app)] {
+            XCTAssertEqual(command.timeout, UpdateCommand.defaultTimeout, "\(command)")
+            XCTAssertTrue(command.isCancellable, "\(command)")
+        }
+        for command in [UpdateCommand.removeQuarantine(app), .open(app)] {
+            XCTAssertEqual(command.timeout, UpdateCommand.defaultTimeout, "\(command)")
+            XCTAssertFalse(command.isCancellable, "\(command)")
+        }
+        let admin = UpdateCommand.adminReplace(current: app, backup: zip, staged: app)
+        XCTAssertNil(admin.timeout, "the administrator prompt waits for the user")
+        XCTAssertFalse(admin.isCancellable)
+        XCTAssertEqual(UpdateCommand.defaultTimeout, 120)
+        XCTAssertEqual(UpdateCommand.assess(app).toolName, "spctl")
+
+        let timedOut = ProcessUpdateCommandRunner.mapped(CommandError.timedOut, command: .verifySignature(app))
+        XCTAssertEqual(timedOut as? UpdateError, .processTimedOut(tool: "codesign"))
+        XCTAssertTrue(ProcessUpdateCommandRunner.mapped(CommandError.cancelled, command: .assess(app)) is CancellationError)
+        XCTAssertEqual(ProcessUpdateCommandRunner.mapped(CommandError.launchFailed, command: .open(app)) as? CommandError, .launchFailed)
+    }
+
+    func testNewUpdateErrorTextsInBothLanguages() throws {
+        for language in ["tr", "en"] {
+            try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle(language))) {
+                let gatekeeper = UpdateStatusText.error(.gatekeeperRejected)
+                let timeout = UpdateStatusText.error(.processTimedOut(tool: "spctl"))
+                XCTAssertTrue(gatekeeper.contains("Gatekeeper"), language)
+                XCTAssertTrue(timeout.hasPrefix("spctl "), language)
+                XCTAssertNotEqual(gatekeeper, UpdateStatusText.error(.signatureInvalid))
+                XCTAssertFalse((UpdateStatusText.text(.backingUp) ?? "").isEmpty)
+            }
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            XCTAssertEqual(UpdateStatusText.text(.backingUp), "Veriler yedekleniyor…")
+        }
+    }
+}
+
+/// `SystemProcess`: time limit, cancellation and normal output (real `/bin/sleep` and `/bin/echo`).
+final class SystemProcessTests: XCTestCase {
+    func testOutputAndStatus() async throws {
+        let output = try await SystemProcess.run(["/bin/echo", "hello"], timeout: 10, cancellable: true)
+        XCTAssertEqual(output, CommandOutput(status: 0, output: "hello\n"))
+        let failing = try await SystemProcess.run(["/bin/sh", "-c", "echo oops >&2; exit 3"], timeout: 10)
+        XCTAssertEqual(failing, CommandOutput(status: 3, output: "oops\n"))
+    }
+
+    func testAProcessThatRunsTooLongIsStopped() async throws {
+        let start = Date()
+        do {
+            _ = try await SystemProcess.run(["/bin/sleep", "20"], timeout: 0.3)
+            XCTFail("should time out")
+        } catch {
+            XCTAssertEqual(error as? CommandError, .timedOut)
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(start), 5)
+    }
+
+    func testCancellingTheTaskStopsACancellableProcess() async throws {
+        let start = Date()
+        let task = Task { try await SystemProcess.run(["/bin/sleep", "20"], timeout: 60, cancellable: true) }
+        try await Task.sleep(for: .milliseconds(200))
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("should be cancelled")
+        } catch {
+            XCTAssertEqual(error as? CommandError, .cancelled)
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(start), 5)
+    }
+
+    func testAlreadyCancelledTaskDoesNotStartTheProcess() async throws {
+        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("pi-\(UUID().uuidString)")
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await SystemProcess.run(["/usr/bin/touch", marker.path], timeout: 10, cancellable: true)
+        }
+        do {
+            _ = try await task.value
+            XCTFail("should be cancelled")
+        } catch {
+            XCTAssertEqual(error as? CommandError, .cancelled)
+        }
+        try await Task.sleep(for: .milliseconds(200))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: marker.path))
+    }
+
+    func testANonCancellableProcessRunsToItsEnd() async throws {
+        let task = Task { try await SystemProcess.run(["/bin/sleep", "0.3"], timeout: 10) }
+        task.cancel()
+        let output = try await task.value
+        XCTAssertEqual(output.status, 0)
+    }
 }

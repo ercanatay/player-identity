@@ -19,6 +19,10 @@ enum UpdateError: Error, Sendable, Equatable {
     case teamMismatch(found: String?)
     case bundleMismatch(found: String?)
     case versionMismatch(found: String?)
+    /// Gatekeeper (`spctl -a -t exec`) did not accept the app (not notarized, revoked, or no valid signature).
+    case gatekeeperRejected
+    /// A system tool (`tool`) ran longer than its time limit and was stopped; nothing was installed.
+    case processTimedOut(tool: String)
     /// The install location is not writable and administrator approval is not available/declined.
     case notWritable
     /// The administrator prompt was cancelled (`-128`): nothing was moved.
@@ -90,6 +94,27 @@ enum UpdateCommand: Sendable, Equatable {
         }
     }
 
+    /// Time limit of every tool run (the download is not a process and has no such limit).
+    static let defaultTimeout: TimeInterval = 120
+
+    /// `nil` for the administrator prompt: it waits for the user, and stopping it halfway could leave the app moved.
+    var timeout: TimeInterval? {
+        if case .adminReplace = self { return nil }
+        return Self.defaultTimeout
+    }
+
+    /// Only the steps before anything is replaced (unpack + verification) stop when the install is cancelled;
+    /// replacing, quarantine removal and relaunch always run to their end.
+    var isCancellable: Bool {
+        switch self {
+        case .unzip, .verifySignature, .signingInfo, .assess: return true
+        case .removeQuarantine, .open, .adminReplace: return false
+        }
+    }
+
+    /// Last path component of the tool (`codesign`, `spctl`, …) for error texts.
+    var toolName: String { URL(fileURLWithPath: argv[0]).lastPathComponent }
+
     static func adminScript(current: UpdatePath, backup: UpdatePath, staged: UpdatePath) -> String {
         let shell = "/bin/rm -rf '\(backup.value)' && /bin/mv '\(current.value)' '\(backup.value)' && "
             + "( /bin/mv '\(staged.value)' '\(current.value)' || ( /bin/mv '\(backup.value)' '\(current.value)'; exit 1 ) )"
@@ -129,31 +154,135 @@ protocol UpdateCommandRunning: Sendable {
 }
 
 /// Real runner: allowlisted argv only, executed directly by `Process` (no shell, except the fixed admin script).
+/// Every run has the command's time limit (`processTimedOut`); the verification steps stop when the task is
+/// cancelled (`CancellationError`, reported as `cancelled`).
 struct ProcessUpdateCommandRunner: UpdateCommandRunning {
     init() {}
 
     func run(_ command: UpdateCommand) async throws -> CommandOutput {
         let argv = command.argv
         guard UpdateCommandAllowlist.isAllowed(argv) else { throw CommandError.notAllowed }
-        return try await SystemProcess.run(argv)
+        do {
+            return try await SystemProcess.run(argv, timeout: command.timeout, cancellable: command.isCancellable)
+        } catch {
+            throw Self.mapped(error, command: command)
+        }
+    }
+
+    /// `CommandError.timedOut` → `UpdateError.processTimedOut`, `CommandError.cancelled` → `CancellationError`.
+    static func mapped(_ error: any Error, command: UpdateCommand) -> any Error {
+        switch error as? CommandError {
+        case .timedOut?: return UpdateError.processTimedOut(tool: command.toolName)
+        case .cancelled?: return CancellationError()
+        default: return error
+        }
     }
 }
 
 enum SystemProcess {
-    /// Runs `argv[0]` with the remaining arguments; stdout and stderr are combined.
-    static func run(_ argv: [String]) async throws -> CommandOutput {
-        try await Task.detached {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: argv[0])
-            process.arguments = Array(argv.dropFirst())
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = pipe
-            do { try process.run() } catch { throw CommandError.launchFailed }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    /// Runs `argv[0]` with the remaining arguments; stdout and stderr are combined. Never blocks the caller's thread.
+    ///
+    /// `timeout`: the process is stopped (`SIGTERM`, then `SIGKILL`) after this many seconds and `CommandError.timedOut`
+    /// is thrown. `cancellable`: cancelling the waiting task stops the process and throws `CommandError.cancelled`;
+    /// otherwise the process always runs to its end (steps that must not be interrupted). The defaults keep the
+    /// previous behaviour: no limit, not cancellable.
+    static func run(_ argv: [String], timeout: TimeInterval? = nil, cancellable: Bool = false) async throws -> CommandOutput {
+        let running = RunningProcess(argv)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                running.start(timeout: timeout, continuation: continuation)
+            }
+        } onCancel: {
+            if cancellable { running.stop(.cancelled) }
+        }
+    }
+}
+
+/// One `Process` with its output pipe. The output is read on a background thread until the pipe closes; the
+/// continuation is resumed exactly once: with the output when the process exits, or with an error when it could not
+/// start, ran too long or was cancelled (then it is terminated and the continuation does not wait for it).
+private final class RunningProcess: @unchecked Sendable {
+    private let lock = NSLock()
+    private let process = Process()
+    private let pipe = Pipe()
+    private var continuation: CheckedContinuation<CommandOutput, any Error>?
+    /// Set once the result is decided (also when `stop` comes before `start`).
+    private var outcome: CommandError?
+    private var finished = false
+
+    init(_ argv: [String]) {
+        process.executableURL = URL(fileURLWithPath: argv[0])
+        process.arguments = Array(argv.dropFirst())
+        process.standardOutput = pipe
+        process.standardError = pipe
+    }
+
+    func start(timeout: TimeInterval?, continuation: CheckedContinuation<CommandOutput, any Error>) {
+        let stoppedEarly: CommandError? = lock.withLock {
+            if let outcome { return outcome }
+            self.continuation = continuation
+            return nil
+        }
+        if let stoppedEarly {   // cancelled before it started: nothing is launched
+            continuation.resume(throwing: stoppedEarly)
+            return
+        }
+        do {
+            try process.run()
+        } catch {
+            finish(.failure(CommandError.launchFailed))
+            return
+        }
+        // Stopped while it was being launched: the waiting task already has the error, the process must not stay.
+        if lock.withLock({ outcome != nil }) { terminate() }
+        if let timeout {
+            DispatchQueue.global().asyncAfter(deadline: .now() + max(timeout, 0)) { [self] in stop(.timedOut) }
+        }
+        let process = self.process
+        let reader = pipe.fileHandleForReading
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let data = reader.readDataToEndOfFile()
             process.waitUntilExit()
-            return CommandOutput(status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))
-        }.value
+            finish(.success(CommandOutput(status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))))
+        }
+    }
+
+    /// Stops the process (time limit or cancellation); the waiting task gets `reason` right away.
+    func stop(_ reason: CommandError) {
+        let state: (CheckedContinuation<CommandOutput, any Error>?, Bool) = lock.withLock {
+            guard !finished, outcome == nil else { return (nil, false) }
+            outcome = reason
+            finished = continuation != nil
+            let pending = continuation
+            continuation = nil
+            return (pending, true)
+        }
+        guard state.1 else { return }
+        if let pending = state.0 {
+            terminate()
+            pending.resume(throwing: reason)
+        }
+    }
+
+    private func terminate() {
+        guard process.isRunning else { return }
+        let pid = process.processIdentifier
+        process.terminate()
+        // A process that ignores SIGTERM is killed two seconds later.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [process] in
+            if process.isRunning { kill(pid, SIGKILL) }
+        }
+    }
+
+    private func finish(_ result: Result<CommandOutput, any Error>) {
+        let pending: CheckedContinuation<CommandOutput, any Error>? = lock.withLock {
+            guard !finished else { return nil }
+            finished = true
+            let pending = continuation
+            continuation = nil
+            return pending
+        }
+        pending?.resume(with: result)
     }
 }
 
@@ -424,6 +553,17 @@ struct UpdateInstaller: Sendable {
         }
         let version = dictionary["CFBundleShortVersionString"] as? String
         guard let version, SemanticVersion(version) == release.version else { throw UpdateError.versionMismatch(found: version) }
+        // Gatekeeper: the release is notarized and stapled, so the assessment also passes offline.
+        guard Self.gatekeeperAccepted(try await runner.run(.assess(path))) else { throw UpdateError.gatekeeperRejected }
+    }
+
+    /// `spctl -a -vv` accepted the app: exit status 0 and a `<path>: accepted` line (a rejection prints `rejected`).
+    static func gatekeeperAccepted(_ output: CommandOutput) -> Bool {
+        guard output.status == 0 else { return false }
+        return output.output.split(whereSeparator: \.isNewline).contains { line in
+            let text = line.trimmingCharacters(in: .whitespaces)
+            return text == "accepted" || text.hasSuffix(": accepted")
+        }
     }
 
     /// Current app → backup, staged app → current location; on failure the backup is moved back.
