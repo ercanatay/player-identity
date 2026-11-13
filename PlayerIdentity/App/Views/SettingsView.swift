@@ -62,13 +62,14 @@ struct GeneralSettingsView: View {
             SettingsRow(title: L10n.text(.settingsLanguageLabel), caption: L10n.text(.settingsLanguageCaption)) {
                 Picker(L10n.text(.settingsLanguageLabel), selection: $model.appLanguage) {
                     Text(L10n.text(.languageSystem)).tag(AppLanguageSetting.system)
-                    Text(L10n.text(.languageTurkish)).tag(AppLanguageSetting.tr)
-                    Text(L10n.text(.languageEnglish)).tag(AppLanguageSetting.en)
+                    ForEach(AppLanguage.allCases, id: \.self) { language in
+                        Text(verbatim: language.nativeName).tag(AppLanguageSetting(language))
+                    }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .labelsHidden()
                 .fixedSize()
-                .help(L10n.format(.languageSystemResolved, L10n.text(AppLanguageSetting.system.resolved().labelKey)))
+                .help(L10n.format(.languageSystemResolved, AppLanguageSetting.system.resolved().nativeName))
                 .accessibilityLabel(L10n.text(.settingsLanguageLabel))
                 .accessibilityIdentifier("settingsLanguage")
             }

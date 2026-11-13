@@ -43,15 +43,24 @@ enum L10n {
 
     private static var activeBundle: Bundle {
         if let override = bundle { return override }
-        let language = currentLanguage
+        return cachedBundle(currentLanguage)
+    }
+
+    private static func cachedBundle(_ language: AppLanguage) -> Bundle {
         if let cached = state.withLock({ $0.cache[language] }) { return cached }
         let resolved = languageBundle(language.rawValue) ?? .main
         state.withLock { $0.cache[language] = resolved }
         return resolved
     }
 
+    /// Returned by the lookup when the active table lacks a key (cannot appear in a real text).
+    private static let missingMarker = "\u{1}"
+
+    /// §62: a key missing from the active language falls back to the English text.
     static func text(_ key: L10nKey) -> String {
-        activeBundle.localizedString(forKey: key.rawValue, value: nil, table: nil)
+        let value = activeBundle.localizedString(forKey: key.rawValue, value: missingMarker, table: nil)
+        guard value == missingMarker else { return value }
+        return cachedBundle(.en).localizedString(forKey: key.rawValue, value: nil, table: nil)
     }
 
     /// Format string with `%@` placeholders, filled in order.

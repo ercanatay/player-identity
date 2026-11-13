@@ -36,7 +36,8 @@ targets:
     info:
       path: PlayerIdentity/Info.plist
       properties:
-        CFBundleLocalizations: [en, tr]
+        # §62: the 24 UI languages (same set as the `.lproj` folders).
+        CFBundleLocalizations: [tr, en, de, fr, es, it, pt, nl, sv, pl, cs, ro, hu, el, bg, uk, ru, ar, fa, hi, zh-Hans, ja, ko, id]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # §53: `playeridentity://add?host=…` links.

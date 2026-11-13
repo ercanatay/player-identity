@@ -14,11 +14,13 @@ final class LanguageSelectorTests: XCTestCase {
         XCTAssertEqual(AppLanguageSetting.system.resolved(preferredLanguages: ["tr-TR"]), .tr)
         XCTAssertEqual(AppLanguageSetting.system.resolved(preferredLanguages: ["tr"]), .tr)
         XCTAssertEqual(AppLanguageSetting.system.resolved(preferredLanguages: ["en-US"]), .en)
-        XCTAssertEqual(AppLanguageSetting.system.resolved(preferredLanguages: ["de-DE", "tr-TR"]), .en)
+        XCTAssertEqual(AppLanguageSetting.system.resolved(preferredLanguages: ["sw-KE", "tr-TR"]), .en)   // §62: unsupported first
+        XCTAssertEqual(AppLanguageSetting.system.resolved(preferredLanguages: ["de-DE", "tr-TR"]), .de)   // §62: German shipped
         XCTAssertEqual(AppLanguageSetting.system.resolved(preferredLanguages: []), .en)
         XCTAssertEqual(AppLanguageSetting.tr.resolved(preferredLanguages: ["en-US"]), .tr)
         XCTAssertEqual(AppLanguageSetting.en.resolved(preferredLanguages: ["tr-TR"]), .en)
-        XCTAssertEqual(AppLanguageSetting(stored: "fr"), .system)
+        XCTAssertEqual(AppLanguageSetting(stored: "sw"), .system)
+        XCTAssertEqual(AppLanguageSetting(stored: "fr"), .fr)   // §62
         XCTAssertEqual(AppLanguageSetting(stored: nil), .system)
         XCTAssertEqual(AppLanguageSetting(stored: "tr"), .tr)
     }
@@ -56,13 +58,13 @@ final class LanguageSelectorTests: XCTestCase {
         L10n.setting = .system
         L10n.preferredLanguagesOverride = ["tr-TR"]
         XCTAssertEqual(L10n.text(.actionSave), "Kaydet")
-        L10n.preferredLanguagesOverride = ["de-DE"]
+        L10n.preferredLanguagesOverride = ["sw-KE"]   // §62: unsupported → English
         XCTAssertEqual(L10n.text(.actionSave), "Save")
     }
 
     func testLanguageLabelsAreNativeAndKeysComplete() throws {
         L10n.setting = .en
-        XCTAssertEqual(L10n.text(AppLanguage.tr.labelKey), "Türkçe")
+        XCTAssertEqual(L10n.text(.languageTurkish), "Türkçe")
         XCTAssertEqual(L10n.text(.languageEnglish), "English")
         XCTAssertEqual(L10n.format(.languageSystemResolved, "Türkçe"), "System (Türkçe)")
         L10n.setting = .tr

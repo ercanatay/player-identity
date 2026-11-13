@@ -209,7 +209,8 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(Bundle.preferredLocalizations(from: localizations, forPreferences: ["en"]).first, "en")
         XCTAssertEqual(Bundle.preferredLocalizations(from: localizations, forPreferences: ["tr"]).first, "tr")
         XCTAssertEqual(Bundle.preferredLocalizations(from: localizations, forPreferences: ["tr-TR"]).first, "tr")
-        XCTAssertEqual(Bundle.preferredLocalizations(from: localizations, forPreferences: ["de-DE"]).first, "en")
+        XCTAssertEqual(Bundle.preferredLocalizations(from: localizations, forPreferences: ["sw-KE"]).first, "en")
+        XCTAssertEqual(Bundle.preferredLocalizations(from: localizations, forPreferences: ["de-DE"]).first, "de")   // §62
     }
 
     func testWholeTextsSwitchWithLanguage() throws {
