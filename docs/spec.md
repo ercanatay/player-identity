@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.6 · Tarih: 2026-11-12 · Durum: uygulanacak (v3.5 → v3.6: §54 hata dosyası açılışta oluşturulur)
+Sürüm: 3.7 · Tarih: 2026-11-13 · Durum: uygulanacak (v3.6 → v3.7: §58 doğrulama düzeltmeleri, §59 ban listesi şablonları, §60 menü çubuğu hızlı CID, §61 çoklu profil)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1303,3 +1303,43 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - **Homebrew tap:** Homebrew, tap adı ile `homebrew-<ad>` repo adının eşleşmesini zorunlu kılar; bu yüzden ana repo tap olarak kullanılamaz. `ercanatay/homebrew-tap` ayrı ve zorunludur. Release'te otomatik sync için `TAP_DEPLOY_KEY` (deploy key, write) veya `TAP_TOKEN` gerekir; yoksa manuel script `scripts/sync-tap.sh` ile yapılır.
 - **Release bütünlüğü:** release işi, cask'taki `version`/`sha256` ile yayınlanan asset'in `SHA256SUMS.txt` değerini karşılaştırır; uyuşmazsa job **fail** (mevcut `continue-on-error` yalnız cask commit'i için).
 - **Doğrulama:** YAML lint; cask/asset karşılaştırma adımının kuru çalıştırması.
+
+## 58. Doğrulama ve yedek düzeltmeleri (v3.7)
+- **58.1 Güncelleme imza doğrulaması:** `spctl -a -vv -t exec` sonucu tek başına yeterli sayılmaz.
+  - Kabul: çıkış 0 **ve** `accepted` satırı **ve** `Notarized Developer ID` kaynağı.
+  - `spctl` çalıştırılamıyor/hata veriyorsa (ör. araç yok, kısıtlı ortam) doğrulama **`codesign --verify --deep --strict` + TeamIdentifier + Identifier + sürüm** kontrolüne düşer; bu durum teşhis kaydına `spctlUnavailable` olarak yazılır ve kullanıcıya bilgi verilir.
+  - Çıktı ayrıştırması satır sonu türünden (`\n`, `\r\n`) ve baştaki/sondaki boşluktan bağımsızdır; `notarized` bilgisi büyük/küçük harf duyarsız aranır.
+  - `rejected` **hiçbir** koşulda kabul edilmez.
+- **58.2 Güncelleme öncesi veri yedeği:** okunamayan dosya yedeğe girmezse yedek **`partial`** işaretlenir.
+  - Sonuç: `skippedCount`, ilk 5 atlanan yol (redakte) ve neden.
+  - Kullanıcıya uyarı gösterilir ("N dosya yedeklenemedi"); güncelleme ancak kullanıcı onaylarsa sürer; onay yoksa güncelleme iptal edilir ve uygulama değişmez.
+  - `partial` yedek otomatik temizlikte en eski olarak önce silinir (5 dosya sınırı korunur).
+- **58.3 İçe aktarma önizlemesi (`dataRoot`):** önizleme ile uygulama **aynı** sonucu vermelidir.
+  - Geçersiz/erişilemeyen `dataRoot` önizlemede "uygulanamaz" olarak işaretlenir ve uygulanacak değişiklik sayısına **eklenmez**.
+  - Uygulama sırasında bu alan sessizce atlanmaz; sonuç raporunda `skippedFields: ["dataRoot"]` olarak görünür.
+  - Aynı yol (`~` genişletmesi ve sembolik bağ hariç) değişiklik sayılmaz.
+
+## 59. Ban listesi URL şablonu kitaplığı (v3.7)
+- Sunucu detayındaki "Ban list" alanı için **hazır şablonlar**: `SourceBans++`, `AMXBans`, `HLstatsX`, `Generic (CID)`, `Generic (IP)`.
+- Her şablon: ad, açıklama, `https://` URL kalıbı, desteklenen yer tutucular `{cid}`, `{ip}`, `{host}`, `{port}`.
+- Doğrulama: yalnız `https`; en az bir yer tutucu; boşluk yok; 2048 karakter sınırı. Geçersiz kalıp kaydedilmez, hata satırı gösterilir.
+- Kullanıcı şablonu düzenleyebilir; seçim sunucuya özel saklanır, "Tüm sunuculara uygula" seçeneği vardır.
+- Yer tutucular URL-encode edilir (CID hex olduğu için değişmez, host için gerekli).
+- Testler: şablon doğrulama, yer tutucu doldurma/encode, sunucuya özel saklama, toplu uygulama, geçersiz kalıp reddi.
+
+## 60. Menü çubuğu hızlı CID (v3.7)
+- Menü çubuğu menüsünün üstünde durum satırı: genel durum + son kontrol saati; altında **"CID'yi kopyala"** (seçili/ilk sunucu) ve **"Ham kimliği kopyala"**.
+- Sunucu alt menüsü: her sunucu için "CID'yi kopyala" ve "Yeniden kontrol et".
+- Kopyalama sonrası menüde 2 sn "Kopyalandı" onayı; pano hatası sessiz yutulmaz, menüde hata satırı görünür.
+- Menü çubuğu kapalıyken bu öğeler görünmez; ana pencere davranışı değişmez.
+- Testler: menü modeli (öğe varlığı/sırası), CID kaynağı seçimi, kopyalama sonucu, hata durumu.
+
+## 61. Çoklu profil (v3.7)
+- Profil = `{id, name, dataRoot, gamedir, createdAt}`; `profile.json` içinde `profiles: [Profile]` + `activeProfileID`.
+- Varsayılan profil, mevcut tek `dataRoot`/`gamedir` değerlerinden **göç** eder (ilk açılışta `Default`).
+- Geçiş: ana pencerede profil seçici (araç çubuğu) + Ayarlar > Veri bölümünde profil listesi (ekle, yeniden adlandır, sil, varsayılan yap).
+- Aktif profil değişince: kimlik kaynağı, gamedir, data root yeniden çözülür; CID'ler yeniden hesaplanır; **sunucu listesi ortaktır** (profile bağlı değildir) ve geçmiş/metrikler profil kimliğiyle etiketlenir.
+- Silme: en az bir profil kalmalı; aktif profil silinirse varsayılana dönülür; silme onay ister ve geri alınamaz.
+- Aynı `dataRoot`+`gamedir` kombinasyonu ikinci kez eklenemez (uyarı).
+- Oyun çalışırken profil değişimi salt-okunur uyarısıyla engellenir (config yazımı riski).
+- Testler: göç, ekle/adlandır/sil/varsayılan, aktif profil kalıcılığı, yeniden hesaplama, silme sınırı, yinelenen kombinasyon, oyun çalışırken engel.

@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.11.0] - 2026-11-13
+
+### Added
+- **Multiple profiles** (spec §61): `profiles` + `activeProfileID` in `profile.json`, migration to `Default`, toolbar picker, Settings list (add/rename/delete/default), re-resolution on switch, profile tags on history and metrics rows.
+- **Ban-list template library** (spec §59): SourceBans++, AMXBans, HLstatsX and generic CID/IP templates, placeholder validation, "apply to all servers".
+- **Menu bar quick actions** (spec §60): status line, copy CID/raw identity, per-server submenu, inline confirmation, clipboard errors recorded.
+- **Turkish feature reference** (`docs/FEATURES.tr.md`).
+
+### Fixed
+- Update verification now survives an unavailable `spctl` (falls back to `codesign`), tolerates line-ending and casing differences, and never accepts `rejected`.
+- Data backups before a version change report skipped files as a `partial` backup and ask for confirmation instead of failing silently.
+- The settings-import preview and the applied result now agree on `dataRoot` (`skippedFields`).
+
 ## [2.10.3] - 2026-11-13
 
 ### Added

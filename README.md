@@ -27,7 +27,7 @@ folder (`profile.json`, history, metrics, updates).
 
 **Turkish and English UI** — follows the system language by default and can be switched at runtime.
 
-📖 **Full feature reference:** [`docs/FEATURES.md`](docs/FEATURES.md) — every screen, CLI command, URL scheme, notification rule and backup format.
+📖 **Full feature reference:** [`docs/FEATURES.md`](docs/FEATURES.md) · Türkçe: [`docs/FEATURES.tr.md`](docs/FEATURES.tr.md) — every screen, CLI command, URL scheme, notification rule and backup format.
 
 ---
 
@@ -48,6 +48,13 @@ folder (`profile.json`, history, metrics, updates).
 > All screenshots use a fictional player, servers and IP addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ---
+
+## What's new in v2.11.0
+
+- **Profiles**: keep several identities side by side (data root + gamedir) and switch from the toolbar; existing records migrate to a `Default` profile.
+- **Ban-list templates**: ready-made URL templates (SourceBans++, AMXBans, HLstatsX, generic CID/IP) with placeholder validation and "apply to all servers".
+- **Menu bar quick actions**: copy the selected server's CID or the raw identity, re-check a server, with an inline confirmation.
+- **Sturdier updates and backups**: verification falls back to `codesign` when `spctl` is unavailable, partial data backups are reported and confirmed, and the settings-import preview now matches the applied result.
 
 ## What's new in v2.10.3
 
@@ -710,7 +717,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **730 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **774 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### Live UI evidence
@@ -739,7 +746,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 730 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 774 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -753,7 +760,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (730)
+PlayerIdentityTests/      Unit tests (774)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask
