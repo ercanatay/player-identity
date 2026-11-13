@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.13.0** (816 automated tests), against behaviour specification **v4.0** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.14.0** (828 automated tests), against behaviour specification **v4.1** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -16,10 +16,10 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Game** | Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) with a `valve` or `gearbox` data folder |
 | **Data source** | Read-only access to the engine's `.xash_id` files and `config.cfg` / `userconfig.cfg`; public IP from `api.ipify.org` (fallback `ifconfig.me`); server answers over UDP |
 | **Write behaviour** | Read-only by default. The only game files ever written are the `name` and `model` lines of `config.cfg` / `userconfig.cfg`, and only after you confirm **Apply** (or **Remove line**). Everything else lives in the app's own folder |
-| **Languages** | 24 languages (931 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
+| **Languages** | 24 languages (958 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
-| **Tests** | 783 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Tests** | 828 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -597,6 +597,8 @@ When a server refuses a connection, the engine usually says nothing useful. **Di
 - **Engine log evidence:** the tail of `qconsole.log` (or `console.log`, 512 KB / 200 lines) is matched against known engine errors; a direct engine ban message can override the probe verdict. Files are only read, never written.
 - **Shareable report:** Markdown with the verdict, the step table and the log matches; CID and IP are masked by default (unmasked only after confirmation) and the file is named `playeridentity-diagnose-<host>-<time>.md`.
 - **History:** every run is recorded as a `diagnose` event; the server entry is never modified.
+- **Trend:** the server sheet summarises past diagnoses over 7 days, 30 days or all time — number of runs, counts per verdict and a strip of the last 10 runs (green: no ban, red: ban, orange: inconclusive).
+- **Menu bar:** every server's submenu has a *Diagnose* action; progress is shown inline and the result appears as one line (`CID ban · 1.2 s`). Ban verdicts post a single notification that respects quiet hours and per-server settings.
 - **Limits:** the app never lifts a ban; verdicts rest on server responses and the engine log, never on guesses.
 
 ## Updates
@@ -683,7 +685,7 @@ The interface ships in the same 24 languages as cybokron.com: Turkish, English, 
 
 - **Selection:** Settings → Language offers *System* plus the 24 languages, each shown with its native name. The choice applies immediately; the system language decides the default.
 - **Fallback:** if a language is missing a key, the English value is shown; the app never shows a raw key.
-- **Resources:** `Localizable.strings` (931 keys) and `InfoPlist.strings` per language; the product name is "Cybokron Player Identity" in every language except Turkish ("Cybokron Oyuncu Kimlik Kartı").
+- **Resources:** `Localizable.strings` (958 keys) and `InfoPlist.strings` per language; the product name is "Cybokron Player Identity" in every language except Turkish ("Cybokron Oyuncu Kimlik Kartı").
 - **Right-to-left:** Arabic and Persian use the system layout direction; text is translated, icons and arrows keep their meaning.
 - **Quality gate:** `tools/check-l10n-parity.sh` compares every language against English — key sets, format placeholders and empty values — and fails the build pipeline on a mismatch.
 

@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.0 · Tarih: 2026-11-13 · Durum: uygulanacak (v3.9 → v4.0: §64 bağlantı teşhisi — sonda, motor günlüğü, paylaşılabilir rapor)
+Sürüm: 4.1 · Tarih: 2026-11-13 · Durum: uygulanacak (v4.0 → v4.1: §65 teşhis trendi + menü çubuğundan teşhis)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1417,3 +1417,21 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 - Uygulama **hiçbir banı kaldırmaz**; hükümler yalnız sunucu yanıtı ve motor günlüğüne dayanır, tahmin edilmez.
 - Motor günlüğü kapalıysa teşhis yine çalışır (yalnız sonda katmanı).
 - Yeni anahtarlar §63 akışıyla eklenir: `l10n_keys.py --add` → 22 dilde `en` yer tutucu → dil başına tek çevirmen çağrısı.
+
+## 65. Teşhis trendi ve menü çubuğundan teşhis (v4.1)
+### 65.1 Sunucuya özel trend
+- Kaynak: geçmişteki `diagnose` olayları (ek depolama yok; türetilir).
+- Pencere seçimi: **7 gün**, **30 gün**, **tümü**; varsayılan 7 gün.
+- Sunucu detayındaki teşhis bölümünde özet: `runs`, son çalışma zamanı, hüküm başına sayı (yalnız sıfırdan büyük olanlar), **son 10 çalışmanın** renkli şeridi (yeşil = ban yok, kırmızı = ban, turuncu = belirsiz/hata).
+- Boş durum: "Bu sunucu için henüz teşhis yok" + teşhisi başlat düğmesi.
+- Trend, teşhis sonucunu **değiştirmez**; yalnız geçmişi özetler.
+
+### 65.2 Menü çubuğundan teşhis
+- Sunucu alt menüsüne **"Teşhis et"** öğesi (mevcut "CID'yi kopyala" / "Yeniden kontrol et" yanına).
+- Çalışırken menüde sunucu satırında `teşhis sürüyor…` (en çok 20 sn; sonuç gelince otomatik güncellenir, menü açıkken de metin yenilenir).
+- Sonuç menüde tek satır: hüküm + süre (ör. `CID ban · 1,2 sn`); hüküm `ipBanned`/`cidBanned`/`rangeBanned` ise ve bildirimler açıksa **tek bildirim** (sessiz saat ve sunucu eşikleri geçerli).
+- Teşhis geçmişe yazılır (§64 ile aynı olay); sunucu kaydı değişmez.
+- Menü çubuğu kapalıyken öğe yok; ana pencere davranışı değişmez.
+
+### 65.3 Testler
+(a) pencere filtreleri (7/30/tümü) ve saat sınırları, (b) hüküm sayımı ve şerit sırası, (c) boş durum, (d) menü modeli: öğe varlığı/sırası, "sürüyor" durumu, sonuç satırı, (e) bildirim yalnız ban hükümlerinde ve sessiz saat/eşiklerle, (f) ağ yok — sahte taşıyıcı, (g) 24 dilde yeni anahtarların eşitliği.

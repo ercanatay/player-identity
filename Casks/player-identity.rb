@@ -2,7 +2,7 @@
 # `version` and `sha256` are updated by scripts/update-cask.sh from the release asset
 # (scripts/release.sh runs it after packaging; the release workflow commits the result).
 cask "player-identity" do
-  version "2.13.0"
+  version "2.14.0"
   sha256 "c3ceb621b2bedf72085171375c68f12de5c735a534cad8fd2ee460e45b98da96"
 
   url "https://github.com/ercanatay/player-identity/releases/download/v#{version}/PlayerIdentity-#{version}-macos.zip"

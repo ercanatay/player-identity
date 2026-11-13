@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.14.0] - 2026-11-13
+
+### Added
+- **Diagnosis trend** (spec §65): per-server summary of past diagnoses over 7 days / 30 days / all time — run count, verdict counts and a colour strip of the last 10 runs, derived from history with no extra storage.
+- **Diagnose from the menu bar**: a per-server "Diagnose" action shows progress inline, then the verdict and duration (`CID ban · 1.2 s`); ban verdicts post a single notification that respects quiet hours and per-server settings.
+- Diagnostics strings for both features are localized into all 24 languages.
+
 ## [2.13.0] - 2026-11-13
 
 ### Added
@@ -203,6 +210,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.14.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.14.0
 [2.13.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.13.0
 [2.12.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.12.0
 [2.7.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.7.0
