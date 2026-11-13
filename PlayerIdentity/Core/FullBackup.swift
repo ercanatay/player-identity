@@ -235,14 +235,22 @@ enum FullBackupNaming {
         formatter("yyyyMMdd", timeZone: timeZone).string(from: date)
     }
 
-    /// Name inside `backups/`: `auto-20261111.zip`, `pre-restore-20261111-093015.zip`, `pre-update-…`.
-    static func storedFileName(_ kind: FullBackupKind, now: Date, timeZone: TimeZone = .current) -> String {
+    /// Name inside `backups/`: `auto-20261111.zip`, `pre-restore-20261111-093015.zip`, `pre-update-…`. A pre-update
+    /// backup that could not include every file ends in `-partial.zip` (§58.2).
+    static func storedFileName(_ kind: FullBackupKind, now: Date, timeZone: TimeZone = .current,
+                               partial: Bool = false) -> String {
         switch kind {
         case .automatic: return "auto-" + day(now, timeZone: timeZone) + ".zip"
         case .manual, .preRestore, .preUpdate:
-            return kind.rawValue + "-" + formatter("yyyyMMdd-HHmmss", timeZone: timeZone).string(from: now) + ".zip"
+            return kind.rawValue + "-" + formatter("yyyyMMdd-HHmmss", timeZone: timeZone).string(from: now)
+                + (partial ? partialSuffix : ".zip")
         }
     }
+
+    static let partialSuffix = "-partial.zip"
+
+    /// A backup whose name marks it as partial (§58.2).
+    static func isPartial(_ url: URL) -> Bool { url.lastPathComponent.hasSuffix(partialSuffix) }
 }
 
 // MARK: - Validation
@@ -500,13 +508,15 @@ struct FullBackupStore: Sendable {
         var skipped: [FullBackupManifest.SkippedFile]
     }
 
-    /// `create` that also reports the skipped files (also when nothing at all could be backed up).
+    /// `create` that also reports the skipped files (also when nothing at all could be backed up). A pre-update
+    /// backup that could not read a file is stored as partial (`…-partial.zip`, pruned first, §58.2).
     func createBackup(_ kind: FullBackupKind, now: Date) throws -> Created {
         let content = FullBackupContent.collect(paths)
         guard !content.isEmpty else { return Created(url: nil, skipped: content.skipped) }
         let (data, _) = try FullBackupArchive.make(content, kind: kind, appVersion: appVersion, now: now)
-        let url = directory.appendingPathComponent(FullBackupNaming.storedFileName(kind, now: now, timeZone: timeZone),
-                                                   isDirectory: false)
+        let partial = kind == .preUpdate && content.skipped.contains { $0.reason == .unreadable }
+        let name = FullBackupNaming.storedFileName(kind, now: now, timeZone: timeZone, partial: partial)
+        let url = directory.appendingPathComponent(name, isDirectory: false)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
         try prune(kind, keeping: url)
@@ -553,9 +563,10 @@ struct FullBackupStore: Sendable {
     var count: Int { FullBackupKind.allCases.reduce(0) { $0 + list($1).count } }
 
     /// Keeps the `maxPerKind` newest backups of a kind. `keeping` (the file just written) is always kept, whatever
-    /// its date says, and counts as the newest one.
+    /// its date says, and counts as the newest one. Partial backups count as the oldest ones and go first (§58.2).
     func prune(_ kind: FullBackupKind, keeping newest: URL? = nil) throws {
         var urls = list(kind)
+        urls = urls.filter { !FullBackupNaming.isPartial($0) } + urls.filter(FullBackupNaming.isPartial)
         if let newest {
             let path = newest.standardizedFileURL.path
             urls.removeAll { $0.standardizedFileURL.path == path }

@@ -21,10 +21,14 @@ final class UpdateController {
         case cancelled
         case failed(UpdateError)
         case backupFailed(String)
+        /// §58.2: the backup before the install could not include this many files; waiting for the user to continue
+        /// or cancel (`pendingPartialBackup`). Nothing was downloaded or replaced yet.
+        case awaitingBackupConfirmation(Int)
 
         var isBusy: Bool {
             switch self {
-            case .checking, .backingUp, .downloading, .verifying, .installing, .relaunching: return true
+            case .checking, .backingUp, .downloading, .verifying, .installing, .relaunching,
+                 .awaitingBackupConfirmation: return true
             default: return false
             }
         }
@@ -36,10 +40,19 @@ final class UpdateController {
         /// Download/verification can still be cancelled; replacing cannot.
         var isCancellable: Bool {
             switch self {
-            case .downloading, .verifying: return true
+            case .downloading, .verifying, .awaitingBackupConfirmation: return true
             default: return false
             }
         }
+    }
+
+    /// §58.2: the pre-update backup is partial; the install waits for this confirmation.
+    struct PartialBackupConfirmation: Identifiable, Equatable {
+        let id = UUID()
+        let release: AppRelease
+        let report: BackupSkipReport
+        /// Window that shows the question (the one that confirmed the install).
+        let origin: InstallRequest.Origin
     }
 
     /// Confirmation sheet content (§27.3, §28.2/2).
@@ -98,6 +111,10 @@ final class UpdateController {
     private(set) var dataBackupCount = 0
     /// Release being downloaded/installed (or prepared in the background); shown in the Updates status card.
     private(set) var activeRelease: AppRelease?
+    /// §58.2: "N files could not be backed up": continue (`continueAfterPartialBackup`) or cancel.
+    private(set) var pendingPartialBackup: PartialBackupConfirmation?
+    /// §58.1: `spctl` could not run and the update was verified by codesign, team, identifier and version.
+    private(set) var verificationNotice: String?
     /// §49: a restore is replacing the data files; installing waits until it is done.
     var isDataOperationRunning = false
 
@@ -109,6 +126,8 @@ final class UpdateController {
     @ObservationIgnored private var installTask: Task<Void, Never>?
     @ObservationIgnored private var periodicTask: Task<Void, Never>?
     @ObservationIgnored private var prepared: UpdateInstaller.Prepared?
+    /// The confirmed install that waits for `pendingPartialBackup` (request and the download prepared for it).
+    @ObservationIgnored private var partialContinuation: (request: InstallRequest, ready: UpdateInstaller.Prepared?)?
 
     init(dependencies: AppDependencies) {
         deps = dependencies
@@ -284,6 +303,9 @@ final class UpdateController {
     ///
     /// While a data operation or another update task runs nothing starts: the request (and the sheet) stays open and
     /// `installBlockedReason` says why, so the user can wait and press the button again or cancel.
+    ///
+    /// §58.2: when a backup could not include every file the install stops before anything is downloaded and asks
+    /// (`pendingPartialBackup`); it goes on only after `continueAfterPartialBackup`.
     @discardableResult
     func confirmInstall() -> Task<Void, Never>? {
         guard let request = pendingInstall, installBlockedReason == nil else { return nil }
@@ -291,12 +313,14 @@ final class UpdateController {
         // `backingUp` counts as updating: restores, erases and a second install are refused until it is done.
         status = .backingUp
         activeRelease = request.release
+        verificationNotice = nil
         let installer = self.installer
         let ready = prepared?.release == request.release ? prepared : nil
         // A download prepared for another release is not used: its files are removed before anything else.
         let stale = prepared?.release == request.release ? nil : prepared
         prepared = nil
-        let fullBackups = FullBackupStore(paths: deps.paths, appVersion: appVersion)
+        let paths = deps.paths
+        let fullBackups = FullBackupStore(paths: paths, appVersion: appVersion)
         let dataBackups = request.change == .downgrade && request.backupData ? backupStore : nil
         // UserDefaults is read here (main actor); the files are written off the main thread.
         let dataDefaults = dataBackups.map { store in
@@ -308,48 +332,98 @@ final class UpdateController {
         let task = Task {
             // §49.3: full data backup (`backups/pre-update-…zip`) before every install, then (downgrade, if chosen)
             // the small data backup with the preferences export, both off the main thread. A failure stops the install.
-            let failure = await Task.detached { () -> (any Error)? in
+            let outcome = await Task.detached { () -> Result<BackupSkipReport, any Error> in
                 if let stale { installer.discard(stale) }
                 do {
-                    try fullBackups.create(.preUpdate, now: now)
+                    let created = try fullBackups.createBackup(.preUpdate, now: now)
+                    var report = BackupSkipReport(fullBackupSkipped: created.skipped, paths: paths)
                     if let dataBackups, let dataDefaults {
-                        try dataBackups.create(from: from, to: to, now: now, defaultsPlist: dataDefaults.get())
+                        let backup = try dataBackups.create(from: from, to: to, now: now, defaultsPlist: dataDefaults.get())
+                        report.merge(backup.skipReport)
                     }
-                    return nil
+                    return .success(report)
                 } catch {
-                    return error
+                    return .failure(error)
                 }
             }.value
             if dataBackups != nil { dataBackupCount = backupStore.list().count }
-            if let failure {
+            switch outcome {
+            case .failure(let failure):
                 if prepared == nil { prepared = ready }   // a prepared download stays ready for the next attempt
                 status = .backupFailed(Self.errorText(failure))
                 installTask = nil
-                return
+            case .success(let report) where report.isPartial:
+                deps.errorLog.record(.backup, "partialBackup: \(report.skippedCount)", at: deps.now())
+                partialContinuation = (request, ready)
+                pendingPartialBackup = PartialBackupConfirmation(release: request.release, report: report,
+                                                                 origin: request.origin)
+                status = .awaitingBackupConfirmation(report.skippedCount)
+                installTask = nil
+            case .success:
+                await runInstall(request.release, ready: ready, installer: installer)
             }
-            do {
-                let progress: @Sendable (InstallPhase) async -> Void = { phase in
-                    await self.setPhase(phase)
-                }
-                if let ready {
-                    _ = try await installer.finish(ready, progress: progress)
-                } else {
-                    _ = try await installer.install(request.release, progress: progress)
-                }
-            } catch let error as UpdateError {
-                status = error == .cancelled ? .cancelled : .failed(error)
-            } catch {
-                status = .failed(.downloadFailed)
-            }
-            installTask = nil
         }
         installTask = task
         return task
     }
 
+    /// §58.2 "Update anyway": the partial backup was accepted; download, verify, replace and relaunch.
+    @discardableResult
+    func continueAfterPartialBackup() -> Task<Void, Never>? {
+        guard let continuation = partialContinuation, case .awaitingBackupConfirmation = status else { return nil }
+        partialContinuation = nil
+        pendingPartialBackup = nil
+        let installer = self.installer
+        let task = Task {
+            await runInstall(continuation.request.release, ready: continuation.ready, installer: installer)
+        }
+        installTask = task
+        return task
+    }
+
+    /// §58.2 "Cancel": no confirmation for the partial backup, so nothing is installed and the app stays unchanged
+    /// (a prepared download stays ready).
+    func cancelAfterPartialBackup() {
+        guard let continuation = partialContinuation, case .awaitingBackupConfirmation(let count) = status else { return }
+        partialContinuation = nil
+        pendingPartialBackup = nil
+        if prepared == nil { prepared = continuation.ready }
+        status = .backupFailed(L10n.format(.updatePartialBackupDeclined, String(count)))
+    }
+
+    /// Download (unless prepared), verify, replace and relaunch; the result goes into `status`.
+    private func runInstall(_ release: AppRelease, ready: UpdateInstaller.Prepared?, installer: UpdateInstaller) async {
+        defer { installTask = nil }
+        do {
+            let progress: @Sendable (InstallPhase) async -> Void = { phase in
+                await self.setPhase(phase)
+            }
+            let prepared: UpdateInstaller.Prepared
+            if let ready {
+                prepared = ready   // already logged when it was prepared in the background
+            } else {
+                prepared = try await installer.prepare(release, progress: progress)
+            }
+            noteVerification(prepared.verification, log: ready == nil)
+            _ = try await installer.finish(prepared, progress: progress)
+        } catch let error as UpdateError {
+            status = error == .cancelled ? .cancelled : .failed(error)
+        } catch {
+            status = .failed(.downloadFailed)
+        }
+    }
+
+    /// §58.1: `spctl` was not available; the diagnostics log gets `spctlUnavailable` and the user a notice.
+    private func noteVerification(_ verification: UpdateVerification, log: Bool = true) {
+        guard case .codesignFallback(let reason) = verification else { return }
+        if log { deps.errorLog.record(.update, "spctlUnavailable: \(reason)", at: deps.now()) }
+        verificationNotice = L10n.text(.updateNoticeSpctlUnavailable)
+    }
+
     /// Cancels the download/verification (§27.3). Replacing is never interrupted.
     func cancelInstall() {
         guard status.isCancellable else { return }
+        if case .awaitingBackupConfirmation = status { return cancelAfterPartialBackup() }
         installTask?.cancel()
     }
 
@@ -375,6 +449,8 @@ final class UpdateController {
             do {
                 let ready = try await installer.prepare(release) { phase in await self.setPhase(phase) }
                 prepared = ready
+                verificationNotice = nil
+                noteVerification(ready.verification)
                 status = .ready(release.versionString)
             } catch let error as UpdateError {
                 status = error == .cancelled ? .cancelled : .failed(error)

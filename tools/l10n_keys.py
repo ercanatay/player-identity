@@ -864,6 +864,16 @@ KEYS = [
     # Backups and updater hardening: background work, tool time limits, Gatekeeper, unusable data.
     ("updateStatusBackingUp", "update.status.backingUp", "Veriler yedekleniyor…", "Backing up the data…"),
     ("updateErrorGatekeeper", "update.error.gatekeeper", "Gatekeeper uygulamayı kabul etmedi (notarize edilmemiş veya imzası geçersiz); kurulum yapılmadı.", "Gatekeeper did not accept the app (not notarized or invalid signature); nothing was installed."),
+
+    # §58 verification and backup fixes (v3.7)
+    ("updateNoticeSpctlUnavailable", "update.notice.spctlUnavailable", "Gatekeeper denetimi (spctl) bu ortamda çalıştırılamadı; güncelleme codesign imzası, ekip kimliği, paket kimliği ve sürümle doğrulandı.", "The Gatekeeper check (spctl) could not run here; the update was verified by its code signature, team ID, bundle ID and version."),
+    ("updateStatusAwaitingBackup", "update.status.awaitingBackup", "%@ dosya yedeklenemedi; onayınız bekleniyor.", "%@ file(s) could not be backed up; waiting for your confirmation."),
+    ("updatePartialBackupTitle", "update.partialBackup.title", "%@ dosya yedeklenemedi", "%@ file(s) could not be backed up"),
+    ("updatePartialBackupMessage", "update.partialBackup.message", "Güncelleme öncesi yedeğe giremeyen dosyalar:\n%@\n\nGüncelleme yine de sürsün mü? Vazgeçerseniz uygulama değişmez.", "These files could not go into the backup before the update:\n%@\n\nContinue the update anyway? If you cancel, the app stays unchanged."),
+    ("updatePartialBackupMore", "update.partialBackup.more", "… ve %@ dosya daha", "… and %@ more"),
+    ("updatePartialBackupContinue", "update.partialBackup.continue", "Yine de Güncelle", "Update Anyway"),
+    ("updatePartialBackupDeclined", "update.partialBackup.declined", "%@ dosya yedeklenemedi ve güncelleme onaylanmadı", "%@ file(s) could not be backed up and the update was not confirmed"),
+    ("backupSkipUnreadable", "backup.skip.unreadable", "okunamadı", "unreadable"),
     ("updateErrorTimeout", "update.error.timeout", "%@ yanıt vermedi ve durduruldu; kurulum yapılmadı.", "%@ did not respond and was stopped; nothing was installed."),
     ("fullRestoreWorkingBackup", "fullRestore.working.backup", "Mevcut veriler yedekleniyor…", "Backing up the current data…"),
     ("backupNoUsableData", "fullBackup.noUsableData", "%@ dosya okunamadı (%@); yedek oluşturulamadı.", "%@ files could not be read (%@); no backup was created."),

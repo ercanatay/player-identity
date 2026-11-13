@@ -21,6 +21,65 @@ enum DowngradePlanner {
     }
 }
 
+// MARK: - Partial backups (§58.2)
+
+/// Files that existed but could not be read into a backup made before a version change. A backup with any skipped
+/// file is `partial`: the install continues only after the user confirmed it, and automatic pruning removes it first.
+struct BackupSkipReport: Sendable, Equatable {
+    /// Why a file is missing from the backup.
+    enum Reason: String, Codable, Sendable {
+        case unreadable
+    }
+
+    struct Item: Codable, Sendable, Equatable {
+        /// Name of the data file (`profile.json`, `history.jsonl`, …).
+        var file: String
+        /// Full path with the home folder redacted to `~`.
+        var path: String
+        var reason: Reason
+    }
+
+    /// At most this many skipped files are listed (`skippedCount` counts all of them).
+    static let listedLimit = 5
+
+    private(set) var skippedCount = 0
+    /// The first `listedLimit` skipped files.
+    private(set) var items: [Item] = []
+    /// Redacted paths of every counted file (no file is counted twice when two backups skip it).
+    private var counted: [String] = []
+
+    init() {}
+
+    var isPartial: Bool { skippedCount > 0 }
+
+    mutating func add(file: String, at url: URL, reason: Reason, home: URL) {
+        let path = Redactor(home: home).text(url.standardizedFileURL.path)
+        guard !counted.contains(path) else { return }
+        counted.append(path)
+        skippedCount += 1
+        if items.count < Self.listedLimit { items.append(Item(file: file, path: path, reason: reason)) }
+    }
+
+    mutating func merge(_ other: BackupSkipReport) {
+        for path in other.counted where !counted.contains(path) {
+            counted.append(path)
+            skippedCount += 1
+            if items.count < Self.listedLimit, let item = other.items.first(where: { $0.path == path }) {
+                items.append(item)
+            }
+        }
+    }
+
+    /// Files a full backup could not read (a file that was read but cannot be decoded holds no usable data and does
+    /// not make the backup partial; the manifest still lists it).
+    init(fullBackupSkipped skipped: [FullBackupManifest.SkippedFile], paths: AppPaths) {
+        for entry in skipped where entry.reason == .unreadable {
+            guard let file = FullBackupFile(rawValue: entry.file) else { continue }
+            add(file: entry.file, at: file.url(in: paths), reason: .unreadable, home: paths.home)
+        }
+    }
+}
+
 // MARK: - Data backup (§28.2/3, §28.3)
 
 /// `snapshot-info.json` of a data backup.
@@ -32,16 +91,26 @@ struct DataBackupInfo: Codable, Sendable, Equatable {
     var schemaVersion: Int?
     var files: [String]
     var bundleID: String
+    /// §58.2: `true` when a data file existed but could not be copied (absent in complete backups and older ones).
+    var partial: Bool?
+    var skippedCount: Int?
+    /// The first five skipped files (redacted path and reason).
+    var skipped: [BackupSkipReport.Item]?
+
+    var isPartial: Bool { partial == true }
 }
 
 struct DataBackup: Sendable, Equatable {
     let directory: URL
     let info: DataBackupInfo
+    /// §58.2: what could not be backed up (only filled in by `create`; empty for listed backups).
+    var skipReport = BackupSkipReport()
 }
 
 /// Backups of the app's data before a version change: `updates/backups/data-<from>-to-<to>-<ts>/` with
 /// `profile.json`, `history.jsonl`, `defaults.plist` (UserDefaults export) and `snapshot-info.json`.
-/// Backups are kept until the user removes them; at most 10, the oldest is removed first.
+/// Backups are kept until the user removes them; at most 10, the oldest is removed first. A file that exists but
+/// cannot be copied is left out and the backup is marked `partial` (§58.2); partial backups are pruned first.
 struct DataBackupStore: Sendable {
     static let maxBackups = 10
     static let infoFile = "snapshot-info.json"
@@ -57,7 +126,7 @@ struct DataBackupStore: Sendable {
         self.defaultsDomain = defaultsDomain
     }
 
-    /// Copies the current data; prunes to the 10 newest backups.
+    /// Copies the current data; prunes to 10 backups (partial ones first, never the new one).
     @discardableResult
     func create(from fromVersion: String, to toVersion: String, now: Date, defaults: UserDefaults) throws -> DataBackup {
         try create(from: fromVersion, to: toVersion, now: now,
@@ -80,21 +149,34 @@ struct DataBackupStore: Sendable {
             "data-\(Self.component(fromVersion))-to-\(Self.component(toVersion))-\(Self.timestamp(now))", isDirectory: true)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         var files: [String] = []
+        var report = BackupSkipReport()
         for (source, name) in [(paths.snapshotFile, Self.profileFile), (paths.historyFile, Self.historyFile)]
         where fileManager.fileExists(atPath: source.path) {
-            try fileManager.copyItem(at: source, to: directory.appendingPathComponent(name, isDirectory: false))
+            let target = directory.appendingPathComponent(name, isDirectory: false)
+            // Read first: a file that cannot be read is reported (never silently left out) and the backup goes on.
+            guard let data = try? Data(contentsOf: source) else {
+                report.add(file: name, at: source, reason: .unreadable, home: paths.home)
+                continue
+            }
+            try data.write(to: target, options: .atomic)
             files.append(name)
         }
         try plist.write(to: directory.appendingPathComponent(Self.defaultsFile, isDirectory: false), options: .atomic)
         files.append(Self.defaultsFile)
 
-        let schema = (try? Data(contentsOf: paths.snapshotFile)).flatMap(Self.schemaVersion)
-        let info = DataBackupInfo(fromVersion: fromVersion, toVersion: toVersion, createdAt: now, schemaVersion: schema,
+        let schema = files.contains(Self.profileFile) ? (try? Data(contentsOf: paths.snapshotFile)).flatMap(Self.schemaVersion)
+                                                       : nil
+        var info = DataBackupInfo(fromVersion: fromVersion, toVersion: toVersion, createdAt: now, schemaVersion: schema,
                                   files: files, bundleID: defaultsDomain)
+        if report.isPartial {
+            info.partial = true
+            info.skippedCount = report.skippedCount
+            info.skipped = report.items
+        }
         try Self.encoder.encode(info).write(to: directory.appendingPathComponent(Self.infoFile, isDirectory: false),
                                             options: .atomic)
-        try prune()
-        return DataBackup(directory: directory, info: info)
+        try prune(keeping: directory)
+        return DataBackup(directory: directory, info: info, skipReport: report)
     }
 
     /// Backups with a readable `snapshot-info.json`, newest first.
@@ -110,9 +192,15 @@ struct DataBackupStore: Sendable {
                                                          : $0.directory.lastPathComponent > $1.directory.lastPathComponent }
     }
 
-    /// Keeps the 10 newest backups.
-    func prune() throws {
-        for backup in list().dropFirst(Self.maxBackups) {
+    /// Keeps 10 backups. Partial backups count as the oldest ones (§58.2) and go first; `keeping` (the backup just
+    /// written) is always kept.
+    func prune(keeping newest: URL? = nil) throws {
+        let keptPath = newest?.standardizedFileURL.path
+        let all = list()
+        let kept = all.filter { $0.directory.standardizedFileURL.path == keptPath }
+        let others = all.filter { $0.directory.standardizedFileURL.path != keptPath }
+        let ordered = kept + others.filter { !$0.info.isPartial } + others.filter(\.info.isPartial)
+        for backup in ordered.dropFirst(Self.maxBackups) {
             try FileManager.default.removeItem(at: backup.directory)
         }
     }
@@ -134,6 +222,8 @@ struct DataBackupStore: Sendable {
                 try fileManager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 let data = try Data(contentsOf: source)
                 try data.write(to: target, options: .atomic)
+            } else if backup.info.skipped?.contains(where: { $0.file == name }) == true {
+                continue   // it existed but could not be backed up (§58.2): the current file is kept
             } else if fileManager.fileExists(atPath: target.path) {
                 try fileManager.removeItem(at: target)   // it did not exist when the backup was made
             }

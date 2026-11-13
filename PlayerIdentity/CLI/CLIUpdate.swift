@@ -213,11 +213,28 @@ extension CLIRunner {
             }
         }
         // §49.3: a full data backup before every install, as in the app.
+        let skipped: BackupSkipReport
         do {
-            try FullBackupStore(paths: context.paths, appVersion: app.version).create(.preUpdate, now: context.now())
+            let created = try FullBackupStore(paths: context.paths, appVersion: app.version).createBackup(.preUpdate,
+                                                                                                         now: context.now())
+            skipped = BackupSkipReport(fullBackupSkipped: created.skipped, paths: context.paths)
         } catch {
             return failure("backupFailed", "the data backup before the update failed (\(error)); nothing installed",
                            command: "update", json: json)
+        }
+        // §58.2: a partial backup needs a confirmation (`--yes` counts as one); declined → nothing installed.
+        var warnings: [String] = []
+        if skipped.isPartial {
+            let files = skipped.items.map { "\($0.path) (\($0.reason.rawValue))" }.joined(separator: ", ")
+            let more = skipped.skippedCount > skipped.items.count ? " and \(skipped.skippedCount - skipped.items.count) more" : ""
+            let warning = "\(skipped.skippedCount) file(s) could not be backed up: \(files)\(more)"
+            if !options.yes {
+                guard context.prompt.ask("\(warning). Continue the update anyway? [y/N] ") else {
+                    return failure("partialBackupDeclined", "\(warning); not confirmed, nothing installed",
+                                   command: "update", json: json, code: CLIExit.usage)
+                }
+            }
+            warnings.append("warning: \(warning)")
         }
         let installer = UpdateInstaller(paths: context.paths, installedApp: app.url, currentVersion: app.version,
                                         downloader: context.updateDownloader, fileManager: context.updateFileManager,
@@ -228,19 +245,34 @@ extension CLIRunner {
         } catch {
             return updateFailure(error as? UpdateError ?? .downloadFailed, json: json)
         }
+        if case .codesignFallback(let reason) = result.verification {
+            warnings.append("note: Gatekeeper (spctl) could not run (spctlUnavailable: \(reason)); the update was verified "
+                            + "by codesign, team identifier, bundle identifier and version")
+        }
+        let stderr = warnings.isEmpty ? "" : warnings.joined(separator: "\n") + "\n"
         if json {
-            return success(json: [
+            var object: [String: Any] = [
                 "schemaVersion": CLIContext.jsonSchemaVersion, "command": "update", "action": "install",
                 "app": result.installed.path, "from": app.version, "to": result.version, "installed": true,
                 "relaunchRequired": true, "backup": result.backup.path,
-            ])
+            ]
+            if skipped.isPartial {
+                object["partialBackup"] = [
+                    "skippedCount": skipped.skippedCount,
+                    "skipped": skipped.items.map { ["path": $0.path, "reason": $0.reason.rawValue] },
+                ] as [String: Any]
+            }
+            if case .codesignFallback = result.verification { object["verification"] = "codesign" }
+            var output = success(json: object)
+            output.stderr = stderr
+            return output
         }
         let lines = [
             "installed Cybokron Player Identity \(result.version) (was \(app.version)): \(result.installed.path)",
             "previous version: \(result.backup.path)",
             "relaunch required: quit and reopen the app to use \(result.version)",
         ]
-        return CLIResult(exitCode: CLIExit.ok, stdout: lines.joined(separator: "\n") + "\n", stderr: "")
+        return CLIResult(exitCode: CLIExit.ok, stdout: lines.joined(separator: "\n") + "\n", stderr: stderr)
     }
 
     // MARK: Errors

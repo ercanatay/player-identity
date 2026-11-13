@@ -557,3 +557,107 @@ extension UpdateInstallerTests {
         assertNoLeftovers()
     }
 }
+
+// MARK: - §58.1 Gatekeeper with a codesign fallback
+
+extension UpdateInstallerTests {
+    func testGatekeeperParsingIgnoresLineEndingsWhiteSpaceAndCase() {
+        let accepted = [
+            "/x/PlayerIdentity.app: accepted\r\nsource=Notarized Developer ID\r\n",
+            "  /x/PlayerIdentity.app: ACCEPTED  \r\n  source=notarized developer id  \r\norigin=Developer ID Application",
+            "/x/PlayerIdentity.app: accepted\rsource=Notarized Developer ID\r",
+            "\n\n/x/PlayerIdentity.app: accepted\n\tsource=Notarized Developer ID\t\n",
+        ]
+        for output in accepted {
+            XCTAssertEqual(UpdateInstaller.gatekeeperAssessment(CommandOutput(status: 0, output: output)), .accepted, output)
+        }
+        // "Unnotarized" is not the notarized source, whatever the case.
+        XCTAssertEqual(UpdateInstaller.gatekeeperAssessment(CommandOutput(
+            status: 0, output: "/a.app: accepted\r\nsource=UNNOTARIZED Developer ID\r\n")), .rejected)
+    }
+
+    func testRejectedIsNeverAccepted() {
+        let rejections: [CommandOutput] = [
+            CommandOutput(status: 0, output: "/a.app: accepted\r\n/a.app: rejected\r\nsource=Notarized Developer ID"),
+            CommandOutput(status: 0, output: "/a.app: REJECTED\nsource=Notarized Developer ID"),
+            CommandOutput(status: 1, output: "/a.app: rejected (the code is valid but does not seem to be an app)"),
+            CommandOutput(status: 2, output: "rejected"),
+            CommandOutput(status: 3, output: ""),   // exit 3 = denied, even without text
+            CommandOutput(status: 3, output: "/a.app: a sealed resource is missing or invalid"),
+        ]
+        for output in rejections {
+            XCTAssertEqual(UpdateInstaller.gatekeeperAssessment(output), .rejected, output.output)
+            XCTAssertFalse(UpdateInstaller.gatekeeperAccepted(output), output.output)
+        }
+        // A folder named "rejected" in the path is not a verdict.
+        XCTAssertEqual(UpdateInstaller.gatekeeperAssessment(CommandOutput(
+            status: 0, output: "/tmp/rejected/App.app: accepted\nsource=Notarized Developer ID")), .accepted)
+        // An error without a verdict: spctl could not assess the app.
+        XCTAssertEqual(UpdateInstaller.gatekeeperAssessment(CommandOutput(status: 1, output: "spctl: internal error\r\n")),
+                       .unavailable(reason: "exit1"))
+    }
+
+    func testMissingSpctlFallsBackToTheCodesignChecks() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        for failure in [CommandError.launchFailed, CommandError.notAllowed] {
+            try? FileManager.default.removeItem(at: paths.updatesDirectory)
+            try? FileManager.default.removeItem(at: installed)
+            try UpdateFixture.makeApp(at: installed, bundleID: UpdateInstaller.bundleID, version: "1.1.0", marker: "old")
+            let runner = FakeUpdateRunner()
+            runner.failure = { command in
+                if case .assess = command { return failure }
+                return nil
+            }
+            let prepared = try await installer(FakeUpdateDownloader(files), runner: runner).prepare(release)
+            XCTAssertEqual(prepared.verification, .codesignFallback(reason: failure == .launchFailed ? "launchFailed" : "notAllowed"))
+            XCTAssertTrue(prepared.verification.spctlUnavailable)
+            let kinds = runner.commands.map { command -> String in
+                switch command {
+                case .verifySignature: return "verify"
+                case .signingInfo: return "info"
+                case .assess: return "assess"
+                default: return "other"
+                }
+            }
+            XCTAssertEqual(kinds, ["other", "verify", "info", "assess"])   // codesign, team, id and version ran first
+            let result = try await installer(FakeUpdateDownloader(files), runner: runner).finish(prepared)
+            XCTAssertEqual(result.verification, prepared.verification)
+            XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
+        }
+    }
+
+    func testFallbackStillNeedsTheCodesignChecks() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let runner = FakeUpdateRunner()
+        runner.failure = { command in
+            if case .assess = command { return CommandError.launchFailed }
+            return nil
+        }
+        runner.teamID = "OTHERTEAM1"
+        let team = await installError(installer(FakeUpdateDownloader(files), runner: runner), release)
+        XCTAssertEqual(team, .teamMismatch(found: "OTHERTEAM1"))
+        runner.teamID = UpdateInstaller.teamID
+        runner.signatureValid = false
+        let signature = await installError(installer(FakeUpdateDownloader(files), runner: runner), release)
+        XCTAssertEqual(signature, .signatureInvalid)
+        runner.signatureValid = true
+        runner.appVersion = "1.3.0"
+        let version = await installError(installer(FakeUpdateDownloader(files), runner: runner), release)
+        XCTAssertEqual(version, .versionMismatch(found: "1.3.0"))
+        assertOldAppInPlace()
+        assertNoLeftovers()
+    }
+
+    func testARejectionWithSpctlRunningIsNotAFallback() async throws {
+        let (release, files) = UpdateFixture.release("1.2.0")
+        let runner = FakeUpdateRunner()
+        runner.gatekeeperResult = CommandOutput(status: 3, output: "/x/PlayerIdentity.app: rejected\r\nsource=no usable signature\r\n")
+        let rejected = await installError(installer(FakeUpdateDownloader(files), runner: runner), release)
+        XCTAssertEqual(rejected, .gatekeeperRejected)
+        assertOldAppInPlace()
+        assertNoLeftovers()
+        // A normal acceptance reports the Gatekeeper path.
+        let accepted = try await installer(FakeUpdateDownloader(files), runner: FakeUpdateRunner()).install(release)
+        XCTAssertEqual(accepted.verification, .gatekeeper)
+    }
+}

@@ -449,6 +449,7 @@ struct UpdateSettingsView: View {
         ) { request in
             InstallConfirmSheet(updates: updates, request: request)
         }
+        .modifier(PartialBackupAlert(updates: updates, origin: .settings))
         .alert(L10n.text(.updateBackupsClearConfirm), isPresented: $confirmsBackupRemoval) {
             Button(L10n.text(.actionCancel), role: .cancel) {}
             Button(L10n.text(.actionDelete), role: .destructive) { updates.removeDataBackups() }

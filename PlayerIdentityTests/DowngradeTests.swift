@@ -163,3 +163,108 @@ final class DowngradeTests: XCTestCase {
                        "new-history\n")
     }
 }
+
+// MARK: - §58.2 Partial data backups
+
+extension DowngradeTests {
+    /// Makes `url` unreadable for the test; the permissions are restored by the returned closure.
+    private func makeUnreadable(_ url: URL) throws -> () -> Void {
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        return { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path) }
+    }
+
+    func testAnUnreadableFileMakesThePartialBackupWithCountAndRedactedPath() throws {
+        try writeData()
+        let restore = try makeUnreadable(paths.historyFile)
+        defer { restore() }
+        let backup = try store.create(from: "1.2.0", to: "1.1.0", now: t0, defaults: defaults)
+        XCTAssertTrue(backup.info.isPartial)
+        XCTAssertEqual(backup.info.partial, true)
+        XCTAssertEqual(backup.info.skippedCount, 1)
+        XCTAssertEqual(backup.info.files, ["profile.json", "defaults.plist"])
+        let item = try XCTUnwrap(backup.info.skipped?.first)
+        XCTAssertEqual(item.file, "history.jsonl")
+        XCTAssertEqual(item.reason, .unreadable)
+        XCTAssertEqual(item.path, "~/Library/Application Support/tr.ercanatay.playeridentity/history.jsonl")
+        XCTAssertFalse(item.path.contains(paths.home.path), "home folder is redacted")
+        XCTAssertEqual(backup.skipReport.skippedCount, 1)
+        XCTAssertEqual(backup.skipReport.items, [item])
+        // Written to snapshot-info.json and read back by `list`.
+        XCTAssertEqual(store.list().first?.info, backup.info)
+        let json = try String(contentsOf: backup.directory.appendingPathComponent("snapshot-info.json"), encoding: .utf8)
+        XCTAssertTrue(json.contains("\"partial\" : true"), json)
+        XCTAssertTrue(json.contains("\"skippedCount\" : 1"), json)
+
+        // A complete backup carries no partial fields.
+        restore()
+        let complete = try store.create(from: "1.2.0", to: "1.1.0", now: t0.addingTimeInterval(60), defaults: defaults)
+        XCTAssertFalse(complete.info.isPartial)
+        XCTAssertNil(complete.info.partial)
+        XCTAssertNil(complete.info.skipped)
+        XCTAssertFalse(complete.skipReport.isPartial)
+    }
+
+    func testRestoringAPartialBackupKeepsTheFileItCouldNotBackUp() throws {
+        try writeData()
+        let restore = try makeUnreadable(paths.historyFile)
+        let backup = try store.create(from: "1.2.0", to: "1.1.0", now: t0, defaults: defaults)
+        restore()
+        let current = try Data(contentsOf: paths.historyFile)
+        try store.restore(backup, currentVersion: "1.1.0", now: t0.addingTimeInterval(60), defaults: defaults)
+        XCTAssertEqual(try Data(contentsOf: paths.historyFile), current, "the skipped file is not removed")
+    }
+
+    func testPartialBackupsArePrunedFirstAndTheNewOneIsKept() throws {
+        try writeData()
+        // Two partial backups (oldest and in the middle), then complete ones up to the limit.
+        let restore = try makeUnreadable(paths.historyFile)
+        try store.create(from: "1.2.0", to: "0.0.1", now: t0, defaults: defaults)
+        restore()
+        for index in 1...4 {
+            try store.create(from: "1.2.0", to: "1.\(index).0", now: t0.addingTimeInterval(Double(index) * 60), defaults: defaults)
+        }
+        let restoreAgain = try makeUnreadable(paths.historyFile)
+        try store.create(from: "1.2.0", to: "0.0.2", now: t0.addingTimeInterval(300), defaults: defaults)
+        restoreAgain()
+        for index in 6...9 {
+            try store.create(from: "1.2.0", to: "1.\(index).0", now: t0.addingTimeInterval(Double(index) * 60), defaults: defaults)
+        }
+        XCTAssertEqual(store.list().count, 10)
+        // One more complete backup: the partial ones go first, not the oldest complete one.
+        try store.create(from: "1.2.0", to: "1.10.0", now: t0.addingTimeInterval(600), defaults: defaults)
+        var versions = store.list().map(\.info.toVersion)
+        XCTAssertEqual(versions.count, 10)
+        XCTAssertFalse(versions.contains("0.0.1"))
+        XCTAssertTrue(versions.contains("0.0.2"))
+        XCTAssertTrue(versions.contains("1.1.0"))
+        try store.create(from: "1.2.0", to: "1.11.0", now: t0.addingTimeInterval(660), defaults: defaults)
+        versions = store.list().map(\.info.toVersion)
+        XCTAssertFalse(versions.contains("0.0.2"))
+        XCTAssertTrue(versions.contains("1.1.0"))
+        // A new partial backup is never pruned itself, even with only partial candidates left to remove.
+        let restoreLast = try makeUnreadable(paths.historyFile)
+        defer { restoreLast() }
+        let newest = try store.create(from: "1.2.0", to: "0.0.3", now: t0.addingTimeInterval(720), defaults: defaults)
+        XCTAssertTrue(store.list().map(\.directory).contains(newest.directory))
+        XCTAssertEqual(store.list().count, 10)
+        XCTAssertFalse(store.list().map(\.info.toVersion).contains("1.1.0"))   // then the oldest complete one
+    }
+
+    func testSkipReportCountsEachFileOnceAndListsAtMostFive() {
+        let home = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
+        var report = BackupSkipReport()
+        for index in 0..<7 {
+            report.add(file: "f\(index)", at: home.appendingPathComponent("data/f\(index)"), reason: .unreadable, home: home)
+        }
+        report.add(file: "f0", at: home.appendingPathComponent("data/f0"), reason: .unreadable, home: home)
+        XCTAssertEqual(report.skippedCount, 7)
+        XCTAssertEqual(report.items.count, BackupSkipReport.listedLimit)
+        XCTAssertEqual(report.items.first?.path, "~/data/f0")
+        var other = BackupSkipReport()
+        other.add(file: "f1", at: home.appendingPathComponent("data/f1"), reason: .unreadable, home: home)
+        other.add(file: "g", at: home.appendingPathComponent("data/g"), reason: .unreadable, home: home)
+        report.merge(other)
+        XCTAssertEqual(report.skippedCount, 8)
+        XCTAssertEqual(report.items.count, 5)
+    }
+}

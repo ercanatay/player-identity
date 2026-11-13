@@ -766,6 +766,14 @@
 "metrics.writeFailed" = "Son %@ saatte ölçüm örnekleri yazılamadı (%@ başarısız deneme): %@";
 "update.status.backingUp" = "Veriler yedekleniyor…";
 "update.error.gatekeeper" = "Gatekeeper uygulamayı kabul etmedi (notarize edilmemiş veya imzası geçersiz); kurulum yapılmadı.";
+"update.notice.spctlUnavailable" = "Gatekeeper denetimi (spctl) bu ortamda çalıştırılamadı; güncelleme codesign imzası, ekip kimliği, paket kimliği ve sürümle doğrulandı.";
+"update.status.awaitingBackup" = "%@ dosya yedeklenemedi; onayınız bekleniyor.";
+"update.partialBackup.title" = "%@ dosya yedeklenemedi";
+"update.partialBackup.message" = "Güncelleme öncesi yedeğe giremeyen dosyalar:\n%@\n\nGüncelleme yine de sürsün mü? Vazgeçerseniz uygulama değişmez.";
+"update.partialBackup.more" = "… ve %@ dosya daha";
+"update.partialBackup.continue" = "Yine de Güncelle";
+"update.partialBackup.declined" = "%@ dosya yedeklenemedi ve güncelleme onaylanmadı";
+"backup.skip.unreadable" = "okunamadı";
 "update.error.timeout" = "%@ yanıt vermedi ve durduruldu; kurulum yapılmadı.";
 "fullRestore.working.backup" = "Mevcut veriler yedekleniyor…";
 "fullBackup.noUsableData" = "%@ dosya okunamadı (%@); yedek oluşturulamadı.";

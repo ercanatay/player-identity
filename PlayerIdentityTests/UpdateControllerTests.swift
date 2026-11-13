@@ -501,3 +501,131 @@ extension UpdateControllerTests {
 
 /// `Thread.isMainThread` is unavailable in async contexts; a synchronous helper reads it.
 private func isMainThread() -> Bool { Thread.isMainThread }
+
+// MARK: - §58 verification fallback and partial pre-update backups
+
+extension UpdateControllerTests {
+    private var dataFolder: URL { AppPaths(home: env.home).snapshotFile.deletingLastPathComponent() }
+
+    /// Saves a record plus an unreadable `metrics.jsonl`; returns the closure that makes it readable again.
+    private func seedUnreadableMetrics(_ model: AppModel) throws -> () -> Void {
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.30"))
+        model.save()
+        let metrics = AppPaths(home: env.home).metricsFile
+        try Data("x\n".utf8).write(to: metrics)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: metrics.path)
+        return { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: metrics.path) }
+    }
+
+    func testAPartialBackupWaitsForTheUserAndCancelLeavesTheAppUnchanged() async throws {
+        let (json, files) = Self.feed(["1.2.0", "1.1.0"])
+        let (model, downloader) = makeModel(feed: json, files: files)
+        let restore = try seedUnreadableMetrics(model)
+        defer { restore() }
+        await model.checkForUpdates()?.value
+        model.updates.requestInstallOfAvailableUpdate()
+        await model.updates.confirmInstall()?.value
+
+        XCTAssertEqual(model.updates.status, .awaitingBackupConfirmation(1))
+        let pending = try XCTUnwrap(model.updates.pendingPartialBackup)
+        XCTAssertEqual(pending.origin, .banner)
+        XCTAssertEqual(pending.report.skippedCount, 1)
+        XCTAssertEqual(pending.report.items.map(\.file), ["metrics.jsonl"])
+        XCTAssertTrue(pending.report.items[0].path.hasPrefix("~/"), pending.report.items[0].path)
+        XCTAssertEqual(downloader.requestedURLs, [], "nothing is downloaded before the confirmation")
+        XCTAssertTrue(model.updates.status.isUpdating, "restores and erases wait")
+        XCTAssertTrue(model.errorLog.entries.contains { $0.message == "partialBackup: 1" })
+        XCTAssertNil(model.updates.confirmInstall())
+
+        model.updates.cancelInstall()   // "Cancel" in the alert / card
+        XCTAssertNil(model.updates.pendingPartialBackup)
+        guard case .backupFailed(let reason) = model.updates.status else { return XCTFail("\(model.updates.status)") }
+        XCTAssertTrue(reason.contains("1"), reason)
+        XCTAssertNil(model.updates.continueAfterPartialBackup(), "nothing left to continue")
+        await model.updates.waitForTasks()
+        XCTAssertEqual(downloader.requestedURLs, [])
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "old")
+        // The partial backup is kept (marked partial) for the user.
+        let backups = FullBackupStore(paths: AppPaths(home: env.home), appVersion: "1.1.0").list(.preUpdate)
+        XCTAssertEqual(backups.map(FullBackupNaming.isPartial), [true])
+    }
+
+    func testAConfirmedPartialBackupContinuesTheInstall() async throws {
+        let (json, files) = Self.feed(["1.2.0", "1.1.0"])
+        let relauncher = FakeRelauncher()
+        let (model, _) = makeModel(feed: json, files: files, relauncher: relauncher)
+        let restore = try seedUnreadableMetrics(model)
+        defer { restore() }
+        await model.checkForUpdates()?.value
+        model.updates.requestInstallOfAvailableUpdate()
+        await model.updates.confirmInstall()?.value
+        XCTAssertEqual(model.updates.status, .awaitingBackupConfirmation(1))
+        await model.updates.continueAfterPartialBackup()?.value
+        XCTAssertNil(model.updates.pendingPartialBackup)
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
+        XCTAssertEqual(relauncher.relaunched, [installed])
+    }
+
+    func testACompleteBackupDoesNotAsk() async throws {
+        let (json, files) = Self.feed(["1.2.0", "1.1.0"])
+        let (model, _) = makeModel(feed: json, files: files)
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.30"))
+        model.save()
+        await model.checkForUpdates()?.value
+        model.updates.requestInstallOfAvailableUpdate()
+        await model.updates.confirmInstall()?.value
+        XCTAssertNil(model.updates.pendingPartialBackup)
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
+        XCTAssertFalse(model.errorLog.entries.contains { $0.message.hasPrefix("partialBackup") })
+    }
+
+    func testMissingSpctlIsLoggedAndShownToTheUser() async throws {
+        let (json, files) = Self.feed(["1.2.0", "1.1.0"])
+        let runner = FakeUpdateRunner()
+        runner.failure = { command in
+            if case .assess = command { return CommandError.launchFailed }
+            return nil
+        }
+        let (model, _) = makeModel(feed: json, files: files, runner: runner)
+        await model.checkForUpdates()?.value
+        model.updates.requestInstallOfAvailableUpdate()
+        await model.updates.confirmInstall()?.value
+        XCTAssertEqual(UpdateFixture.marker(of: installed), "new")
+        XCTAssertTrue(model.errorLog.entries.contains { $0.area == .update && $0.message == "spctlUnavailable: launchFailed" },
+                      "\(model.errorLog.entries)")
+        let notice = try XCTUnwrap(model.updates.verificationNotice)
+        XCTAssertFalse(notice.isEmpty)
+        XCTAssertEqual(UpdateStatusText.text(.relaunching, verificationNotice: notice),
+                       (UpdateStatusText.text(.relaunching) ?? "") + " · " + notice)
+        let card = UpdateCardContent.make(status: .installing, availableUpdate: nil, availableRelease: nil, activeRelease: nil,
+                                          lastCheck: nil, appVersion: "1.1.0", verificationNotice: notice)
+        XCTAssertTrue(card.body.contains(notice))
+    }
+
+    func testPartialBackupTextsInBothLanguages() throws {
+        let home = URL(fileURLWithPath: "/Users/tester", isDirectory: true)
+        var report = BackupSkipReport()
+        for index in 0..<7 {
+            report.add(file: "f\(index)", at: home.appendingPathComponent("f\(index)"), reason: .unreadable, home: home)
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            let message = UpdateStatusText.partialBackupMessage(report)
+            XCTAssertTrue(message.contains("• ~/f0 (okunamadı)"), message)
+            XCTAssertTrue(message.contains("• ~/f1 (okunamadı)"), message)
+            XCTAssertTrue(message.contains("… ve 2 dosya daha"), message)
+            XCTAssertFalse(message.contains("~/f5"))
+            XCTAssertEqual(UpdateStatusText.text(.awaitingBackupConfirmation(7)), "7 dosya yedeklenemedi; onayınız bekleniyor.")
+            XCTAssertEqual(L10n.format(.updatePartialBackupTitle, "7"), "7 dosya yedeklenemedi")
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("en"))) {
+            let message = UpdateStatusText.partialBackupMessage(report)
+            XCTAssertTrue(message.contains("• ~/f0 (unreadable)"), message)
+            XCTAssertTrue(message.contains("… and 2 more"), message)
+            XCTAssertEqual(L10n.text(.updatePartialBackupContinue), "Update Anyway")
+            XCTAssertFalse(L10n.text(.updateNoticeSpctlUnavailable).isEmpty)
+        }
+        let card = UpdateCardContent.make(status: .awaitingBackupConfirmation(2), availableUpdate: nil, availableRelease: nil,
+                                          activeRelease: nil, lastCheck: nil, appVersion: "1.1.0")
+        XCTAssertEqual(card.actions, [.continueInstall, .cancel])
+    }
+}

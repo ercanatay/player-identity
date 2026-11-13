@@ -1665,7 +1665,8 @@ final class AppModel {
     }
 
     func importPreview(_ parsed: ParsedSettingsArchive, includeDataRoot: Bool) -> SettingsImportPreview {
-        SettingsImportPreview.make(parsed, existing: servers, includeDataRoot: includeDataRoot)
+        SettingsImportPreview.make(parsed, existing: servers, includeDataRoot: includeDataRoot,
+                                   current: currentArchivedSettings())
     }
 
     /// Applies a validated archive. Replace first copies `profile.json` to `profile.json.appbak-<time>`; if that
@@ -1696,6 +1697,7 @@ final class AppModel {
         summary.settingsSkipped = report.skipped
         summary.dataRootChanged = report.dataRootChanged
         summary.dataRootRejected = report.dataRootRejected
+        summary.skippedFields = report.skippedFields
         summary.launchAtLoginChanged = report.launchAtLoginChanged
         if let plan {
             servers = plan.servers
@@ -1719,6 +1721,7 @@ final class AppModel {
         var dataRootChanged: String?
         var dataRootRejected: String?
         var launchAtLoginChanged: Bool?
+        var skippedFields: [String] = []
     }
 
     /// Applies every carried preference; missing values are left unchanged. `applied + skipped` equals
@@ -1778,20 +1781,16 @@ final class AppModel {
             } else {
                 report.skipped += 1
                 report.dataRootRejected = value
+                report.skippedFields.append(SettingsImportPreview.dataRootField)
             }
         }
         return report
     }
 
-    /// An imported data root is applied only as an existing folder (not `/`, no `..` component).
+    /// An imported data root is applied only as an existing folder (not `/`, no `..` component); the same check as
+    /// the import preview (§58.3).
     static func importableDataRoot(_ path: String) -> URL? {
-        guard ArchivedSettings.isPlausibleDataRoot(path) else { return nil }
-        let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else {
-            return nil
-        }
-        return url
+        ArchivedSettings.importableDataRoot(path)
     }
 
     // MARK: Reset and erase (Settings > Reset)

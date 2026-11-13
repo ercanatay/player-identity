@@ -627,3 +627,74 @@ extension SettingsArchiveTests {
         }
     }
 }
+
+// MARK: - §58.3 Preview and import agree on the data root
+
+extension SettingsArchiveTests {
+    func testPreviewAndImportGiveTheSameDataRootResult() throws {
+        let environment = try TestAppEnvironment()
+        let model = environment.makeModel()
+        let file = try environment.temp.write("not-a-folder", "x").path
+        let missing = environment.temp.url.appendingPathComponent("missing", isDirectory: true).path
+        let folder = try environment.temp.makeDirectory("Games/Xash").standardizedFileURL.path
+        let link = environment.temp.url.appendingPathComponent("xash-link").path
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: folder)
+        let other = try environment.temp.makeDirectory("Games/Other").standardizedFileURL.path
+
+        // (root, preview "not applicable", changes)
+        let cases: [(String, Bool, Bool)] = [
+            (missing, true, false), (file, true, false),
+            (folder, false, true),              // a new folder: one change
+            (folder + "/./", false, false),     // the same folder written differently: no change
+            (link, false, false),               // the same folder through a symbolic link: no change
+            (other, false, true),
+        ]
+        for (root, notApplicable, changes) in cases {
+            var settings = ArchivedSettings(banCheckEnabled: model.banCheckEnabled)
+            settings.dataRoot = root
+            let parsed = archive(nil, settings: settings)
+            let preview = model.importPreview(parsed, includeDataRoot: true)
+            XCTAssertEqual(preview.dataRootInvalid, notApplicable, root)
+            XCTAssertEqual(preview.dataRootWillChange, changes, root)
+            XCTAssertEqual(preview.changeCount, changes ? 1 : 0, "unapplicable or same root is no change: \(root)")
+            XCTAssertEqual(preview.skippedFields, notApplicable ? ["dataRoot"] : [], root)
+
+            let summary = try model.importSettings(parsed, mode: .merge, includeDataRoot: true).get()
+            XCTAssertEqual(summary.skippedFields, preview.skippedFields, root)
+            XCTAssertEqual(summary.dataRootChanged != nil, preview.dataRootWillChange, root)
+            XCTAssertEqual(summary.dataRootRejected != nil, preview.dataRootInvalid, root)
+        }
+        XCTAssertEqual(model.dataRoot.path, other)
+
+        // Without "include data root" nothing is skipped or counted.
+        var settings = ArchivedSettings()
+        settings.dataRoot = missing
+        let off = model.importPreview(archive(nil, settings: settings), includeDataRoot: false)
+        XCTAssertEqual([off.changeCount], [0])
+        XCTAssertEqual(off.skippedFields, [])
+        let summary = try model.importSettings(archive(nil, settings: settings), mode: .merge, includeDataRoot: false).get()
+        XCTAssertEqual(summary.skippedFields, [])
+    }
+
+    func testTildePathsAreExpandedAndCountAsTheSameFolder() {
+        let home = NSHomeDirectory()
+        XCTAssertTrue(ArchivedSettings.samePath("~/Library", home + "/Library"))
+        XCTAssertTrue(ArchivedSettings.samePath("~/Library/", "~/Library"))
+        XCTAssertFalse(ArchivedSettings.samePath("~/Library", "/Library"))
+        XCTAssertTrue(ArchivedSettings.isPlausibleDataRoot("~/Games"))
+        XCTAssertFalse(ArchivedSettings.isPlausibleDataRoot("~/../.."))
+        XCTAssertEqual(ArchivedSettings.importableDataRoot("~/Games", isFolder: { $0 == home + "/Games" })?.path, home + "/Games")
+        XCTAssertNil(ArchivedSettings.importableDataRoot("~/Games", isFolder: { _ in false }))
+        var settings = ArchivedSettings()
+        settings.dataRoot = "~/Games"
+        var current = ArchivedSettings()
+        current.dataRoot = home + "/Games"
+        let parsed = ParsedSettingsArchive(archive: SettingsArchive(appVersion: "3.7.0", exportedAt: Date(), scope: .settingsOnly,
+                                                                    settings: settings), invalidSettings: 0, invalidServers: 0)
+        let preview = SettingsImportPreview.make(parsed, existing: [], includeDataRoot: true, current: current,
+                                                 isFolder: { _ in true })
+        XCTAssertEqual(preview.changeCount, 0)
+        XCTAssertFalse(preview.dataRootWillChange)
+        XCTAssertFalse(preview.dataRootInvalid)
+    }
+}

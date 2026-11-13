@@ -680,3 +680,35 @@ extension FullBackupTests {
         XCTAssertThrowsError(try empty.archive(kind: .manual, now: Date())) { XCTAssertEqual($0 as? FullBackupError, .nothingToBackUp) }
     }
 }
+
+// MARK: - §58.2 Partial pre-update backups
+
+extension FullBackupTests {
+    func testAPreUpdateBackupWithAnUnreadableFileIsPartialAndPrunedFirst() throws {
+        let temp = try TempDirectory()
+        let paths = AppPaths(home: temp.url)
+        try seed(paths)
+        let store = FullBackupStore(paths: paths, appVersion: "3.7.0", timeZone: TimeZone(identifier: "UTC")!)
+        let base = Date(timeIntervalSince1970: 1_793_000_000)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: paths.metricsFile.path)
+        let partial = try store.createBackup(.preUpdate, now: base)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: paths.metricsFile.path)
+        let url = try XCTUnwrap(partial.url)
+        XCTAssertTrue(FullBackupNaming.isPartial(url), url.lastPathComponent)
+        XCTAssertEqual(url.lastPathComponent, "pre-update-20261026-073320-partial.zip")
+        let report = BackupSkipReport(fullBackupSkipped: partial.skipped, paths: paths)
+        XCTAssertEqual(report.skippedCount, 1)
+        XCTAssertEqual(report.items.first?.path, "~/Library/Application Support/tr.ercanatay.playeridentity/metrics.jsonl")
+        XCTAssertEqual(report.items.first?.reason, .unreadable)
+        // A complete backup is not partial; other kinds never get the partial name.
+        XCTAssertFalse(FullBackupNaming.isPartial(try XCTUnwrap(store.create(.preUpdate, now: base.addingTimeInterval(1)))))
+        XCTAssertEqual(store.list(.preUpdate).count, 2)
+
+        // Up to the limit with complete backups: the partial one (not the oldest complete one) is removed first.
+        for index in 2...5 { try store.create(.preUpdate, now: base.addingTimeInterval(Double(index))) }
+        let names = store.list(.preUpdate).map(\.lastPathComponent)
+        XCTAssertEqual(names.count, FullBackupStore.maxPerKind)
+        XCTAssertFalse(names.contains(url.lastPathComponent))
+        XCTAssertTrue(names.contains("pre-update-20261026-073321.zip"), "the oldest complete backup is kept")
+    }
+}

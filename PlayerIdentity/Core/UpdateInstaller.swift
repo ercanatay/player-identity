@@ -35,6 +35,33 @@ enum UpdateError: Error, Sendable, Equatable {
     case cancelled
 }
 
+// MARK: - Origin check (§58.1)
+
+/// What `spctl -a -vv -t exec` said about the downloaded app.
+enum GatekeeperAssessment: Sendable, Equatable {
+    /// Exit 0, an `accepted` line and the notarized Developer ID source.
+    case accepted
+    /// A verdict that is not a full acceptance (a `rejected` line, exit 3, or exit 0 without the notarized source).
+    case rejected
+    /// `spctl` could not assess the app (it could not be started, or it failed without a verdict, e.g. in a
+    /// restricted environment). `reason` is a short code for the diagnostics log.
+    case unavailable(reason: String)
+}
+
+/// How the origin of a verified release was confirmed (§58.1).
+enum UpdateVerification: Sendable, Equatable {
+    /// Gatekeeper accepted the notarized Developer ID app.
+    case gatekeeper
+    /// `spctl` was not available: `codesign --verify --deep --strict`, the TeamIdentifier, the Identifier and the
+    /// version (all checked before `spctl`) are the verification. Written to the diagnostics log as `spctlUnavailable`.
+    case codesignFallback(reason: String)
+
+    var spctlUnavailable: Bool {
+        if case .codesignFallback = self { return true }
+        return false
+    }
+}
+
 // MARK: - Locations
 
 extension AppPaths {
@@ -418,6 +445,8 @@ struct UpdateInstaller: Sendable {
         let installed: URL
         let backup: URL
         let version: String
+        /// §58.1: how the origin of the new app was confirmed.
+        var verification: UpdateVerification = .gatekeeper
     }
 
     /// HTTPS only; plain HTTP is accepted for 127.0.0.1 (tests).
@@ -434,6 +463,8 @@ struct UpdateInstaller: Sendable {
         let release: AppRelease
         let staged: URL
         fileprivate let files: [URL]
+        /// §58.1: how the origin of the staged app was confirmed.
+        fileprivate(set) var verification: UpdateVerification = .gatekeeper
     }
 
     func install(_ release: AppRelease,
@@ -456,7 +487,7 @@ struct UpdateInstaller: Sendable {
         let staging = paths.updateStaging.appendingPathComponent(release.versionString, isDirectory: true)
         let zip = downloads.appendingPathComponent(zipAsset.name, isDirectory: false)
         let sums = downloads.appendingPathComponent(sumsAsset.name, isDirectory: false)
-        let prepared = Prepared(release: release,
+        var prepared = Prepared(release: release,
                                 staged: staging.appendingPathComponent(installedApp.lastPathComponent, isDirectory: true),
                                 files: [zip, sums, staging])
         do {
@@ -479,7 +510,7 @@ struct UpdateInstaller: Sendable {
             guard fileManager.exists(prepared.staged), let stagedPath = UpdatePath(prepared.staged) else {
                 throw UpdateError.appMissing
             }
-            try await verify(staged: stagedPath, appURL: prepared.staged, release: release)
+            prepared.verification = try await verify(staged: stagedPath, appURL: prepared.staged, release: release)
             try Task.checkCancellation()
         } catch {
             discard(prepared)
@@ -524,7 +555,8 @@ struct UpdateInstaller: Sendable {
         } catch {
             throw rollback(backup: backup)
         }
-        return Result(installed: installedApp, backup: backup, version: prepared.release.versionString)
+        return Result(installed: installedApp, backup: backup, version: prepared.release.versionString,
+                      verification: prepared.verification)
     }
 
     private func download(_ asset: ReleaseAsset, to destination: URL,
@@ -543,7 +575,9 @@ struct UpdateInstaller: Sendable {
         guard actual == asset.size else { throw UpdateError.sizeMismatch(expected: asset.size, actual: actual) }
     }
 
-    private func verify(staged path: UpdatePath, appURL: URL, release: AppRelease) async throws {
+    /// Signature, team, bundle and version first, then Gatekeeper (§58.1): `rejected` is never accepted; only when
+    /// `spctl` cannot assess the app at all do the codesign checks above stand on their own (`codesignFallback`).
+    private func verify(staged path: UpdatePath, appURL: URL, release: AppRelease) async throws -> UpdateVerification {
         guard try await runner.run(.verifySignature(path)).status == 0 else { throw UpdateError.signatureInvalid }
         let info = try await runner.run(.signingInfo(path))
         guard info.status == 0 else { throw UpdateError.signatureInvalid }
@@ -559,17 +593,60 @@ struct UpdateInstaller: Sendable {
         let version = dictionary["CFBundleShortVersionString"] as? String
         guard let version, SemanticVersion(version) == release.version else { throw UpdateError.versionMismatch(found: version) }
         // Gatekeeper: the release is notarized and stapled, so the assessment also passes offline.
-        guard Self.gatekeeperAccepted(try await runner.run(.assess(path))) else { throw UpdateError.gatekeeperRejected }
+        let assessment: GatekeeperAssessment
+        do {
+            assessment = Self.gatekeeperAssessment(try await runner.run(.assess(path)))
+        } catch let error as UpdateError {
+            throw error   // time limit: reported as such, nothing installed
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            assessment = .unavailable(reason: Self.unavailableReason(error))
+        }
+        switch assessment {
+        case .accepted: return .gatekeeper
+        case .rejected: throw UpdateError.gatekeeperRejected
+        case .unavailable(let reason): return .codesignFallback(reason: reason)
+        }
     }
 
-    /// `spctl -a -vv` accepted the app: exit status 0 and a `<path>: accepted` line (a rejection prints `rejected`).
+    /// `spctl -a -vv` accepted the app (see `gatekeeperAssessment`).
     static func gatekeeperAccepted(_ output: CommandOutput) -> Bool {
-        guard output.status == 0 else { return false }
-        let lines = output.output.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        gatekeeperAssessment(output) == .accepted
+    }
+
+    /// `spctl` exit status for a denied assessment (`man spctl`).
+    static let spctlDeniedStatus: Int32 = 3
+
+    /// Reads `spctl -a -vv` output independent of line endings (`\n`, `\r\n`, `\r`), surrounding white space and letter
+    /// case. Accepted: exit 0, an `accepted` line and the notarized Developer ID source (§49.8). A `rejected` line or
+    /// exit 3 is always a rejection; exit 0 without a full acceptance is a rejection too. Any other failure without
+    /// a verdict means `spctl` could not assess the app (`unavailable`).
+    static func gatekeeperAssessment(_ output: CommandOutput) -> GatekeeperAssessment {
+        let lines = output.output.split(whereSeparator: { $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        let rejected = lines.contains { line in
+            line == "rejected" || line.hasPrefix("rejected ") || line.hasSuffix(": rejected") || line.contains(": rejected ")
+        }
+        if rejected || output.status == spctlDeniedStatus { return .rejected }
         let accepted = lines.contains { $0 == "accepted" || $0.hasSuffix(": accepted") }
-        // §49.8: the release is notarized, so the assessment must name the notarized Developer ID source too.
-        let notarized = lines.contains { $0.contains("Notarized Developer ID") }
-        return accepted && notarized
+        let notarizedSource = "Notarized Developer ID".lowercased()
+        let notarized = lines.contains { line in
+            let value = line.hasPrefix("source=") ? String(line.dropFirst("source=".count)) : line
+            return value.trimmingCharacters(in: .whitespaces) == notarizedSource
+        }
+        if output.status == 0 { return accepted && notarized ? .accepted : .rejected }
+        return .unavailable(reason: "exit\(output.status)")
+    }
+
+    /// Short code of a runner error for the diagnostics log (`launchFailed`, `notAllowed`, …).
+    private static func unavailableReason(_ error: any Error) -> String {
+        switch error as? CommandError {
+        case .launchFailed?: return "launchFailed"
+        case .notAllowed?: return "notAllowed"
+        default: return String(describing: type(of: error))
+        }
     }
 
     /// Current app → backup, staged app → current location; on failure the backup is moved back.

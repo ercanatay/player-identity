@@ -77,10 +77,16 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
         return (copy, invalid)
     }
 
-    /// Path equality that ignores symbolic links (`/var` and `/private/var` are the same folder) and `.`/trailing `/`.
+    /// `~` / `~/…` expanded to the home folder (other paths unchanged).
+    static func expandedPath(_ path: String) -> String {
+        path.hasPrefix("~") ? NSString(string: path).expandingTildeInPath : path
+    }
+
+    /// Path equality that ignores `~` expansion, symbolic links (`/var` and `/private/var` are the same folder) and
+    /// `.`/trailing `/` (§58.3: the same folder written differently is no change).
     static func samePath(_ a: String, _ b: String?) -> Bool {
         guard let b else { return false }
-        func url(_ path: String) -> URL { URL(fileURLWithPath: path, isDirectory: true) }
+        func url(_ path: String) -> URL { URL(fileURLWithPath: expandedPath(path), isDirectory: true) }
         let x = url(a), y = url(b)
         if x.standardizedFileURL.path == y.standardizedFileURL.path { return true }
         return x.standardizedFileURL.resolvingSymlinksInPath().path == y.standardizedFileURL.resolvingSymlinksInPath().path
@@ -92,12 +98,23 @@ struct ArchivedSettings: Codable, Sendable, Equatable {
         return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
     }
 
-    /// Shape check of an imported data root (no file system access): an absolute path without NUL and without a
-    /// `..` component that is not the file system root. Whether it is an existing folder is checked when applied.
+    /// Shape check of an imported data root (no file system access): an absolute path (after `~` expansion) without
+    /// NUL and without a `..` component that is not the file system root. Whether it is an existing folder is checked
+    /// by `importableDataRoot`.
     static func isPlausibleDataRoot(_ path: String) -> Bool {
-        guard path.hasPrefix("/"), !path.contains("\0") else { return false }
+        guard !path.contains("\0") else { return false }
+        let path = expandedPath(path)
+        guard path.hasPrefix("/") else { return false }
         guard !path.split(separator: "/", omittingEmptySubsequences: true).contains("..") else { return false }
         return URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL.path != "/"
+    }
+
+    /// The folder an imported data root is applied as, or `nil` when it cannot be applied (not plausible, missing or
+    /// not a folder). The import preview and the import itself both use this check, so they always agree (§58.3).
+    static func importableDataRoot(_ path: String, isFolder: (String) -> Bool = isExistingFolder) -> URL? {
+        guard isPlausibleDataRoot(path) else { return nil }
+        let url = URL(fileURLWithPath: expandedPath(path), isDirectory: true).standardizedFileURL
+        return isFolder(url.path) ? url : nil
     }
 }
 
@@ -311,21 +328,40 @@ struct SettingsImportPreview: Sendable, Equatable {
     var conflictCount: Int
     var invalidCount: Int
     var hasServers: Bool
-    /// §49.8: the data root to be imported is not an existing folder (also counted in `invalidCount`).
+    /// §49.8/§58.3: the data root to be imported cannot be applied ("not applicable"; also counted in `invalidCount`,
+    /// never in `changeCount`).
     var dataRootInvalid = false
+    /// §58.3: carried values the import would really change (an unapplicable data root and the same folder written
+    /// differently are not counted).
+    var changeCount = 0
+    /// §58.3: the import would change the data root (`SettingsImportSummary.dataRootChanged` is then set).
+    var dataRootWillChange = false
+    /// §58.3: fields the import will skip; equal to `SettingsImportSummary.skippedFields` of the same import.
+    var skippedFields: [String] = []
+
+    static let dataRootField = "dataRoot"
 
     static func make(_ parsed: ParsedSettingsArchive, existing: [ServerEntry], includeDataRoot: Bool,
+                     current: ArchivedSettings = ArchivedSettings(),
                      isFolder: (String) -> Bool = ArchivedSettings.isExistingFolder) -> SettingsImportPreview {
         let incoming = parsed.archive.servers ?? []
         let local = Set(existing.map { SettingsArchiveKey.make(host: $0.host, port: $0.port) })
         var seen = Set<String>()
         var conflicts = 0
         for row in incoming where seen.insert(row.key).inserted && local.contains(row.key) { conflicts += 1 }
-        let rootInvalid = includeDataRoot && (parsed.archive.settings.dataRoot.map { !isFolder($0) } ?? false)
-        return SettingsImportPreview(settingCount: parsed.archive.settings.count(includingDataRoot: includeDataRoot),
+        let settings = parsed.archive.settings
+        let carriedRoot = includeDataRoot ? settings.dataRoot : nil
+        let applicableRoot = carriedRoot.flatMap { ArchivedSettings.importableDataRoot($0, isFolder: isFolder) }
+        let rootInvalid = carriedRoot != nil && applicableRoot == nil
+        let rootChanges = applicableRoot.map { !ArchivedSettings.samePath($0.path, current.dataRoot) } ?? false
+        return SettingsImportPreview(settingCount: settings.count(includingDataRoot: includeDataRoot),
                                      serverCount: incoming.count, conflictCount: conflicts,
                                      invalidCount: parsed.invalidCount + (rootInvalid ? 1 : 0),
-                                     hasServers: parsed.archive.servers != nil, dataRootInvalid: rootInvalid)
+                                     hasServers: parsed.archive.servers != nil, dataRootInvalid: rootInvalid,
+                                     changeCount: settings.differences(from: current, includingDataRoot: false)
+                                         + (rootChanges ? 1 : 0),
+                                     dataRootWillChange: rootChanges,
+                                     skippedFields: rootInvalid ? [dataRootField] : [])
     }
 }
 
@@ -345,6 +381,8 @@ struct SettingsImportSummary: Sendable, Equatable {
     var dataRootChanged: String?
     /// Data root from the file that was not applied (missing folder or not a folder).
     var dataRootRejected: String?
+    /// §58.3: carried fields that were not applied (`["dataRoot"]` when the data root could not be applied).
+    var skippedFields: [String] = []
     /// `true`/`false` when the import turned launch at login on/off; `nil` when it did not change.
     var launchAtLoginChanged: Bool?
 }

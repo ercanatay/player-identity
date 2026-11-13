@@ -766,6 +766,14 @@
 "metrics.writeFailed" = "Samples could not be written in the last %@ hours (%@ failed attempts): %@";
 "update.status.backingUp" = "Backing up the data…";
 "update.error.gatekeeper" = "Gatekeeper did not accept the app (not notarized or invalid signature); nothing was installed.";
+"update.notice.spctlUnavailable" = "The Gatekeeper check (spctl) could not run here; the update was verified by its code signature, team ID, bundle ID and version.";
+"update.status.awaitingBackup" = "%@ file(s) could not be backed up; waiting for your confirmation.";
+"update.partialBackup.title" = "%@ file(s) could not be backed up";
+"update.partialBackup.message" = "These files could not go into the backup before the update:\n%@\n\nContinue the update anyway? If you cancel, the app stays unchanged.";
+"update.partialBackup.more" = "… and %@ more";
+"update.partialBackup.continue" = "Update Anyway";
+"update.partialBackup.declined" = "%@ file(s) could not be backed up and the update was not confirmed";
+"backup.skip.unreadable" = "unreadable";
 "update.error.timeout" = "%@ did not respond and was stopped; nothing was installed.";
 "fullRestore.working.backup" = "Backing up the current data…";
 "fullBackup.noUsableData" = "%@ files could not be read (%@); no backup was created.";

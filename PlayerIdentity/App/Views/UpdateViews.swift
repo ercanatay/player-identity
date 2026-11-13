@@ -17,6 +17,34 @@ enum UpdateStatusText {
         case .cancelled: return L10n.text(.updateStatusCancelled)
         case .failed(let error): return self.error(error)
         case .backupFailed(let reason): return L10n.format(.updateErrorDataBackup, reason)
+        case .awaitingBackupConfirmation(let count): return L10n.format(.updateStatusAwaitingBackup, String(count))
+        }
+    }
+
+    /// §58.2 alert text: the skipped files (redacted paths, reason), "… and N more", then the question.
+    static func partialBackupMessage(_ report: BackupSkipReport) -> String {
+        var lines = report.items.map { item in
+            "• " + item.path + " (" + L10n.text(reasonKey(item.reason)) + ")"
+        }
+        let more = report.skippedCount - report.items.count
+        if more > 0 { lines.append(L10n.format(.updatePartialBackupMore, String(more))) }
+        return L10n.format(.updatePartialBackupMessage, lines.joined(separator: "\n"))
+    }
+
+    /// Status text followed by the §58.1 notice while a release verified without Gatekeeper is ready or installing.
+    static func text(_ status: UpdateController.Status, verificationNotice: String?) -> String? {
+        guard let text = text(status) else { return nil }
+        switch status {
+        case .ready, .installing, .relaunching:
+            return verificationNotice.map { text + " · " + $0 } ?? text
+        default:
+            return text
+        }
+    }
+
+    static func reasonKey(_ reason: BackupSkipReport.Reason) -> L10nKey {
+        switch reason {
+        case .unreadable: return .backupSkipUnreadable
         }
     }
 
@@ -74,7 +102,7 @@ struct UpdateStatusRow: View {
     var compact = false
 
     var body: some View {
-        if let text = UpdateStatusText.text(updates.status) {
+        if let text = UpdateStatusText.text(updates.status, verificationNotice: updates.verificationNotice) {
             HStack(spacing: Space.s2) {
                 switch updates.status {
                 case .downloading(let fraction):
@@ -97,6 +125,11 @@ struct UpdateStatusRow: View {
                     .fixedSize(horizontal: false, vertical: !compact)
                     .help(text)
                     .textSelection(.enabled)
+                if case .awaitingBackupConfirmation = updates.status {
+                    Button(L10n.text(.updatePartialBackupContinue)) { updates.continueAfterPartialBackup() }
+                        .controlSize(.small)
+                        .fixedSize()
+                }
                 if updates.status.isCancellable {
                     Button(L10n.text(.actionAbort), action: updates.cancelInstall)
                         .controlSize(.small)
@@ -105,6 +138,23 @@ struct UpdateStatusRow: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("updateStatus")
+        }
+    }
+}
+
+/// §58.2 "N files could not be backed up" question for the window that confirmed the install.
+struct PartialBackupAlert: ViewModifier {
+    @Bindable var updates: UpdateController
+    let origin: UpdateController.InstallRequest.Origin
+
+    func body(content: Content) -> some View {
+        let pending = updates.pendingPartialBackup?.origin == origin ? updates.pendingPartialBackup : nil
+        content.alert(L10n.format(.updatePartialBackupTitle, String(pending?.report.skippedCount ?? 0)),
+                      isPresented: Binding(get: { pending != nil }, set: { _ in }), presenting: pending) { _ in
+            Button(L10n.text(.actionCancel), role: .cancel) { updates.cancelAfterPartialBackup() }
+            Button(L10n.text(.updatePartialBackupContinue)) { updates.continueAfterPartialBackup() }
+        } message: { confirmation in
+            Text(UpdateStatusText.partialBackupMessage(confirmation.report))
         }
     }
 }
@@ -125,6 +175,8 @@ struct UpdateCardContent: Equatable {
         case retryCheck
         /// Request the install again (download or verification failed).
         case retryInstall
+        /// §58.2: continue the install although the backup is partial.
+        case continueInstall
     }
 
     var symbol: String
@@ -138,10 +190,31 @@ struct UpdateCardContent: Equatable {
     var actions: [Action] = []
 
     static func make(status: UpdateController.Status, availableUpdate: AppUpdate?, availableRelease: AppRelease?,
-                     activeRelease: AppRelease?, lastCheck: Date?, appVersion: String) -> UpdateCardContent {
+                     activeRelease: AppRelease?, lastCheck: Date?, appVersion: String,
+                     verificationNotice: String? = nil) -> UpdateCardContent {
+        var content = base(status: status, availableUpdate: availableUpdate, availableRelease: availableRelease,
+                           activeRelease: activeRelease, lastCheck: lastCheck, appVersion: appVersion)
+        // §58.1: the update was verified without Gatekeeper; say so while it is ready or being installed.
+        switch status {
+        case .ready, .installing, .relaunching:
+            if let verificationNotice {
+                content.body = content.body.isEmpty ? verificationNotice : content.body + "\n" + verificationNotice
+            }
+        default:
+            break
+        }
+        return content
+    }
+
+    private static func base(status: UpdateController.Status, availableUpdate: AppUpdate?, availableRelease: AppRelease?,
+                             activeRelease: AppRelease?, lastCheck: Date?, appVersion: String) -> UpdateCardContent {
         let busySymbol = "arrow.down.circle.fill"
         let version = activeRelease?.versionString ?? availableUpdate?.version ?? ""
         switch status {
+        case .awaitingBackupConfirmation(let count):
+            return UpdateCardContent(symbol: StatusLevel.orange.symbolName, tone: .accent,
+                                     title: L10n.format(.updatePartialBackupTitle, String(count)),
+                                     body: UpdateStatusText.text(status) ?? "", actions: [.continueInstall, .cancel])
         case .checking:
             return UpdateCardContent(symbol: "arrow.clockwise", tone: .neutral, title: L10n.text(.updateStatusChecking),
                                      body: "", isIndeterminate: true)
@@ -233,7 +306,8 @@ struct UpdateStatusCard: View {
     private var content: UpdateCardContent {
         UpdateCardContent.make(status: updates.status, availableUpdate: updates.availableUpdate,
                                availableRelease: updates.availableRelease, activeRelease: updates.activeRelease,
-                               lastCheck: updates.lastCheck, appVersion: updates.appVersion)
+                               lastCheck: updates.lastCheck, appVersion: updates.appVersion,
+                               verificationNotice: updates.verificationNotice)
     }
 
     var body: some View {
@@ -318,6 +392,10 @@ struct UpdateStatusCard: View {
         case .retryInstall:
             Button(L10n.text(.actionRetry)) { updates.requestInstallOfAvailableUpdate() }
                 .prominentButton()
+        case .continueInstall:
+            Button(L10n.text(.updatePartialBackupContinue)) { updates.continueAfterPartialBackup() }
+                .prominentButton()
+                .accessibilityIdentifier("updateContinuePartial")
         }
     }
 }

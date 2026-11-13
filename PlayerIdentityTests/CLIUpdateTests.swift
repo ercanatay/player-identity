@@ -414,3 +414,86 @@ final class PromptLog: @unchecked Sendable {
         }
     }
 }
+
+// MARK: - §58 CLI: partial pre-update backup and the codesign fallback
+
+/// Answers the questions in order (`answers`); asks are recorded.
+final class ScriptedPrompt: @unchecked Sendable {
+    private let lock = NSLock()
+    private var asked: [String] = []
+    private let answers: [Bool]
+
+    init(_ answers: [Bool]) { self.answers = answers }
+
+    var questions: [String] { lock.withLock { asked } }
+
+    var prompt: CLIPrompt {
+        CLIPrompt(isInteractive: true) { [self] question in
+            lock.withLock {
+                asked.append(question)
+                return asked.count <= answers.count ? answers[asked.count - 1] : false
+            }
+        }
+    }
+}
+
+extension CLIUpdateTests {
+    /// A record plus an unreadable `metrics.jsonl`; returns the closure that makes it readable again.
+    private func seedUnreadableMetrics() throws -> () -> Void {
+        let snapshot = Snapshot(savedAt: Date(), gamedir: "valve", dataRoot: "/x", displayName: "N", model: "gordon", rawID: "0",
+                                identitySource: "~/.config/.xash_id",
+                                network: NetworkInfo(publicIP: "203.0.113.7", lanIPs: [], checkedAt: Date()), servers: [])
+        try SnapshotStore(fileURL: paths.snapshotFile).save(snapshot)
+        try Data("x\n".utf8).write(to: paths.metricsFile)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: paths.metricsFile.path)
+        let metrics = paths.metricsFile
+        return { try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: metrics.path) }
+    }
+
+    func testPartialBackupIsReportedWithYes() async throws {
+        let restore = try seedUnreadableMetrics()
+        defer { restore() }
+        let result = await run(["update", "--install", "--yes", "--json"], try context())
+        XCTAssertEqual(result.exitCode, 0, result.stdout + result.stderr)
+        let partial = try XCTUnwrap(try json(result)["partialBackup"] as? [String: Any])
+        XCTAssertEqual(partial["skippedCount"] as? Int, 1)
+        let skipped = try XCTUnwrap(partial["skipped"] as? [[String: Any]])
+        XCTAssertEqual(skipped.first?["reason"] as? String, "unreadable")
+        XCTAssertEqual(skipped.first?["path"] as? String,
+                       "~/Library/Application Support/tr.ercanatay.playeridentity/metrics.jsonl")
+        XCTAssertTrue(result.stderr.contains("1 file(s) could not be backed up"), result.stderr)
+        XCTAssertEqual(UpdateFixture.marker(of: app), "new")
+    }
+
+    func testDecliningAPartialBackupInstallsNothing() async throws {
+        let restore = try seedUnreadableMetrics()
+        defer { restore() }
+        let prompt = ScriptedPrompt([true, false])
+        let downloader = FakeUpdateDownloader(files)
+        let result = await run(["update", "--install", "--json"], try context(prompt: prompt.prompt, downloader: downloader))
+        XCTAssertEqual(result.exitCode, 1, result.stdout)
+        XCTAssertEqual(try json(result)["error"] as? String, "partialBackupDeclined")
+        XCTAssertEqual(prompt.questions.count, 2)
+        XCTAssertTrue(prompt.questions[1].contains("Continue the update anyway? [y/N]"), prompt.questions[1])
+        XCTAssertEqual(downloader.requestedURLs, [])
+        assertOldAppInPlace()
+
+        // Confirmed: installed.
+        let yes = ScriptedPrompt([true, true])
+        let accepted = await run(["update", "--install"], try context(prompt: yes.prompt))
+        XCTAssertEqual(accepted.exitCode, 0, accepted.stderr)
+        XCTAssertEqual(UpdateFixture.marker(of: app), "new")
+    }
+
+    func testMissingSpctlIsNotedInTheOutput() async throws {
+        runner.failure = { command in
+            if case .assess = command { return CommandError.launchFailed }
+            return nil
+        }
+        let result = await run(["update", "--install", "--yes", "--json"], try context())
+        XCTAssertEqual(result.exitCode, 0, result.stdout + result.stderr)
+        XCTAssertEqual(try json(result)["verification"] as? String, "codesign")
+        XCTAssertTrue(result.stderr.contains("spctlUnavailable: launchFailed"), result.stderr)
+        XCTAssertEqual(UpdateFixture.marker(of: app), "new")
+    }
+}

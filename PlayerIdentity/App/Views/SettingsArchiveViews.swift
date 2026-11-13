@@ -356,7 +356,8 @@ struct SettingsImportSheet: View {
     private var previewTable: some View {
         let stats = preview
         let settings = candidate.parsed.archive.settings
-        let differ = settings.differences(from: model.currentArchivedSettings(), includingDataRoot: includeDataRoot)
+        // §58.3: the same count the import applies (an unapplicable data root is not a change).
+        let differ = stats.changeCount
         return VStack(alignment: .leading, spacing: 0) {
             ImportSummaryRow(symbol: differ > 0 ? "arrow.clockwise" : "checkmark",
                              color: differ > 0 ? Palette.orange : Palette.text2,

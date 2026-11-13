@@ -66,6 +66,7 @@ struct ContentView: View {
         ) { request in
             InstallConfirmSheet(updates: model.updates, request: request)
         }
+        .modifier(PartialBackupAlert(updates: model.updates, origin: .banner))
         .sheet(item: $model.applyPreview) { preview in
             ApplyPreviewSheet(preview: preview, onWrite: { model.confirmApply() }, onCancel: model.cancelApply)
         }
