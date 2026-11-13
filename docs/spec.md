@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.8 · Tarih: 2026-11-13 · Durum: uygulanacak (v3.7 → v3.8: §62 cybokron.com dil seti ile 22 yeni dil)
+Sürüm: 4.0 · Tarih: 2026-11-13 · Durum: uygulanacak (v3.9 → v4.0: §64 bağlantı teşhisi — sonda, motor günlüğü, paylaşılabilir rapor)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1356,3 +1356,64 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - **Biçimlendirme:** sayı/tarih/saat sistem yerelinden; uygulama kendi biçim kalıbını dayatmaz.
 - **Çeviri yöntemi (§62.1):** her dil **tek çağrıda**, o dilin tam sözlüğüyle çevrilir (dil başına bir ajan, <100.000 token). Terim sözlüğü sabittir: `ban`, `CID`, `appeal`→itiraz, `watch`→izle vb. Kodlayıcı ajanlara çeviri yaptırılmaz.
 - **Testler:** (a) 24 dilde anahtar eşitliği, (b) biçim belirteci sayısı eşitliği, (c) boş değer yok, (d) literal taraması, (e) desteklenmeyen sistem dili → `en` düşüşü, (f) dil değişiminin çalışma anında uygulanması.
+
+## 63. l10n araç zinciri — 24 dil (v3.9)
+- **Tek kaynak:** `tools/l10n_keys.py` anahtar listesini ve `tr`/`en` değerlerini tutar; diğer 22 dil `tools/l10n/<dil>.json` dosyalarında (`{ "anahtar": "değer" }`) saklanır.
+- **Üretim (varsayılan):** `python3 tools/l10n_keys.py` → 24 `.lproj/Localizable.strings` dosyasını **deterministik** üretir (anahtar sırası sabit, UTF-8, tek satır başlık yorumu). Mevcut çeviriler korunur.
+- **`--check`:** hiçbir dosya yazmaz; eksik/fazla anahtar veya boş değer varsa **çıkış 1** ve `dil: anahtar` listesi; temizse `OK`.
+- **`--add "<anahtar>" --en "<metin>" --tr "<metin>"`:** anahtarı kaynağa ekler; 22 dilde eksikse **`en` değeri yer tutucu** olarak yazılır ve "çevrilecek" olarak raporlanır (build kırılmaz, parity kapısı geçer).
+- **Göç:** mevcut 24 `.lproj` dosyası birebir korunur; ilk üretim sonrası `git diff` yalnız sıra/başlık farkı üretebilir, **değer kaybı olmaz**. Göç testi bunu doğrular.
+- **CI kapısı:** `ci.yml` içinde `tools/check-l10n-parity.sh` ve `python3 tools/l10n_keys.py --check` adımları; hata → iş başarısız.
+- **Testler:** (a) `--check` temiz/eksik, (b) göç eşitliği (24 dosya, değerler aynı), (c) determinizm (iki üretim aynı bayt), (d) `--add` sonrası 24 dosyada anahtar var ve diğer dillerde `en` yer tutucu, (e) biçim belirteçleri korunur.
+
+## 64. Bağlantı teşhisi — "motorun söylemediğini söyle" (v4.0)
+Amaç: oyuncu "sunucuya bağlanamıyorum" dediğinde motorun sessiz kaldığı yerde **adım adım kanıt** ve **sade dille hüküm** üretmek. Uygulama motoru değiştirmez, oyun dosyalarına yazmaz; yalnız okur ve kendi UDP/HTTP sondaylarını kullanır.
+
+### 64.1 Sonda dizisi
+Bir sunucu için sırayla çalışır; her adım kaydedilir: `step`, `status` (`ok`/`failed`/`skipped`), `durationMs`, `target`, `detail`. Adımlar:
+1. **DNS** — host → IP (IPv4 öncelikli, yoksa IPv6). Başarısızsa sonraki adımlar `skipped`.
+2. **A2S_INFO** — UDP ulaşılabilirlik + sunucu adı/harita/oyuncu/ping.
+3. **getchallenge** — IP ban / erişim yanıtı (motorun `connect` öncesi adımı).
+4. **connect (protocol 49)** — CID ban sorgusu.
+5. **Sınıflandırma** — aşağıdaki hüküm tablosuna göre tek sonuç.
+Zaman aşımı adım başına **5 sn**, toplam **20 sn**; iptal edilebilir. Sonuç diske yalnız **geçmiş** olarak yazılır (`diagnose` olayı), sunucu kaydı değişmez.
+
+### 64.2 Hükümler ve önerilen eylem
+| hüküm | anlam | öneri |
+|---|---|---|
+| `serverOffline` | A2S yanıtı yok / port kapalı | sunucu adresi ve saati kontrol et, sonra tekrar dene |
+| `dnsFailure` | host çözülemedi | yazımı düzelt, DNS/VPN değiştir |
+| `timeout` | yanıt yok ama DNS doğru | güvenlik duvarı/VPN, farklı ağ dene |
+| `protocolMismatch` | GoldSrc 48 — CID sorgusu yok | "CID testi bu sunucuda yapılamaz"; IP ban yine geçerli |
+| `ipBanned` | getchallenge "banned" | unban mesajı, IP yenile, VPN |
+| `cidBanned` | connect 49 CID banı | unban mesajı (CID + saat), admin iletişimi |
+| `rangeBanned` | IP `/24` veya `/16` aralığında ban | ağ değiştir (mobil hotspot/VPN), admin unban |
+| `cidUnverified` | 49 destekleniyor ama yanıt belirsiz | birkaç dakika sonra yeniden dene |
+| `vpnConflict` | VPN çıkışı ile CID sunucusu uyuşmuyor | VPN'i kapat/aç ve tekrar dene |
+| `checksDisabled` | ban kontrolü kapalı | ayarı aç |
+
+Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu yalnız adım 2–4 `ok` ise verilir.
+
+### 64.3 Motor günlüğü (read-only)
+- Kaynak: `<data root>/<gamedir>/qconsole.log` (Xash3D `-condebug`), yoksa `console.log`; **en çok son 512 KB** okunur.
+- Son 200 satır taranır; bilinen kalıplar: `Couldn't connect`, `Server is not responding`, `Bad challenge`, `host_error`, `NET_SendPacket ERROR`, `Connection reset`, `Invalid CD key`, `Your IP is banned`, `You have been banned` — eşleşme → `pattern`, `matchedAt`, ham satır (redakte) ve sade açıklama.
+- Günlük yoksa: `engineLog: "missing"` + "Xash3D'yi `-condebug` ile çalıştırın" ipucu. Günlük okunamıyorsa `unreadable`; dosya **hiç yazılmaz**.
+- Günlük kanıtı hükmü **ezmez**; hüküm sonda dizisinden gelir, günlük yalnız ek kanıttır. Sonda `serverOffline` ama günlükte `Your IP is banned` varsa hüküm `ipBanned` olur (günlük öncelikli, çünkü doğrudan motorun sözü).
+
+### 64.4 Arayüz
+- Sunucu detayında **"Bağlantıyı teşhis et"** düğmesi (⌘D kısayolu). Çalışırken adımlar canlı işaretlenir (spinner → ✅/❌/⏭).
+- Sonuç: hüküm kartı (renk + ikon + tek cümle) → adım listesi (süre, hedef, ayrıntı) → motor günlüğü eşleşmeleri → eylem düğmeleri: **Unban mesajını kopyala**, **Sunucu sayfasını aç**, **Yeniden dene**, **Teşhisi kopyala**, **Raporu kaydet…**.
+- Hüküm ve adımlar VoiceOver ile okunur (etiket + değer); 24 dilde yerelleştirilir.
+
+### 64.5 Paylaşılabilir rapor
+- Markdown üretir: başlık (uygulama sürümü, tarih, sunucu `host:port`), hüküm, adım tablosu, motor günlüğü eşleşmeleri, CID/IP (varsayılan **maskeli**: CID ilk 8…son 4, IP `/24`).
+- "Maskesiz" seçeneği yalnız onay ile; varsayılan maskeli.
+- Panoya kopyalama + `.md` dosyasına kaydetme; dosya adı `playeridentity-diagnose-<host>-<zaman>.md`.
+
+### 64.6 Testler
+(a) her adım ve her hüküm için sentetik UDP/HTTP yanıtları, (b) süre/aşama sırası, (c) günlük kalıp eşleşmeleri + eksik/okunamaz günlük, (d) günlük önceliği, (e) rapor maskesi (CID/IP), (f) 24 dilde yeni anahtarların eşitliği (parity), (g) ağ yok — tüm testler sahte taşıyıcı.
+
+### 64.7 Sınırlar
+- Uygulama **hiçbir banı kaldırmaz**; hükümler yalnız sunucu yanıtı ve motor günlüğüne dayanır, tahmin edilmez.
+- Motor günlüğü kapalıysa teşhis yine çalışır (yalnız sonda katmanı).
+- Yeni anahtarlar §63 akışıyla eklenir: `l10n_keys.py --add` → 22 dilde `en` yer tutucu → dil başına tek çevirmen çağrısı.

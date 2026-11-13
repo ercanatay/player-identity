@@ -53,8 +53,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.12.0
+## What's new in v2.13.0
 
+- **Connection diagnosis**: one button runs DNS → A2S_INFO → getchallenge → connect 49 and explains the result in plain language, with the engine's own log lines as evidence and a masked report you can paste into a forum or an admin message.
 - **24 languages**: the entire interface is now available in 24 languages, matching cybokron.com, with native language names, `en` fallback and RTL support.
 - **Profiles**: keep several identities side by side (data root + gamedir) and switch from the toolbar; existing records migrate to a `Default` profile.
 - **Ban-list templates**: ready-made URL templates (SourceBans++, AMXBans, HLstatsX, generic CID/IP) with placeholder validation and "apply to all servers".
@@ -195,6 +196,7 @@ folder (`profile.json`, history, metrics, updates).
 | **Updates** | Signed, checksum-verified in-app updates with rollback; version history and downgrade with data backup |
 | **i18n** | 24 languages, switchable at runtime (System + 24 native names) |
 | **Automation** | `playeridentityctl` CLI and three Shortcuts/Siri actions |
+| **Diagnosis** | Step-by-step connection probe with engine-log evidence and a shareable masked report |
 | **Diagnostics** | Redacted support bundle (ZIP) |
 
 ---

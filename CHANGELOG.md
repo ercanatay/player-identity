@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.13.0] - 2026-11-13
+
+### Added
+- **Connection diagnosis** (spec §64): a one-click, step-by-step probe (DNS → A2S_INFO → getchallenge → connect 49) that ends in a plain-language verdict — server offline, DNS failure, timeout, protocol mismatch, IP ban, CID ban, range ban, unverified CID, VPN conflict or checks disabled — with suggested actions.
+- **Engine log evidence** (read-only): reads the tail of `qconsole.log`/`console.log`, matches known engine errors and lets a direct engine message override the probe verdict.
+- **Shareable diagnosis report**: masked Markdown (CID and IP shortened) that can be copied or saved, for pasting into a forum or an admin message.
+- Diagnostics strings are localized into all 24 languages.
+
+### Changed
+- The l10n toolchain covers all 24 languages (`tools/l10n/<lang>.json`), with `--check` and `--add` and a CI gate.
+
 ## [2.12.0] - 2026-11-13
 
 ### Added
@@ -192,6 +203,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.13.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.13.0
 [2.12.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.12.0
 [2.7.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.7.0
 [2.6.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.6.0

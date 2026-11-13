@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.12.0** (783 otomatik test) için, davranış spesifikasyonu **v3.7** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.13.0** (816 otomatik test) için, davranış spesifikasyonu **v4.0** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -18,7 +18,7 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Oyun** | `valve` veya `gearbox` veri klasörüne sahip Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) |
 | **Veri kaynağı** | Oyun motorunun `.xash_id` dosyalarına ve `config.cfg` / `userconfig.cfg` dosyalarına salt okunur erişim; `api.ipify.org` üzerinden genel IP (yedek: `ifconfig.me`); UDP üzerinden sunucu yanıtları |
 | **Yazma davranışı** | Varsayılan olarak salt okunur. Üzerine yazılan tek oyun dosyaları `config.cfg` / `userconfig.cfg` içindeki `name` ve `model` satırlarıdır ve bu yalnızca siz **Uygula**'yı (veya **Satırı kaldır**'ı) onayladıktan sonra gerçekleşir. Geri kalan her şey uygulamanın kendi klasöründe bulunur |
-| **Diller** | 24 dil (dil başına 857 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
+| **Diller** | 24 dil (dil başına 931 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
 | **Testler** | Ana şemada 783 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
@@ -584,6 +584,23 @@ Dışa aktarma, `{ schemaVersion: 1, appVersion, exportedAt, scope, settings, se
 - **Ayarları Sıfırla…**, varsayılan tercihleri geri yükler ve sunucuları, kaydı, geçmişi, metrikleri, yedekleri, data root'u ve gamedir'i korur.
 - **Tüm Verileri Sil…**, yalnızca uygulamanın kendi klasörünü boşaltır (kayıt, geçmiş, metrikler, izleme durumu, güncellemeler, `*.appbak`). Oyun dosyalarına, data root'a ve tercihlere dokunulmaz. İsteğe bağlı bir "Önce ayarları dışa aktar" seçeneği (varsayılan olarak kapalı), dışa aktarma başarısız olursa silme işlemini durdurur. Bir güncelleme sürerken devre dışıdır, kalan öğeleri adlarıyla bildirir ve kısmi bir silme işleminden sonra diskten yeniden yüklenir.
 
+## Bağlantı teşhisi
+
+Bir sunucu bağlantıyı reddettiğinde motor genellikle işe yarar bir şey söylemez. **Bağlantıyı Teşhis Et** (sunucu sayfasında ⌘D), oyunun yaptığı el sıkışmayı adım adım çalıştırır ve sonucu tek bir sade dilli teşhise çevirir.
+
+| Adım | Neyi kanıtlar |
+|---|---|
+| DNS | ana makine adı bir adrese çözülür |
+| A2S_INFO | sunucu UDP'de yanıt verir; harita, oyuncu ve ping bildirir |
+| getchallenge | sunucu IP'yi kabul eder / IP banlıdır |
+| connect 49 | CID kabul edilir ya da banlıdır (GoldSrc 48 sunucuları bu adımı atlar) |
+
+- **Teşhisler:** sunucu çevrimdışı, DNS hatası, zaman aşımı, protokol uyuşmazlığı, IP banı, CID banı, aralık banı, doğrulanmamış CID, VPN çakışması, kontroller kapalı; "ban yok" yalnızca 2–4. adımlar başarılıysa bildirilir.
+- **Motor günlüğü kanıtı:** `qconsole.log` (veya `console.log`; 512 KB / 200 satır) sonu bilinen motor hatalarıyla eşleştirilir; doğrudan bir motor ban mesajı prob teşhisinin yerine geçebilir. Dosyalar yalnızca okunur, asla yazılmaz.
+- **Paylaşılabilir rapor:** teşhisi, adım tablosunu ve günlük eşleşmelerini içeren Markdown; CID ve IP varsayılan olarak maskelenir (yalnızca onayla açılır), dosya adı `playeridentity-diagnose-<host>-<time>.md`.
+- **Geçmiş:** her çalıştırma bir `diagnose` olayı olarak kaydedilir; sunucu kaydı hiç değiştirilmez.
+- **Limitler:** uygulama hiçbir banı kaldırmaz; teşhisler tahmine değil, sunucu yanıtlarına ve motor günlüğüne dayanır.
+
 ## Güncellemeler
 ![Updates settings](screenshots/settings-updates-light.png)
 
@@ -668,7 +685,7 @@ Arayüz, cybokron.com ile aynı 24 dilde sunulur: Türkçe, İngilizce, Almanca,
 
 - **Seçim:** Ayarlar → Dil, *Sistem* seçeneğini ve 24 dili sunar; her dil yerel adıyla gösterilir. Seçim anında uygulanır; varsayılanı sistem dili belirler.
 - **Yedek değer:** Bir dilde anahtar eksikse İngilizce değer gösterilir; uygulama ham anahtarı asla göstermez.
-- **Kaynaklar:** Her dil için `Localizable.strings` (857 anahtar) ve `InfoPlist.strings`; ürün adı Türkçe dışındaki tüm dillerde "Cybokron Player Identity", Türkçede "Cybokron Oyuncu Kimlik Kartı"dır.
+- **Kaynaklar:** Her dil için `Localizable.strings` (931 anahtar) ve `InfoPlist.strings`; ürün adı Türkçe dışındaki tüm dillerde "Cybokron Player Identity", Türkçede "Cybokron Oyuncu Kimlik Kartı"dır.
 - **Sağdan sola:** Arapça ve Farsça sistemin yerleşim yönünü kullanır; metinler çevrilir, simgeler ve oklar anlamını korur.
 - **Kalite kapısı:** `tools/check-l10n-parity.sh` her dili İngilizce ile karşılaştırır — anahtar kümeleri, biçim yer tutucuları ve boş değerler — ve uyuşmazlıkta derleme hattını başarısız kılar.
 
