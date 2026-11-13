@@ -69,6 +69,36 @@ struct MenuBarServerChoice: Sendable, Equatable, Identifiable {
     /// `nil` = no CID yet (no identity or unusable host): "Copy CID" is disabled.
     let cid: String?
     let canRecheck: Bool
+    /// §65.2 "Diagnose" is enabled (not while it runs or while a data operation runs).
+    var canDiagnose = true
+    /// §65.2 menu bar diagnosis of this server: running, or the result line.
+    var diagnosis: MenuBarDiagnosisState? = nil
+
+    /// Submenu title: the label, plus `teşhis sürüyor…` while a diagnosis runs.
+    var title: String {
+        guard diagnosis == .running else { return label }
+        return L10n.format(.menuBarStatusLine, label, L10n.text(.menuBarDiagnoseRunning))
+    }
+
+    /// The server submenu in order: Copy CID, Check Again, Diagnose, then the diagnosis line (if any).
+    var items: [MenuBarServerItem] {
+        var items: [MenuBarServerItem] = [
+            .copyCID(enabled: cid != nil),
+            .recheck(enabled: canRecheck),
+            .diagnose(enabled: canDiagnose && diagnosis != .running),
+        ]
+        if let diagnosis { items.append(.diagnosisLine(MenuBarDiagnosisText.line(diagnosis))) }
+        return items
+    }
+}
+
+/// One item of a server's submenu (§60, §65.2).
+enum MenuBarServerItem: Sendable, Equatable {
+    case copyCID(enabled: Bool)
+    case recheck(enabled: Bool)
+    case diagnose(enabled: Bool)
+    /// `teşhis sürüyor…` or `CID ban · 1,2 sn`; always disabled (no action).
+    case diagnosisLine(String)
 }
 
 /// Items of the top of the menu bar menu (the Refresh/Settings/Show/Quit block follows them).

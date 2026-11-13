@@ -35,6 +35,7 @@ struct ConnectionDiagnosisSection: View {
                 .disabled(session?.isRunning == true)
                 .accessibilityIdentifier("diagnoseStart")
             }
+            DiagnosisTrendView(model: model, serverID: serverID, onStart: restart)
             if session == nil {
                 Text(L10n.text(.diagnoseIntro))
                     .font(.caption)
@@ -265,6 +266,129 @@ struct ConnectionDiagnosisSection: View {
             saveError = nil
         } catch {
             saveError = L10n.format(.diagnoseSaveFailed, error.localizedDescription)
+        }
+    }
+}
+
+/// §65.1 trend of this server's diagnoses (from the history; nothing extra stored): period picker, run count, last
+/// run, counts per verdict (only the ones above zero) and the coloured strip of the last 10 runs (oldest → newest).
+/// Re-read when the history changes (e.g. a diagnosis just finished); it never changes a diagnosis result.
+struct DiagnosisTrendView: View {
+    @Bindable var model: AppModel
+    let serverID: UUID
+    let onStart: () -> Void
+
+    @State private var window = DiagnosisTrendWindow.default
+    @State private var trend: DiagnosisTrend?
+
+    private struct LoadKey: Equatable {
+        let window: DiagnosisTrendWindow
+        let revision: Int
+        let serverID: UUID
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(L10n.text(.diagnoseTrendTitle)).font(.caption.bold()).foregroundStyle(Palette.text2)
+                Spacer()
+                Picker(L10n.text(.diagnoseTrendWindow), selection: $window) {
+                    ForEach(DiagnosisTrendWindow.allCases) { option in
+                        Text(option.title).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .controlSize(.small)
+                .accessibilityLabel(L10n.text(.diagnoseTrendWindow))
+                .accessibilityIdentifier("diagnoseTrendWindow")
+            }
+            if let trend {
+                if trend.isEmpty {
+                    HStack(spacing: 8) {
+                        Label(trend.emptyText, systemImage: "chart.bar.xaxis")
+                            .font(.caption)
+                            .foregroundStyle(Palette.text2)
+                            .accessibilityIdentifier("diagnoseTrendEmpty")
+                        Spacer()
+                        Button(L10n.text(.diagnoseTrendStart), action: onStart)
+                            .controlSize(.small)
+                            .disabled(model.diagnosis(for: serverID)?.isRunning == true)
+                            .accessibilityIdentifier("diagnoseTrendStart")
+                    }
+                } else {
+                    summary(trend)
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.inner).fill(Palette.inset))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("diagnoseTrend")
+        .task(id: LoadKey(window: window, revision: model.historyRevision, serverID: serverID)) {
+            trend = await model.diagnosisTrend(for: serverID, window: window)
+        }
+    }
+
+    private func summary(_ trend: DiagnosisTrend) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text(L10n.format(.diagnoseTrendRuns, String(trend.runs)))
+                    .font(.callout.weight(.semibold).monospacedDigit())
+                    .accessibilityIdentifier("diagnoseTrendRuns")
+                if let last = trend.lastRun {
+                    let format = HistoryTimeFormat()
+                    Text(L10n.format(.diagnoseTrendLastRun, format.relative(last, now: model.now)))
+                        .font(.caption)
+                        .foregroundStyle(Palette.text2)
+                        .help(format.absolute(last))
+                }
+                Spacer(minLength: 0)
+                strip(trend)
+            }
+            FlowCounts(counts: trend.counts)
+        }
+    }
+
+    private func strip(_ trend: DiagnosisTrend) -> some View {
+        HStack(spacing: 3) {
+            ForEach(Array(trend.strip.enumerated()), id: \.offset) { _, verdict in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(verdict.level.color)
+                    .frame(width: 9, height: 16)
+                    .help(verdict.shortLabel)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(L10n.text(.diagnoseTrendStrip))
+        .accessibilityValue(trend.stripAccessibilityValue)
+        .accessibilityIdentifier("diagnoseTrendStrip")
+    }
+}
+
+/// Verdict counts as small tinted chips (`CID ban ×3`), wrapping onto more lines when needed.
+private struct FlowCounts: View {
+    let counts: [DiagnosisTrend.VerdictCount]
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { chips }
+            VStack(alignment: .leading, spacing: 4) { chips }
+        }
+        .accessibilityIdentifier("diagnoseTrendCounts")
+    }
+
+    @ViewBuilder
+    private var chips: some View {
+        ForEach(counts, id: \.verdict) { item in
+            Text(L10n.format(.diagnoseTrendCount, item.verdict.shortLabel, String(item.count)))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(item.verdict.level.textColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(item.verdict.level.tint))
         }
     }
 }

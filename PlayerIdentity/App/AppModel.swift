@@ -1239,7 +1239,8 @@ final class AppModel {
     var menuBarQuickItems: [MenuBarQuickItem] {
         let choices = servers.map { entry in
             MenuBarServerChoice(id: entry.id, label: entry.label, cid: menuBarCID(for: entry.id),
-                                canRecheck: canRecheckServer(entry.id))
+                                canRecheck: canRecheckServer(entry.id), canDiagnose: canDiagnoseFromMenuBar(entry.id),
+                                diagnosis: menuBarDiagnoses[entry.id])
         }
         return MenuBarQuickMenu.items(enabled: menuBarEnabled, statusTitle: menuBarPresentation.title,
                                       lastChecked: lastChecked, servers: choices, selected: selectedServerID,
@@ -1842,46 +1843,73 @@ final class AppModel {
         diagnosisSession?.serverID == id ? diagnosisSession : nil
     }
 
-    /// §64.1: DNS → A2S_INFO → getchallenge → connect 49 → verdict, plus the read-only engine log (§64.3). The server
-    /// entry is not changed; the result is written to the history only (`diagnose`). A new run cancels the previous one.
-    @discardableResult
-    func startDiagnosis(for id: UUID) -> Task<Void, Never>? {
-        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
-        diagnosisTask?.cancel()
-        let token = UUID()
-        diagnosisSession = DiagnosisSession(token: token, serverID: id)
-        var fixRange: String?
-        if case .finished(.rangeBanned(_, _, let cidr), _)? = fixSession?.phase, fixSession?.id == id { fixRange = cidr }
-        let rawID = try? identity?.get().rawID
-        let name = config.name
-        let checksEnabled = banCheckEnabled
-        let reporter = deps.interfaceReporter
-        let fileSystem = deps.fileSystem
-        let root = dataRoot
-        let gamedir = selectedGamedir
-        let redactor = Redactor(home: deps.paths.home)
-        let started = deps.now()
-        let ip = publicIP
-        let diagnoser = ConnectionDiagnoser(transport: deps.udpTransport, resolver: deps.resolver, now: deps.now)
-        let task = Task {
-            let history = await loadHistory()
-            let knownRange = fixRange ?? BanMatrix.rangeBans(from: history)[id]
+    /// Everything one diagnosis needs, captured on the main actor when it starts (§64.1, §64.3). Shared by the
+    /// server details and the menu bar (§65.2).
+    private struct DiagnosisJob: Sendable {
+        let entry: ServerEntry
+        let fixRange: String?
+        let rawID: UInt64?
+        let name: String
+        let checksEnabled: Bool
+        let reporter: InterfaceReporter
+        let fileSystem: any FileSystemReading
+        let root: URL
+        let gamedir: String?
+        let redactor: Redactor
+        let started: Date
+        let publicIP: String?
+        let historyStore: HistoryStore
+        let diagnoser: ConnectionDiagnoser
+
+        /// Probe + engine log; throws `CancellationError` when cancelled.
+        func run(progress: @escaping @Sendable (DiagnosisProgress) async -> Void = { _ in }) async throws -> ConnectionDiagnosis {
+            let store = historyStore
+            let history = await Task.detached { store.load() }.value
+            let knownRange = fixRange ?? BanMatrix.rangeBans(from: history)[entry.id]
+            let reporter = reporter
             let vpnActive = await Task.detached { reporter.report().isVPNActive }.value
             let request = ConnectionDiagnosisRequest(host: entry.host, port: entry.port, rawID: rawID, name: name,
                                                      checksEnabled: checksEnabled, vpnActive: vpnActive,
                                                      knownRange: knownRange)
+            let probe = try await diagnoser.run(request, progress: progress)
+            let (root, gamedir, fileSystem, redactor) = (root, gamedir, fileSystem, redactor)
+            let log = await Task.detached {
+                EngineLogReader.read(dataRoot: root, gamedir: gamedir, fileSystem: fileSystem, redactor: redactor)
+            }.value
+            try Task.checkCancellation()
+            return ConnectionDiagnosis(serverID: entry.id, label: entry.label, host: entry.host, port: entry.port,
+                                       startedAt: started, probe: probe, engineLog: log, publicIP: publicIP)
+        }
+    }
+
+    private func diagnosisJob(for id: UUID) -> DiagnosisJob? {
+        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
+        var fixRange: String?
+        if case .finished(.rangeBanned(_, _, let cidr), _)? = fixSession?.phase, fixSession?.id == id { fixRange = cidr }
+        return DiagnosisJob(entry: entry, fixRange: fixRange, rawID: try? identity?.get().rawID, name: config.name,
+                            checksEnabled: banCheckEnabled, reporter: deps.interfaceReporter, fileSystem: deps.fileSystem,
+                            root: dataRoot, gamedir: selectedGamedir, redactor: Redactor(home: deps.paths.home),
+                            started: deps.now(), publicIP: publicIP,
+                            historyStore: HistoryStore(fileURL: deps.paths.historyFile),
+                            diagnoser: ConnectionDiagnoser(transport: deps.udpTransport, resolver: deps.resolver,
+                                                           now: deps.now))
+    }
+
+    /// §64.1: DNS → A2S_INFO → getchallenge → connect 49 → verdict, plus the read-only engine log (§64.3). The server
+    /// entry is not changed; the result is written to the history only (`diagnose`). A new run cancels the previous one.
+    @discardableResult
+    func startDiagnosis(for id: UUID) -> Task<Void, Never>? {
+        guard let job = diagnosisJob(for: id) else { return nil }
+        diagnosisTask?.cancel()
+        let token = UUID()
+        diagnosisSession = DiagnosisSession(token: token, serverID: id)
+        let task = Task {
             do {
-                let probe = try await diagnoser.run(request) { progress in
+                let diagnosis = try await job.run { progress in
                     await self.applyDiagnosisProgress(progress, token: token)
                 }
-                let log = await Task.detached {
-                    EngineLogReader.read(dataRoot: root, gamedir: gamedir, fileSystem: fileSystem, redactor: redactor)
-                }.value
-                try Task.checkCancellation()
                 guard diagnosisSession?.token == token else { return }
-                let diagnosis = ConnectionDiagnosis(serverID: id, label: entry.label, host: entry.host, port: entry.port,
-                                                    startedAt: started, probe: probe, engineLog: log, publicIP: ip)
-                diagnosisSession?.steps = probe.steps
+                diagnosisSession?.steps = diagnosis.steps
                 diagnosisSession?.result = diagnosis
                 diagnosisSession?.current = nil
                 diagnosisSession?.isRunning = false
@@ -1898,6 +1926,52 @@ final class AppModel {
             }
         }
         diagnosisTask = task
+        return task
+    }
+
+    // MARK: §65 diagnosis trend and menu bar diagnosis
+
+    /// §65.1 trend of a server's diagnoses in `window`, derived from the history (`diagnose` lines); read off the
+    /// main thread. Changes nothing.
+    func diagnosisTrend(for id: UUID, window: DiagnosisTrendWindow) async -> DiagnosisTrend {
+        let entries = await loadHistory()
+        return DiagnosisTrend.make(entries: entries, serverID: id, window: window, now: deps.now())
+    }
+
+    /// §65.2 menu bar diagnoses per server (running / result line); never saved.
+    private(set) var menuBarDiagnoses: [UUID: MenuBarDiagnosisState] = [:]
+    @ObservationIgnored private var menuBarDiagnosisTasks: [UUID: Task<Void, Never>] = [:]
+
+    func canDiagnoseFromMenuBar(_ id: UUID) -> Bool {
+        !isDataOperationRunning && menuBarDiagnoses[id] != .running && servers.contains { $0.id == id }
+    }
+
+    /// §65.2 "Diagnose" in the menu bar server submenu: the same probe as the details (§64), shown as one line.
+    /// The history gets the same `diagnose` line; the server entry is not changed. A ban verdict posts one
+    /// notification (notification switches, quiet hours and the server's §56 override apply).
+    @discardableResult
+    func startMenuBarDiagnosis(for id: UUID) -> Task<Void, Never>? {
+        guard canDiagnoseFromMenuBar(id), let job = diagnosisJob(for: id) else { return nil }
+        menuBarDiagnoses[id] = .running
+        let now = deps.now
+        let task = Task {
+            defer { menuBarDiagnosisTasks[id] = nil }
+            do {
+                let diagnosis = try await job.run()
+                let durationMs = max(0, Int((now().timeIntervalSince(diagnosis.startedAt) * 1000).rounded()))
+                menuBarDiagnoses[id] = .finished(diagnosis.verdict, durationMs: durationMs)
+                let line = diagnosis.historyEntry
+                let content = MenuBarDiagnosisText.notification(verdict: diagnosis.verdict, server: job.entry,
+                                                                at: diagnosis.startedAt)
+                recordHistory { recorder in
+                    await recorder.record(line)
+                    return content.map { [$0] } ?? []
+                }
+            } catch {
+                menuBarDiagnoses[id] = nil
+            }
+        }
+        menuBarDiagnosisTasks[id] = task
         return task
     }
 

@@ -87,11 +87,10 @@ struct MenuBarMenu: View {
         case .servers(let choices):
             Menu(L10n.text(.menuBarServers)) {
                 ForEach(choices) { choice in
-                    Menu(choice.label) {
-                        Button(L10n.text(.menuBarCopyCID)) { model.menuBarCopy(.cid(choice.id)) }
-                            .disabled(choice.cid == nil)
-                        Button(L10n.text(.actionRecheck)) { model.recheckServer(choice.id) }
-                            .disabled(!choice.canRecheck)
+                    Menu(choice.title) {
+                        ForEach(Array(choice.items.enumerated()), id: \.offset) { _, item in
+                            serverItem(item, server: choice.id)
+                        }
                     }
                 }
             }
@@ -99,7 +98,37 @@ struct MenuBarMenu: View {
     }
 }
 
+extension MenuBarMenu {
+    /// §60/§65.2 one item of a server submenu.
+    @ViewBuilder
+    fileprivate func serverItem(_ item: MenuBarServerItem, server id: UUID) -> some View {
+        switch item {
+        case .copyCID(let enabled):
+            Button(L10n.text(.menuBarCopyCID)) { model.menuBarCopy(.cid(id)) }
+                .disabled(!enabled)
+        case .recheck(let enabled):
+            Button(L10n.text(.actionRecheck)) { model.recheckServer(id) }
+                .disabled(!enabled)
+        case .diagnose(let enabled):
+            Button(L10n.text(.menuBarDiagnose)) { model.startMenuBarDiagnosis(for: id) }
+                .disabled(!enabled)
+        case .diagnosisLine(let line):
+            Text(line)
+        }
+    }
+}
+
 enum MenuBarText {
+    static func serverItemTitle(_ item: MenuBarServerItem) -> (title: String, enabled: Bool) {
+        switch item {
+        case .copyCID(let enabled): return (L10n.text(.menuBarCopyCID), enabled)
+        case .recheck(let enabled): return (L10n.text(.actionRecheck), enabled)
+        case .diagnose(let enabled): return (L10n.text(.menuBarDiagnose), enabled)
+        case .diagnosisLine(let line): return (line, false)
+        }
+    }
+
+
     static func copyCID(label: String?) -> String {
         guard let label, !label.isEmpty else { return L10n.text(.menuBarCopyCID) }
         return L10n.format(.menuBarCopyCIDOf, label)
@@ -152,11 +181,13 @@ struct MenuBarEvidenceView: View {
         case .servers(let choices):
             item(L10n.text(.menuBarServers), shortcut: "▸")
             ForEach(choices) { choice in
-                item(choice.label, shortcut: "▸", indent: true)
-                if choice.id == choices.first?.id {
-                    // The first server's submenu, shown opened.
-                    item(L10n.text(.menuBarCopyCID), enabled: choice.cid != nil, indent: true, depth: 2)
-                    item(L10n.text(.actionRecheck), enabled: choice.canRecheck, indent: true, depth: 2)
+                item(choice.title, shortcut: "▸", indent: true)
+                if choice.id == (choices.first { $0.diagnosis != nil } ?? choices.first)?.id {
+                    // One server's submenu, shown opened (the one with a menu bar diagnosis, else the first).
+                    ForEach(Array(choice.items.enumerated()), id: \.offset) { _, sub in
+                        let entry = MenuBarText.serverItemTitle(sub)
+                        item(entry.title, enabled: entry.enabled, indent: true, depth: 2)
+                    }
                 }
             }
         }
