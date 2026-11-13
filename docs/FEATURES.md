@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.10.3** (730 automated tests), against behaviour specification **v3.6** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.11.0** (774 automated tests), against behaviour specification **v3.7** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -18,8 +18,8 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Write behaviour** | Read-only by default. The only game files ever written are the `name` and `model` lines of `config.cfg` / `userconfig.cfg`, and only after you confirm **Apply** (or **Remove line**). Everything else lives in the app's own folder |
 | **Languages** | Turkish and English (795 localization keys per language), switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
-| **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions |
-| **Tests** | 730 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
+| **Tests** | 774 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -445,6 +445,55 @@ playeridentityctl --version
 - `backup`, `restore`, `servers` and `diagnostics` never use the network.
 - With a Homebrew install, `brew upgrade --cask player-identity` keeps the cask version in step after `update --install`.
 
+## Profiles (multiple identities)
+Profiles let one app instance switch between several game setups (for example two data roots or game folders).
+
+| Field | Meaning |
+|---|---|
+| `id` | Stable identifier |
+| `name` | Display name |
+| `dataRoot` | Folder holding the engine's `.xash_id` data |
+| `gamedir` | `valve` or `gearbox` folder |
+| `createdAt` | Creation time |
+
+`profile.json` stores `profiles: [Profile]` and `activeProfileID`. On first launch after the upgrade the existing single `dataRoot`/`gamedir` pair migrates into a profile named **Default**.
+
+### Switching and managing
+- A **profile picker** sits in the main toolbar; **Settings → General → Data** lists profiles with **Add**, **Rename**, **Delete** and **Make default**.
+- On a switch the identity source, gamedir and data root are re-resolved and the **identity and CIDs are recomputed** (no network involved).
+- The **server list is shared** by all profiles. History and metric rows are tagged with `profileID` and `profileName`; older rows without these fields remain readable and are shown as untagged.
+- The switch is **blocked while the game is running** (config-write risk); a read-only notice explains why.
+
+### Rules
+| Rule | Behaviour |
+|---|---|
+| Minimum | At least one profile always remains |
+| Deleting the active profile | Falls back to the first profile |
+| Delete | Asks for confirmation; cannot be undone |
+| Duplicates | A second profile with the same `dataRoot` + `gamedir` is rejected with a warning |
+
+## Ban-list templates
+The **Ban list** field of a server offers ready-made URL templates:
+
+| Template | Intended for |
+|---|---|
+| SourceBans++ | SourceBans++ ban pages |
+| AMXBans | AMXBans ban pages |
+| HLstatsX | HLstatsX player pages |
+| Generic (CID) | Any site keyed by CID |
+| Generic (IP) | Any site keyed by IP |
+
+Placeholders: `{cid}`, `{ip}`, `{host}`, `{port}`, for example:
+
+```
+https://bans.example.test/search?cid={cid}&server={host}:{port}
+```
+
+- **Validation:** `https` only, at least one placeholder, no whitespace, at most 2048 characters. An invalid pattern is not saved and an error row is shown.
+- **Encoding:** substituted values are URL-encoded (a CID is hex and unchanged; hosts need it).
+- **Storage:** the choice is stored **per server**; **Apply to all servers** copies it to every server.
+- Existing hand-written patterns are preserved and keep working.
+
 ## URL scheme
 The app registers the `playeridentity` scheme so a link on a web page, in a chat or from a terminal adds servers:
 
@@ -465,6 +514,20 @@ open "playeridentity://add?host=198.51.100.10&host=198.51.100.11:27016&host=%5B2
 - The main window comes to the front and an alert reports how many servers were added, which were already present and which were invalid (and why).
 - Added rows are **unsaved** ("Kaydedilmedi") until you press **Save**.
 - Nothing is added while a restore, erase or settings import is running.
+
+## Menu bar quick actions
+With **Show in menu bar** on, the menu gains identity shortcuts above the existing items:
+
+| Item | Behaviour |
+|---|---|
+| Status line | Overall status plus the time of the last check |
+| **Copy CID** | Copies the CID for the selected (or first) server |
+| **Copy raw identity** | Copies the raw identity string |
+| Server submenu | Per server: **Copy CID** and **Check again** |
+
+- After a copy the menu shows **"Copied"** for 2 seconds.
+- A clipboard failure is never swallowed: an error row stays in the menu until the next successful action, and the failure is recorded in `errors.json` with area `clipboard`.
+- With the menu bar off these items do not exist; main-window behaviour is unchanged.
 
 ## Backup and restore
 ![Backup and restore](screenshots/backup-restore-light.png)
@@ -510,7 +573,8 @@ Export writes `playeridentity-settings-YYYYMMDD-HHmmss.json` with `{ schemaVersi
 - The file is schema-validated: missing or unsupported version, broken JSON and wrong types are rejected; unknown fields are ignored; only JSON files are accepted (no symlinks or special paths).
 - A **preview** reports how many settings and servers, conflicting servers (same `host:port`) and invalid lines.
 - **Merge** (default): settings apply; matching servers are updated, local-only servers are kept, new ones are added. **Replace**: the server list is replaced after keeping the previous record as `profile.json.appbak-<time>`.
-- `dataRoot` is applied only if included, and only if it is an absolute, existing directory without `..`, not `/` (compared after resolving symlinks, so `/var` ≡ `/private/var`). Invalid paths are flagged in the preview and rejected again at apply time.
+- `dataRoot` is applied only if included, and only if it is an absolute, existing directory without `..`, not `/` (compared after resolving symlinks, so `/var` ≡ `/private/var`; a leading `~` is expanded). Invalid paths are flagged in the preview and rejected again at apply time.
+- **Preview equals apply:** an unusable `dataRoot` is marked **"cannot be applied"** in the preview and is *not* counted among the changes; at apply time it is not skipped silently but reported as `skippedFields: ["dataRoot"]`. A path that resolves to the current one is not a change.
 - A result summary lists added/updated/skipped counts, invalid entries, data-root and launch-at-login side effects. The result leaves rows **unsaved**.
 - Imports take the shared data-operation lock and are refused while a restore or erase runs.
 
@@ -533,12 +597,27 @@ Assets are `PlayerIdentity-<version>-macos.zip` and `SHA256SUMS.txt`. Everything
 4. unzip (`ditto -x -k`);
 5. `codesign --verify --deep --strict`;
 6. TeamIdentifier, bundle identifier (`tr.ercanatay.playeridentity`) and version equal to the release;
-7. **Gatekeeper**: `spctl -a -vv -t exec` must report `accepted` **and** `Notarized Developer ID`.
+7. **Gatekeeper**: `spctl -a -vv -t exec` must report exit code 0, `accepted` **and** a `Notarized Developer ID` source.
+
+**Verification details**
+- `spctl` output is parsed independent of line endings (`\n` / `\r\n`) and surrounding whitespace; the *notarized* text is matched case-insensitively.
+- **`rejected` is never accepted**, under any condition.
+- If `spctl` itself cannot run (tool missing, restricted environment) the check falls back to `codesign --verify --deep --strict` plus TeamIdentifier, bundle identifier and version. The fallback is logged as `spctlUnavailable`, the user is told, and the CLI reports `verification: "codesign"` in its JSON (otherwise `"gatekeeper"`).
 
 Helper processes have a 120 s limit and are terminated (then killed) on timeout or cancel.
 
+### Update-flow data backup
+Before an install the app takes a data backup. If a readable file cannot be included, the backup is marked **`partial`** and the result carries `skippedCount` plus the first 5 skipped paths (redacted) with the reason.
+
+| Situation | Behaviour |
+|---|---|
+| Backup complete | Install continues |
+| Backup `partial` (GUI) | A prompt says "N files could not be backed up"; the install continues **only if you confirm**. Without confirmation it is cancelled and the app is unchanged |
+| Backup `partial` (CLI) | Result field `partialBackup`; without `--yes` (or a terminal `y`) the install stops with `partialBackupDeclined` |
+| Cleanup | The 5-file limit is kept; `partial` backups are deleted first, before older complete ones |
+
 ### Install and rollback
-A data backup is taken first. The current app moves to `updates/backup/PlayerIdentity-<old>.app`, the new app is placed, quarantine is cleared, and the app relaunches. If copying or unpacking fails the backup is restored automatically; if even that fails, the backup path is shown. If `/Applications` is not writable, a one-time administrator prompt or a "move the app to Applications" hint appears.
+A data backup is taken first (see above). The current app moves to `updates/backup/PlayerIdentity-<old>.app`, the new app is placed, quarantine is cleared, and the app relaunches. If copying or unpacking fails the backup is restored automatically; if even that fails, the backup path is shown. If `/Applications` is not writable, a one-time administrator prompt or a "move the app to Applications" hint appears.
 
 ### Downgrade
 **Settings → Updates → Version history** lists the last 20 stable releases with the current one marked. **Go back to this version** is available for older releases only (the same version is disabled). The confirmation sheet names the target, warns that an older version may not read newer data and has **Back up data first** (on by default), which writes `updates/backups/data-<from>-to-<to>-<stamp>/` (`profile.json`, `history.jsonl`, exported defaults, `snapshot-info.json`); up to **10** data backups are kept. Installation uses the same verification chain (an unsigned older release is refused). On first launch after the downgrade, if the record schema is unsupported, **Restore from backup** is offered; restoring needs your confirmation. A failed relaunch is shown as a localized banner with **Relaunch**.
