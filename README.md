@@ -48,6 +48,8 @@ folder (`profile.json`, history, metrics, updates).
 | ![Profile picker](docs/screenshots/profiles-toolbar-light.png) | ![Profiles in Settings](docs/screenshots/profiles-settings-light.png) |
 | **Ban-list templates** | **Menu bar quick actions** |
 | ![Ban-list templates](docs/screenshots/ban-list-templates-light.png) | ![Menu bar quick actions](docs/screenshots/menu-bar-light.png) |
+| **Connection diagnosis** | **Engine log evidence** |
+| ![Connection diagnosis](docs/screenshots/diagnosis-verdict-light.png) | ![Engine log evidence](docs/screenshots/diagnosis-engine-log-light.png) |
 
 > All screenshots use a fictional player, servers and IP addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
