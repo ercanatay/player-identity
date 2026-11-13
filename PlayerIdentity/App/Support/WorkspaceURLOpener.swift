@@ -8,3 +8,13 @@ struct WorkspaceURLOpener: URLOpening {
         NSWorkspace.shared.open(url)
     }
 }
+
+/// §60: the general clipboard.
+struct SystemPasteboard: PasteboardWriting {
+    init() {}
+
+    @MainActor func write(_ text: String) -> Bool {
+        NSPasteboard.general.clearContents()
+        return NSPasteboard.general.setString(text, forType: .string)
+    }
+}

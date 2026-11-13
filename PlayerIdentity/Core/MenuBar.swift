@@ -35,6 +35,95 @@ struct MenuBarPresentation: Sendable, Equatable {
     }
 }
 
+// MARK: - §60 Quick CID
+
+/// What a quick menu item copies.
+enum MenuBarCopyKind: Sendable, Equatable {
+    case cid(UUID)
+    case rawID
+}
+
+/// Result of the last copy from the menu: "Copied" for 2 seconds, a failure until the next copy.
+enum MenuBarCopyFeedback: Sendable, Equatable {
+    case copied(MenuBarCopyKind, at: Date)
+    case failed(MenuBarCopyKind, at: Date)
+
+    static let confirmationDuration: TimeInterval = 2
+
+    /// The confirmation shows for `confirmationDuration` seconds; a failure stays until it is replaced.
+    func isVisible(now: Date) -> Bool {
+        switch self {
+        case .copied(_, let at):
+            let age = now.timeIntervalSince(at)
+            return age >= 0 && age < Self.confirmationDuration
+        case .failed:
+            return true
+        }
+    }
+}
+
+/// One server of the menu's server submenu.
+struct MenuBarServerChoice: Sendable, Equatable, Identifiable {
+    let id: UUID
+    let label: String
+    /// `nil` = no CID yet (no identity or unusable host): "Copy CID" is disabled.
+    let cid: String?
+    let canRecheck: Bool
+}
+
+/// Items of the top of the menu bar menu (the Refresh/Settings/Show/Quit block follows them).
+enum MenuBarQuickItem: Sendable, Equatable {
+    /// Overall status + last check time; always disabled (gray, no action).
+    case status(String)
+    /// "Copy CID" for the selected server (or the first one); disabled without a CID.
+    case copyCID(serverID: UUID?, label: String?, enabled: Bool)
+    case copyRawID(enabled: Bool)
+    case copied
+    case copyFailed
+    case servers([MenuBarServerChoice])
+}
+
+enum MenuBarQuickMenu {
+    /// The selected server if it still exists, otherwise the first server.
+    static func cidServer(selected: UUID?, servers: [UUID]) -> UUID? {
+        if let selected, servers.contains(selected) { return selected }
+        return servers.first
+    }
+
+    static func statusLine(title: String, lastChecked: Date?) -> String {
+        L10n.format(.menuBarStatusLine, title, L10n.format(.topbarLastCheck, TimeText.format(lastChecked)))
+    }
+
+    /// Nothing while the menu bar mode is off (the status item is not inserted then).
+    static func items(enabled: Bool, statusTitle: String, lastChecked: Date?, servers: [MenuBarServerChoice],
+                      selected: UUID?, rawID: String?, feedback: MenuBarCopyFeedback?, now: Date) -> [MenuBarQuickItem] {
+        guard enabled else { return [] }
+        let target = cidServer(selected: selected, servers: servers.map(\.id)).flatMap { id in servers.first { $0.id == id } }
+        var items: [MenuBarQuickItem] = [
+            .status(statusLine(title: statusTitle, lastChecked: lastChecked)),
+            .copyCID(serverID: target?.id, label: target?.label, enabled: target?.cid != nil),
+            .copyRawID(enabled: !(rawID ?? "").isEmpty),
+        ]
+        if let feedback, feedback.isVisible(now: now) {
+            if case .copied = feedback { items.append(.copied) } else { items.append(.copyFailed) }
+        }
+        if !servers.isEmpty { items.append(.servers(servers)) }
+        return items
+    }
+}
+
+/// Writes text to the clipboard (NSPasteboard in the app, a recorder in tests).
+protocol PasteboardWriting: Sendable {
+    /// `false` = the clipboard did not take the text.
+    @MainActor func write(_ text: String) -> Bool
+}
+
+/// Default when nothing is injected (tests): every write fails.
+struct UnavailablePasteboard: PasteboardWriting {
+    init() {}
+    @MainActor func write(_ text: String) -> Bool { false }
+}
+
 /// Background refresh every 30 minutes, only while the menu bar mode is on.
 enum MenuBarRefreshSchedule {
     static let interval: TimeInterval = 30 * 60

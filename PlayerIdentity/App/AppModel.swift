@@ -43,6 +43,8 @@ struct AppDependencies {
     var loginItem: (any LoginItemControlling)? = nil
     /// §40: opens the ban list page in the browser (the default opens nothing).
     var urlOpener: any URLOpening = UnavailableURLOpener()
+    /// §60: clipboard of the menu bar copy items (the default write fails; real one in `live()`).
+    var pasteboard: any PasteboardWriting = UnavailablePasteboard()
     /// §37: interfaces + egress interface (`getifaddrs` + route lookup; read-only, nothing is sent).
     var interfaceReporter = InterfaceReporter()
     /// §47.2/§49: file operations of "Erase All Data" and the restore (tests inject failures).
@@ -73,6 +75,7 @@ struct AppDependencies {
                                    resolver: SystemAddressResolver())
         deps.defaultsDomain = suite
         deps.errorLog = ErrorLog(fileURL: paths.errorsFile)
+        deps.pasteboard = SystemPasteboard()
         return deps
     }
 
@@ -98,6 +101,7 @@ struct AppDependencies {
                                loginItem: MainAppLoginItem(),
                                urlOpener: WorkspaceURLOpener())
         deps.errorLog = ErrorLog(fileURL: paths.errorsFile)
+        deps.pasteboard = SystemPasteboard()
         return deps
     }
 }
@@ -218,6 +222,11 @@ final class AppModel {
     /// Last launch-at-login error, shown under the switch.
     var loginItemError: LoginItemError?
     @ObservationIgnored private var menuBarTask: Task<Void, Never>?
+    /// §60: row selected in the main window's server table (the menu bar "Copy CID" target); not saved.
+    var selectedServerID: UUID?
+    /// §60: result of the last menu bar copy ("Copied" for 2 seconds, a failure until the next copy).
+    private(set) var menuBarCopyFeedback: MenuBarCopyFeedback?
+    @ObservationIgnored private var menuBarFeedbackTask: Task<Void, Never>?
     @ObservationIgnored private var backgroundTasksActive = false
 
     // MARK: §29 join the game
@@ -678,6 +687,26 @@ final class AppModel {
 
     // MARK: §40 ban list URL
 
+    /// §59 "Apply to all servers": validates once, then sets (or clears) the template on every row.
+    @discardableResult
+    func applyBanListURLToAll(_ template: String) -> BanListTemplateError? {
+        let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        var stored: String?
+        if !trimmed.isEmpty {
+            switch BanListTemplate.validate(trimmed) {
+            case .success(let valid): stored = valid
+            case .failure(let error): return error
+            }
+        }
+        var changed = false
+        for index in servers.indices where servers[index].banListURL != stored {
+            servers[index].banListURL = stored
+            changed = true
+        }
+        if changed { markEdited() }
+        return nil
+    }
+
     /// Sets (or clears with an empty text) the row's ban list URL template; saved with the record.
     @discardableResult
     func setBanListURL(_ template: String, for id: UUID) -> BanListTemplateError? {
@@ -1055,6 +1084,65 @@ final class AppModel {
     // MARK: §30 menu bar and launch at login
 
     var menuBarPresentation: MenuBarPresentation { MenuBarPresentation.make(overall: report?.overall) }
+
+    // MARK: §60 menu bar quick CID
+
+    /// CID copied for a row: the current one, else the CID saved with the row.
+    func menuBarCID(for id: UUID) -> String? {
+        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
+        let cid = rowStatus(id)?.currentCID ?? entry.cid
+        return cid.isEmpty ? nil : cid
+    }
+
+    var menuBarRawID: String? { try? identity?.get().rawIDHex }
+
+    func canRecheckServer(_ id: UUID) -> Bool {
+        banCheckEnabled && !isFixRunning && !isDataOperationRunning && banRequest(for: id) != nil
+    }
+
+    /// Top items of the menu bar menu (empty while the menu bar mode is off).
+    var menuBarQuickItems: [MenuBarQuickItem] {
+        let choices = servers.map { entry in
+            MenuBarServerChoice(id: entry.id, label: entry.label, cid: menuBarCID(for: entry.id),
+                                canRecheck: canRecheckServer(entry.id))
+        }
+        return MenuBarQuickMenu.items(enabled: menuBarEnabled, statusTitle: menuBarPresentation.title,
+                                      lastChecked: lastChecked, servers: choices, selected: selectedServerID,
+                                      rawID: menuBarRawID, feedback: menuBarCopyFeedback, now: deps.now())
+    }
+
+    /// Copies a CID or the raw identity. A clipboard failure is shown in the menu and recorded in the error log.
+    @discardableResult
+    func menuBarCopy(_ kind: MenuBarCopyKind) -> Bool {
+        let text: String?
+        switch kind {
+        case .cid(let id): text = menuBarCID(for: id)
+        case .rawID: text = menuBarRawID
+        }
+        guard let text else { return false }
+        menuBarFeedbackTask?.cancel()
+        menuBarFeedbackTask = nil
+        let at = deps.now()
+        guard deps.pasteboard.write(text) else {
+            menuBarCopyFeedback = .failed(kind, at: at)
+            let what: String
+            switch kind {
+            case .cid: what = "cid"
+            case .rawID: what = "rawID"
+            }
+            logError(.clipboard, "menuBarCopy(\(what)): pasteboardWriteFailed")
+            return false
+        }
+        let feedback = MenuBarCopyFeedback.copied(kind, at: at)
+        menuBarCopyFeedback = feedback
+        let sleeper = deps.sleeper
+        menuBarFeedbackTask = Task { [weak self] in
+            try? await sleeper.sleep(seconds: MenuBarCopyFeedback.confirmationDuration)
+            guard !Task.isCancelled, let self, self.menuBarCopyFeedback == feedback else { return }
+            self.menuBarCopyFeedback = nil
+        }
+        return true
+    }
 
     /// Called once by the app (not in tests): starts the 30-minute refresh if the menu bar mode is on.
     func activateBackgroundTasks() {

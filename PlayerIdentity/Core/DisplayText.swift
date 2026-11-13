@@ -143,6 +143,8 @@ enum BanListText {
         case .unknownPlaceholder(let name): return L10n.format(.banListErrorUnknown, name)
         case .invalidURL: return L10n.text(.banListErrorInvalid)
         case .missingValue(let placeholder): return L10n.format(.banListErrorMissing, placeholder.rawValue)
+        case .tooLong: return L10n.format(.banListErrorTooLong, String(BanListTemplate.maxLength))
+        case .containsWhitespace: return L10n.text(.banListErrorWhitespace)
         }
     }
 }

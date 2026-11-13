@@ -10,6 +10,8 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     case metrics
     case watch
     case login
+    /// §60: a menu bar copy did not reach the clipboard.
+    case clipboard
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {

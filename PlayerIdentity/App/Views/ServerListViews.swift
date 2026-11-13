@@ -133,6 +133,8 @@ struct ServersCard: View {
         }
         .accessibilityLabel(L10n.text(.serversTitle))
         .background { findShortcut }
+        // §60: the menu bar "Copy CID" follows the selected row.
+        .onChange(of: selection) { model.selectedServerID = selection }
     }
 
     /// ⌘F anywhere in the main window (in-window shortcuts are handled before the Edit menu's Find).

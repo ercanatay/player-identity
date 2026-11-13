@@ -56,6 +56,7 @@ struct ServerDetailSheet: View {
     @State private var copied = false
     @State private var banListText: String
     @State private var banListError: String?
+    @State private var banListAppliedAll: String?
     @State private var samples: [MetricSample]
     @State private var notifications: ServerNotificationDraft
     private let fixedSamples: [MetricSample]?
@@ -153,27 +154,75 @@ struct ServerDetailSheet: View {
         .accessibilityIdentifier("detailWatch")
     }
 
-    // MARK: Ban list (§40)
+    // MARK: Ban list (§40, §59 template library)
+
+    /// Picker tag of the "Custom" choice (any template that is not exactly a preset).
+    static let customPresetTag = ""
+
+    private var presetBinding: Binding<String> {
+        Binding(get: { BanListPreset.matching(banListText)?.id ?? Self.customPresetTag },
+                set: { id in
+                    if let preset = BanListPreset.preset(id: id) { banListText = preset.template }
+                })
+    }
 
     private var banListSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L10n.text(.banListTitle)).font(.headline)
+            Picker(L10n.text(.banListPreset), selection: presetBinding) {
+                Text(L10n.text(.banListPresetCustom)).tag(Self.customPresetTag)
+                ForEach(BanListPreset.all) { preset in
+                    Text(preset.name).tag(preset.id)
+                }
+            }
+            .frame(maxWidth: 320)
+            .accessibilityIdentifier("banListPreset")
+            if let preset = BanListPreset.matching(banListText) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(preset.summary).font(.callout)
+                    Text(L10n.format(.banListPresetPlaceholders, preset.placeholders.map(\.token).joined(separator: ", ")))
+                        .font(.caption.monospaced())
+                        .foregroundStyle(Palette.text2)
+                    Text(L10n.text(.banListPresetHint)).font(.caption).foregroundStyle(Palette.text2)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("banListPresetInfo")
+            }
             TextField(L10n.text(.banListField), text: $banListText)
                 .textFieldStyle(.roundedBorder)
                 .font(.callout.monospaced())
                 .accessibilityIdentifier("banListField")
-                .onChange(of: banListText) { banListError = nil }
+                .onChange(of: banListText) {
+                    banListError = nil
+                    banListAppliedAll = nil
+                }
             Text(L10n.text(.banListHint)).font(.caption).foregroundStyle(Palette.text2)
             if let problem = Self.validationText(banListText) ?? banListError {
                 Text(problem).font(.callout).foregroundStyle(Palette.redText).accessibilityIdentifier("banListError")
             }
-            Button(L10n.text(.banListSearch)) {
-                if let error = model.setBanListURL(banListText, for: serverID) ?? model.openBanList(for: serverID) {
-                    banListError = BanListText.error(error)
+            HStack {
+                Button(L10n.text(.banListSearch)) {
+                    if let error = model.setBanListURL(banListText, for: serverID) ?? model.openBanList(for: serverID) {
+                        banListError = BanListText.error(error)
+                    }
                 }
+                .disabled(banListText.trimmingCharacters(in: .whitespaces).isEmpty || Self.validationText(banListText) != nil)
+                .accessibilityIdentifier("banListSearch")
+                Button(L10n.text(.banListApplyAll)) {
+                    if let error = model.applyBanListURLToAll(banListText) {
+                        banListError = BanListText.error(error)
+                    } else {
+                        banListAppliedAll = L10n.format(.banListAppliedAll, String(model.servers.count))
+                    }
+                }
+                .disabled(banListText.trimmingCharacters(in: .whitespaces).isEmpty || Self.validationText(banListText) != nil
+                          || model.servers.count < 2)
+                .accessibilityIdentifier("banListApplyAll")
             }
-            .disabled(banListText.trimmingCharacters(in: .whitespaces).isEmpty || Self.validationText(banListText) != nil)
-            .accessibilityIdentifier("banListSearch")
+            if let banListAppliedAll {
+                Text(banListAppliedAll).font(.caption).foregroundStyle(Palette.text2)
+                    .accessibilityIdentifier("banListAppliedAll")
+            }
         }
     }
 

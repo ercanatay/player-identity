@@ -187,6 +187,37 @@ final class UIEvidenceTests: XCTestCase {
         XCTAssertEqual(UpdateFixture.marker(of: installed), "old")
     }
 
+    /// v3.7 §59 ban list template picker and §60 menu bar quick CID (copied + clipboard failure).
+    func testRenderBanTemplatesAndQuickCID() async throws {
+        let env = try TestAppEnvironment()
+        let pasteboard = RecordingPasteboard()
+        let clock = env.clock
+        let model = env.makeModel { deps in
+            deps.pasteboard = pasteboard
+            deps.sleeper = HoldingConfirmationSleeper(clock: clock)
+        }
+        model.addServer(ServerDraft(label: "Demo RPG", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Deathmatch EU", host: "51.68.190.92"))
+        model.addServer(ServerDraft(label: "Zombie TR", host: "51.68.190.93"))
+        await model.refresh().value
+        let ids = model.servers.map(\.id)
+        let sourceBans = try XCTUnwrap(BanListPreset.preset(id: "sourcebans")).template
+        XCTAssertNil(model.setBanListURL(sourceBans, for: ids[0]))
+        try render(ServerDetailSheet(model: model, serverID: ids[0], onClose: {}, metrics: [], maxContentHeight: 1400),
+                   size: CGSize(width: 620, height: 1250), name: "v37-banlist-template")
+        try render(ServerDetailSheet(model: model, serverID: ids[1], onClose: {}, metrics: [], maxContentHeight: 1400,
+                                     banListDraft: "https://bans.example.com/search?q={cid} x"),
+                   size: CGSize(width: 620, height: 1250), name: "v37-banlist-invalid")
+
+        model.menuBarEnabled = true
+        model.selectedServerID = ids[1]
+        XCTAssertTrue(model.menuBarCopy(.cid(ids[1])))
+        try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 440), name: "v37-menubar-copied")
+        pasteboard.fails = true
+        XCTAssertFalse(model.menuBarCopy(.rawID))
+        try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 440), name: "v37-menubar-copy-failed")
+    }
+
     /// v2.0 screens (§29–§33): groups + favorites + filter, notes/appeal, share card, menu bar, Settings > General.
     func testRenderV2Screens() async throws {
         let env = try TestAppEnvironment()
@@ -238,7 +269,7 @@ final class UIEvidenceTests: XCTestCase {
                    size: CGSize(width: 560, height: 680), name: "v2-appeal-form")
         try render(ShareCardSheet(model: model, serverID: ids[0], onClose: {}),
                    size: CGSize(width: 640, height: 470), name: "v2-share-card")
-        try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 260), name: "v2-menubar")
+        try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 420), name: "v2-menubar")
         try render(GeneralSettingsView(model: model), size: CGSize(width: 600, height: 300), name: "v2-settings-general")
         item.fails = true
         model.setLaunchAtLogin(false)
@@ -444,5 +475,15 @@ private struct GatedDownloader: UpdateDownloading {
         }
         try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try (files[url] ?? Data()).write(to: destination)
+    }
+}
+
+/// Fake sleeper that keeps the §60 "Copied" confirmation on screen while the evidence is rendered.
+private struct HoldingConfirmationSleeper: Sleeping {
+    let clock: TestClock
+
+    func sleep(seconds: TimeInterval) async throws {
+        if seconds == MenuBarCopyFeedback.confirmationDuration { try await Task.sleep(for: .seconds(30)) }
+        try await FakeSleeper(clock: clock).sleep(seconds: seconds)
     }
 }

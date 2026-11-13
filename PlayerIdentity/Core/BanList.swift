@@ -21,6 +21,10 @@ enum BanListTemplateError: Error, Sendable, Equatable {
     case invalidURL
     /// The template needs a value the row does not have (e.g. `{cid}` without an identity).
     case missingValue(BanListPlaceholder)
+    /// §59: longer than `BanListTemplate.maxLength`.
+    case tooLong
+    /// §59: a space, tab or line break inside the template.
+    case containsWhitespace
 }
 
 /// Values for the placeholders of one server row.
@@ -59,10 +63,18 @@ enum BanListTemplate {
         return names
     }
 
-    /// `https`, a host, at least one known placeholder and no unknown ones. Returns the trimmed template.
+    /// §59 longest template kept.
+    static let maxLength = 2048
+
+    /// `https`, a host, at least one known placeholder and no unknown ones, no whitespace inside and at most
+    /// `maxLength` characters. Returns the trimmed template.
     static func validate(_ template: String) -> Result<String, BanListTemplateError> {
         let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .failure(.empty) }
+        guard trimmed.count <= maxLength else { return .failure(.tooLong) }
+        guard trimmed.unicodeScalars.allSatisfy({ !CharacterSet.whitespacesAndNewlines.contains($0) }) else {
+            return .failure(.containsWhitespace)
+        }
         let names = placeholders(in: trimmed)
         if let unknown = names.first(where: { BanListPlaceholder(rawValue: $0) == nil }) {
             return .failure(.unknownPlaceholder(unknown))
@@ -99,6 +111,44 @@ enum BanListTemplate {
                                              with: value.addingPercentEncoding(withAllowedCharacters: unreserved) ?? "")
         }
         return URL(string: text)
+    }
+}
+
+// MARK: - §59 template library
+
+/// A ready-made ban list template; the user picks one in the server details and adapts the panel address.
+struct BanListPreset: Sendable, Equatable, Identifiable {
+    let id: String
+    let nameKey: L10nKey
+    let descriptionKey: L10nKey
+    let template: String
+
+    var name: String { L10n.text(nameKey) }
+    var summary: String { L10n.text(descriptionKey) }
+    /// Placeholders the template uses, in order of first appearance.
+    var placeholders: [BanListPlaceholder] {
+        BanListTemplate.placeholders(in: template).compactMap(BanListPlaceholder.init(rawValue:))
+    }
+
+    static let all: [BanListPreset] = [
+        BanListPreset(id: "sourcebans", nameKey: .banListPresetSourceBans, descriptionKey: .banListPresetSourceBansInfo,
+                      template: "https://bans.example.com/index.php?p=banlist&searchText={cid}"),
+        BanListPreset(id: "amxbans", nameKey: .banListPresetAMXBans, descriptionKey: .banListPresetAMXBansInfo,
+                      template: "https://amxbans.example.com/ban_search.php?steamid={cid}"),
+        BanListPreset(id: "hlstatsx", nameKey: .banListPresetHLstatsX, descriptionKey: .banListPresetHLstatsXInfo,
+                      template: "https://stats.example.com/hlstats.php?mode=search&st=uniqueid&q={cid}"),
+        BanListPreset(id: "generic-cid", nameKey: .banListPresetGenericCID, descriptionKey: .banListPresetGenericCIDInfo,
+                      template: "https://bans.example.com/search?cid={cid}&server={host}:{port}"),
+        BanListPreset(id: "generic-ip", nameKey: .banListPresetGenericIP, descriptionKey: .banListPresetGenericIPInfo,
+                      template: "https://bans.example.com/search?ip={ip}&server={host}:{port}"),
+    ]
+
+    static func preset(id: String) -> BanListPreset? { all.first { $0.id == id } }
+
+    /// The preset whose template is exactly `template` (trimmed); `nil` = a custom (or empty) template.
+    static func matching(_ template: String) -> BanListPreset? {
+        let trimmed = template.trimmingCharacters(in: .whitespacesAndNewlines)
+        return all.first { $0.template == trimmed }
     }
 }
 
