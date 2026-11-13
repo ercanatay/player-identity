@@ -305,6 +305,9 @@ enum LiteralScanner {
         "TSource Engine Query", "Application Support", "Xash3D FWGS", "do shell script", "unsupported protocol",
         "Power \\(", "Data migration:", "HH:mm:ss",
         "Notarized Developer ID",
+        // §64.3 engine log lines matched verbatim (engine text, never shown as UI copy on their own).
+        "Server is not responding", "Bad challenge", "NET_SendPacket ERROR", "Connection reset", "Invalid CD key",
+        "Your IP is banned", "You have been banned", "Couldn't connect",
     ]
     private static let uiAPI = try! NSRegularExpression(pattern:
         #"(\b(Text|Button|Label|Toggle|TextField|SecureField|LabeledContent|Picker|Menu|Window|Section|GroupBox|Link|Card|FieldRow|ServerFormSheet)\(\s*((title|confirmTitle):\s*)?|\.(help|accessibilityLabel|accessibilityHint|accessibilityValue|alert|navigationTitle|setAccessibilityLabel)\(\s*|\b(messageText|informativeText|prompt|message|title)\s*=\s*|withTitle:\s*|confirmTitle:\s*)$"#)

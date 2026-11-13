@@ -299,7 +299,8 @@ struct BanChecker: Sendable {
     }
 
     /// Sends the packet once and waits for the first matching reply until the deadline. Send error = no reply.
-    private func exchange(_ session: any UDPSession, _ packet: [UInt8], until deadline: Date,
+    /// Also used step by step by the §64 connection diagnosis.
+    func exchange(_ session: any UDPSession, _ packet: [UInt8], until deadline: Date,
                           ignoreInfo: Bool) async throws -> [UInt8]? {
         try Task.checkCancellation()
         do { try session.send(packet) } catch { return nil }

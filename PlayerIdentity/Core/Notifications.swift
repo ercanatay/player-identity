@@ -95,7 +95,7 @@ enum NotificationPlanner {
             return NotificationContent(key: key, title: L10n.text(.notifyFixAttemptTitle),
                                        body: L10n.format(.notifyServerBody, server, fixMessage ?? entry.note ?? ""))
         case .refresh, .nameChanged, .modelChanged, .apply, .appUpdateAvailable, .appeal, .note, .watchBanAppeared,
-             .watchBanLifted, .watchOffline, .watchOnline, .watchMapChanged, .configOverrideRemoved:
+             .watchBanLifted, .watchOffline, .watchOnline, .watchMapChanged, .configOverrideRemoved, .diagnose:
             return nil
         }
     }

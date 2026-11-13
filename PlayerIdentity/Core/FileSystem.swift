@@ -6,6 +6,14 @@ protocol FileSystemReading: Sendable {
     func isDirectory(_ url: URL) -> Bool
     func readData(_ url: URL) throws -> Data
     func contentsOfDirectory(_ url: URL) throws -> [URL]
+    /// The last `maxBytes` bytes of a file (§64.3 engine log); read-only.
+    func readTail(_ url: URL, maxBytes: Int) throws -> Data
+}
+
+extension FileSystemReading {
+    func readTail(_ url: URL, maxBytes: Int) throws -> Data {
+        Data(try readData(url).suffix(max(0, maxBytes)))
+    }
 }
 
 struct LocalFileSystem: FileSystemReading {
@@ -27,6 +35,15 @@ struct LocalFileSystem: FileSystemReading {
 
     func contentsOfDirectory(_ url: URL) throws -> [URL] {
         try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
+    }
+
+    /// Seeks to the tail instead of loading the whole file; opened for reading only.
+    func readTail(_ url: URL, maxBytes: Int) throws -> Data {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let size = try handle.seekToEnd()
+        try handle.seek(toOffset: size > UInt64(max(0, maxBytes)) ? size - UInt64(max(0, maxBytes)) : 0)
+        return try handle.readToEnd() ?? Data()
     }
 }
 

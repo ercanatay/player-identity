@@ -1804,9 +1804,10 @@ final class AppModel {
         return task
     }
 
-    /// Appeal text (§17.9.1); `nil` if the row has no ban result.
-    func appealText(for id: UUID) -> String? {
-        guard let entry = servers.first(where: { $0.id == id }), let check = entry.banCheck else { return nil }
+    /// Appeal text (§17.9.1); `nil` if the row has no ban result. `check` replaces the row's stored result (§64:
+    /// the diagnosis' own evidence).
+    func appealText(for id: UUID, check override: BanCheck? = nil) -> String? {
+        guard let entry = servers.first(where: { $0.id == id }), let check = override ?? entry.banCheck else { return nil }
         let rawID = try? identity?.get().rawID
         let cid = rawID.flatMap { raw in address(for: entry).map { CIDCalculator.cid(rawID: raw, address: $0) } }
             ?? L10n.text(.appealUnknown)
@@ -1818,6 +1819,121 @@ final class AppModel {
                                            checkedAt: check.checkedAt, playerName: config.name, cid: cid,
                                            publicIP: publicIP ?? L10n.text(.appealUnknown), gamedir: selectedGamedir ?? "—",
                                            check: check, rangeBan: rangeBan))
+    }
+
+    // MARK: §64 connection diagnosis
+
+    /// Live state of the diagnosis shown in the server details; never saved (only the history line is written).
+    struct DiagnosisSession: Equatable {
+        let token: UUID
+        let serverID: UUID
+        var isRunning = true
+        /// Step currently running (spinner).
+        var current: DiagnosisStepKind?
+        var steps: [DiagnosisStep] = []
+        var result: ConnectionDiagnosis?
+        var cancelled = false
+    }
+
+    private(set) var diagnosisSession: DiagnosisSession?
+    @ObservationIgnored private var diagnosisTask: Task<Void, Never>?
+
+    func diagnosis(for id: UUID) -> DiagnosisSession? {
+        diagnosisSession?.serverID == id ? diagnosisSession : nil
+    }
+
+    /// §64.1: DNS → A2S_INFO → getchallenge → connect 49 → verdict, plus the read-only engine log (§64.3). The server
+    /// entry is not changed; the result is written to the history only (`diagnose`). A new run cancels the previous one.
+    @discardableResult
+    func startDiagnosis(for id: UUID) -> Task<Void, Never>? {
+        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
+        diagnosisTask?.cancel()
+        let token = UUID()
+        diagnosisSession = DiagnosisSession(token: token, serverID: id)
+        var fixRange: String?
+        if case .finished(.rangeBanned(_, _, let cidr), _)? = fixSession?.phase, fixSession?.id == id { fixRange = cidr }
+        let rawID = try? identity?.get().rawID
+        let name = config.name
+        let checksEnabled = banCheckEnabled
+        let reporter = deps.interfaceReporter
+        let fileSystem = deps.fileSystem
+        let root = dataRoot
+        let gamedir = selectedGamedir
+        let redactor = Redactor(home: deps.paths.home)
+        let started = deps.now()
+        let ip = publicIP
+        let diagnoser = ConnectionDiagnoser(transport: deps.udpTransport, resolver: deps.resolver, now: deps.now)
+        let task = Task {
+            let history = await loadHistory()
+            let knownRange = fixRange ?? BanMatrix.rangeBans(from: history)[id]
+            let vpnActive = await Task.detached { reporter.report().isVPNActive }.value
+            let request = ConnectionDiagnosisRequest(host: entry.host, port: entry.port, rawID: rawID, name: name,
+                                                     checksEnabled: checksEnabled, vpnActive: vpnActive,
+                                                     knownRange: knownRange)
+            do {
+                let probe = try await diagnoser.run(request) { progress in
+                    await self.applyDiagnosisProgress(progress, token: token)
+                }
+                let log = await Task.detached {
+                    EngineLogReader.read(dataRoot: root, gamedir: gamedir, fileSystem: fileSystem, redactor: redactor)
+                }.value
+                try Task.checkCancellation()
+                guard diagnosisSession?.token == token else { return }
+                let diagnosis = ConnectionDiagnosis(serverID: id, label: entry.label, host: entry.host, port: entry.port,
+                                                    startedAt: started, probe: probe, engineLog: log, publicIP: ip)
+                diagnosisSession?.steps = probe.steps
+                diagnosisSession?.result = diagnosis
+                diagnosisSession?.current = nil
+                diagnosisSession?.isRunning = false
+                let line = diagnosis.historyEntry
+                recordHistory { recorder in
+                    await recorder.record(line)
+                    return []
+                }
+            } catch {
+                guard diagnosisSession?.token == token else { return }
+                diagnosisSession?.current = nil
+                diagnosisSession?.isRunning = false
+                diagnosisSession?.cancelled = true
+            }
+        }
+        diagnosisTask = task
+        return task
+    }
+
+    func cancelDiagnosis() {
+        diagnosisTask?.cancel()
+    }
+
+    /// Closes the diagnosis (sheet closed): a running probe is cancelled.
+    func clearDiagnosis() {
+        diagnosisTask?.cancel()
+        diagnosisSession = nil
+    }
+
+    private func applyDiagnosisProgress(_ progress: DiagnosisProgress, token: UUID) {
+        guard diagnosisSession?.token == token else { return }
+        switch progress {
+        case .started(let kind): diagnosisSession?.current = kind
+        case .finished(let step):
+            diagnosisSession?.steps.append(step)
+            if diagnosisSession?.current == step.step { diagnosisSession?.current = nil }
+        }
+    }
+
+    /// §64.5 Markdown report of the finished diagnosis (masked unless the user confirmed "unmasked").
+    func diagnosisReport(for id: UUID, masked: Bool = true) -> String? {
+        guard let diagnosis = diagnosis(for: id)?.result else { return nil }
+        return DiagnosisReport.markdown(diagnosis, appVersion: deps.appVersion, masked: masked)
+    }
+
+    /// Unban message (§17.9.1) built from the diagnosis evidence when its verdict is a ban.
+    func diagnosisAppealText(for id: UUID) -> String? {
+        guard let diagnosis = diagnosis(for: id)?.result, diagnosis.verdict.isBan else { return nil }
+        let status: BanStatus = diagnosis.verdict == .cidBanned ? .cidBanned : .ipBanned
+        let evidence = diagnosis.steps.first { $0.detail.hasPrefix("banned") }?.detail
+            ?? diagnosis.engineLog.matches.last { $0.pattern.directVerdict != nil }?.line ?? status.rawValue
+        return appealText(for: id, check: BanCheck(status: status, checkedAt: diagnosis.startedAt, detail: evidence))
     }
 
     func serverPageURL(for id: UUID) -> URL? {

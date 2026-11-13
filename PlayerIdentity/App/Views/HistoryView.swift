@@ -298,6 +298,7 @@ enum HistoryKindStyle {
         case .watchOnline: return "wifi"
         case .watchMapChanged: return "map"
         case .configOverrideRemoved: return "doc.badge.gearshape"
+        case .diagnose: return "stethoscope"
         }
     }
 
@@ -310,6 +311,8 @@ enum HistoryKindStyle {
         case .identityChanged, .fixAttempt, .watchOffline, .configOverrideRemoved: return .orange
         case .ipChanged, .apply, .appUpdateAvailable, .appeal: return .accent
         case .nameChanged, .modelChanged, .note, .watchMapChanged: return .neutral
+        case .diagnose:
+            return DiagnosisVerdict(rawValue: entry.new ?? "").map { ChipTone($0.level) } ?? .neutral
         }
     }
 }

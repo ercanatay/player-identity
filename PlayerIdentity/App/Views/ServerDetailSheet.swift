@@ -43,7 +43,7 @@ struct AppealDraft: Equatable {
     }
 }
 
-/// Row details: notes (§32), appeal + timeline + postpone (§32, §36), ping/uptime charts (§39), ban list URL (§40),
+/// Row details: connection diagnosis (§64), notes (§32), appeal + timeline + postpone (§32, §36), ping/uptime charts (§39), ban list URL (§40),
 /// per-server notifications (§56).
 struct ServerDetailSheet: View {
     @Bindable var model: AppModel
@@ -87,6 +87,8 @@ struct ServerDetailSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    ConnectionDiagnosisSection(model: model, serverID: serverID)
+                    Divider()
                     watchSection
                     Divider()
                     ServerNotificationSection(draft: $notifications)
@@ -105,7 +107,7 @@ struct ServerDetailSheet: View {
 
             HStack {
                 Spacer()
-                Button(L10n.text(.actionCancel), role: .cancel, action: onClose)
+                Button(L10n.text(.actionCancel), role: .cancel, action: close)
                     .keyboardShortcut(.cancelAction)
                 Button(L10n.text(.actionOK), action: confirm)
                     .keyboardShortcut(.defaultAction)
@@ -128,7 +130,13 @@ struct ServerDetailSheet: View {
             banListError = BanListText.error(error)
             return
         }
-        if model.setNote(note, for: serverID) == nil { onClose() }
+        if model.setNote(note, for: serverID) == nil { close() }
+    }
+
+    /// §64: a diagnosis belongs to the open details; closing them cancels a running probe and drops the result.
+    private func close() {
+        model.clearDiagnosis()
+        onClose()
     }
 
     // MARK: Watching (§42)

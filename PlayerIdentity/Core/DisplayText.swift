@@ -54,6 +54,7 @@ enum HistoryText {
         case .watchOnline: return L10n.text(.historyKindWatchOnline)
         case .watchMapChanged: return L10n.text(.historyKindWatchMapChanged)
         case .configOverrideRemoved: return L10n.text(.historyKindConfigOverrideRemoved)
+        case .diagnose: return L10n.text(.historyKindDiagnose)
         }
     }
 

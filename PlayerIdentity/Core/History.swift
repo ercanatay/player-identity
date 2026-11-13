@@ -25,6 +25,9 @@ enum HistoryKind: String, Codable, Sendable, CaseIterable {
     case watchMapChanged
     /// §43: the `userconfig.cfg` override line was commented out (`new` = keys, `note` = backup file).
     case configOverrideRemoved
+    /// §64: a connection diagnosis ran (`new` = verdict, `old` = probe verdict if the engine log overrode it,
+    /// `note` = step results, `host` = `host:port`).
+    case diagnose
 }
 
 /// One line of `history.jsonl`: `{ts, kind, serverID?, host?, old?, new?, note?, profileID?, profileName?}`.
@@ -179,7 +182,7 @@ struct HistoryState: Sendable, Equatable {
         case .banLifted: if let id = entry.serverID { bans[id] = nil }
         case .appUpdateAvailable: updateVersion = entry.new
         case .apply, .fixAttempt, .appeal, .note, .watchBanAppeared, .watchBanLifted, .watchOffline, .watchOnline,
-             .watchMapChanged, .configOverrideRemoved: break
+             .watchMapChanged, .configOverrideRemoved, .diagnose: break
         }
     }
 }

@@ -39,7 +39,8 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(HistoryKind.allCases.map(\.rawValue),
                        ["refresh", "ipChanged", "banAppeared", "banLifted", "identityChanged", "nameChanged",
                         "modelChanged", "apply", "fixAttempt", "appUpdateAvailable", "appeal", "note",                // §32 `appeal`, §36 `note`
-                        "watchBanAppeared", "watchBanLifted", "watchOffline", "watchOnline", "watchMapChanged", "configOverrideRemoved"])   // §42, §43
+                        "watchBanAppeared", "watchBanLifted", "watchOffline", "watchOnline", "watchMapChanged", "configOverrideRemoved",   // §42, §43
+                        "diagnose"])   // §64
         XCTAssertEqual(AppPaths(home: URL(fileURLWithPath: "/h")).historyFile.path,
                        "/h/Library/Application Support/tr.ercanatay.playeridentity/history.jsonl")
     }
