@@ -5,9 +5,10 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.11.0] - 2026-11-13
+## [2.12.0] - 2026-11-13
 
 ### Added
+- **24 languages** (spec §62): the full interface is localized into the same 24 languages as cybokron.com — `tr, en, de, fr, es, it, pt, nl, sv, pl, cs, ro, hu, el, bg, uk, ru, ar, fa, hi, zh-Hans, ja, ko, id` — with 857 keys per language, native language names in Settings, `en` fallback for missing keys and RTL support for Arabic and Persian. A parity gate (`tools/check-l10n-parity.sh`) verifies keys and format placeholders.
 - **Multiple profiles** (spec §61): `profiles` + `activeProfileID` in `profile.json`, migration to `Default`, toolbar picker, Settings list (add/rename/delete/default), re-resolution on switch, profile tags on history and metrics rows.
 - **Ban-list template library** (spec §59): SourceBans++, AMXBans, HLstatsX and generic CID/IP templates, placeholder validation, "apply to all servers".
 - **Menu bar quick actions** (spec §60): status line, copy CID/raw identity, per-server submenu, inline confirmation, clipboard errors recorded.
@@ -191,6 +192,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.12.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.12.0
 [2.7.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.7.0
 [2.6.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.6.0
 [2.5.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.5.0

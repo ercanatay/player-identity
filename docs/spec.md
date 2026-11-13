@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 3.7 · Tarih: 2026-11-13 · Durum: uygulanacak (v3.6 → v3.7: §58 doğrulama düzeltmeleri, §59 ban listesi şablonları, §60 menü çubuğu hızlı CID, §61 çoklu profil)
+Sürüm: 3.8 · Tarih: 2026-11-13 · Durum: uygulanacak (v3.7 → v3.8: §62 cybokron.com dil seti ile 22 yeni dil)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1343,3 +1343,16 @@ Tek metin alanına (satır veya virgülle ayrılmış, en fazla 100 kayıt) şun
 - Aynı `dataRoot`+`gamedir` kombinasyonu ikinci kez eklenemez (uyarı).
 - Oyun çalışırken profil değişimi salt-okunur uyarısıyla engellenir (config yazımı riski).
 - Testler: göç, ekle/adlandır/sil/varsayılan, aktif profil kalıcılığı, yeniden hesaplama, silme sınırı, yinelenen kombinasyon, oyun çalışırken engel.
+
+## 62. Çok dilli arayüz — cybokron.com dil seti (v3.8)
+- **Desteklenen diller (24):** `tr` (Türkçe), `en` (English) + cybokron.com ile aynı 22 dil:
+  `de, fr, es, it, pt, nl, sv, pl, cs, ro, hu, el, bg, uk, ru, ar, fa, hi, zh-Hans, ja, ko, id`.
+- **Kaynaklar:** her dil için `PlayerIdentity/Resources/<code>.lproj/Localizable.strings` ve `InfoPlist.strings`.
+  - `Localizable.strings` anahtar kümesi **`en` ile birebir aynı** olmalı (857 anahtar); eksik/fazla anahtar kapıda hata.
+  - `InfoPlist.strings` ürün adı: `tr` → "Cybokron Oyuncu Kimlik Kartı", diğer tüm diller → "Cybokron Player Identity".
+- **Dil seçimi:** Ayarlar > Dil listesi `System` + 24 dil, **yerel adlarıyla** (Deutsch, Français, …). Sistem dili desteklenmiyorsa `en`.
+- **Eksik çeviri davranışı:** anahtar bulunamazsa `en` değerine düşer; `%@`/`%d`/`%1$@` gibi biçim belirteçleri korunur; çeviri metinleri **literal** olarak koda gömülmez.
+- **RTL:** `ar`, `fa` için arayüz yönü sistemden gelir (SwiftUI leading/trailing); ikon/ok yönü çevrilmez, metinler çevrilir.
+- **Biçimlendirme:** sayı/tarih/saat sistem yerelinden; uygulama kendi biçim kalıbını dayatmaz.
+- **Çeviri yöntemi (§62.1):** her dil **tek çağrıda**, o dilin tam sözlüğüyle çevrilir (dil başına bir ajan, <100.000 token). Terim sözlüğü sabittir: `ban`, `CID`, `appeal`→itiraz, `watch`→izle vb. Kodlayıcı ajanlara çeviri yaptırılmaz.
+- **Testler:** (a) 24 dilde anahtar eşitliği, (b) biçim belirteci sayısı eşitliği, (c) boş değer yok, (d) literal taraması, (e) desteklenmeyen sistem dili → `en` düşüşü, (f) dil değişiminin çalışma anında uygulanması.

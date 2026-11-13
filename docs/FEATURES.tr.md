@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.11.0** (774 otomatik test) için, davranış spesifikasyonu **v3.7** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.12.0** (783 otomatik test) için, davranış spesifikasyonu **v3.7** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -18,10 +18,10 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Oyun** | `valve` veya `gearbox` veri klasörüne sahip Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) |
 | **Veri kaynağı** | Oyun motorunun `.xash_id` dosyalarına ve `config.cfg` / `userconfig.cfg` dosyalarına salt okunur erişim; `api.ipify.org` üzerinden genel IP (yedek: `ifconfig.me`); UDP üzerinden sunucu yanıtları |
 | **Yazma davranışı** | Varsayılan olarak salt okunur. Üzerine yazılan tek oyun dosyaları `config.cfg` / `userconfig.cfg` içindeki `name` ve `model` satırlarıdır ve bu yalnızca siz **Uygula**'yı (veya **Satırı kaldır**'ı) onayladıktan sonra gerçekleşir. Geri kalan her şey uygulamanın kendi klasöründe bulunur |
-| **Diller** | Türkçe ve İngilizce (dil başına 795 yerelleştirme anahtarı), çalışma zamanında değiştirilebilir |
+| **Diller** | 24 dil (dil başına 857 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
-| **Testler** | Ana şemada 774 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
+| **Testler** | Ana şemada 783 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
 | **Sandbox** | Korumalı alanda değil (oyun klasörüne ve `/Applications` altında kendi kendini güncellemeye ihtiyaç duyar); hardened runtime etkindir |
 | **Telemetri** | Yok |
 | **Lisans** | MIT |
@@ -663,11 +663,14 @@ IP adresleri maskelenir ve kullanıcının ana klasör yolu her dosyada değişt
 - **Renk bağımsızlığı:** Durum her zaman simge ve metinle aktarılır, asla tek başına renkle aktarılmaz.
 
 ## Diller
-- Her dilde 795 yerelleştirme anahtarıyla **Türkçe ve İngilizce** (testler eşit anahtar kümelerini zorunlu kılar ve sabit kodlanmış metinleri tarar).
-- **Ayarlar → Genel → Dil**: `Sistem (varsayılan)`, `Türkçe`, `English`. *Sistem* ilk tercih edilen dili takip eder (`tr*` → Türkçe, diğer her şey → İngilizce). Geçersiz bir saklanan değer *Sistem* olarak değerlendirilir.
-- Değişiklik görünür metne, menülere, bildirimlere, erişilebilirlik etiketlerine, hatalara ve önerilere **anında** (yeniden başlatma olmadan) uygulanır; menü çubuğu menüsü bir sonraki açılışında güncellenir.
-- **Dock ve menü çubuğundaki** uygulama adı **sistem dilini takip eder** (`InfoPlist.strings` aracılığıyla) ve bu anahtarla değişmez; Ayarlar açıklaması bunu belirtir.
-- CLI yalnızca İngilizcedir.
+
+Arayüz, cybokron.com ile aynı 24 dilde sunulur: Türkçe, İngilizce, Almanca, Fransızca, İspanyolca, İtalyanca, Portekizce, Felemenkçe, İsveççe, Lehçe, Çekçe, Rumence, Macarca, Yunanca, Bulgarca, Ukraynaca, Rusça, Arapça, Farsça, Hintçe, Basitleştirilmiş Çince, Japonca, Korece ve Endonezce.
+
+- **Seçim:** Ayarlar → Dil, *Sistem* seçeneğini ve 24 dili sunar; her dil yerel adıyla gösterilir. Seçim anında uygulanır; varsayılanı sistem dili belirler.
+- **Yedek değer:** Bir dilde anahtar eksikse İngilizce değer gösterilir; uygulama ham anahtarı asla göstermez.
+- **Kaynaklar:** Her dil için `Localizable.strings` (857 anahtar) ve `InfoPlist.strings`; ürün adı Türkçe dışındaki tüm dillerde "Cybokron Player Identity", Türkçede "Cybokron Oyuncu Kimlik Kartı"dır.
+- **Sağdan sola:** Arapça ve Farsça sistemin yerleşim yönünü kullanır; metinler çevrilir, simgeler ve oklar anlamını korur.
+- **Kalite kapısı:** `tools/check-l10n-parity.sh` her dili İngilizce ile karşılaştırır — anahtar kümeleri, biçim yer tutucuları ve boş değerler — ve uyuşmazlıkta derleme hattını başarısız kılar.
 
 ## Kestirmeler ve Siri
 Shortcuts ve Siri'ye, uygulama adını otomatik olarak içeren Türkçe ve İngilizce ifadelerle üç App Intent sunulur:

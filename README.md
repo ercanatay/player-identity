@@ -25,7 +25,7 @@ It is a **read-only tool by default**. The only game files it ever writes are th
 `config.cfg` / `userconfig.cfg`, and only when you press **Apply**. Everything else lives in the app's own
 folder (`profile.json`, history, metrics, updates).
 
-**Turkish and English UI** — follows the system language by default and can be switched at runtime.
+**24 languages** — the full interface ships in the same 24 languages as cybokron.com (Turkish, English, German, French, Spanish, Italian, Portuguese, Dutch, Swedish, Polish, Czech, Romanian, Hungarian, Greek, Bulgarian, Ukrainian, Russian, Arabic, Persian, Hindi, Simplified Chinese, Japanese, Korean and Indonesian), following the system language by default and switchable at runtime.
 
 📖 **Full feature reference:** [`docs/FEATURES.md`](docs/FEATURES.md) · Türkçe: [`docs/FEATURES.tr.md`](docs/FEATURES.tr.md) — every screen, CLI command, URL scheme, notification rule and backup format.
 
@@ -53,8 +53,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.11.0
+## What's new in v2.12.0
 
+- **24 languages**: the entire interface is now available in 24 languages, matching cybokron.com, with native language names, `en` fallback and RTL support.
 - **Profiles**: keep several identities side by side (data root + gamedir) and switch from the toolbar; existing records migrate to a `Default` profile.
 - **Ban-list templates**: ready-made URL templates (SourceBans++, AMXBans, HLstatsX, generic CID/IP) with placeholder validation and "apply to all servers".
 - **Menu bar quick actions**: copy the selected server's CID or the raw identity, re-check a server, with an inline confirmation.
@@ -192,7 +193,7 @@ folder (`profile.json`, history, metrics, updates).
 | **Game** | One-click “Join game” with `+connect`; “Fix” and ban helpers |
 | **Sharing** | 1200×630 PNG card with the CID and a QR code |
 | **Updates** | Signed, checksum-verified in-app updates with rollback; version history and downgrade with data backup |
-| **i18n** | Turkish and English, switchable at runtime (System / Türkçe / English) |
+| **i18n** | 24 languages, switchable at runtime (System + 24 native names) |
 | **Automation** | `playeridentityctl` CLI and three Shortcuts/Siri actions |
 | **Diagnostics** | Redacted support bundle (ZIP) |
 
@@ -721,7 +722,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **774 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **783 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### Live UI evidence
@@ -750,7 +751,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 774 tests on `macos-26` |
+| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 783 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -764,7 +765,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (774)
+PlayerIdentityTests/      Unit tests (783)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask
