@@ -196,7 +196,6 @@ struct ServerDetailSheet: View {
                     banListError = nil
                     banListAppliedAll = nil
                 }
-            Text(L10n.text(.banListHint)).font(.caption).foregroundStyle(Palette.text2)
             if let problem = Self.validationText(banListText) ?? banListError {
                 Text(problem).font(.callout).foregroundStyle(Palette.redText).accessibilityIdentifier("banListError")
             }

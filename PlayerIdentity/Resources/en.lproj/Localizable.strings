@@ -457,7 +457,6 @@
 "metrics.time" = "Time";
 "banList.title" = "Ban list";
 "banList.field" = "URL template";
-"banList.hint" = "E.g. https://panel.example.com/bans?q={cid} · placeholders: {cid}, {ip}, {host}, {port}";
 "banList.search" = "Search Ban List";
 "banList.error.empty" = "Enter a URL template.";
 "banList.error.https" = "The address must start with https://.";

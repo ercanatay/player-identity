@@ -540,7 +540,6 @@ KEYS = [
     # v2.2: ban list URL (§40)
     ("banListTitle", "banList.title", "Ban listesi", "Ban list"),
     ("banListField", "banList.field", "URL şablonu", "URL template"),
-    ("banListHint", "banList.hint", "Örn. https://panel.example.com/bans?q={cid} · yer tutucular: {cid}, {ip}, {host}, {port}", "E.g. https://panel.example.com/bans?q={cid} · placeholders: {cid}, {ip}, {host}, {port}"),
     ("banListSearch", "banList.search", "Ban listesinde ara", "Search Ban List"),
     ("banListErrorEmpty", "banList.error.empty", "URL şablonu girin.", "Enter a URL template."),
     ("banListErrorHTTPS", "banList.error.https", "Adres https:// ile başlamalı.", "The address must start with https://."),

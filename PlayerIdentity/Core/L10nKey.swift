@@ -459,7 +459,6 @@ enum L10nKey: String, CaseIterable, Sendable {
     case metricsTime = "metrics.time"
     case banListTitle = "banList.title"
     case banListField = "banList.field"
-    case banListHint = "banList.hint"
     case banListSearch = "banList.search"
     case banListErrorEmpty = "banList.error.empty"
     case banListErrorHTTPS = "banList.error.https"

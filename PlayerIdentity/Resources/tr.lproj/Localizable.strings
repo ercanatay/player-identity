@@ -457,7 +457,6 @@
 "metrics.time" = "Saat";
 "banList.title" = "Ban listesi";
 "banList.field" = "URL şablonu";
-"banList.hint" = "Örn. https://panel.example.com/bans?q={cid} · yer tutucular: {cid}, {ip}, {host}, {port}";
 "banList.search" = "Ban listesinde ara";
 "banList.error.empty" = "URL şablonu girin.";
 "banList.error.https" = "Adres https:// ile başlamalı.";

@@ -232,10 +232,10 @@ final class UIEvidenceTests: XCTestCase {
         model.addServer(ServerDraft(label: "Demo RPG", host: "51.68.190.91"))
         await model.refresh().value
         model.save()
-        _ = try env.temp.write("Turnuva/cstrike/config.cfg", "name \"T\"\n")
-        let other = env.temp.url.appendingPathComponent("Turnuva", isDirectory: true)
-        XCTAssertNil(model.addProfile(name: "Turnuva", dataRoot: other, gamedir: "cstrike"))
-        XCTAssertNil(model.addProfile(name: "LAN", dataRoot: nil, gamedir: "cstrike"))
+        XCTAssertNil(model.addProfile(name: "Turnuva", dataRoot: URL(fileURLWithPath: "/Users/demo/Games/Xash3D/Turnuva"),
+                                      gamedir: "cstrike"))
+        XCTAssertNil(model.addProfile(name: "LAN", dataRoot: URL(fileURLWithPath: "/Users/demo/Games/Xash3D/LAN"),
+                                      gamedir: "cstrike"))
         XCTAssertNil(model.makeDefaultProfile(model.profiles[0].id))
 
         try renderLocalized(size: CGSize(width: 900, height: 52), name: "v37-profiles-toolbar") {
