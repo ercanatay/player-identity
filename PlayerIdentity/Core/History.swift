@@ -27,7 +27,7 @@ enum HistoryKind: String, Codable, Sendable, CaseIterable {
     case configOverrideRemoved
 }
 
-/// One line of `history.jsonl`: `{ts, kind, serverID?, host?, old?, new?, note?}`.
+/// One line of `history.jsonl`: `{ts, kind, serverID?, host?, old?, new?, note?, profileID?, profileName?}`.
 struct HistoryEntry: Codable, Sendable, Equatable {
     var ts: Date
     var kind: HistoryKind
@@ -36,6 +36,9 @@ struct HistoryEntry: Codable, Sendable, Equatable {
     var old: String?
     var new: String?
     var note: String?
+    /// §61 profile the entry was written for (name = snapshot at write time); absent in older lines.
+    var profileID: UUID?
+    var profileName: String?
 
     init(ts: Date, kind: HistoryKind, serverID: UUID? = nil, host: String? = nil,
          old: String? = nil, new: String? = nil, note: String? = nil) {
@@ -303,6 +306,8 @@ actor HistoryRecorder {
     private let now: @Sendable () -> Date
     private var state: HistoryState?
     private var count = 0
+    /// §61: stamped on entries that carry no profile yet (`nil` = untagged, e.g. the CLI).
+    private var profile: ProfileTag?
 
     init(store: HistoryStore, now: @escaping @Sendable () -> Date) {
         self.store = store
@@ -313,7 +318,7 @@ actor HistoryRecorder {
     @discardableResult
     func observe(_ observation: HistoryObservation) -> [HistoryEntry] {
         var current = loadState()
-        let entries = HistoryTransitions.entries(from: current, observing: observation)
+        let entries = tagged(HistoryTransitions.entries(from: current, observing: observation))
         guard write(entries) else { return [] }
         for entry in entries { current.apply(entry) }
         state = current
@@ -324,7 +329,7 @@ actor HistoryRecorder {
     @discardableResult
     func record(_ entry: HistoryEntry) -> Bool {
         var current = loadState()
-        guard write([entry]) else { return false }
+        guard write(tagged([entry])) else { return false }
         current.apply(entry)
         state = current
         return true
@@ -335,7 +340,7 @@ actor HistoryRecorder {
     func recordUpdate(version: String) -> HistoryEntry? {
         let current = loadState()
         guard current.updateVersion != version else { return nil }
-        let entry = HistoryEntry(ts: now(), kind: .appUpdateAvailable, old: current.updateVersion, new: version)
+        let entry = tagged([HistoryEntry(ts: now(), kind: .appUpdateAvailable, old: current.updateVersion, new: version)])[0]
         return record(entry) ? entry : nil
     }
 
@@ -343,6 +348,22 @@ actor HistoryRecorder {
     func reset() {
         state = nil
         count = 0
+    }
+
+    /// §61: profile of the following writes.
+    func setProfile(_ tag: ProfileTag?) {
+        profile = tag
+    }
+
+    private func tagged(_ entries: [HistoryEntry]) -> [HistoryEntry] {
+        guard let profile else { return entries }
+        return entries.map { entry in
+            guard entry.profileID == nil else { return entry }
+            var copy = entry
+            copy.profileID = profile.id
+            copy.profileName = profile.name
+            return copy
+        }
     }
 
     private func loadState() -> HistoryState {

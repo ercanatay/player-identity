@@ -95,6 +95,30 @@ struct Snapshot: Codable, Sendable, Equatable {
     var identitySource: String
     var network: NetworkInfo
     var servers: [ServerEntry]
+    /// §61 profiles and the active one; absent in older records (migrated into `Default` on load).
+    var profiles: [Profile]? = nil
+    var activeProfileID: UUID? = nil
+}
+
+extension Snapshot {
+    /// The §61 fields are read tolerantly: a broken profile list never makes the record unreadable (it migrates
+    /// from `dataRoot`/`gamedir` again).
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        savedAt = try container.decode(Date.self, forKey: .savedAt)
+        gamedir = try container.decode(String.self, forKey: .gamedir)
+        dataRoot = try container.decode(String.self, forKey: .dataRoot)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        model = try container.decode(String.self, forKey: .model)
+        rawID = try container.decode(String.self, forKey: .rawID)
+        identitySource = try container.decode(String.self, forKey: .identitySource)
+        network = try container.decode(NetworkInfo.self, forKey: .network)
+        servers = try container.decode([ServerEntry].self, forKey: .servers)
+        let decoded = (try? container.decodeIfPresent([Profile].self, forKey: .profiles)) ?? nil
+        profiles = decoded?.isEmpty == true ? nil : decoded
+        activeProfileID = (try? container.decodeIfPresent(UUID.self, forKey: .activeProfileID)) ?? nil
+    }
 }
 
 enum SnapshotLoadResult: Sendable, Equatable {

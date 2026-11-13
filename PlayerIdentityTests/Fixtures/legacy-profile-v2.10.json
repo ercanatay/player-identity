@@ -1,0 +1,56 @@
+{
+  "dataRoot" : "/Users/me/Library/Application Support/Xash3D FWGS",
+  "savedAt" : "2026-11-09T20:01:35Z",
+  "model" : "gordon",
+  "rawID" : "10331C2DCE4C91DB",
+  "displayName" : "N",
+  "network" : {
+    "lanIPs" : [
+      "en0 · 192.0.2.10",
+      "en1 · 192.0.2.11"
+    ],
+    "publicIP" : "203.0.113.7",
+    "checkedAt" : "2026-11-09T20:01:18Z"
+  },
+  "gamedir" : "valve",
+  "schemaVersion" : 1,
+  "identitySource" : "/Users/me/.config/.xash_id",
+  "servers" : [
+    {
+      "watch" : true,
+      "port" : 27015,
+      "favorite" : true,
+      "banCheck" : {
+        "detail" : "ipOk → cidNotApplicable",
+        "status" : "cidNotApplicable",
+        "info" : {
+          "max" : 26,
+          "players" : 8,
+          "pingMillis" : 86,
+          "map" : "1337_2streets",
+          "name" : "Example RPG"
+        },
+        "checkedAt" : "2026-11-09T20:01:18Z"
+      },
+      "lastCheckedAt" : "2026-11-09T20:01:18Z",
+      "label" : "Example RPG",
+      "host" : "192.0.2.20",
+      "id" : "1E390D91-9114-454E-A9B3-4AB1833ACD48",
+      "cid" : "d9de0eb4419608a8423241430581e91c",
+      "order" : 0,
+      "note" : ""
+    },
+    {
+      "watch" : false,
+      "port" : 27015,
+      "favorite" : false,
+      "lastCheckedAt" : "2026-11-09T20:01:18Z",
+      "label" : "IP ok testi",
+      "host" : "192.0.2.30",
+      "id" : "5E3A1D2C-0B7E-4C61-9C1F-2D7B4F0A5161",
+      "cid" : "5282a6daf7a33fe08469e453086de93c",
+      "order" : 0,
+      "note" : ""
+    }
+  ]
+}

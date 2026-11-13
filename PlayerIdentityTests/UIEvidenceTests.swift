@@ -218,6 +218,43 @@ final class UIEvidenceTests: XCTestCase {
         try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 440), name: "v37-menubar-copy-failed")
     }
 
+    /// v3.7 §61 profiles: toolbar picker, Settings > Data profile list (normal and game running), add sheet.
+    func testRenderProfiles() async throws {
+        let env = try TestAppEnvironment()
+        let game = FakeGameDetector(running: false)
+        let model = env.makeModel(game: game)
+        model.addServer(ServerDraft(label: "Demo RPG", host: "51.68.190.91"))
+        await model.refresh().value
+        model.save()
+        _ = try env.temp.write("Turnuva/cstrike/config.cfg", "name \"T\"\n")
+        let other = env.temp.url.appendingPathComponent("Turnuva", isDirectory: true)
+        XCTAssertNil(model.addProfile(name: "Turnuva", dataRoot: other, gamedir: "cstrike"))
+        XCTAssertNil(model.addProfile(name: "LAN", dataRoot: nil, gamedir: "cstrike"))
+        XCTAssertNil(model.makeDefaultProfile(model.profiles[0].id))
+
+        let toolbar = HStack(spacing: 12) {
+            ToolbarStatusView(model: model)
+            Spacer()
+            ProfilePickerMenu(model: model)
+            ToolbarActionButtons(model: model)
+        }
+        .padding(.horizontal, 16)
+        .background(Palette.window)
+        try render(toolbar, size: CGSize(width: 900, height: 52), name: "v37-profiles-toolbar")
+        let list = SettingsPage {
+            SettingsSection(title: L10n.text(.dataSectionTitle)) { ProfilesSettingsRows(model: model) }
+        }
+        try render(list, size: CGSize(width: 600, height: 340), name: "v37-profiles-settings")
+
+        game.isRunning = true
+        XCTAssertEqual(model.activateProfile(model.profiles[1].id), .gameRunning)
+        try render(SettingsPage {
+            SettingsSection(title: L10n.text(.dataSectionTitle)) { ProfilesSettingsRows(model: model) }
+        }, size: CGSize(width: 600, height: 380), name: "v37-profiles-game-running")
+        try render(ProfileEditorSheet(model: model, mode: .add, onClose: {}), size: CGSize(width: 440, height: 240),
+                   name: "v37-profiles-add")
+    }
+
     /// v2.0 screens (§29–§33): groups + favorites + filter, notes/appeal, share card, menu bar, Settings > General.
     func testRenderV2Screens() async throws {
         let env = try TestAppEnvironment()

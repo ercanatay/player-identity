@@ -3,7 +3,7 @@ import Foundation
 
 // MARK: - §39 Ping / uptime history
 
-/// One line of `metrics.jsonl`: `{ts, serverID, host, online, ping?, players?, maxPlayers?, map?}`.
+/// One line of `metrics.jsonl`: `{ts, serverID, host, online, ping?, players?, maxPlayers?, map?, profileID?, profileName?}`.
 struct MetricSample: Codable, Sendable, Equatable {
     var ts: Date
     var serverID: UUID
@@ -13,6 +13,18 @@ struct MetricSample: Codable, Sendable, Equatable {
     var players: Int?
     var maxPlayers: Int?
     var map: String?
+    /// §61 profile the sample was taken for (name = snapshot at write time); absent in older lines.
+    var profileID: UUID?
+    var profileName: String?
+
+    /// §61: the sample stamped with a profile (an existing stamp is kept).
+    func tagged(_ tag: ProfileTag?) -> MetricSample {
+        guard let tag, profileID == nil else { return self }
+        var copy = self
+        copy.profileID = tag.id
+        copy.profileName = tag.name
+        return copy
+    }
 
     init(ts: Date, serverID: UUID, host: String, online: Bool, ping: Int? = nil, players: Int? = nil,
          maxPlayers: Int? = nil, map: String? = nil) {

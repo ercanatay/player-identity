@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Unified toolbar of the main window: title + status group (leading), Refresh and Save (trailing).
+/// Unified toolbar of the main window: title + status group (leading), profile picker (§61), Refresh and Save (trailing).
 /// ⌘R / ⌘S are the app menu commands (`PlayerIdentityApp`); the buttons show them in their tooltips.
 struct MainToolbarContent: ToolbarContent {
     @Bindable var model: AppModel
@@ -8,6 +8,10 @@ struct MainToolbarContent: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
             ToolbarStatusView(model: model)
+        }
+        // §61 profile picker.
+        ToolbarItem(placement: .primaryAction) {
+            ProfilePickerMenu(model: model)
         }
         ToolbarItem(placement: .primaryAction) {
             RefreshToolbarButton(model: model)

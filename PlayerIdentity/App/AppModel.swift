@@ -114,9 +114,18 @@ final class AppModel {
     static let banCheckDefaultsKey = DefaultsKey.banCheckEnabled
     static let recentNamesDefaultsKey = DefaultsKey.recentNames
 
-    private(set) var dataRoot: URL
+    /// Data root and game folder of the active profile (§61); every change is mirrored into `profileList`.
+    private(set) var dataRoot: URL {
+        didSet { if dataRoot != oldValue { profileList.updateActive(dataRoot: dataRoot) } }
+    }
     private(set) var gamedirs: [String] = []
-    private(set) var selectedGamedir: String?
+    private(set) var selectedGamedir: String? {
+        didSet { if selectedGamedir != oldValue { profileList.updateActive(gamedir: .some(selectedGamedir)) } }
+    }
+    /// §61 profiles (the first one is the default); kept in `profile.json` next to the record.
+    private(set) var profileList: ProfileList
+    /// §61: why the last profile change was refused (shown once by the window that asked).
+    var profileError: ProfileError?
     /// `nil` = not read yet.
     private(set) var identity: Result<Identity, IdentityError>?
     private(set) var config = PlayerConfig()
@@ -366,14 +375,14 @@ final class AppModel {
         snapshotState = loaded
         let snapshot = loaded.snapshot
 
-        if let stored = dependencies.defaults.string(forKey: Self.dataRootDefaultsKey), !stored.isEmpty {
-            dataRoot = URL(fileURLWithPath: stored, isDirectory: true)
-        } else if let snapshot, !snapshot.dataRoot.isEmpty {
-            dataRoot = URL(fileURLWithPath: snapshot.dataRoot, isDirectory: true)
-        } else {
-            dataRoot = dependencies.paths.defaultDataRoot
-        }
-        selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
+        // §61: the active profile decides the data root and the game folder; a record without profiles migrates its
+        // single `dataRoot`/`gamedir` into `Default` (written with the next record write).
+        let list = ProfileList.resolve(snapshot: snapshot,
+                                       storedDataRoot: dependencies.defaults.string(forKey: Self.dataRootDefaultsKey),
+                                       defaultDataRoot: dependencies.paths.defaultDataRoot, now: dependencies.now())
+        profileList = list
+        dataRoot = list.active.dataRootURL(defaultDataRoot: dependencies.paths.defaultDataRoot)
+        selectedGamedir = list.active.preferredGamedir
         servers = snapshot?.servers ?? []
         banCheckEnabled = dependencies.defaults.object(forKey: Self.banCheckDefaultsKey) as? Bool ?? true
         notificationsEnabled = dependencies.defaults.object(forKey: DefaultsKey.notificationsEnabled) as? Bool ?? true
@@ -571,8 +580,10 @@ final class AppModel {
         let enabled = notificationsEnabled
         let policy = notificationPolicy
         let previous = historyTask
+        let tag = profileTag
         historyTask = Task {
             await previous?.value
+            await recorder.setProfile(tag)
             let contents = await operation(recorder)
             historyRevision += 1
             await dispatcher.handle(contents, enabled: enabled, policy: policy)
@@ -873,9 +884,10 @@ final class AppModel {
         guard !samples.isEmpty else { return }
         let recorder = metrics
         let previous = metricsTask
+        let tagged = samples.map { $0.tagged(profileTag) }
         metricsTask = Task {
             await previous?.value
-            metricsWriteFailure = await recorder.record(samples)
+            metricsWriteFailure = await recorder.record(tagged)
             if let failure = metricsWriteFailure { logError(.metrics, "metricsWrite: \(failure.reason)") }
         }
     }
@@ -915,8 +927,131 @@ final class AppModel {
         guard !isDataOperationRunning else { return Task {} }
         dataRoot = url.standardizedFileURL
         deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
+        // §61: the active profile keeps the new data root across launches (like the UserDefaults value).
+        persistProfiles()
         markEdited()
         return refresh()
+    }
+
+    // MARK: §61 profiles
+
+    var profiles: [Profile] { profileList.profiles }
+    var activeProfile: Profile { profileList.active }
+    var defaultProfileID: UUID { profileList.defaultProfile.id }
+    /// Stamp of the history entries and metric samples written now.
+    var profileTag: ProfileTag { ProfileTag(profileList.active) }
+    /// The default data root (a profile without its own data root uses it).
+    var defaultDataRoot: URL { deps.paths.defaultDataRoot }
+
+    /// Writes the profile list into the saved record (the rest of the record is unchanged). Without a readable
+    /// record the list is written with the first Save.
+    @discardableResult
+    private func persistProfiles() -> Bool {
+        guard var saved = snapshotState.snapshot else { return true }
+        guard saved.profiles != profileList.profiles || saved.activeProfileID != profileList.activeID else { return true }
+        saved.profiles = profileList.profiles
+        saved.activeProfileID = profileList.activeID
+        do {
+            try deps.snapshotStore.save(saved)
+        } catch {
+            saveErrorMessage = L10n.format(.saveFailed, error.localizedDescription)
+            return false
+        }
+        snapshotState = .loaded(saved)
+        return true
+    }
+
+    /// A profile switch changes which files are read and written; refused while the game runs or data is replaced.
+    private func profileSwitchProblem() -> ProfileError? {
+        if isDataOperationRunning { return .busy }
+        if deps.gameProcessDetector.isGameRunning() {
+            isGameRunning = true
+            return .gameRunning
+        }
+        return nil
+    }
+
+    /// Runs a profile change; a refused change is kept in `profileError` and returned.
+    @discardableResult
+    private func changeProfiles(_ change: (inout ProfileList) throws(ProfileError) -> Void) -> ProfileError? {
+        var list = profileList
+        do {
+            try change(&list)
+        } catch {
+            profileError = error
+            return error
+        }
+        profileList = list
+        profileError = nil
+        persistProfiles()
+        return nil
+    }
+
+    /// Activates a profile: identity source, game folder and data root are resolved again and the CIDs recomputed
+    /// from local files (no network request). The server list stays (it is shared).
+    @discardableResult
+    func activateProfile(_ id: UUID) -> ProfileError? {
+        guard id != profileList.activeID else { return nil }
+        if let problem = profileSwitchProblem() {
+            profileError = problem
+            return problem
+        }
+        if let error = changeProfiles({ (list: inout ProfileList) throws(ProfileError) in try list.activate(id) }) {
+            return error
+        }
+        applyActiveProfile()
+        return nil
+    }
+
+    /// Adds a profile (not activated). The same data root + game folder pair cannot be added twice.
+    @discardableResult
+    func addProfile(name: String, dataRoot: URL?, gamedir: String) -> ProfileError? {
+        if isDataOperationRunning { return reject(.busy) }
+        let now = deps.now()
+        return changeProfiles { (list: inout ProfileList) throws(ProfileError) in
+            try list.add(name: name, dataRoot: dataRoot?.path, gamedir: gamedir, now: now)
+        }
+    }
+
+    @discardableResult
+    func renameProfile(_ id: UUID, to name: String) -> ProfileError? {
+        if isDataOperationRunning { return reject(.busy) }
+        return changeProfiles { (list: inout ProfileList) throws(ProfileError) in try list.rename(id, to: name) }
+    }
+
+    @discardableResult
+    func makeDefaultProfile(_ id: UUID) -> ProfileError? {
+        if isDataOperationRunning { return reject(.busy) }
+        return changeProfiles { (list: inout ProfileList) throws(ProfileError) in try list.makeDefault(id) }
+    }
+
+    /// Deletes a profile (cannot be undone). Deleting the active profile activates the default one, so it is refused
+    /// while the game runs.
+    @discardableResult
+    func deleteProfile(_ id: UUID) -> ProfileError? {
+        let wasActive = id == profileList.activeID
+        if wasActive, let problem = profileSwitchProblem() { return reject(problem) }
+        if isDataOperationRunning { return reject(.busy) }
+        if let error = changeProfiles({ (list: inout ProfileList) throws(ProfileError) in try list.remove(id) }) {
+            return error
+        }
+        if wasActive { applyActiveProfile() }
+        return nil
+    }
+
+    private func reject(_ error: ProfileError) -> ProfileError {
+        profileError = error
+        return error
+    }
+
+    /// The active profile's data root and game folder take effect; local files are read again (no network request).
+    private func applyActiveProfile() {
+        let profile = profileList.active
+        dataRoot = profile.dataRootURL(defaultDataRoot: deps.paths.defaultDataRoot)
+        selectedGamedir = profile.preferredGamedir
+        deps.defaults.set(dataRoot.path, forKey: Self.dataRootDefaultsKey)
+        markEdited()
+        _ = startRefresh(includeNetwork: isRefreshing)
     }
 
     func addServer(_ draft: ServerDraft) {
@@ -1699,7 +1834,7 @@ final class AppModel {
             saveErrorMessage = L10n.text(.saveBusy)
             return
         }
-        let snapshot = SnapshotBuilder.make(savedAt: deps.now(),
+        var snapshot = SnapshotBuilder.make(savedAt: deps.now(),
                                             dataRoot: dataRoot,
                                             gamedir: selectedGamedir,
                                             config: config,
@@ -1709,6 +1844,8 @@ final class AppModel {
                                             checkedAt: lastChecked,
                                             servers: servers,
                                             resolutions: hostResolutions)
+        snapshot.profiles = profileList.profiles
+        snapshot.activeProfileID = profileList.activeID
         do {
             try deps.snapshotStore.save(snapshot)
         } catch {
@@ -2151,11 +2288,24 @@ final class AppModel {
         snapshotState = loaded
         let snapshot = loaded.snapshot
         servers = snapshot?.servers ?? []
-        if snapshot != nil || !keepGamedirWithoutRecord {
-            selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
-        }
-        if (deps.defaults.string(forKey: Self.dataRootDefaultsKey) ?? "").isEmpty, let snapshot, !snapshot.dataRoot.isEmpty {
-            dataRoot = URL(fileURLWithPath: snapshot.dataRoot, isDirectory: true)
+        if let snapshot, !(snapshot.profiles ?? []).isEmpty {
+            // §61: the restored record brings its profiles; the active one decides the data root and game folder.
+            profileList = ProfileList.resolve(snapshot: snapshot, storedDataRoot: nil,
+                                              defaultDataRoot: deps.paths.defaultDataRoot, now: deps.now())
+            dataRoot = profileList.active.dataRootURL(defaultDataRoot: deps.paths.defaultDataRoot)
+            selectedGamedir = profileList.active.preferredGamedir
+        } else {
+            if snapshot != nil || !keepGamedirWithoutRecord {
+                selectedGamedir = (snapshot?.gamedir).flatMap { $0.isEmpty ? nil : $0 }
+            }
+            if (deps.defaults.string(forKey: Self.dataRootDefaultsKey) ?? "").isEmpty, let snapshot, !snapshot.dataRoot.isEmpty {
+                dataRoot = URL(fileURLWithPath: snapshot.dataRoot, isDirectory: true)
+            }
+            // A record without profiles (or none at all): the current setup becomes the single `Default` profile.
+            let migrated = Profile(name: Profile.migratedName,
+                                   dataRoot: ProfileList.normalizedRoot(dataRoot.path, defaultDataRoot: deps.paths.defaultDataRoot),
+                                   gamedir: selectedGamedir ?? "", createdAt: deps.now())
+            profileList = ProfileList(profiles: [migrated], activeID: migrated.id, defaultDataRoot: deps.paths.defaultDataRoot)
         }
         watchState = WatchStateStore(fileURL: deps.paths.watchStateFile).load()
         for entry in servers { resolveIfNeeded(entry.host) }

@@ -35,6 +35,8 @@ struct GeneralSettingsView: View {
             language
             app
             SettingsSection(title: L10n.text(.dataSectionTitle)) {
+                ProfilesSettingsRows(model: model)
+                SettingsDivider()
                 DataRootRow(model: model)
                 SettingsDivider()
                 DataSettingsRow(model: model)
