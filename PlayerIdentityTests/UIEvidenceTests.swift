@@ -203,19 +203,25 @@ final class UIEvidenceTests: XCTestCase {
         let ids = model.servers.map(\.id)
         let sourceBans = try XCTUnwrap(BanListPreset.preset(id: "sourcebans")).template
         XCTAssertNil(model.setBanListURL(sourceBans, for: ids[0]))
-        try render(ServerDetailSheet(model: model, serverID: ids[0], onClose: {}, metrics: [], maxContentHeight: 1400),
-                   size: CGSize(width: 620, height: 1250), name: "v37-banlist-template")
-        try render(ServerDetailSheet(model: model, serverID: ids[1], onClose: {}, metrics: [], maxContentHeight: 1400,
-                                     banListDraft: "https://bans.example.com/search?q={cid} x"),
-                   size: CGSize(width: 620, height: 1250), name: "v37-banlist-invalid")
+        try renderLocalized(size: CGSize(width: 620, height: 1250), name: "v37-banlist-template") {
+            ServerDetailSheet(model: model, serverID: ids[0], onClose: {}, metrics: [], maxContentHeight: 1400)
+        }
+        try renderLocalized(size: CGSize(width: 620, height: 1250), name: "v37-banlist-invalid") {
+            ServerDetailSheet(model: model, serverID: ids[1], onClose: {}, metrics: [], maxContentHeight: 1400,
+                              banListDraft: "https://bans.example.com/search?q={cid} x")
+        }
 
         model.menuBarEnabled = true
         model.selectedServerID = ids[1]
         XCTAssertTrue(model.menuBarCopy(.cid(ids[1])))
-        try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 440), name: "v37-menubar-copied")
+        try renderLocalized(size: CGSize(width: 420, height: 440), name: "v37-menubar-copied") {
+            MenuBarEvidenceView(model: model)
+        }
         pasteboard.fails = true
         XCTAssertFalse(model.menuBarCopy(.rawID))
-        try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 440), name: "v37-menubar-copy-failed")
+        try renderLocalized(size: CGSize(width: 420, height: 440), name: "v37-menubar-copy-failed") {
+            MenuBarEvidenceView(model: model)
+        }
     }
 
     /// v3.7 §61 profiles: toolbar picker, Settings > Data profile list (normal and game running), add sheet.
@@ -232,27 +238,32 @@ final class UIEvidenceTests: XCTestCase {
         XCTAssertNil(model.addProfile(name: "LAN", dataRoot: nil, gamedir: "cstrike"))
         XCTAssertNil(model.makeDefaultProfile(model.profiles[0].id))
 
-        let toolbar = HStack(spacing: 12) {
-            ToolbarStatusView(model: model)
-            Spacer()
-            ProfilePickerMenu(model: model)
-            ToolbarActionButtons(model: model)
+        try renderLocalized(size: CGSize(width: 900, height: 52), name: "v37-profiles-toolbar") {
+            HStack(spacing: 12) {
+                ToolbarStatusView(model: model)
+                Spacer()
+                ProfilePickerMenu(model: model)
+                ToolbarActionButtons(model: model)
+            }
+            .padding(.horizontal, 16)
+            .background(Palette.window)
         }
-        .padding(.horizontal, 16)
-        .background(Palette.window)
-        try render(toolbar, size: CGSize(width: 900, height: 52), name: "v37-profiles-toolbar")
-        let list = SettingsPage {
-            SettingsSection(title: L10n.text(.dataSectionTitle)) { ProfilesSettingsRows(model: model) }
+        try renderLocalized(size: CGSize(width: 600, height: 340), name: "v37-profiles-settings") {
+            SettingsPage {
+                SettingsSection(title: L10n.text(.dataSectionTitle)) { ProfilesSettingsRows(model: model) }
+            }
         }
-        try render(list, size: CGSize(width: 600, height: 340), name: "v37-profiles-settings")
 
         game.isRunning = true
         XCTAssertEqual(model.activateProfile(model.profiles[1].id), .gameRunning)
-        try render(SettingsPage {
-            SettingsSection(title: L10n.text(.dataSectionTitle)) { ProfilesSettingsRows(model: model) }
-        }, size: CGSize(width: 600, height: 380), name: "v37-profiles-game-running")
-        try render(ProfileEditorSheet(model: model, mode: .add, onClose: {}), size: CGSize(width: 440, height: 240),
-                   name: "v37-profiles-add")
+        try renderLocalized(size: CGSize(width: 600, height: 380), name: "v37-profiles-game-running") {
+            SettingsPage {
+                SettingsSection(title: L10n.text(.dataSectionTitle)) { ProfilesSettingsRows(model: model) }
+            }
+        }
+        try renderLocalized(size: CGSize(width: 440, height: 240), name: "v37-profiles-add") {
+            ProfileEditorSheet(model: model, mode: .add, onClose: {})
+        }
     }
 
     /// v2.0 screens (§29–§33): groups + favorites + filter, notes/appeal, share card, menu bar, Settings > General.
@@ -479,7 +490,16 @@ final class UIEvidenceTests: XCTestCase {
                    size: CGSize(width: 480, height: 300), name: "v26-import-result")
     }
 
-    private func render<V: View>(_ view: V, size: CGSize, name: String) throws {
+    /// Renders the same view once per language as `<name>-en.png` and `<name>-tr.png`.
+    private func renderLocalized<V: View>(size: CGSize, name: String, @ViewBuilder _ view: () -> V) throws {
+        defer { L10n.setting = .system }
+        for language in [AppLanguageSetting.en, .tr] {
+            L10n.setting = language
+            try render(view(), size: size, name: name, language: language.rawValue)
+        }
+    }
+
+    private func render<V: View>(_ view: V, size: CGSize, name: String, language override: String? = nil) throws {
         let hosting = NSHostingView(rootView: view.frame(width: size.width, height: size.height))
         hosting.frame = CGRect(origin: .zero, size: size)
         hosting.appearance = NSAppearance(named: .aqua) // deterministic light render (dark host paints white text on white)
@@ -496,7 +516,7 @@ final class UIEvidenceTests: XCTestCase {
         let rep = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
         hosting.cacheDisplay(in: hosting.bounds, to: rep)
         let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
-        try png.write(to: directory.appendingPathComponent("\(name)-\(language).png"))
+        try png.write(to: directory.appendingPathComponent("\(name)-\(override ?? language).png"))
     }
 }
 
