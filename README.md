@@ -722,8 +722,23 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **783 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **789 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
+
+### Adding a string
+
+`tools/l10n_keys.py` holds the keys with the Turkish and English texts; the other 22 languages live in
+`tools/l10n/<lang>.json`. The 24 `Localizable.strings` files and `L10nKey.swift` are generated — don't edit them by hand.
+
+```sh
+python3 tools/l10n_keys.py --add "section.newKey" --en "English text" --tr "Türkçe metin"
+python3 tools/l10n_keys.py --check     # OK, or a `lang: key` list (exit 1)
+bash tools/check-l10n-parity.sh        # keys, format specifiers, empty values
+```
+
+- `--add` writes the English text as a placeholder in every other language and prints `translation needed: <lang>`.
+  Translate those values in `tools/l10n/<lang>.json`, then run `python3 tools/l10n_keys.py` to regenerate.
+- CI runs both checks before the build.
 
 ### Live UI evidence
 
@@ -751,7 +766,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Spec sanitization gate, XcodeGen, build, 783 tests on `macos-26` |
+| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 789 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -765,7 +780,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (783)
+PlayerIdentityTests/      Unit tests (789)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

@@ -112,6 +112,11 @@ targets:
         type: folder
         buildPhase: resources
         name: CaskTemplate
+      # §63: the l10n generator and its 22 JSON sources, run by LocalizationToolingTests on a temporary copy.
+      - path: tools
+        type: folder
+        buildPhase: resources
+        name: L10nTooling
     dependencies:
       - target: PlayerIdentity
     settings:
