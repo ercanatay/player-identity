@@ -61,90 +61,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ## What's new in v2.17.0
 
-- **26 languages**: Azerbaijani and Vietnamese are now part of the interface, matching cybokron.com's language set exactly.
+- **26 languages**: Azerbaijani and Vietnamese join the interface, matching cybokron.com's language set exactly.
 
-## What's new in v2.16.0
-
-- **Siri phrases in 24 languages** and **race-free history writes**: App Intent phrases now follow the interface language, and rows added during a refresh are never lost.
-
-- **Diagnosis trend in the ban matrix**: a "Last 7 days" column summarises each server's recent diagnoses; `rangeBanned` results now explain the `/24`–`/16` range; reports include the last 10 runs; and Shortcuts gains "Diagnose Server" / "Copy Diagnosis Report".
-
-- **Diagnosis trend and menu bar diagnosis**: see how a server has behaved over the last 7/30 days (verdict counts + a strip of the last 10 runs) and start a diagnosis straight from the menu bar, with an inline verdict and a single notification for ban results.
-- **Connection diagnosis**: one button runs DNS → A2S_INFO → getchallenge → connect 49 and explains the result in plain language, with the engine's own log lines as evidence and a masked report you can paste into a forum or an admin message.
-- **24 languages**: the entire interface is now available in 24 languages, matching cybokron.com, with native language names, `en` fallback and RTL support.
-- **Profiles**: keep several identities side by side (data root + gamedir) and switch from the toolbar; existing records migrate to a `Default` profile.
-- **Ban-list templates**: ready-made URL templates (SourceBans++, AMXBans, HLstatsX, generic CID/IP) with placeholder validation and "apply to all servers".
-- **Menu bar quick actions**: copy the selected server's CID or the raw identity, re-check a server, with an inline confirmation.
-- **Sturdier updates and backups**: verification falls back to `codesign` when `spctl` is unavailable, partial data backups are reported and confirmed, and the settings-import preview now matches the applied result.
-
-## What's new in v2.10.3
-
-- **New name**: the app is now shown as **Cybokron Player Identity** (Turkish: **Cybokron Oyuncu Kimlik Kartı**). The bundle identifier, `PlayerIdentity.app`, your data and the Homebrew cask stay the same, so updates and settings carry over.
-- **English feature reference** in [`docs/FEATURES.md`](docs/FEATURES.md) and a refreshed screenshot set.
-
-## What's new in v2.10.2
-
-- **Error log file**: `errors.json` is created empty at launch, so diagnostics always include it.
-
-## What's new in v2.10.1
-
-- **Persistent error log**: `errors.json` keeps the last 50 errors, written atomically; diagnostics show its status as `errorLogStatus`.
-- **Deploy-key tap sync**: the release workflow updates the separate tap repository with a write deploy key (`TAP_DEPLOY_KEY`), so no `TAP_TOKEN` PAT is needed.
-
-## What's new in v2.10.0
-
-- **CLI data tools**: `playeridentityctl` gains backup, restore, servers and diagnostics commands.
-- **URL scheme**: `playeridentity://` links open the matching app actions.
-- **Diagnostics**: `errors.json` is written with the diagnostic bundle.
-- **Accessibility**: keyboard navigation and VoiceOver labels are improved.
-- **Per-server notification thresholds**: each server can set its own alert threshold.
-- **CI security**: CodeQL, Dependabot and secret scanning are enabled; release cask is verified after publishing.
-
-## What's new in v2.9.3
-
-- **CLI updates**: `playeridentityctl update --check` compares the installed app with the latest stable release; `update --install` downloads and verifies it like the app does (HTTPS, size, SHA-256, Gatekeeper). Exit codes are documented in the CLI section; `brew upgrade` is the alternative for cask installs.
-- **Stricter validation**: dataRoot symlinks and previews are validated more strictly.
-- **Gatekeeper**: updates must be `Notarized Developer ID`.
-
-## What's new in v2.9.2
-
-- **Backup and restore in the background**: automatic backups and restores no longer block the UI; failures are reported.
-- **Safer updates**: update checks have timeouts, stuck updaters are killed (SIGKILL), and downloaded updates are verified with Gatekeeper before install.
-- **Backup integrity**: manifest counters are verified against the files, old manifests are pruned by modification time, and `autoBackupEnabled` is respected in archives.
-- **Import safety**: settings import is locked against concurrent runs and produces a clear report; pre-downloaded update files are cleaned up.
-- **Clearer install blocking**: when installation is blocked, the app now states the reason.
-
-## What's new in v2.9.1
-
-- **Toolbar overflow fixed**: the title flexes and the toolbar switches to a compact layout when space is tight.
-- **Data safety**: restore rolls back on failure, a warning appears when a backup is missing, erase is locked and partial deletes are guarded, and unsaved changes prompt before closing.
-- **Silent failure fixes**: automatic backup errors, appeal reminders, relaunch errors and cancel/error messages are now reported to you.
-
-## What's new in v2.9.0
-
-- **Add servers from URLs or pasted lists**: paste GameTracker links, `steam://connect` links, `host:port` entries (IPv4, hostnames and IPv6) or a list of them. Up to 100 entries per import.
-- Every entry is previewed before it is added, with duplicates and invalid lines flagged so you can decide what to keep.
-
-## What's new in v2.8.0
-
-- **Full data backup and restore**: export everything (records, history, metrics, watch state) to one archive with a manifest, preview what a restore will change, and restore it. A pre-restore backup is written before any data is overwritten.
-- **Automatic daily backups** with 5 rotations, so recent state is kept without manual exports.
-
-## What's new in v2.7.0
-
-- **Redesigned History, Ban Matrix and Metrics windows** using the same design language as the main window: new toolbar, filter chips, narrow-width behaviour, and a chart card for metrics.
-
-## What's new in v2.6.0
-
-- **Redesigned main window and Settings** following the Claude Design handoff: new layout, light and dark appearance, Turkish and English UI.
-- **Design tokens** (colours, spacing, typography) shared across the main window and Settings.
-- **Reset Settings** and **Erase All Data** in Settings (see spec §47).
-
-## What's new in v2.5.0
-
-- **Settings and server export/import**: choose the scope (Settings only, or Settings + servers), export to JSON, and import with merge or replace.
-- Preview of what will change, plus a result summary after import.
-- Replace mode keeps a `profile.json.appbak-*` backup of the previous data.
+Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Contents
 
