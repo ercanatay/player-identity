@@ -5,6 +5,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.0] - 2026-11-14
+
+### Added
+- **26 languages** (spec §62.2): Azerbaijani and Vietnamese join the interface, so the app now matches cybokron.com exactly — every string (977 keys), every Siri phrase and every bundle name is localized.
+
 ## [2.16.0] - 2026-11-14
 
 ### Added
@@ -227,6 +232,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.17.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.0
 [2.16.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.16.0
 [2.15.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.15.0
 [2.14.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.14.0

@@ -25,7 +25,7 @@ It is a **read-only tool by default**. The only game files it ever writes are th
 `config.cfg` / `userconfig.cfg`, and only when you press **Apply**. Everything else lives in the app's own
 folder (`profile.json`, history, metrics, updates).
 
-**24 languages** — the full interface ships in the same 24 languages as cybokron.com (Turkish, English, German, French, Spanish, Italian, Portuguese, Dutch, Swedish, Polish, Czech, Romanian, Hungarian, Greek, Bulgarian, Ukrainian, Russian, Arabic, Persian, Hindi, Simplified Chinese, Japanese, Korean and Indonesian), following the system language by default and switchable at runtime.
+**26 languages** — the full interface ships in the same 26 languages as cybokron.com (Turkish, English, German, French, Spanish, Italian, Portuguese, Dutch, Swedish, Polish, Czech, Romanian, Hungarian, Greek, Bulgarian, Ukrainian, Russian, Arabic, Persian, Hindi, Simplified Chinese, Japanese, Korean, Indonesian, Azerbaijani and Vietnamese), following the system language by default and switchable at runtime.
 
 📖 **Full feature reference:** [`docs/FEATURES.md`](docs/FEATURES.md) · Türkçe: [`docs/FEATURES.tr.md`](docs/FEATURES.tr.md) — every screen, CLI command, URL scheme, notification rule and backup format.
 
@@ -59,15 +59,16 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.16.0
+## What's new in v2.17.0
 
-- **Siri phrases in 24 languages** and **race-free history writes**: App Intent phrases now follow the interface language, and rows added during a refresh are never lost.
+- **26 languages**: Azerbaijani and Vietnamese are now part of the interface, matching cybokron.com's language set exactly.
+- **Localized Siri phrases** and **race-free history writes**: App Intent phrases now follow the interface language, and rows added during a refresh are never lost.
 
 - **Diagnosis trend in the ban matrix**: a "Last 7 days" column summarises each server's recent diagnoses; `rangeBanned` results now explain the `/24`–`/16` range; reports include the last 10 runs; and Shortcuts gains "Diagnose Server" / "Copy Diagnosis Report".
 
 - **Diagnosis trend and menu bar diagnosis**: see how a server has behaved over the last 7/30 days (verdict counts + a strip of the last 10 runs) and start a diagnosis straight from the menu bar, with an inline verdict and a single notification for ban results.
 - **Connection diagnosis**: one button runs DNS → A2S_INFO → getchallenge → connect 49 and explains the result in plain language, with the engine's own log lines as evidence and a masked report you can paste into a forum or an admin message.
-- **24 languages**: the entire interface is now available in 24 languages, matching cybokron.com, with native language names, `en` fallback and RTL support.
+- **Full localization**: the entire interface is now localized, matching cybokron.com, with native language names, `en` fallback and RTL support.
 - **Profiles**: keep several identities side by side (data root + gamedir) and switch from the toolbar; existing records migrate to a `Default` profile.
 - **Ban-list templates**: ready-made URL templates (SourceBans++, AMXBans, HLstatsX, generic CID/IP) with placeholder validation and "apply to all servers".
 - **Menu bar quick actions**: copy the selected server's CID or the raw identity, re-check a server, with an inline confirmation.
@@ -205,7 +206,7 @@ folder (`profile.json`, history, metrics, updates).
 | **Game** | One-click “Join game” with `+connect`; “Fix” and ban helpers |
 | **Sharing** | 1200×630 PNG card with the CID and a QR code |
 | **Updates** | Signed, checksum-verified in-app updates with rollback; version history and downgrade with data backup |
-| **i18n** | 24 languages, switchable at runtime (System + 24 native names) |
+| **i18n** | 26 languages, switchable at runtime (System + 26 native names) |
 | **Automation** | `playeridentityctl` CLI and three Shortcuts/Siri actions |
 | **Diagnosis** | Step-by-step probe with engine-log evidence, a 7/30-day verdict trend, menu bar runs and a shareable masked report |
 | **Diagnostics** | Redacted support bundle (ZIP) |
@@ -741,7 +742,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 ### Adding a string
 
 `tools/l10n_keys.py` holds the keys with the Turkish and English texts; the other 22 languages live in
-`tools/l10n/<lang>.json`. The 24 `Localizable.strings` files and `L10nKey.swift` are generated — don't edit them by hand.
+`tools/l10n/<lang>.json`. The 26 `Localizable.strings` files and `L10nKey.swift` are generated — don't edit them by hand.
 
 ```sh
 python3 tools/l10n_keys.py --add "section.newKey" --en "English text" --tr "Türkçe metin"
@@ -791,7 +792,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 PlayerIdentity/
   App/            SwiftUI app, model, views, intents
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
-  Resources/      Localizable.strings, AppShortcuts.strings, InfoPlist.strings (24 languages)
+  Resources/      Localizable.strings, AppShortcuts.strings, InfoPlist.strings (26 languages)
   Assets.xcassets app icon
 PlayerIdentityTests/      Unit tests (850)
 PlayerIdentityUITests/    XCUITest smoke test

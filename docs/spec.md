@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.3 · Tarih: 2026-11-14 · Durum: uygulanacak (v4.2 → v4.3: §62.1 Siri cümleleri 24 dil, §63.1 geçmiş yazma serileştirme)
+Sürüm: 4.4 · Tarih: 2026-11-14 · Durum: uygulanacak (v4.3 → v4.4: §62.2 az + vi ile 26 dil, cybokron.com ile tam eşleşme)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1470,3 +1470,9 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 ## 63.1 Geçmiş yazma serileştirmesi (v4.3)
 - `history.jsonl` üzerindeki `load`, `append`, `compact` işlemleri **tek seri kuyrukta** çalışır; eşzamanlı `refresh()` ve ekleme sırasında satır kaybı olmaz.
 - Regresyon testleri: eşzamanlı 200 ekleme + 40 compact sonrası tüm satırlar korunur; `refresh()` sürerken eklenen satırlar korunur.
+
+## 62.2 Dil seti cybokron.com ile tam eşleşir — 26 dil (v4.4)
+- Site 26 dil yayınlıyor; uygulama da **26 dil** olur: mevcut 24 + **`az`** (Azərbaycanca) + **`vi`** (Tiếng Việt).
+- Yeni diller için `Localizable.strings` (977 anahtar), `AppShortcuts.strings` (10 cümle) ve `InfoPlist.strings` üretilir; `az`/`vi` için ürün adı "Cybokron Player Identity".
+- `tools/l10n/az.json` + `tools/l10n/vi.json` ve `tools/l10n/shortcuts/az.json` + `.../vi.json` kaynakları eklenir; önce `en` yer tutucu, sonra dil başına tek çevirmen çağrısı.
+- `CFBundleLocalizations`, Ayarlar dil listesi, `--check`, parity ve testler 26 dili kapsar.

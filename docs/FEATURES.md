@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.16.0** (850 automated tests), against behaviour specification **v4.3** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.17.0** (850 automated tests), against behaviour specification **v4.4** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -16,7 +16,7 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Game** | Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) with a `valve` or `gearbox` data folder |
 | **Data source** | Read-only access to the engine's `.xash_id` files and `config.cfg` / `userconfig.cfg`; public IP from `api.ipify.org` (fallback `ifconfig.me`); server answers over UDP |
 | **Write behaviour** | Read-only by default. The only game files ever written are the `name` and `model` lines of `config.cfg` / `userconfig.cfg`, and only after you confirm **Apply** (or **Remove line**). Everything else lives in the app's own folder |
-| **Languages** | 24 languages (977 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
+| **Languages** | 26 languages (977 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
 | **Tests** | 850 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
@@ -688,13 +688,13 @@ IP addresses are masked and the user's home folder path is replaced in every fil
 
 ## Languages
 
-The interface ships in the same 24 languages as cybokron.com: Turkish, English, German, French, Spanish, Italian, Portuguese, Dutch, Swedish, Polish, Czech, Romanian, Hungarian, Greek, Bulgarian, Ukrainian, Russian, Arabic, Persian, Hindi, Simplified Chinese, Japanese, Korean and Indonesian.
+The interface ships in the same 26 languages as cybokron.com: Turkish, English, German, French, Spanish, Italian, Portuguese, Dutch, Swedish, Polish, Czech, Romanian, Hungarian, Greek, Bulgarian, Ukrainian, Russian, Arabic, Persian, Hindi, Simplified Chinese, Japanese, Korean, Indonesian, Azerbaijani (Azərbaycanca) and Vietnamese (Tiếng Việt).
 
-- **Selection:** Settings → Language offers *System* plus the 24 languages, each shown with its native name. The choice applies immediately; the system language decides the default.
+- **Selection:** Settings → Language offers *System* plus the 26 languages, each shown with its native name. The choice applies immediately; the system language decides the default.
 - **Fallback:** if a language is missing a key, the English value is shown; the app never shows a raw key.
 - **Resources:** `Localizable.strings` (977 keys) and `InfoPlist.strings` per language; the product name is "Cybokron Player Identity" in every language except Turkish ("Cybokron Oyuncu Kimlik Kartı").
 - **Right-to-left:** Arabic and Persian use the system layout direction; text is translated, icons and arrows keep their meaning.
-- **Shortcuts phrases:** App Intent phrases are localized in all 24 languages (`tools/l10n/shortcuts/<lang>.json`); the toolchain verifies that every phrase contains the `${applicationName}` placeholder exactly once.
+- **Shortcuts phrases:** App Intent phrases are localized in all 26 languages (`tools/l10n/shortcuts/<lang>.json`); the toolchain verifies that every phrase contains the `${applicationName}` placeholder exactly once.
 - **Quality gate:** `tools/check-l10n-parity.sh` compares every language against English — key sets, format placeholders and empty values — and fails the build pipeline on a mismatch.
 
 ## Shortcuts and Siri

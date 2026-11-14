@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "${applicationName} ilə server banını yoxla",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban yoxlanışı",
+  "intent.phrase.copyDiagnosis ${applicationName}": "${applicationName} ilə diaqnostikanı kopyala",
+  "intent.phrase.copyReport ${applicationName}": "${applicationName} diaqnostika hesabatını kopyala",
+  "intent.phrase.diagnose ${applicationName}": "${applicationName} ilə serveri diaqnostika et",
+  "intent.phrase.diagnoseConnection ${applicationName}": "${applicationName} ilə bağlantımı diaqnostika et",
+  "intent.phrase.refresh ${applicationName}": "${applicationName} vəziyyətini yenilə",
+  "intent.phrase.refreshBans ${applicationName}": "${applicationName} ilə ban statusumu yenilə",
+  "intent.phrase.showCID ${applicationName}": "${applicationName} ilə CID-imi göstər",
+  "intent.phrase.showIdentity ${applicationName}": "${applicationName} ilə oyunçu kimliyimi göstər"
 }
