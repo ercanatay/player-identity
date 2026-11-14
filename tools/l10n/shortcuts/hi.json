@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "${applicationName} से सर्वर ban जांचें",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban जांच",
+  "intent.phrase.copyDiagnosis ${applicationName}": "${applicationName} से निदान कॉपी करें",
+  "intent.phrase.copyReport ${applicationName}": "${applicationName} की निदान रिपोर्ट कॉपी करें",
+  "intent.phrase.diagnose ${applicationName}": "${applicationName} से सर्वर का निदान करें",
+  "intent.phrase.diagnoseConnection ${applicationName}": "${applicationName} से मेरे कनेक्शन का निदान करें",
+  "intent.phrase.refresh ${applicationName}": "${applicationName} रीफ़्रेश करें",
+  "intent.phrase.refreshBans ${applicationName}": "${applicationName} से मेरी ban स्थिति रीफ़्रेश करें",
+  "intent.phrase.showCID ${applicationName}": "${applicationName} से मेरी CID दिखाएं",
+  "intent.phrase.showIdentity ${applicationName}": "${applicationName} से मेरी खिलाड़ी पहचान दिखाएं"
 }

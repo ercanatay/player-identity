@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "Zkontrolovat ban serveru pomocí ${applicationName}",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} kontrola banu",
+  "intent.phrase.copyDiagnosis ${applicationName}": "Kopírovat diagnostiku pomocí ${applicationName}",
+  "intent.phrase.copyReport ${applicationName}": "Kopírovat zprávu o diagnostice ${applicationName}",
+  "intent.phrase.diagnose ${applicationName}": "Diagnostikovat server pomocí ${applicationName}",
+  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnostikovat mé připojení pomocí ${applicationName}",
+  "intent.phrase.refresh ${applicationName}": "Obnovit ${applicationName}",
+  "intent.phrase.refreshBans ${applicationName}": "Obnovit stav banu pomocí ${applicationName}",
+  "intent.phrase.showCID ${applicationName}": "Zobrazit mé CID pomocí ${applicationName}",
+  "intent.phrase.showIdentity ${applicationName}": "Zobrazit mou identitu hráče pomocí ${applicationName}"
 }

@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "Controleer serverban met ${applicationName}",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban-controle",
+  "intent.phrase.copyDiagnosis ${applicationName}": "Kopieer de diagnose met ${applicationName}",
+  "intent.phrase.copyReport ${applicationName}": "Kopieer het diagnoserapport van ${applicationName}",
+  "intent.phrase.diagnose ${applicationName}": "Diagnoseer een server met ${applicationName}",
+  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnoseer mijn verbinding met ${applicationName}",
+  "intent.phrase.refresh ${applicationName}": "Vernieuw ${applicationName}",
+  "intent.phrase.refreshBans ${applicationName}": "Vernieuw mijn ban-status met ${applicationName}",
+  "intent.phrase.showCID ${applicationName}": "Toon mijn CID met ${applicationName}",
+  "intent.phrase.showIdentity ${applicationName}": "Toon mijn spelersidentiteit met ${applicationName}"
 }

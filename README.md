@@ -59,7 +59,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.15.0
+## What's new in v2.16.0
+
+- **Siri phrases in 24 languages** and **race-free history writes**: App Intent phrases now follow the interface language, and rows added during a refresh are never lost.
 
 - **Diagnosis trend in the ban matrix**: a "Last 7 days" column summarises each server's recent diagnoses; `rangeBanned` results now explain the `/24`–`/16` range; reports include the last 10 runs; and Shortcuts gains "Diagnose Server" / "Copy Diagnosis Report".
 
@@ -789,7 +791,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 PlayerIdentity/
   App/            SwiftUI app, model, views, intents
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
-  Resources/      tr/en Localizable.strings, AppShortcuts.strings
+  Resources/      Localizable.strings, AppShortcuts.strings, InfoPlist.strings (24 languages)
   Assets.xcassets app icon
 PlayerIdentityTests/      Unit tests (850)
 PlayerIdentityUITests/    XCUITest smoke test

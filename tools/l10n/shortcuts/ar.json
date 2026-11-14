@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "تحقق من حظر الخادم باستخدام ${applicationName}",
+  "intent.phrase.checkBanShort ${applicationName}": "فحص الحظر باستخدام ${applicationName}",
+  "intent.phrase.copyDiagnosis ${applicationName}": "انسخ التشخيص باستخدام ${applicationName}",
+  "intent.phrase.copyReport ${applicationName}": "انسخ تقرير التشخيص باستخدام ${applicationName}",
+  "intent.phrase.diagnose ${applicationName}": "شخّص خادماً باستخدام ${applicationName}",
+  "intent.phrase.diagnoseConnection ${applicationName}": "شخّص اتصالي باستخدام ${applicationName}",
+  "intent.phrase.refresh ${applicationName}": "حدّث ${applicationName}",
+  "intent.phrase.refreshBans ${applicationName}": "حدّث حالة الحظر الخاصة بي باستخدام ${applicationName}",
+  "intent.phrase.showCID ${applicationName}": "أظهر CID الخاص بي باستخدام ${applicationName}",
+  "intent.phrase.showIdentity ${applicationName}": "أظهر هوية اللاعب الخاصة بي باستخدام ${applicationName}"
 }

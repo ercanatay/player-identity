@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "Szerverban ellenőrzése ${applicationName} segítségével",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} banellenőrzés",
+  "intent.phrase.copyDiagnosis ${applicationName}": "Diagnosztika másolása ${applicationName} segítségével",
+  "intent.phrase.copyReport ${applicationName}": "${applicationName} diagnosztikai jelentésének másolása",
+  "intent.phrase.diagnose ${applicationName}": "Szerver diagnosztizálása ${applicationName} segítségével",
+  "intent.phrase.diagnoseConnection ${applicationName}": "Kapcsolat diagnosztizálása ${applicationName} segítségével",
+  "intent.phrase.refresh ${applicationName}": "${applicationName} frissítése",
+  "intent.phrase.refreshBans ${applicationName}": "Banállapot frissítése ${applicationName} segítségével",
+  "intent.phrase.showCID ${applicationName}": "Saját CID megjelenítése ${applicationName} segítségével",
+  "intent.phrase.showIdentity ${applicationName}": "Játékos-azonosító megjelenítése ${applicationName} segítségével"
 }

@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "Проверить бан на сервере через ${applicationName}",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} проверка бана",
+  "intent.phrase.copyDiagnosis ${applicationName}": "Скопировать диагностику через ${applicationName}",
+  "intent.phrase.copyReport ${applicationName}": "Скопировать отчёт о диагностике ${applicationName}",
+  "intent.phrase.diagnose ${applicationName}": "Диагностировать сервер через ${applicationName}",
+  "intent.phrase.diagnoseConnection ${applicationName}": "Диагностировать моё подключение через ${applicationName}",
+  "intent.phrase.refresh ${applicationName}": "Обновить ${applicationName}",
+  "intent.phrase.refreshBans ${applicationName}": "Обновить мой статус бана через ${applicationName}",
+  "intent.phrase.showCID ${applicationName}": "Показать мой CID через ${applicationName}",
+  "intent.phrase.showIdentity ${applicationName}": "Показать мой идентификатор игрока через ${applicationName}"
 }

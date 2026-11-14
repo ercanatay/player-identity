@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.16.0] - 2026-11-14
+
+### Added
+- **Siri and Shortcuts phrases in 24 languages** (spec §62.1): every App Intent phrase is now localized, with a `--check` gate that verifies keys, empty values and the `${applicationName}` placeholder.
+
+### Fixed
+- **History writes are serialized** (spec §63.1): concurrent `load`, `append` and `compact` no longer race, so rows written during a refresh are kept. Covered by two regression tests.
+
 ## [2.15.0] - 2026-11-14
 
 ### Added
@@ -219,6 +227,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.16.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.16.0
 [2.15.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.15.0
 [2.14.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.14.0
 [2.13.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.13.0

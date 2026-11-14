@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.2 · Tarih: 2026-11-14 · Durum: uygulanacak (v4.1 → v4.2: §66 ban matrisinde trend, aralık banı uyarısı, raporda trend, teşhis kısayolları)
+Sürüm: 4.3 · Tarih: 2026-11-14 · Durum: uygulanacak (v4.2 → v4.3: §62.1 Siri cümleleri 24 dil, §63.1 geçmiş yazma serileştirme)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1460,3 +1460,13 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 
 ### 66.5 Testler
 (a) ban matrisi kolonu (dolu/boş, dar pencere, CSV), (b) `rangeBanned` kart metni + bildirim + eylem, (c) rapor trend tablosu + maskeleme + pencere başlığı, (d) intents parametreleri ve sonuç metni, (e) 24 dilde anahtar eşitliği, (f) ağ yok.
+
+## 62.1 Siri / Kısayollar cümleleri (v4.3)
+- App Intents cümleleri de **24 dilde** yerelleştirilir: `tools/l10n/shortcuts/<dil>.json` → `<dil>.lproj/AppShortcuts.strings`.
+- Her cümlede `${applicationName}` **tam bir kez** bulunur; `--check` bunu denetler.
+- `InfoPlist.strings` 24 dilde üretilir (ürün adı kuralı §62'deki gibi).
+- Eksik/boş/fazla anahtar veya `${applicationName}` ihlali → `l10n_keys.py --check` çıkış 1.
+
+## 63.1 Geçmiş yazma serileştirmesi (v4.3)
+- `history.jsonl` üzerindeki `load`, `append`, `compact` işlemleri **tek seri kuyrukta** çalışır; eşzamanlı `refresh()` ve ekleme sırasında satır kaybı olmaz.
+- Regresyon testleri: eşzamanlı 200 ekleme + 40 compact sonrası tüm satırlar korunur; `refresh()` sürerken eklenen satırlar korunur.

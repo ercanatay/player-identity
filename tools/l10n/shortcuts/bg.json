@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "Провери ban на сървъра с ${applicationName}",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} проверка за ban",
+  "intent.phrase.copyDiagnosis ${applicationName}": "Копирай диагностиката с ${applicationName}",
+  "intent.phrase.copyReport ${applicationName}": "Копирай диагностичния доклад с ${applicationName}",
+  "intent.phrase.diagnose ${applicationName}": "Диагностицирай сървър с ${applicationName}",
+  "intent.phrase.diagnoseConnection ${applicationName}": "Диагностицирай връзката ми с ${applicationName}",
+  "intent.phrase.refresh ${applicationName}": "Опресни ${applicationName}",
+  "intent.phrase.refreshBans ${applicationName}": "Опресни статуса ми на ban с ${applicationName}",
+  "intent.phrase.showCID ${applicationName}": "Покажи моя CID с ${applicationName}",
+  "intent.phrase.showIdentity ${applicationName}": "Покажи моята идентичност на играч с ${applicationName}"
 }

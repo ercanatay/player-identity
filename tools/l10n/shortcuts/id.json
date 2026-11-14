@@ -1,12 +1,12 @@
 {
-  "intent.phrase.checkBan ${applicationName}": "Check server ban with ${applicationName}",
-  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban check",
-  "intent.phrase.copyDiagnosis ${applicationName}": "Copy the diagnosis with ${applicationName}",
-  "intent.phrase.copyReport ${applicationName}": "Copy the ${applicationName} diagnosis report",
-  "intent.phrase.diagnose ${applicationName}": "Diagnose a server with ${applicationName}",
-  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnose my connection with ${applicationName}",
-  "intent.phrase.refresh ${applicationName}": "Refresh ${applicationName}",
-  "intent.phrase.refreshBans ${applicationName}": "Refresh my ban status with ${applicationName}",
-  "intent.phrase.showCID ${applicationName}": "Show my CID with ${applicationName}",
-  "intent.phrase.showIdentity ${applicationName}": "Show my player identity with ${applicationName}"
+  "intent.phrase.checkBan ${applicationName}": "Periksa ban server dengan ${applicationName}",
+  "intent.phrase.checkBanShort ${applicationName}": "Pemeriksaan ban ${applicationName}",
+  "intent.phrase.copyDiagnosis ${applicationName}": "Salin diagnosis dengan ${applicationName}",
+  "intent.phrase.copyReport ${applicationName}": "Salin laporan diagnosis ${applicationName}",
+  "intent.phrase.diagnose ${applicationName}": "Diagnosis server dengan ${applicationName}",
+  "intent.phrase.diagnoseConnection ${applicationName}": "Diagnosis koneksi saya dengan ${applicationName}",
+  "intent.phrase.refresh ${applicationName}": "Segarkan ${applicationName}",
+  "intent.phrase.refreshBans ${applicationName}": "Segarkan status ban saya dengan ${applicationName}",
+  "intent.phrase.showCID ${applicationName}": "Tampilkan CID saya dengan ${applicationName}",
+  "intent.phrase.showIdentity ${applicationName}": "Tampilkan identitas pemain saya dengan ${applicationName}"
 }
