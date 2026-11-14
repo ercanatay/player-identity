@@ -1,0 +1,12 @@
+{
+  "intent.phrase.checkBan ${applicationName}": "${applicationName} ile sunucu banını kontrol et",
+  "intent.phrase.checkBanShort ${applicationName}": "${applicationName} ban kontrolü",
+  "intent.phrase.copyDiagnosis ${applicationName}": "${applicationName} ile teşhisi kopyala",
+  "intent.phrase.copyReport ${applicationName}": "${applicationName} teşhis raporunu kopyala",
+  "intent.phrase.diagnose ${applicationName}": "${applicationName} ile sunucuyu teşhis et",
+  "intent.phrase.diagnoseConnection ${applicationName}": "${applicationName} ile bağlantımı teşhis et",
+  "intent.phrase.refresh ${applicationName}": "${applicationName} durumunu yenile",
+  "intent.phrase.refreshBans ${applicationName}": "${applicationName} ile ban durumumu yenile",
+  "intent.phrase.showCID ${applicationName}": "${applicationName} ile CID'imi göster",
+  "intent.phrase.showIdentity ${applicationName}": "${applicationName} ile oyuncu kimliğimi göster"
+}

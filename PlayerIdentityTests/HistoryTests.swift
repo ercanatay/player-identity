@@ -93,6 +93,32 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: fileURL), before)
     }
 
+    /// Concurrent appends and compactions on the same file (separate `HistoryStore` values) never drop a line: the
+    /// compaction's read-modify-write and the append's seek-and-write must not interleave.
+    func testConcurrentAppendsAndCompactionsKeepEveryLine() async throws {
+        let url = fileURL
+        let now = t0
+        let expired = now.addingTimeInterval(-200 * 86_400)
+        // Expired lines make every compaction rewrite the file.
+        try store.append((0..<1000).map { HistoryEntry(ts: expired, kind: .ipChanged, new: "\($0)") })
+        await withTaskGroup(of: Void.self) { group in
+            for index in 0..<200 {
+                group.addTask {
+                    try? HistoryStore(fileURL: url).append([HistoryEntry(ts: now, kind: .note, note: "kept-\(index)")])
+                }
+            }
+            for _ in 0..<40 {
+                group.addTask {
+                    let store = HistoryStore(fileURL: url)
+                    try? store.append([HistoryEntry(ts: expired, kind: .ipChanged, new: "old")])
+                    _ = try? store.compact(now: now)
+                }
+            }
+        }
+        let kept = Set(store.load().compactMap(\.note))
+        XCTAssertEqual(kept, Set((0..<200).map { "kept-\($0)" }))
+    }
+
     // MARK: Transitions
 
     func testSameStateTwiceRecordsNothingNew() async throws {
@@ -243,5 +269,34 @@ final class AppModelHistoryTests: XCTestCase {
         let last = try XCTUnwrap(store.load().last)
         XCTAssertEqual(last.kind, .ipChanged)
         XCTAssertEqual([last.old, last.new], ["203.0.113.7", "198.51.100.1"])
+    }
+
+    /// Lines appended while a refresh writes (and compacts) the history are all kept.
+    func testLinesAppendedDuringRefreshAreKept() async throws {
+        let url = AppPaths(home: home).historyFile
+        let start = Date(timeIntervalSince1970: 1_793_000_000)
+        let expired = start.addingTimeInterval(-200 * 86_400)
+        // Expired lines: the refresh's first history write compacts (rewrites) the file.
+        try HistoryStore(fileURL: url).append((0..<5000).map { HistoryEntry(ts: expired, kind: .ipChanged, new: "\($0)") })
+        let model = makeModel(script: HTTPScript(defaultBody: #"{"ip":"203.0.113.7"}"#), udp: FakeServer.healthy())
+        // Appends keep going for the whole refresh, including its history write.
+        let appender = Task.detached { () -> Int in
+            var count = 0
+            while !Task.isCancelled {
+                try? HistoryStore(fileURL: url).append([HistoryEntry(ts: start, kind: .note, note: "kept-\(count)")])
+                count += 1
+                await Task.yield()
+            }
+            return count
+        }
+        await model.refresh().value
+        await model.waitForHistory()
+        appender.cancel()
+        let appended = await appender.value
+        XCTAssertGreaterThan(appended, 0)
+        let entries = HistoryStore(fileURL: url).load()
+        XCTAssertEqual(Set(entries.compactMap(\.note)), Set((0..<appended).map { "kept-\($0)" }))
+        XCTAssertTrue(entries.contains { $0.kind == .refresh })
+        XCTAssertFalse(entries.contains { $0.ts < start })
     }
 }

@@ -158,6 +158,89 @@ final class LocalizationToolingTests: XCTestCase {
         XCTAssertTrue(duplicate.output.contains("already exists"), duplicate.output)
     }
 
+    // MARK: (f) Siri / Shortcuts phrases and InfoPlist.strings
+
+    private func resourceURL(_ language: String, _ file: String) -> URL {
+        root.appendingPathComponent("PlayerIdentity/Resources/\(language).lproj/\(file).strings")
+    }
+
+    private func shippedTable(_ file: String, _ language: String) throws -> [String: String] {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: file, withExtension: "strings", subdirectory: nil,
+                                                localization: language), "\(language) \(file)")
+        return try XCTUnwrap(NSDictionary(contentsOf: url) as? [String: String], "\(language) \(file)")
+    }
+
+    private func shortcutsURL(_ language: String) -> URL {
+        root.appendingPathComponent("tools/l10n/shortcuts/\(language).json")
+    }
+
+    private func editShortcuts(_ language: String, _ change: (inout [String: String]) -> Void) throws {
+        var table = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: shortcutsURL(language))) as? [String: String])
+        change(&table)
+        try JSONSerialization.data(withJSONObject: table, options: [.prettyPrinted, .sortedKeys]).write(to: shortcutsURL(language))
+    }
+
+    func testShortcutPhrasesAndProductNameShipInAllLanguages() throws {
+        let reference = try shippedTable("AppShortcuts", "en")
+        XCTAssertEqual(reference.count, 10)
+        for language in Self.codes {
+            let phrases = try shippedTable("AppShortcuts", language)
+            XCTAssertEqual(Set(phrases.keys), Set(reference.keys), language)
+            for (key, value) in phrases {
+                XCTAssertFalse(value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "\(language) \(key)")
+                XCTAssertEqual(value.components(separatedBy: "${applicationName}").count, 2, "\(language) \(key)")
+            }
+            let name = language == "tr" ? "Cybokron Oyuncu Kimlik Kartı" : "Cybokron Player Identity"
+            XCTAssertEqual(try shippedTable("InfoPlist", language),
+                           ["CFBundleDisplayName": name, "CFBundleName": name], language)
+        }
+        XCTAssertEqual(try shippedTable("AppShortcuts", "tr")["intent.phrase.checkBan ${applicationName}"],
+                       "${applicationName} ile sunucu banını kontrol et")
+        XCTAssertEqual(reference["intent.phrase.checkBan ${applicationName}"], "Check server ban with ${applicationName}")
+    }
+
+    func testGenerationWritesShortcutsAndInfoPlistForAllLanguages() throws {
+        for language in Self.codes {
+            try? FileManager.default.removeItem(at: resourceURL(language, "AppShortcuts"))
+        }
+        let result = try tool()
+        XCTAssertEqual(result.status, 0, result.output)
+        for language in Self.codes {
+            for file in ["AppShortcuts", "InfoPlist"] {
+                let values = try XCTUnwrap(NSDictionary(contentsOf: resourceURL(language, file)) as? [String: String],
+                                           "\(language) \(file)")
+                XCTAssertEqual(values, try shippedTable(file, language), "\(language) \(file)")
+            }
+        }
+    }
+
+    func testCheckFailsOnMissingOrEmptyShortcutPhrases() throws {
+        XCTAssertEqual(try tool().status, 0)
+        let phrase = "intent.phrase.refresh ${applicationName}"
+        try editShortcuts("de") { $0.removeValue(forKey: phrase) }
+        try editShortcuts("ko") { $0["intent.phrase.showCID ${applicationName}"] = " " }
+        let broken = try tool(["--check"])
+        XCTAssertEqual(broken.status, 1, broken.output)
+        XCTAssertTrue(broken.output.contains("de: \(phrase) (shortcut phrase missing)"), broken.output)
+        XCTAssertTrue(broken.output.contains("ko: intent.phrase.showCID ${applicationName} (empty shortcut phrase)"),
+                      broken.output)
+        XCTAssertNotEqual(try tool().status, 0, "generation refuses incomplete shortcut phrases")
+    }
+
+    func testCheckFailsWhenALanguageHasNoAppShortcutsFile() throws {
+        XCTAssertEqual(try tool().status, 0)
+        try FileManager.default.removeItem(at: resourceURL("ja", "AppShortcuts"))
+        let result = try tool(["--check"])
+        XCTAssertEqual(result.status, 1, result.output)
+        XCTAssertTrue(result.output.contains("ja.lproj/AppShortcuts.strings: missing"), result.output)
+
+        XCTAssertEqual(try tool().status, 0)
+        try FileManager.default.removeItem(at: shortcutsURL("sv"))
+        let noSource = try tool(["--check"])
+        XCTAssertEqual(noSource.status, 1, noSource.output)
+        XCTAssertTrue(noSource.output.contains("sv: tools/l10n/shortcuts/sv.json (missing or unreadable)"), noSource.output)
+    }
+
     // MARK: (e) Format specifiers
 
     func testFormatSpecifiersArePreserved() throws {

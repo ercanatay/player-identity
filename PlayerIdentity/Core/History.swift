@@ -106,18 +106,31 @@ enum HistoryRetention {
 
 /// `history.jsonl`: append-only, one line per entry. Appends add whole lines at the end of the file; compaction
 /// (retention) rewrites the file atomically.
+///
+/// Every read and write of a history file runs on one serial queue shared by all `HistoryStore` values in the
+/// process, so a compaction's read-modify-write and an append's seek-and-write never interleave (a line appended
+/// while the file is being rewritten would otherwise be lost).
 struct HistoryStore: Sendable {
     let fileURL: URL
 
+    private static let io = DispatchQueue(label: "tr.ercanatay.playeridentity.history-io")
+
     func load() -> [HistoryEntry] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        return HistoryCoding.decodeLines(data)
+        Self.io.sync {
+            guard let data = try? Data(contentsOf: fileURL) else { return [] }
+            return HistoryCoding.decodeLines(data)
+        }
     }
 
     func append(_ entries: [HistoryEntry]) throws {
         guard !entries.isEmpty else { return }
         var payload = Data()
         for entry in entries { payload.append(try HistoryCoding.encodeLine(entry)) }
+        try Self.io.sync { try appendLocked(payload) }
+    }
+
+    private func appendLocked(_ lines: Data) throws {
+        var payload = lines
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard fileManager.fileExists(atPath: fileURL.path) else {
@@ -142,15 +155,17 @@ struct HistoryStore: Sendable {
     /// Returns the entries kept.
     @discardableResult
     func compact(now: Date) throws -> [HistoryEntry] {
-        guard let data = try? Data(contentsOf: fileURL) else { return [] }
-        let entries = HistoryCoding.decodeLines(data)
-        let kept = HistoryRetention.apply(entries, now: now)
-        let lineCount = data.split(separator: UInt8(ascii: "\n")).count
-        guard kept.count != lineCount else { return kept }
-        var payload = Data()
-        for entry in kept { payload.append(try HistoryCoding.encodeLine(entry)) }
-        try payload.write(to: fileURL, options: .atomic)
-        return kept
+        try Self.io.sync {
+            guard let data = try? Data(contentsOf: fileURL) else { return [] }
+            let entries = HistoryCoding.decodeLines(data)
+            let kept = HistoryRetention.apply(entries, now: now)
+            let lineCount = data.split(separator: UInt8(ascii: "\n")).count
+            guard kept.count != lineCount else { return kept }
+            var payload = Data()
+            for entry in kept { payload.append(try HistoryCoding.encodeLine(entry)) }
+            try payload.write(to: fileURL, options: .atomic)
+            return kept
+        }
     }
 }
 
