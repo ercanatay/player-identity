@@ -27,6 +27,8 @@ struct BanMatrixRow: Sendable, Equatable {
     /// "Ban türü doğrulanamadı": rejected with an unknown ban type.
     let unverified: Bool
     let unreachable: Bool
+    /// §66.1 diagnoses of the last 7 days (`nil` = not computed, shown as "—").
+    var recent: BanMatrixRecent? = nil
 
     var isBanned: Bool { ipBan == .banned || cidBan == .banned || range != nil }
 
@@ -41,14 +43,23 @@ struct BanMatrixRow: Sendable, Equatable {
 }
 
 enum BanMatrix {
-    /// Rows for the servers (banned first; otherwise the given order is kept).
-    static func rows(servers: [ServerEntry], rangeBans: [UUID: String] = [:]) -> [BanMatrixRow] {
-        servers.map { row(for: $0, range: rangeBans[$0.id]) }
-            .enumerated()
-            .sorted { lhs, rhs in
-                lhs.element.rank != rhs.element.rank ? lhs.element.rank < rhs.element.rank : lhs.offset < rhs.offset
-            }
-            .map(\.element)
+    /// Rows for the servers (banned first; §66.1 within a rank, more ban verdicts in the last 7 days first;
+    /// otherwise the given order is kept).
+    static func rows(servers: [ServerEntry], rangeBans: [UUID: String] = [:],
+                     recent: [UUID: BanMatrixRecent] = [:]) -> [BanMatrixRow] {
+        servers.map { entry -> BanMatrixRow in
+            var row = row(for: entry, range: rangeBans[entry.id])
+            row.recent = recent[entry.id]
+            return row
+        }
+        .enumerated()
+        .sorted { lhs, rhs in
+            if lhs.element.rank != rhs.element.rank { return lhs.element.rank < rhs.element.rank }
+            let left = lhs.element.recent?.banRuns ?? 0
+            let right = rhs.element.recent?.banRuns ?? 0
+            return left != right ? left > right : lhs.offset < rhs.offset
+        }
+        .map(\.element)
     }
 
     static func row(for entry: ServerEntry, range: String?) -> BanMatrixRow {

@@ -1,7 +1,8 @@
 import AppIntents
 import Foundation
 
-// §41 App Intents / Shortcuts: "Check server ban", "Show my CID", "Refresh".
+// §41 App Intents / Shortcuts: "Check server ban", "Show my CID", "Refresh"; §66.4 "Diagnose Server",
+// "Copy Diagnosis Report".
 // Titles are keys of Localizable.strings (system language); spoken/shown results use the app language (L10n).
 
 /// Where the intents read their data (the live record by default; tests replace it).
@@ -68,6 +69,9 @@ struct IntentError: Error, CustomLocalizedStringResourceConvertible {
         case .ambiguous: return LocalizedStringResource("intent.error.ambiguous")
         case .identityMissing: return LocalizedStringResource("intent.error.identityMissing")
         case .resolution: return LocalizedStringResource("intent.error.resolution")
+        case .noDiagnosis: return LocalizedStringResource("intent.error.noDiagnosis")
+        case .noNetwork: return LocalizedStringResource("intent.error.noNetwork")
+        case .clipboard: return LocalizedStringResource("intent.error.clipboard")
         }
     }
 }
@@ -154,7 +158,71 @@ struct RefreshIntent: AppIntent {
     }
 }
 
-/// Shortcuts and Siri: 3 shortcuts, 6 phrases. Phrases are keys of `AppShortcuts.strings` (tr/en).
+/// §66.4 trend period of the report ("Copy Diagnosis Report").
+extension DiagnosisTrendWindow: AppEnum {
+    static let typeDisplayRepresentation = TypeDisplayRepresentation(name: LocalizedStringResource("diagnose.trend.window"))
+    static let caseDisplayRepresentations: [DiagnosisTrendWindow: DisplayRepresentation] = [
+        .week: DisplayRepresentation(title: LocalizedStringResource("diagnose.trend.window.week")),
+        .month: DisplayRepresentation(title: LocalizedStringResource("diagnose.trend.window.month")),
+        .all: DisplayRepresentation(title: LocalizedStringResource("diagnose.trend.window.all")),
+    ]
+}
+
+/// §66.4 "Diagnose Server": runs the §64 diagnosis in the running app and answers with the verdict and duration
+/// (`CID ban · 1,2 sn`); the history gets the usual `diagnose` line.
+struct DiagnoseServerIntent: AppIntent {
+    static let title = LocalizedStringResource("intent.diagnose.title")
+
+    @Parameter(title: LocalizedStringResource("intent.parameter.server"))
+    var server: ServerEntity
+
+    @Dependency private var model: AppModel
+
+    init() {}
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ReturnsValue<String> & ProvidesDialog {
+        let diagnosis: ConnectionDiagnosis
+        do {
+            diagnosis = try await model.diagnoseForIntent(server.id)
+        } catch let failure as IntentFailure {
+            throw IntentError(failure: failure)
+        }
+        return .result(value: DiagnosisIntentText.result(diagnosis),
+                       dialog: IntentDialog(stringLiteral: DiagnosisIntentText.dialog(label: server.label, diagnosis)))
+    }
+}
+
+/// §66.4 "Copy Diagnosis Report": the report of the server's last diagnosis (masked by default) with the history
+/// of the chosen period goes to the clipboard.
+struct CopyDiagnosisReportIntent: AppIntent {
+    static let title = LocalizedStringResource("intent.copyReport.title")
+
+    @Parameter(title: LocalizedStringResource("intent.parameter.server"))
+    var server: ServerEntity
+
+    @Parameter(title: LocalizedStringResource("intent.parameter.masked"), default: true)
+    var masked: Bool
+
+    @Parameter(title: LocalizedStringResource("diagnose.trend.window"), default: .week)
+    var window: DiagnosisTrendWindow
+
+    @Dependency private var model: AppModel
+
+    init() {}
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        switch await model.copyDiagnosisReportForIntent(server.id, masked: masked, window: window) {
+        case .success(let label):
+            return .result(dialog: IntentDialog(stringLiteral: L10n.format(.intentDialogCopyReport, label)))
+        case .failure(let failure):
+            throw IntentError(failure: failure)
+        }
+    }
+}
+
+/// Shortcuts and Siri: 5 shortcuts, 10 phrases. Phrases are keys of `AppShortcuts.strings` (tr/en).
 struct PlayerIdentityShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: CheckServerBanIntent(),
@@ -166,5 +234,11 @@ struct PlayerIdentityShortcuts: AppShortcutsProvider {
         AppShortcut(intent: RefreshIntent(),
                     phrases: ["intent.phrase.refresh \(.applicationName)", "intent.phrase.refreshBans \(.applicationName)"],
                     shortTitle: LocalizedStringResource("intent.short.refresh"), systemImageName: "arrow.clockwise")
+        AppShortcut(intent: DiagnoseServerIntent(),
+                    phrases: ["intent.phrase.diagnose \(.applicationName)", "intent.phrase.diagnoseConnection \(.applicationName)"],
+                    shortTitle: LocalizedStringResource("intent.short.diagnose"), systemImageName: "stethoscope")
+        AppShortcut(intent: CopyDiagnosisReportIntent(),
+                    phrases: ["intent.phrase.copyReport \(.applicationName)", "intent.phrase.copyDiagnosis \(.applicationName)"],
+                    shortTitle: LocalizedStringResource("intent.short.copyReport"), systemImageName: "doc.on.clipboard")
     }
 }

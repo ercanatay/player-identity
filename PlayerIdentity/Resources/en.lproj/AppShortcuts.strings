@@ -6,3 +6,7 @@
 "intent.phrase.showIdentity ${applicationName}" = "Show my player identity with ${applicationName}";
 "intent.phrase.refresh ${applicationName}" = "Refresh ${applicationName}";
 "intent.phrase.refreshBans ${applicationName}" = "Refresh my ban status with ${applicationName}";
+"intent.phrase.diagnose ${applicationName}" = "Diagnose a server with ${applicationName}";
+"intent.phrase.diagnoseConnection ${applicationName}" = "Diagnose my connection with ${applicationName}";
+"intent.phrase.copyReport ${applicationName}" = "Copy the ${applicationName} diagnosis report";
+"intent.phrase.copyDiagnosis ${applicationName}" = "Copy the diagnosis with ${applicationName}";

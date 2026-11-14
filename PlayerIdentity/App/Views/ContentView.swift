@@ -100,6 +100,12 @@ struct ContentView: View {
             model.handleServerLink(url)
             NSApp.activate()
         }
+        // §66.2 a tapped diagnosis notification opens the server details.
+        .onChange(of: model.requestedServerDetail, initial: true) { _, id in
+            guard let id else { return }
+            model.requestedServerDetail = nil
+            sheet = .details(id)
+        }
         .alert(L10n.text(.serverLinkTitle), isPresented: Binding(
             get: { model.serverLinkOutcome != nil },
             set: { if !$0 { model.serverLinkOutcome = nil } }

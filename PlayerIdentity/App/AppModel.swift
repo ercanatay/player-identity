@@ -857,9 +857,12 @@ final class AppModel {
 
     // MARK: §38 ban matrix
 
-    /// Matrix rows (banned first); range bans come from the history of fix attempts.
+    /// Matrix rows (banned first); range bans come from the history of fix attempts, §66.1 the "Last 7 days"
+    /// column from the `diagnose` lines (§65 trend).
     func banMatrixRows() async -> [BanMatrixRow] {
-        BanMatrix.rows(servers: servers, rangeBans: BanMatrix.rangeBans(from: await loadHistory()))
+        let history = await loadHistory()
+        let recent = BanMatrixRecent.make(entries: history, serverIDs: servers.map(\.id), now: deps.now())
+        return BanMatrix.rows(servers: servers, rangeBans: BanMatrix.rangeBans(from: history), recent: recent)
     }
 
     // MARK: §41 diagnostics
@@ -1838,6 +1841,8 @@ final class AppModel {
 
     private(set) var diagnosisSession: DiagnosisSession?
     @ObservationIgnored private var diagnosisTask: Task<Void, Never>?
+    /// §66.4 the last finished diagnosis per server in this session (details, menu bar or Shortcuts); never saved.
+    @ObservationIgnored private(set) var lastDiagnoses: [UUID: ConnectionDiagnosis] = [:]
 
     func diagnosis(for id: UUID) -> DiagnosisSession? {
         diagnosisSession?.serverID == id ? diagnosisSession : nil
@@ -1877,8 +1882,10 @@ final class AppModel {
                 EngineLogReader.read(dataRoot: root, gamedir: gamedir, fileSystem: fileSystem, redactor: redactor)
             }.value
             try Task.checkCancellation()
+            let durationMs = max(0, Int((diagnoser.now().timeIntervalSince(started) * 1000).rounded()))
             return ConnectionDiagnosis(serverID: entry.id, label: entry.label, host: entry.host, port: entry.port,
-                                       startedAt: started, probe: probe, engineLog: log, publicIP: publicIP)
+                                       startedAt: started, probe: probe, engineLog: log, publicIP: publicIP,
+                                       durationMs: durationMs)
         }
     }
 
@@ -1913,6 +1920,7 @@ final class AppModel {
                 diagnosisSession?.result = diagnosis
                 diagnosisSession?.current = nil
                 diagnosisSession?.isRunning = false
+                lastDiagnoses[id] = diagnosis
                 let line = diagnosis.historyEntry
                 recordHistory { recorder in
                     await recorder.record(line)
@@ -1953,16 +1961,17 @@ final class AppModel {
     func startMenuBarDiagnosis(for id: UUID) -> Task<Void, Never>? {
         guard canDiagnoseFromMenuBar(id), let job = diagnosisJob(for: id) else { return nil }
         menuBarDiagnoses[id] = .running
-        let now = deps.now
         let task = Task {
             defer { menuBarDiagnosisTasks[id] = nil }
             do {
                 let diagnosis = try await job.run()
-                let durationMs = max(0, Int((now().timeIntervalSince(diagnosis.startedAt) * 1000).rounded()))
-                menuBarDiagnoses[id] = .finished(diagnosis.verdict, durationMs: durationMs)
+                menuBarDiagnoses[id] = .finished(diagnosis.verdict, durationMs: diagnosis.durationMs ?? 0)
+                lastDiagnoses[id] = diagnosis
                 let line = diagnosis.historyEntry
+                // §66.2: a range ban carries the "Copy Unban Message" action.
                 let content = MenuBarDiagnosisText.notification(verdict: diagnosis.verdict, server: job.entry,
-                                                                at: diagnosis.startedAt)
+                                                                at: diagnosis.startedAt,
+                                                                appeal: diagnosisAppealText(diagnosis))
                 recordHistory { recorder in
                     await recorder.record(line)
                     return content.map { [$0] } ?? []
@@ -2001,13 +2010,89 @@ final class AppModel {
         return DiagnosisReport.markdown(diagnosis, appVersion: deps.appVersion, masked: masked)
     }
 
+    /// §66.3 the report with the "History (last 10 runs)" table of `window` (after the pending history writes).
+    func diagnosisReport(for id: UUID, masked: Bool = true, window: DiagnosisTrendWindow) async -> String? {
+        guard let diagnosis = diagnosis(for: id)?.result else { return nil }
+        return await report(for: diagnosis, masked: masked, window: window)
+    }
+
+    private func report(for diagnosis: ConnectionDiagnosis, masked: Bool, window: DiagnosisTrendWindow) async -> String {
+        await historyTask?.value
+        let entries = await loadHistory()
+        let history = diagnosis.serverID.map {
+            DiagnosisReportHistory.make(entries: entries, serverID: $0, window: window, now: deps.now())
+        }
+        return DiagnosisReport.markdown(diagnosis, appVersion: deps.appVersion, masked: masked, history: history)
+    }
+
     /// Unban message (§17.9.1) built from the diagnosis evidence when its verdict is a ban.
     func diagnosisAppealText(for id: UUID) -> String? {
-        guard let diagnosis = diagnosis(for: id)?.result, diagnosis.verdict.isBan else { return nil }
+        guard let diagnosis = diagnosis(for: id)?.result else { return nil }
+        return diagnosisAppealText(diagnosis)
+    }
+
+    func diagnosisAppealText(_ diagnosis: ConnectionDiagnosis) -> String? {
+        guard let id = diagnosis.serverID, diagnosis.verdict.isBan else { return nil }
         let status: BanStatus = diagnosis.verdict == .cidBanned ? .cidBanned : .ipBanned
         let evidence = diagnosis.steps.first { $0.detail.hasPrefix("banned") }?.detail
             ?? diagnosis.engineLog.matches.last { $0.pattern.directVerdict != nil }?.line ?? status.rawValue
         return appealText(for: id, check: BanCheck(status: status, checkedAt: diagnosis.startedAt, detail: evidence))
+    }
+
+    // MARK: §66.4 Shortcuts: "Diagnose Server", "Copy Diagnosis Report"
+
+    /// Runs the §64 diagnosis for Shortcuts/Siri: the history gets the same `diagnose` line (the server entry is not
+    /// changed); no notification (the result is the answer). Throws `IntentFailure.noNetwork` without a network,
+    /// `CancellationError` when cancelled (nothing is written then).
+    func diagnoseForIntent(_ id: UUID) async throws -> ConnectionDiagnosis {
+        guard let job = diagnosisJob(for: id) else { throw IntentFailure.serverNotFound(id.uuidString) }
+        let diagnosis = try await job.run()
+        lastDiagnoses[id] = diagnosis
+        let line = diagnosis.historyEntry
+        recordHistory { recorder in
+            await recorder.record(line)
+            return []
+        }
+        if diagnosis.networkUnavailable { throw IntentFailure.noNetwork }
+        return diagnosis
+    }
+
+    /// Copies the report of the server's last diagnosis in this session (masked by default) with the history of
+    /// `window`; returns the label the dialog names.
+    func copyDiagnosisReportForIntent(_ id: UUID, masked: Bool = true,
+                                      window: DiagnosisTrendWindow = .default) async -> Result<String, IntentFailure> {
+        guard let entry = servers.first(where: { $0.id == id }) else { return .failure(.serverNotFound(id.uuidString)) }
+        guard let diagnosis = lastDiagnoses[id] ?? diagnosis(for: id)?.result else { return .failure(.noDiagnosis) }
+        let text = await report(for: diagnosis, masked: masked, window: window)
+        guard deps.pasteboard.write(text) else {
+            logError(.clipboard, "intentCopyDiagnosisReport: pasteboardWriteFailed")
+            return .failure(.clipboard)
+        }
+        return .success(entry.label.isEmpty ? "\(entry.host):\(entry.port)" : entry.label)
+    }
+
+    // MARK: §66.2 notification responses
+
+    /// Server whose details the main window should open (a tapped notification); the window clears it.
+    var requestedServerDetail: UUID?
+
+    /// "Copy Unban Message" copies (nothing opens); a tap opens the server details (nothing is copied).
+    @discardableResult
+    func handleNotificationRoute(_ route: NotificationActions.Route) -> Bool {
+        switch route {
+        case .copy(let text):
+            guard deps.pasteboard.write(text) else {
+                logError(.clipboard, "notificationCopyAppeal: pasteboardWriteFailed")
+                return false
+            }
+            return true
+        case .openServer(let id):
+            guard servers.contains(where: { $0.id == id }) else { return false }
+            requestedServerDetail = id
+            return true
+        case .none:
+            return false
+        }
     }
 
     func serverPageURL(for id: UUID) -> URL? {

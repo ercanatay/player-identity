@@ -12,6 +12,23 @@ enum IntentFailure: Error, Sendable, Equatable {
     /// No identity file: the CID cannot be computed.
     case identityMissing
     case resolution(ResolutionError)
+    /// §66.4 "Copy Diagnosis Report": this server has no diagnosis in the running app yet.
+    case noDiagnosis
+    /// §66.4 "Diagnose Server": no network (no socket could be opened / DNS had no network).
+    case noNetwork
+    /// §66.4 the clipboard did not take the report.
+    case clipboard
+}
+
+/// §66.4 short result text of "Diagnose Server": `CID ban · 1,2 sn` (the menu bar line of §65.2).
+enum DiagnosisIntentText {
+    static func result(_ diagnosis: ConnectionDiagnosis, language: AppLanguage = L10n.currentLanguage) -> String {
+        MenuBarDiagnosisText.line(.finished(diagnosis.verdict, durationMs: diagnosis.durationMs ?? 0), language: language)
+    }
+
+    static func dialog(label: String, _ diagnosis: ConnectionDiagnosis) -> String {
+        L10n.format(.intentDialogDiagnose, label, result(diagnosis))
+    }
 }
 
 /// Finds the server an intent refers to: by id, label (case/diacritic-insensitive), `host[:port]`, or a unique

@@ -6,3 +6,7 @@
 "intent.phrase.showIdentity ${applicationName}" = "${applicationName} ile oyuncu kimliğimi göster";
 "intent.phrase.refresh ${applicationName}" = "${applicationName} durumunu yenile";
 "intent.phrase.refreshBans ${applicationName}" = "${applicationName} ile ban durumumu yenile";
+"intent.phrase.diagnose ${applicationName}" = "${applicationName} ile sunucuyu teşhis et";
+"intent.phrase.diagnoseConnection ${applicationName}" = "${applicationName} ile bağlantımı teşhis et";
+"intent.phrase.copyReport ${applicationName}" = "${applicationName} teşhis raporunu kopyala";
+"intent.phrase.copyDiagnosis ${applicationName}" = "${applicationName} ile teşhisi kopyala";

@@ -84,10 +84,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         model = AppModel(dependencies: dependencies)
         super.init()
-        // §41: the "Refresh" intent uses this model.
+        // §41 / §66.4: the "Refresh", "Diagnose Server" and "Copy Diagnosis Report" intents use this model.
         let model = self.model
         AppDependencyManager.shared.add(dependency: model)
+        // §66.2 notification actions ("Copy Unban Message") and taps (open the server details).
+        if !AppModel.isRunningTests {
+            notificationResponder.install()
+        }
     }
+
+    private lazy var notificationResponder = NotificationResponder(model: model)
 
     /// §30: in menu bar mode closing the window keeps the app running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

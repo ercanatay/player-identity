@@ -471,6 +471,8 @@ struct ConnectionDiagnosis: Sendable, Equatable {
     var engineLog: EngineLogReport
     /// The player's public IP at the time (shown masked by default in the report).
     var publicIP: String?
+    /// §66.3 total run time (probe + engine log) in milliseconds; `nil` when unknown.
+    var durationMs: Int? = nil
 
     var steps: [DiagnosisStep] { probe.steps }
     var probeVerdict: DiagnosisVerdict { probe.verdict }
@@ -479,12 +481,43 @@ struct ConnectionDiagnosis: Sendable, Equatable {
     /// The verdict came from the engine log, not from the probe.
     var verdictFromLog: Bool { verdict != probe.verdict }
 
+    /// §66.4 the run could not reach any network: the socket could not be opened or DNS had no network.
+    var networkUnavailable: Bool {
+        steps.contains { step in
+            step.status == .failed
+                && ((step.step == .a2sInfo && step.detail.hasPrefix("socket:")) || (step.step == .dns && step.detail == "network"))
+        }
+    }
+
     /// History line (§64.1): `new` = verdict, `old` = probe verdict when the engine log overrode it, `note` = steps.
     var historyEntry: HistoryEntry {
         let summary = steps.map { "\($0.step.rawValue)=\($0.status.rawValue)" }.joined(separator: " ")
         return HistoryEntry(ts: startedAt, kind: .diagnose, serverID: serverID, host: "\(host):\(port)",
-                            old: verdictFromLog ? probe.verdict.rawValue : nil, new: verdict.rawValue, note: summary)
+                            old: verdictFromLog ? probe.verdict.rawValue : nil, new: verdict.rawValue, note: summary,
+                            durationMs: durationMs)
     }
+}
+
+// MARK: - §66.2 Range ban note
+
+/// Extra text of the verdict card for `rangeBanned`: renewing the IP is not enough (the `/24` or `/16` range is
+/// blocked), the blocked range when known, and the "Change network" hint (mobile hotspot / VPN with another exit).
+struct RangeBanNote: Sendable, Equatable {
+    let explanation: String
+    let range: String?
+    let hintTitle: String
+    let hint: String
+
+    init?(_ diagnosis: ConnectionDiagnosis) {
+        guard diagnosis.verdict == .rangeBanned else { return nil }
+        explanation = L10n.text(.diagnoseRangeBanExplanation)
+        range = diagnosis.probe.facts.knownRange.map { L10n.format(.diagnoseRangeBanRange, $0) }
+        hintTitle = L10n.text(.diagnoseRangeBanHintTitle)
+        hint = L10n.text(.diagnoseRangeBanHint)
+    }
+
+    /// The texts in reading order (VoiceOver value of the card).
+    var lines: [String] { [explanation] + (range.map { [$0] } ?? []) + [hintTitle, hint] }
 }
 
 // MARK: - §64.5 Shareable report
@@ -502,8 +535,10 @@ enum DiagnosisReport {
     }
 
     /// Markdown report; `masked` (default) hides the full CID and the player's public IP everywhere in it.
+    /// §66.3 with `history`, the header names the period and a "History (last 10 runs)" table (time, verdict,
+    /// duration) follows the diagnosis.
     static func markdown(_ diagnosis: ConnectionDiagnosis, appVersion: String, masked: Bool = true,
-                         timeZone: TimeZone = .current) -> String {
+                         timeZone: TimeZone = .current, history: DiagnosisReportHistory? = nil) -> String {
         let cid = diagnosis.probe.cid
         let ip = diagnosis.publicIP
         func clean(_ text: String) -> String {
@@ -529,6 +564,9 @@ enum DiagnosisReport {
         if let ip {
             lines.append("- \(L10n.text(.networkPublicIP)): `\(masked ? maskIP(ip) : ip)`")
         }
+        if let history {
+            lines.append("- \(L10n.text(.diagnoseTrendWindow)): \(history.window.title)")
+        }
         lines.append("- " + L10n.text(masked ? .diagnoseReportMasked : .diagnoseReportUnmaskedNote))
         lines.append("")
         lines.append("## \(L10n.text(.diagnoseVerdict)): `\(diagnosis.verdict.rawValue)`")
@@ -552,7 +590,27 @@ enum DiagnosisReport {
         lines.append("## " + L10n.text(.diagnoseLogTitle))
         lines.append("")
         lines.append(contentsOf: logLines(diagnosis.engineLog).map { clean($0) })
+        if let history {
+            lines.append("")
+            lines.append(contentsOf: historyLines(history, timeZone: timeZone))
+        }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// §66.3 "History (last 10 runs)": newest first; time, verdict, duration (`—` when the line has none).
+    static func historyLines(_ history: DiagnosisReportHistory, timeZone: TimeZone = .current) -> [String] {
+        var lines = ["## " + L10n.text(.diagnoseReportHistory), ""]
+        guard !history.runs.isEmpty else {
+            lines.append(L10n.text(.diagnoseTrendEmptyWindow))
+            return lines
+        }
+        lines.append("| \(L10n.text(.diagnoseColumnTime)) | \(L10n.text(.diagnoseVerdict)) | \(L10n.text(.diagnoseColumnDuration)) |")
+        lines.append("|---|---|---|")
+        for run in history.runs {
+            let duration = run.durationMs.map { L10n.format(.diagnoseDuration, String($0)) } ?? "—"
+            lines.append("| \(timestamp(run.ts, timeZone: timeZone)) | `\(run.verdict.rawValue)` (\(run.verdict.shortLabel)) | \(duration) |")
+        }
+        return lines
     }
 
     static func logLines(_ log: EngineLogReport) -> [String] {

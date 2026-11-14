@@ -30,7 +30,7 @@ enum HistoryKind: String, Codable, Sendable, CaseIterable {
     case diagnose
 }
 
-/// One line of `history.jsonl`: `{ts, kind, serverID?, host?, old?, new?, note?, profileID?, profileName?}`.
+/// One line of `history.jsonl`: `{ts, kind, serverID?, host?, old?, new?, note?, profileID?, profileName?, durationMs?}`.
 struct HistoryEntry: Codable, Sendable, Equatable {
     var ts: Date
     var kind: HistoryKind
@@ -42,9 +42,11 @@ struct HistoryEntry: Codable, Sendable, Equatable {
     /// §61 profile the entry was written for (name = snapshot at write time); absent in older lines.
     var profileID: UUID?
     var profileName: String?
+    /// §66.3 total duration of a `diagnose` run in milliseconds; absent in other kinds and in older lines.
+    var durationMs: Int?
 
     init(ts: Date, kind: HistoryKind, serverID: UUID? = nil, host: String? = nil,
-         old: String? = nil, new: String? = nil, note: String? = nil) {
+         old: String? = nil, new: String? = nil, note: String? = nil, durationMs: Int? = nil) {
         self.ts = ts
         self.kind = kind
         self.serverID = serverID
@@ -52,6 +54,7 @@ struct HistoryEntry: Codable, Sendable, Equatable {
         self.old = old
         self.new = new
         self.note = note
+        self.durationMs = durationMs
     }
 }
 

@@ -187,6 +187,8 @@ enum Metrics {
         static let cell: CGFloat = 132
         static let range: CGFloat = 156
         static let lastCheck: CGFloat = 148
+        /// §66.1 "Last 7 days" (`3 · CID ban`).
+        static let recent: CGFloat = 116
     }
 
     /// §48.3 Metrics card charts.

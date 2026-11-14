@@ -3,8 +3,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// §38 / §48.2 ban matrix: toolbar (title + count, CSV export, copy), a table card with one row per server
-/// (server | IP ban | CID ban | range | last check), state as chips (icon + text + tint), banned first.
-/// Narrow windows drop the last-check, then the range column; their values move into the row tooltip.
+/// (server | IP ban | CID ban | range | last check | §66.1 last 7 days), state as chips (icon + text + tint), banned
+/// first. Narrow windows drop the last-7-days, then the last-check, then the range column; their values move into
+/// the row tooltip.
 struct BanMatrixView: View {
     @Bindable var model: AppModel
     /// Shown instead of computing from the model (UI evidence).
@@ -101,7 +102,7 @@ struct BanMatrixView: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.card).strokeBorder(Palette.border, lineWidth: Metrics.hairline))
             .accessibilityIdentifier("banMatrixEmpty")
         } else {
-            let columns = BanMatrixLayout.columns(tableWidth: tableWidth)
+            let columns = BanMatrixLayout.columns(tableWidth: tableWidth, recent: true)
             VStack(spacing: 0) {
                 BanMatrixHeader(columns: columns)
                 ScrollView {
@@ -130,7 +131,7 @@ struct BanMatrixView: View {
     }
 
     private func copy() {
-        Pasteboard.copy(CSV.tabSeparated(BanMatrixText.table(rows)))
+        Pasteboard.copy(CSV.tabSeparated(BanMatrixText.tableWithRecent(rows)))
         message = L10n.text(.actionCopied)
         isError = false
     }
@@ -142,7 +143,7 @@ struct BanMatrixView: View {
         panel.nameFieldStringValue = BanMatrixExport.fileName
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try Data(CSV.encode(BanMatrixText.table(rows)).utf8).write(to: url, options: .atomic)
+            try Data(CSV.encode(BanMatrixText.tableWithRecent(rows)).utf8).write(to: url, options: .atomic)
             message = L10n.format(.exportSaved, url.path)
             isError = false
         } catch {
@@ -160,8 +161,15 @@ enum BanMatrixExport {
 
 // MARK: - Layout
 
-enum BanMatrixColumn: CaseIterable, Equatable {
+enum BanMatrixColumn: Equatable {
     case server, ipBan, cidBan, range, lastCheck
+    /// §66.1 "Last 7 days": diagnosis runs + dominant verdict; only in wide windows.
+    case recent
+
+    /// The base columns (§38/§48.2).
+    static let allCases: [BanMatrixColumn] = [.server, .ipBan, .cidBan, .range, .lastCheck]
+    /// The base columns plus §66.1 "Last 7 days".
+    static let withRecent: [BanMatrixColumn] = allCases + [.recent]
 
     var title: String {
         switch self {
@@ -170,6 +178,7 @@ enum BanMatrixColumn: CaseIterable, Equatable {
         case .cidBan: return L10n.text(.banMatrixCIDBan)
         case .range: return L10n.text(.banMatrixRange)
         case .lastCheck: return L10n.text(.banMatrixLastCheck)
+        case .recent: return L10n.text(.banMatrixRecent)
         }
     }
 
@@ -180,17 +189,20 @@ enum BanMatrixColumn: CaseIterable, Equatable {
         case .ipBan, .cidBan: return Metrics.BanMatrix.cell
         case .range: return Metrics.BanMatrix.range
         case .lastCheck: return Metrics.BanMatrix.lastCheck
+        case .recent: return Metrics.BanMatrix.recent
         }
     }
 }
 
 enum BanMatrixLayout {
-    /// Columns dropped first when the table is narrow (last check, then range); server, IP and CID always stay.
-    static let dropOrder: [BanMatrixColumn] = [.lastCheck, .range]
+    /// Columns dropped first when the table is narrow (§66.1 last 7 days, last check, then range); server, IP and
+    /// CID always stay.
+    static let dropOrder: [BanMatrixColumn] = [.recent, .lastCheck, .range]
 
-    /// Visible columns for a table width (card width; rows are inset by 12 pt on each side).
-    static func columns(tableWidth: CGFloat) -> [BanMatrixColumn] {
-        var columns = BanMatrixColumn.allCases
+    /// Visible columns for a table width (card width; rows are inset by 12 pt on each side). `recent` adds the
+    /// §66.1 "Last 7 days" column (dropped first).
+    static func columns(tableWidth: CGFloat, recent: Bool = false) -> [BanMatrixColumn] {
+        var columns = recent ? BanMatrixColumn.withRecent : BanMatrixColumn.allCases
         for column in dropOrder where requiredWidth(columns) > tableWidth {
             columns.removeAll { $0 == column }
         }
@@ -211,6 +223,9 @@ enum BanMatrixLayout {
         }
         if !columns.contains(.lastCheck) {
             lines.append(BanMatrixColumn.lastCheck.title + ": " + BanMatrixText.lastCheck(row.lastCheck))
+        }
+        if !columns.contains(.recent), let recent = row.recent, recent.runs > 0 {
+            lines.append(BanMatrixColumn.recent.title + ": " + recent.text)
         }
         return lines.joined(separator: "\n")
     }
@@ -317,6 +332,20 @@ private struct BanMatrixRowView: View {
                 .help(BanMatrixText.lastCheck(row.lastCheck))
                 .accessibilityLabel(column.title)
                 .accessibilityValue(BanMatrixText.lastCheck(row.lastCheck))
+        case .recent:
+            let text = BanMatrixText.recent(row.recent)
+            let tone = row.recent?.dominant?.level
+            Text(verbatim: text)
+                .font(TypeScale.callout)
+                .fontWeight(tone == .red ? .semibold : .regular)
+                .foregroundStyle(tone?.textColor ?? Palette.text3)
+                .monospacedDigit()
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(column.title + ": " + text)
+                .accessibilityLabel(column.title)
+                .accessibilityValue(text)
+                .accessibilityIdentifier("banMatrixRecent")
         }
     }
 

@@ -80,14 +80,7 @@ struct DiagnosisTrend: Sendable, Equatable {
 
     /// Builds the trend from history lines (any order). Only `diagnose` lines of `serverID` with a known verdict count.
     static func make(entries: [HistoryEntry], serverID: UUID, window: DiagnosisTrendWindow, now: Date) -> DiagnosisTrend {
-        let runs = entries.enumerated()
-            .compactMap { offset, entry -> (offset: Int, ts: Date, verdict: DiagnosisVerdict)? in
-                guard entry.kind == .diagnose, entry.serverID == serverID,
-                      let verdict = entry.new.flatMap(DiagnosisVerdict.init(rawValue:)) else { return nil }
-                return (offset, entry.ts, verdict)
-            }
-            // Chronological; lines with the same time keep their file order.
-            .sorted { $0.ts != $1.ts ? $0.ts < $1.ts : $0.offset < $1.offset }
+        let runs = DiagnosisRun.all(entries: entries, serverID: serverID)
         let inWindow = runs.filter { window.includes($0.ts, now: now) }
         var tally: [DiagnosisVerdict: Int] = [:]
         for run in inWindow { tally[run.verdict, default: 0] += 1 }
@@ -109,6 +102,84 @@ struct DiagnosisTrend: Sendable, Equatable {
     /// VoiceOver value of the strip: the short verdicts, oldest first.
     var stripAccessibilityValue: String {
         strip.map(\.shortLabel).joined(separator: ", ")
+    }
+}
+
+/// One diagnosis run read from a `diagnose` history line (§65 trend, §66 matrix column and report history).
+struct DiagnosisRun: Sendable, Equatable {
+    let ts: Date
+    let verdict: DiagnosisVerdict
+    /// §66.3 total duration; `nil` in lines written before v4.2.
+    let durationMs: Int?
+
+    /// Every run of `serverID` with a known verdict, chronological (lines with the same time keep their file order).
+    static func all(entries: [HistoryEntry], serverID: UUID) -> [DiagnosisRun] {
+        entries.enumerated()
+            .compactMap { offset, entry -> (offset: Int, run: DiagnosisRun)? in
+                guard entry.kind == .diagnose, entry.serverID == serverID,
+                      let verdict = entry.new.flatMap(DiagnosisVerdict.init(rawValue:)) else { return nil }
+                return (offset, DiagnosisRun(ts: entry.ts, verdict: verdict, durationMs: entry.durationMs))
+            }
+            .sorted { $0.run.ts != $1.run.ts ? $0.run.ts < $1.run.ts : $0.offset < $1.offset }
+            .map(\.run)
+    }
+}
+
+// MARK: - §66.1 Ban matrix "Last 7 days" column
+
+/// A server's diagnoses of the last 7 days for the ban matrix: run count and the dominant verdict (most frequent;
+/// ties in `DiagnosisVerdict.allCases` order). Derived from the §65 trend; nothing extra is stored.
+struct BanMatrixRecent: Sendable, Equatable {
+    static let window = DiagnosisTrendWindow.week
+
+    let runs: Int
+    let dominant: DiagnosisVerdict?
+    /// Runs with a ban verdict (secondary sort key of the matrix).
+    let banRuns: Int
+
+    static let empty = BanMatrixRecent(runs: 0, dominant: nil, banRuns: 0)
+
+    init(runs: Int, dominant: DiagnosisVerdict?, banRuns: Int) {
+        self.runs = runs
+        self.dominant = dominant
+        self.banRuns = banRuns
+    }
+
+    init(trend: DiagnosisTrend) {
+        self.init(runs: trend.runs, dominant: trend.counts.first?.verdict,
+                  banRuns: trend.counts.filter(\.verdict.isBan).map(\.count).reduce(0, +))
+    }
+
+    /// Per server, from the history lines (servers without a run in the window get `.empty`).
+    static func make(entries: [HistoryEntry], serverIDs: [UUID], now: Date) -> [UUID: BanMatrixRecent] {
+        let diagnoses = entries.filter { $0.kind == .diagnose }
+        var result: [UUID: BanMatrixRecent] = [:]
+        for id in serverIDs {
+            result[id] = BanMatrixRecent(trend: DiagnosisTrend.make(entries: diagnoses, serverID: id, window: window, now: now))
+        }
+        return result
+    }
+
+    /// `3 · CID ban`, or `—` without runs.
+    var text: String {
+        guard runs > 0, let dominant else { return "—" }
+        return L10n.format(.banMatrixRecentValue, String(runs), dominant.shortLabel)
+    }
+}
+
+// MARK: - §66.3 History table of the report
+
+/// The last (at most) 10 runs of the chosen window for the shareable report, newest first. Times, verdicts and
+/// durations only: no personal data.
+struct DiagnosisReportHistory: Sendable, Equatable {
+    static let limit = 10
+
+    let window: DiagnosisTrendWindow
+    let runs: [DiagnosisRun]
+
+    static func make(entries: [HistoryEntry], serverID: UUID, window: DiagnosisTrendWindow, now: Date) -> DiagnosisReportHistory {
+        let runs = DiagnosisRun.all(entries: entries, serverID: serverID).filter { window.includes($0.ts, now: now) }
+        return DiagnosisReportHistory(window: window, runs: Array(runs.suffix(limit).reversed()))
     }
 }
 
@@ -144,14 +215,19 @@ enum MenuBarDiagnosisText {
 
     /// The single notification of a menu bar diagnosis; only for the ban verdicts. It is a ban notification
     /// (`notifyBanChanges`, quiet hours and the server's §56 override apply); the key carries the run time, so each
-    /// run notifies at most once.
-    static func notification(verdict: DiagnosisVerdict, server: ServerEntry, at date: Date) -> NotificationContent? {
+    /// run notifies at most once. Tapping it opens the server details.
+    /// §66.2 a range ban says "Range ban detected — change your network" and, with an unban message, carries the
+    /// "Copy Unban Message" action (the action copies; a plain tap does not).
+    static func notification(verdict: DiagnosisVerdict, server: ServerEntry, at date: Date,
+                             appeal: String? = nil) -> NotificationContent? {
         guard verdict.isBan else { return nil }
         let key = ["diagnose", server.id.uuidString, verdict.rawValue, String(Int(date.timeIntervalSince1970))]
             .joined(separator: "|")
         let label = server.label.isEmpty ? "\(server.host):\(server.port)" : server.label
-        return NotificationContent(key: key, title: L10n.text(.notifyDiagnoseBanTitle),
+        let range = verdict == .rangeBanned
+        return NotificationContent(key: key, title: L10n.text(range ? .notifyRangeBanTitle : .notifyDiagnoseBanTitle),
                                    body: L10n.format(.notifyServerBody, label, verdict.sentence),
-                                   category: .ban, server: server.notifications)
+                                   category: .ban, server: server.notifications, serverID: server.id,
+                                   copyText: range ? appeal.flatMap { $0.isEmpty ? nil : $0 } : nil)
     }
 }

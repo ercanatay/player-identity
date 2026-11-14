@@ -1078,6 +1078,25 @@ KEYS = [
     ("menuBarDiagnoseRunning", "menuBar.diagnoseRunning", "teşhis sürüyor…", "diagnosing…"),
     ("menuBarDiagnoseResult", "menuBar.diagnoseResult", "%@ · %@ sn", "%@ · %@ s"),
     ("notifyDiagnoseBanTitle", "notify.diagnoseBan.title", "Teşhis: ban bulundu", "Diagnosis: ban found"),
+    ("banMatrixRecent", "banMatrix.recent", "Son 7 gün", "Last 7 days"),
+    ("banMatrixRecentValue", "banMatrix.recentValue", "%@ · %@", "%@ · %@"),
+    ("diagnoseRangeBanExplanation", "diagnose.rangeBan.explanation", "Ban tek bir IP'ye değil, IP aralığınıza (/24 veya /16) uygulanıyor; IP'nizi yenilemek sizi aynı aralıkta tutar, bu yüzden yetmez.", "The ban covers your IP range (/24 or /16), not a single IP; renewing your IP keeps you in the same range, so it is not enough."),
+    ("diagnoseRangeBanRange", "diagnose.rangeBan.range", "Engellenen aralık: %@", "Blocked range: %@"),
+    ("diagnoseRangeBanHintTitle", "diagnose.rangeBan.hintTitle", "Ağı değiştir", "Change network"),
+    ("diagnoseRangeBanHint", "diagnose.rangeBan.hint", "Mobil hotspot'a geçin ya da çıkışı farklı bir aralıkta olan bir VPN kullanın, sonra teşhisi yeniden çalıştırın.", "Switch to a mobile hotspot or a VPN whose exit is in a different range, then run the diagnosis again."),
+    ("notifyRangeBanTitle", "notify.rangeBan.title", "Aralık banı algılandı — ağı değiştirin", "Range ban detected — change your network"),
+    ("diagnoseReportHistory", "diagnose.report.history", "Geçmiş (son 10 çalışma)", "History (last 10 runs)"),
+    ("diagnoseColumnTime", "diagnose.column.time", "Zaman", "Time"),
+    ("intentDiagnoseTitle", "intent.diagnose.title", "Sunucuyu teşhis et", "Diagnose Server"),
+    ("intentCopyReportTitle", "intent.copyReport.title", "Teşhis raporunu kopyala", "Copy Diagnosis Report"),
+    ("intentDiagnoseShort", "intent.short.diagnose", "Bağlantı teşhisi", "Diagnose Connection"),
+    ("intentCopyReportShort", "intent.short.copyReport", "Teşhis raporu", "Diagnosis Report"),
+    ("intentParameterMasked", "intent.parameter.masked", "Maskeli (CID ve IP gizli)", "Masked (CID and IP hidden)"),
+    ("intentDialogDiagnose", "intent.dialog.diagnose", "%@: %@", "%@: %@"),
+    ("intentDialogCopyReport", "intent.dialog.copyReport", "%@ için teşhis raporu panoya kopyalandı.", "The diagnosis report for %@ was copied to the clipboard."),
+    ("intentErrorNoDiagnosis", "intent.error.noDiagnosis", "Bu oturumda bu sunucu için teşhis yok; önce “Sunucuyu teşhis et” kısayolunu çalıştırın.", "There is no diagnosis of this server in this session; run “Diagnose Server” first."),
+    ("intentErrorNoNetwork", "intent.error.noNetwork", "Ağ bağlantısı yok; teşhis yapılamadı.", "No network connection; the diagnosis could not run."),
+    ("intentErrorClipboard", "intent.error.clipboard", "Panoya kopyalanamadı.", "Could not copy to the clipboard."),
 ]
 
 INFOPLIST = {
@@ -1104,6 +1123,16 @@ SHORTCUT_PHRASES = [
      "${applicationName} durumunu yenile", "Refresh ${applicationName}"),
     ("intent.phrase.refreshBans ${applicationName}",
      "${applicationName} ile ban durumumu yenile", "Refresh my ban status with ${applicationName}"),
+    # §66.4 Diagnose server
+    ("intent.phrase.diagnose ${applicationName}",
+     "${applicationName} ile sunucuyu teşhis et", "Diagnose a server with ${applicationName}"),
+    ("intent.phrase.diagnoseConnection ${applicationName}",
+     "${applicationName} ile bağlantımı teşhis et", "Diagnose my connection with ${applicationName}"),
+    # §66.4 Copy diagnosis report
+    ("intent.phrase.copyReport ${applicationName}",
+     "${applicationName} teşhis raporunu kopyala", "Copy the ${applicationName} diagnosis report"),
+    ("intent.phrase.copyDiagnosis ${applicationName}",
+     "${applicationName} ile teşhisi kopyala", "Copy the diagnosis with ${applicationName}"),
 ]
 
 

@@ -187,6 +187,17 @@ enum BanMatrixText {
     static func table(_ rows: [BanMatrixRow]) -> [[String]] {
         BanMatrix.table(rows, header: header) { self.row($0) }
     }
+
+    /// §66.1 the app's CSV / clipboard table: the six columns plus "Last 7 days" (`3 · CID ban` or `—`).
+    static func tableWithRecent(_ rows: [BanMatrixRow], timeZone: TimeZone = .current) -> [[String]] {
+        BanMatrix.table(rows, header: header + [L10n.text(.banMatrixRecent)]) {
+            self.row($0, timeZone: timeZone) + [recent($0.recent)]
+        }
+    }
+
+    static func recent(_ recent: BanMatrixRecent?) -> String {
+        recent?.text ?? "—"
+    }
 }
 
 /// §36 follow-up reminder notification.

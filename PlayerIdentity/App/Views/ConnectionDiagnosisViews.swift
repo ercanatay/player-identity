@@ -13,6 +13,8 @@ struct ConnectionDiagnosisSection: View {
     @State private var unmasked = false
     @State private var confirmUnmasked = false
     @State private var saveError: String?
+    /// §65.1 trend period, also the §66.3 report history period.
+    @State private var window = DiagnosisTrendWindow.default
 
     private var session: AppModel.DiagnosisSession? { model.diagnosis(for: serverID) }
 
@@ -35,7 +37,7 @@ struct ConnectionDiagnosisSection: View {
                 .disabled(session?.isRunning == true)
                 .accessibilityIdentifier("diagnoseStart")
             }
-            DiagnosisTrendView(model: model, serverID: serverID, onStart: restart)
+            DiagnosisTrendView(model: model, serverID: serverID, window: $window, onStart: restart)
             if session == nil {
                 Text(L10n.text(.diagnoseIntro))
                     .font(.caption)
@@ -98,6 +100,9 @@ struct ConnectionDiagnosisSection: View {
                         .font(.caption)
                         .foregroundStyle(Palette.text2)
                 }
+                if let note = RangeBanNote(result) {
+                    rangeBanNote(note)
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -107,8 +112,37 @@ struct ConnectionDiagnosisSection: View {
         .background(RoundedRectangle(cornerRadius: Radius.inner).fill(verdict.level.tint))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.text(.diagnoseVerdict))
-        .accessibilityValue(verdict.sentence + " " + verdict.advice)
+        .accessibilityValue(([verdict.sentence, verdict.advice] + (RangeBanNote(result)?.lines ?? [])).joined(separator: " "))
         .accessibilityIdentifier("diagnoseVerdict")
+    }
+
+    /// §66.2 range ban: why renewing the IP is not enough, the blocked range (if known) and the "Change network" hint.
+    private func rangeBanNote(_ note: RangeBanNote) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(note.explanation)
+                .font(.callout)
+                .foregroundStyle(Palette.text)
+            if let range = note.range {
+                Text(range)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(Palette.text2)
+                    .textSelection(.enabled)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "wifi.exclamationmark")
+                    .foregroundStyle(Palette.redText)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(note.hintTitle).font(.callout.weight(.semibold))
+                    Text(note.hint).font(.caption).foregroundStyle(Palette.text2)
+                }
+            }
+            .padding(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: Radius.inner).fill(Palette.card.opacity(0.7)))
+        }
+        .padding(.top, 4)
+        .accessibilityIdentifier("diagnoseRangeBan")
     }
 
     // MARK: Steps
@@ -233,12 +267,15 @@ struct ConnectionDiagnosisSection: View {
             }
             HStack(spacing: 8) {
                 Button(L10n.text(copiedReport ? .actionCopied : .diagnoseCopy)) {
-                    guard let report = model.diagnosisReport(for: serverID, masked: !unmasked) else { return }
-                    Pasteboard.copy(report)
-                    copiedReport = true
+                    Task {
+                        guard let report = await model.diagnosisReport(for: serverID, masked: !unmasked, window: window)
+                        else { return }
+                        Pasteboard.copy(report)
+                        copiedReport = true
+                    }
                 }
                 .accessibilityIdentifier("diagnoseCopy")
-                Button(L10n.text(.diagnoseSave)) { save(result) }
+                Button(L10n.text(.diagnoseSave)) { Task { await save(result) } }
                     .accessibilityIdentifier("diagnoseSave")
                 Toggle(L10n.text(.diagnoseUnmasked), isOn: Binding(get: { unmasked }, set: { on in
                     if on { confirmUnmasked = true } else { unmasked = false }
@@ -254,8 +291,8 @@ struct ConnectionDiagnosisSection: View {
         .controlSize(.small)
     }
 
-    private func save(_ result: ConnectionDiagnosis) {
-        guard let report = model.diagnosisReport(for: serverID, masked: !unmasked) else { return }
+    private func save(_ result: ConnectionDiagnosis) async {
+        guard let report = await model.diagnosisReport(for: serverID, masked: !unmasked, window: window) else { return }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
         panel.canCreateDirectories = true
@@ -276,9 +313,9 @@ struct ConnectionDiagnosisSection: View {
 struct DiagnosisTrendView: View {
     @Bindable var model: AppModel
     let serverID: UUID
+    @Binding var window: DiagnosisTrendWindow
     let onStart: () -> Void
 
-    @State private var window = DiagnosisTrendWindow.default
     @State private var trend: DiagnosisTrend?
 
     private struct LoadKey: Equatable {

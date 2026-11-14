@@ -127,12 +127,14 @@ final class InterfaceV22Tests: XCTestCase {
         let metadata = resources.appendingPathComponent("Metadata.appintents/extract.actionsdata")
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: metadata)) as? [String: Any])
         let actions = try XCTUnwrap(object["actions"] as? [String: Any])
-        XCTAssertEqual(Set(actions.keys), ["CheckServerBanIntent", "ShowCIDIntent", "RefreshIntent"])
+        // §66.4 adds "Diagnose Server" and "Copy Diagnosis Report".
+        XCTAssertEqual(Set(actions.keys), ["CheckServerBanIntent", "ShowCIDIntent", "RefreshIntent",
+                                           "DiagnoseServerIntent", "CopyDiagnosisReportIntent"])
         let shortcuts = try XCTUnwrap(object["autoShortcuts"] as? [[String: Any]])
-        XCTAssertEqual(shortcuts.count, 3)
+        XCTAssertEqual(shortcuts.count, 5)
         let phraseKeys = shortcuts.flatMap { ($0["phraseTemplates"] as? [[String: Any]] ?? []).compactMap { $0["key"] as? String } }
         let shortTitles = shortcuts.compactMap { ($0["shortTitle"] as? [String: Any])?["key"] as? String }
-        XCTAssertEqual(phraseKeys.count, 6)                    // 2 phrases per shortcut
+        XCTAssertEqual(phraseKeys.count, 10)                   // 2 phrases per shortcut
         XCTAssertTrue(shortcuts.allSatisfy { ($0["phraseTemplates"] as? [Any])?.count == 2 })
 
         let keys = Set(L10nKey.allCases.map(\.rawValue))
@@ -149,11 +151,12 @@ final class InterfaceV22Tests: XCTestCase {
                 XCTAssertTrue(value.contains("${applicationName}"), "\(language) \(key)")
                 XCTAssertFalse(value.hasPrefix("intent."), "\(language) \(key)")
             }
-            XCTAssertEqual(Set(phrases.values).count, 6, language)   // all different
+            XCTAssertEqual(Set(phrases.values).count, 10, language)  // all different
             let expected = language == "tr"
                 ? ["sunucu banını kontrol et", "ban kontrolü", "CID'imi göster", "oyuncu kimliğimi göster",
-                   "durumunu yenile", "ban durumumu yenile"]
-                : ["Check server ban", "ban check", "Show my CID", "Show my player identity", "Refresh ", "Refresh my ban status"]
+                   "durumunu yenile", "ban durumumu yenile", "sunucuyu teşhis et", "teşhis raporunu kopyala"]
+                : ["Check server ban", "ban check", "Show my CID", "Show my player identity", "Refresh ", "Refresh my ban status",
+                   "Diagnose a server", "diagnosis report"]
             for fragment in expected {
                 XCTAssertTrue(phrases.values.contains { $0.contains(fragment) }, "\(language): \(fragment)")
             }

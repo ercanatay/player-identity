@@ -26,6 +26,48 @@ struct NotificationContent: Sendable, Equatable {
     var category: NotificationCategory = .general
     /// §56 override of the server the notification is about (`nil` = general settings only).
     var server: ServerNotificationSettings? = nil
+    /// §66.2 server the notification is about: tapping it opens the server details.
+    var serverID: UUID? = nil
+    /// §66.2 text of the "Copy Unban Message" action; `nil` = no action button.
+    var copyText: String? = nil
+}
+
+/// §66.2 notification actions: category/action identifiers, the `userInfo` payload and what a response does.
+enum NotificationActions {
+    static let copyCategory = "tr.ercanatay.playeridentity.copyAppeal"
+    static let copyAction = "copyAppeal"
+    static let serverKey = "serverID"
+    static let copyTextKey = "copyText"
+
+    /// What answering a notification does.
+    enum Route: Equatable, Sendable {
+        /// The "Copy Unban Message" button: the text goes to the clipboard.
+        case copy(String)
+        /// A tap on the notification: the server details open (nothing is copied).
+        case openServer(UUID)
+        case none
+    }
+
+    static func userInfo(_ content: NotificationContent) -> [String: String] {
+        var info: [String: String] = [:]
+        if let id = content.serverID { info[serverKey] = id.uuidString }
+        if let text = content.copyText { info[copyTextKey] = text }
+        return info
+    }
+
+    static func categoryIdentifier(_ content: NotificationContent) -> String? {
+        content.copyText == nil ? nil : copyCategory
+    }
+
+    static func route(actionIdentifier: String, userInfo: [AnyHashable: Any]) -> Route {
+        if actionIdentifier == copyAction {
+            guard let text = userInfo[copyTextKey] as? String, !text.isEmpty else { return .none }
+            return .copy(text)
+        }
+        guard actionIdentifier == UNNotificationDefaultActionIdentifier,
+              let id = (userInfo[serverKey] as? String).flatMap(UUID.init(uuidString:)) else { return .none }
+        return .openServer(id)
+    }
 }
 
 /// Does nothing (default in tests and when notifications are unavailable).
@@ -56,6 +98,8 @@ struct SystemNotifier: UserNotifying {
         let message = UNMutableNotificationContent()
         message.title = content.title
         message.body = content.body
+        message.userInfo = NotificationActions.userInfo(content)
+        if let category = NotificationActions.categoryIdentifier(content) { message.categoryIdentifier = category }
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: message, trigger: nil)
         try await UNUserNotificationCenter.current().add(request)
     }
