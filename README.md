@@ -62,13 +62,16 @@ folder (`profile.json`, history, metrics, updates).
 ## What's new in v2.17.0
 
 - **26 languages**: Azerbaijani and Vietnamese are now part of the interface, matching cybokron.com's language set exactly.
-- **Localized Siri phrases** and **race-free history writes**: App Intent phrases now follow the interface language, and rows added during a refresh are never lost.
+
+## What's new in v2.16.0
+
+- **Siri phrases in 24 languages** and **race-free history writes**: App Intent phrases now follow the interface language, and rows added during a refresh are never lost.
 
 - **Diagnosis trend in the ban matrix**: a "Last 7 days" column summarises each server's recent diagnoses; `rangeBanned` results now explain the `/24`–`/16` range; reports include the last 10 runs; and Shortcuts gains "Diagnose Server" / "Copy Diagnosis Report".
 
 - **Diagnosis trend and menu bar diagnosis**: see how a server has behaved over the last 7/30 days (verdict counts + a strip of the last 10 runs) and start a diagnosis straight from the menu bar, with an inline verdict and a single notification for ban results.
 - **Connection diagnosis**: one button runs DNS → A2S_INFO → getchallenge → connect 49 and explains the result in plain language, with the engine's own log lines as evidence and a masked report you can paste into a forum or an admin message.
-- **Full localization**: the entire interface is now localized, matching cybokron.com, with native language names, `en` fallback and RTL support.
+- **24 languages**: the entire interface is now available in 24 languages, matching cybokron.com, with native language names, `en` fallback and RTL support.
 - **Profiles**: keep several identities side by side (data root + gamedir) and switch from the toolbar; existing records migrate to a `Default` profile.
 - **Ban-list templates**: ready-made URL templates (SourceBans++, AMXBans, HLstatsX, generic CID/IP) with placeholder validation and "apply to all servers".
 - **Menu bar quick actions**: copy the selected server's CID or the raw identity, re-check a server, with an inline confirmation.
