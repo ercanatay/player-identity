@@ -36,6 +36,8 @@
 		<string>ja</string>
 		<string>ko</string>
 		<string>id</string>
+		<string>az</string>
+		<string>vi</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>

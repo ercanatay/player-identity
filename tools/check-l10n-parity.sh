@@ -9,7 +9,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RESOURCES="$ROOT/PlayerIdentity/Resources"
-LANGUAGES="tr en de fr es it pt nl sv pl cs ro hu el bg uk ru ar fa hi zh-Hans ja ko id"
+LANGUAGES="tr en de fr es it pt nl sv pl cs ro hu el bg uk ru ar fa hi zh-Hans ja ko id az vi"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

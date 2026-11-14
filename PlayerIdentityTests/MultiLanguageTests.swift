@@ -1,15 +1,15 @@
 import XCTest
 @testable import PlayerIdentity
 
-/// §62: the 24-language set — tables, format specifiers, empty values, system fallback, literal scan and live switching.
+/// §62: the 26-language set — tables, format specifiers, empty values, system fallback, literal scan and live switching.
 @MainActor
 final class MultiLanguageTests: XCTestCase {
     private static let codes = ["tr", "en", "de", "fr", "es", "it", "pt", "nl", "sv", "pl", "cs", "ro", "hu", "el", "bg",
-                                "uk", "ru", "ar", "fa", "hi", "zh-Hans", "ja", "ko", "id"]
+                                "uk", "ru", "ar", "fa", "hi", "zh-Hans", "ja", "ko", "id", "az", "vi"]
     private static let nativeNames = ["Türkçe", "English", "Deutsch", "Français", "Español", "Italiano", "Português",
                                       "Nederlands", "Svenska", "Polski", "Čeština", "Română", "Magyar", "Ελληνικά",
                                       "Български", "Українська", "Русский", "العربية", "فارسی", "हिन्दी", "简体中文",
-                                      "日本語", "한국어", "Bahasa Indonesia"]
+                                      "日本語", "한국어", "Bahasa Indonesia", "Azərbaycanca", "Tiếng Việt"]
     private static let specifier = try! NSRegularExpression(
         pattern: #"%(?:\d+\$)?[-+ #0']*\d*(?:\.\d+)?(?:hh|h|ll|l|q|z|t|j|L)?([@dDiuUxXoOfFeEgGcCsSpaA%])"#)
 
@@ -34,7 +34,7 @@ final class MultiLanguageTests: XCTestCase {
 
     // MARK: Language set
 
-    func testTwentyFourLanguagesWithNativeNames() {
+    func testTwentySixLanguagesWithNativeNames() {
         XCTAssertEqual(AppLanguage.allCases.map(\.rawValue), Self.codes)
         XCTAssertEqual(AppLanguage.allCases.map(\.nativeName), Self.nativeNames)
         XCTAssertEqual(AppLanguageSetting.allCases.map(\.rawValue), ["system"] + Self.codes)
@@ -146,7 +146,7 @@ final class MultiLanguageTests: XCTestCase {
             let expected = try table("Localizable", language.rawValue)[L10nKey.actionRefresh.rawValue]
             XCTAssertEqual(L10n.text(.actionRefresh), expected, language.rawValue)
         }
-        XCTAssertEqual(environment.defaults.string(forKey: DefaultsKey.appLanguage), "id")
+        XCTAssertEqual(environment.defaults.string(forKey: DefaultsKey.appLanguage), "vi")
         model.appLanguage = .zhHans
         XCTAssertEqual(environment.makeModel().appLanguage, .zhHans)
         model.appLanguage = .tr

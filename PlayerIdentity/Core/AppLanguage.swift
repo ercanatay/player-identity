@@ -26,6 +26,8 @@ enum AppLanguage: String, CaseIterable, Sendable {
     case ja
     case ko
     case id
+    case az
+    case vi
 
     /// The language's own name (Deutsch, Nederlands, …; §62) from the unlocalized `LanguageNames.strings`.
     var nativeName: String { Self.nativeNames[rawValue] ?? rawValue }
@@ -76,6 +78,8 @@ enum AppLanguageSetting: String, CaseIterable, Sendable {
     case ja
     case ko
     case id
+    case az
+    case vi
 
     /// Missing or corrupt values count as `system`.
     init(stored: String?) {

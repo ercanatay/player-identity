@@ -1,11 +1,11 @@
 import XCTest
 @testable import PlayerIdentity
 
-/// §63: the 24-language l10n tool chain (`tools/l10n_keys.py` + `tools/l10n/<lang>.json`), run on a temporary copy
+/// §63: the 26-language l10n tool chain (`tools/l10n_keys.py` + `tools/l10n/<lang>.json`), run on a temporary copy
 /// of the tools taken from the test bundle (never the repository itself).
 final class LocalizationToolingTests: XCTestCase {
     private static let codes = ["tr", "en", "de", "fr", "es", "it", "pt", "nl", "sv", "pl", "cs", "ro", "hu", "el", "bg",
-                                "uk", "ru", "ar", "fa", "hi", "zh-Hans", "ja", "ko", "id"]
+                                "uk", "ru", "ar", "fa", "hi", "zh-Hans", "ja", "ko", "id", "az", "vi"]
     private static let jsonCodes = Array(codes.dropFirst(2))
     private static let specifier = try! NSRegularExpression(
         pattern: #"%(?:\d+\$)?[-+ #0']*\d*(?:\.\d+)?(?:hh|h|ll|l|q|z|t|j|L)?([@dDiuUxXoOfFeEgGcCsSpaA%])"#)
