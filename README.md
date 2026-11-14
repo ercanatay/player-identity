@@ -57,7 +57,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.14.0
+## What's new in v2.15.0
+
+- **Diagnosis trend in the ban matrix**: a "Last 7 days" column summarises each server's recent diagnoses; `rangeBanned` results now explain the `/24`–`/16` range; reports include the last 10 runs; and Shortcuts gains "Diagnose Server" / "Copy Diagnosis Report".
 
 - **Diagnosis trend and menu bar diagnosis**: see how a server has behaved over the last 7/30 days (verdict counts + a strip of the last 10 runs) and start a diagnosis straight from the menu bar, with an inline verdict and a single notification for ban results.
 - **Connection diagnosis**: one button runs DNS → A2S_INFO → getchallenge → connect 49 and explains the result in plain language, with the engine's own log lines as evidence and a masked report you can paste into a forum or an admin message.
@@ -729,7 +731,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **828 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **844 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### Adding a string
@@ -773,7 +775,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 828 tests on `macos-26` |
+| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 844 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -787,7 +789,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      tr/en Localizable.strings, AppShortcuts.strings
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (828)
+PlayerIdentityTests/      Unit tests (844)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

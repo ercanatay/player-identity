@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.15.0] - 2026-11-14
+
+### Added
+- **Diagnosis trend in the ban matrix** (spec §66): a "Last 7 days" column shows the run count and the dominant verdict per server (`3 · CID ban`), included in CSV and copy output.
+- **Range-ban alert**: a `rangeBanned` verdict explains that the ban covers the whole `/24`–`/16` range and that renewing the IP is not enough; the notification carries a "Copy Unban Message" action.
+- **Diagnosis history in reports**: shared Markdown reports now include a "History (last 10 runs)" table and the selected window.
+- **Shortcuts actions**: "Diagnose Server" and "Copy Diagnosis Report" App Intents with localized Siri phrases.
+- All new strings are localized into 24 languages.
+
 ## [2.14.0] - 2026-11-13
 
 ### Added
@@ -210,6 +219,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.15.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.15.0
 [2.14.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.14.0
 [2.13.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.13.0
 [2.12.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.12.0

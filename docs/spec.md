@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.1 · Tarih: 2026-11-13 · Durum: uygulanacak (v4.0 → v4.1: §65 teşhis trendi + menü çubuğundan teşhis)
+Sürüm: 4.2 · Tarih: 2026-11-14 · Durum: uygulanacak (v4.1 → v4.2: §66 ban matrisinde trend, aralık banı uyarısı, raporda trend, teşhis kısayolları)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1435,3 +1435,28 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 
 ### 65.3 Testler
 (a) pencere filtreleri (7/30/tümü) ve saat sınırları, (b) hüküm sayımı ve şerit sırası, (c) boş durum, (d) menü modeli: öğe varlığı/sırası, "sürüyor" durumu, sonuç satırı, (e) bildirim yalnız ban hükümlerinde ve sessiz saat/eşiklerle, (f) ağ yok — sahte taşıyıcı, (g) 24 dilde yeni anahtarların eşitliği.
+
+## 66. Teşhisin devamı (v4.2)
+### 66.1 Ban matrisinde teşhis trendi
+- Ban matrisine **"Son 7 gün"** kolonu eklenir: o sunucudaki son 7 günün teşhis özeti — toplam çalışma + baskın hüküm kısaltması (ör. `3 · CID ban`); çalışma yoksa `—`.
+- Sıralama ve CSV kopyalama bu kolonu içerir; kolon dar pencerede gizlenebilir (mevcut davranış), geniş pencerede görünür.
+- Veri §65 trendinden türetilir; ek depolama yok.
+
+### 66.2 Aralık banı uyarısı
+- Teşhis hükmü `rangeBanned` olduğunda hüküm kartı ek bir açıklama ve **"Ağı değiştir"** ipucu gösterir: IP yenilemenin yetmediği, `/24` veya `/16` aralığının engellendiği, mobil hotspot ya da farklı çıkışlı VPN gerektiği.
+- Bildirim: `rangeBanned` için metin "Aralık banı algılandı — ağı değiştirin" + **"Unban mesajını kopyala"** eylemi (kullanıcı bildirime dokununca sunucu detayı açılır ve mesaj panoya kopyalanmaz; eylem düğmesi varsa doğrudan kopyalar).
+- Aynı çalışma için tek bildirim; sessiz saat ve sunucu ayarları geçerli.
+
+### 66.3 Rapor içinde trend
+- Paylaşılabilir Markdown raporu, teşhis bölümünün altına **"History (last 10 runs)"** tablosu ekler: zaman, hüküm, süre.
+- Maskeleme kuralları aynı (CID/IP maskeli); trend tablosu kişisel veri içermez.
+- Rapor başlığına pencere bilgisi yazılır (7/30 gün seçimi).
+
+### 66.4 Kısayollar / Siri
+- App Intents: **"Diagnose Server"** (sunucu seçimi; sonuç döner) ve **"Copy Diagnosis Report"** (son teşhisin maskeli raporunu panoya kopyalar).
+- Parametreler: sunucu (`host:port` veya kayıtlı sunucu seçimi), maskeleme (varsayılan açık), pencere (7/30/tümü — yalnız rapor için).
+- Sonuç: kısa metin (hüküm + süre) ve hata durumunda açık mesaj; ağ yoksa hata.
+- Intents 24 dilde yerelleştirilir; Kısayollar uygulamasında görünmesi için uygulama bir kez açılmalıdır (dokümanda not).
+
+### 66.5 Testler
+(a) ban matrisi kolonu (dolu/boş, dar pencere, CSV), (b) `rangeBanned` kart metni + bildirim + eylem, (c) rapor trend tablosu + maskeleme + pencere başlığı, (d) intents parametreleri ve sonuç metni, (e) 24 dilde anahtar eşitliği, (f) ağ yok.
