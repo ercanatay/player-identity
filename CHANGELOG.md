@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.17.1] - 2026-11-17
+
+### Fixed
+- **Right-to-left layout now follows the app language** (not the system language): selecting Arabic or Persian mirrors the whole interface even on an English macOS.
+- **Long labels are guarded by a test**: 26 languages are checked against a 190 pt label width, and four translations were shortened (pt/el/uk "copy raw ID", ru "connection diagnosis").
+
+### Changed
+- Release notes are generated from `CHANGELOG.md` by `scripts/release-notes.sh` (screenshots and SHA-256 included), so every release body stays consistent.
+
 ## [2.17.0] - 2026-11-14
 
 ### Added
@@ -232,6 +241,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.17.1]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.1
 [2.17.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.0
 [2.16.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.16.0
 [2.15.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.15.0

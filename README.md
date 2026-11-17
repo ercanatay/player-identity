@@ -59,9 +59,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.17.0
+## What's new in v2.17.1
 
-- **26 languages**: Azerbaijani and Vietnamese join the interface, matching cybokron.com's language set exactly.
+- **RTL and layout guards**: Arabic and Persian mirror the interface even when macOS is in English, and a 26-language label-width test keeps long translations from breaking buttons.
 
 Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -658,7 +658,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **850 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **855 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### Adding a string
@@ -702,7 +702,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 850 tests on `macos-26` |
+| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 855 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -716,7 +716,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      Localizable.strings, AppShortcuts.strings, InfoPlist.strings (26 languages)
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (850)
+PlayerIdentityTests/      Unit tests (855)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask
