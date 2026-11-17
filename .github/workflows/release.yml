@@ -104,17 +104,7 @@ jobs:
             *) SIGNING="Ad-hoc signed, **not notarized** (signing secrets missing): right-click → Open on first launch." ;;
           esac
           NOTES="$RUNNER_TEMP/notes.md"
-          {
-            echo "## Cybokron Player Identity $VERSION"
-            echo
-            echo "**Signing:** $SIGNING"
-            echo
-            if [ -f "docs/release-notes/$GITHUB_REF_NAME.md" ]; then cat "docs/release-notes/$GITHUB_REF_NAME.md"; echo; fi
-            echo "### SHA-256"
-            echo '```'
-            cat dist/SHA256SUMS.txt
-            echo '```'
-          } > "$NOTES"
+          scripts/release-notes.sh "$VERSION" --out "$NOTES" --signing "$SIGNING"
           gh release create "$GITHUB_REF_NAME" "$ZIP" dist/SHA256SUMS.txt \
             --title "Cybokron Player Identity $VERSION" --verify-tag --notes-file "$NOTES"
 

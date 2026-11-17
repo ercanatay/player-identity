@@ -730,6 +730,7 @@ scripts/                  release, cask, CLI smoke, spec sync, icon tooling
 
 - Every `vX.Y.Z` tag builds and publishes a **signed, notarized** ZIP plus `SHA256SUMS.txt`.
 - Release history is kept in [`CHANGELOG.md`](CHANGELOG.md) (Keep a Changelog format).
+- Release notes are generated from the changelog by `scripts/release-notes.sh <version>` (used by the release workflow).
 - The cask lives in this repository (`Casks/`) and the release workflow keeps it current.
 - The Homebrew tap is the separate [`ercanatay/homebrew-tap`](https://github.com/ercanatay/homebrew-tap) repository.
   Automatic sync runs through a **deploy key** (`TAP_DEPLOY_KEY` secret, write access on the tap repo); `TAP_TOKEN`
