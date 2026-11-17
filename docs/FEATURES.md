@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.17.1** (855 automated tests), against behaviour specification **v4.4** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.18.0** (879 automated tests), against behaviour specification **v4.5** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -19,7 +19,7 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Languages** | 26 languages (977 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
-| **Tests** | 855 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Tests** | 879 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -606,6 +606,10 @@ When a server refuses a connection, the engine usually says nothing useful. **Di
 - **Range-ban alert:** when the verdict is `rangeBanned`, the card explains that the whole `/24`–`/16` range is blocked and that renewing the IP is not enough; the notification offers a "Copy Unban Message" action.
 - **Report history:** the shared report ends with a "History (last 10 runs)" table (time, verdict, duration) and states the selected window.
 - **Shortcuts:** "Diagnose Server" returns the verdict and duration; "Copy Diagnosis Report" copies the masked report. Launch the app once so macOS indexes the actions.
+- **CLI:** `diagnose`, `trend` and `report` commands with `--json` (`schemaVersion: 1`) and exit codes `0/4/1/2/3` for scripting.
+- **Launch with logging:** a button opens Xash3D with `-condebug` and confirms when `qconsole.log` appears.
+- **Launch summary:** if a server collected two or more ban verdicts in the last 7 days, the main window opens with a summary card, dismissible for the day.
+- **Spotlight:** servers are indexed in Spotlight and open the matching detail view.
 - **Limits:** the app never lifts a ban; verdicts rest on server responses and the engine log, never on guesses.
 
 ## Updates

@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.4 · Tarih: 2026-11-14 · Durum: uygulanacak (v4.3 → v4.4: §62.2 az + vi ile 26 dil, cybokron.com ile tam eşleşme)
+Sürüm: 4.5 · Tarih: 2026-11-17 · Durum: uygulanacak (v4.4 → v4.5: §67 CLI teşhis/trend/rapor, condebug başlatıcı, açılış özeti, Spotlight)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1476,3 +1476,31 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 - Yeni diller için `Localizable.strings` (977 anahtar), `AppShortcuts.strings` (10 cümle) ve `InfoPlist.strings` üretilir; `az`/`vi` için ürün adı "Cybokron Player Identity".
 - `tools/l10n/az.json` + `tools/l10n/vi.json` ve `tools/l10n/shortcuts/az.json` + `.../vi.json` kaynakları eklenir; önce `en` yer tutucu, sonra dil başına tek çevirmen çağrısı.
 - `CFBundleLocalizations`, Ayarlar dil listesi, `--check`, parity ve testler 26 dili kapsar.
+
+## 67. Sprint 1 — otomasyon ve macOS entegrasyonu (v4.5)
+### 67.1 CLI: `diagnose`, `trend`, `report`
+- `playeridentityctl diagnose <host:port|index> [--timeout <sn>] [--json] [--fail-on-ban]`:
+  - §64 sonda dizisini çalıştırır; metin çıktısı: hüküm + adımlar (süre/hedef) + günlük eşleşmeleri.
+  - `--json`: `schemaVersion: 1`, `verdict`, `steps[]`, `engineLog`, `server{host,port}`.
+  - Çıkış kodları: **0** başarı (ban olsa da), **4** yalnız `--fail-on-ban` ile ban hükmünde, **1** kullanım, **2** ağ/doğrulama, **3** sunucu bulunamadı.
+- `playeridentityctl trend <host:port|index> [--days 7|30|all] [--json]`: çalışma sayısı, hüküm sayıları, son 10 şerit; `--json` aynı alanları taşır; veri yoksa **0** + boş sonuç.
+- `playeridentityctl report <host:port|index> [--days …] [--unmasked] [--out <path>|-]`: §64.5 Markdown raporu; varsayılan maskeli; `--out -` stdout.
+- Tümü Core'u kullanır; ağ yalnız `diagnose`'da.
+
+### 67.2 `-condebug` başlatıcı
+- Teşhis bölümünde **"Oyunu günlükle başlat"** düğmesi: Xash3D'yi `-condebug` argümanıyla açar (NSWorkspace, `/Applications/Xash3D-FWGS.app`).
+- Oyun çalışıyorsa düğme pasif + açıklama; başlatma hatası kullanıcıya gösterilir ve `ErrorLog`'a yazılır.
+- Başlatma sonrası 10 sn içinde `qconsole.log` oluşursa "günlük etkin" durumu; oluşmazsa yol ipucu (gamedir + dosya adı).
+- Testler: sahte launcher (argüman doğrulama), oyun çalışırken engel, hata yolu, günlük tespiti.
+
+### 67.3 Açılış özeti
+- Uygulama açılışında son **7 gün** trendi taranır; bir sunucuda **≥2 ban hükmü** (`ipBanned`/`cidBanned`/`rangeBanned`) varsa ana pencerede üstte kart: "`<sunucu>`: son 7 günde `N` ban" + "Ayrıntılar" düğmesi (sunucu detayı/trend).
+- Kart o gün için **kapatılabilir** (UserDefaults'ta tarih); ertesi gün yeniden değerlendirilir.
+- Veri yoksa kart görünmez; hesap ağı kullanmaz.
+- Testler: eşik (1 ban → kart yok, 2 ban → kart), kapatma kalıcılığı (aynı gün/ertesi gün), sunucu seçimi (en çok banlı), düğme hedefi.
+
+### 67.4 Spotlight indeksleme
+- Sunucular `CoreSpotlight` ile indekslenir: başlık = etiket (yoksa `host:port`), açıklama = `host:port · CID` (CID kısaltılmış), `domainIdentifier` sabit.
+- Sunucu ekleme/adlandırma/silme ve "tüm verileri sil" indeksi günceller; indeksleme hatası sessiz yutulmaz (`ErrorLog` `spotlight` alanı).
+- Spotlight sonucuna tıklama uygulamayı açar ve ilgili sunucu detayını gösterir (`NSUserActivity`/`CSSearchableItem` activity).
+- Testler: ekle/güncelle/sil çağrıları (sahte indeksleyici), etiket/kısaltma biçimi, hata kaydı, açma eşlemesi.

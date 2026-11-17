@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.17.1** (855 otomatik test) için, davranış spesifikasyonu **v4.4** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.18.0** (879 otomatik test) için, davranış spesifikasyonu **v4.5** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -21,7 +21,7 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Diller** | 26 dil (dil başına 977 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
-| **Testler** | Ana şemada 855 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
+| **Testler** | Ana şemada 879 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
 | **Sandbox** | Korumalı alanda değil (oyun klasörüne ve `/Applications` altında kendi kendini güncellemeye ihtiyaç duyar); hardened runtime etkindir |
 | **Telemetri** | Yok |
 | **Lisans** | MIT |
@@ -608,6 +608,10 @@ Bir sunucu bağlantıyı reddettiğinde motor genellikle işe yarar bir şey sö
 - **Aralık banı uyarısı:** karar `rangeBanned` olduğunda kart, `/24`–`/16` aralığının tamamının engellendiğini ve IP'yi yenilemenin yetmediğini açıklar; bildirim "Ban kaldırma mesajını kopyala" eylemini sunar.
 - **Rapor geçmişi:** paylaşılan rapor "Geçmiş (son 10 çalıştırma)" tablosuyla (zaman, karar, süre) biter ve seçili pencereyi belirtir.
 - **Kısayollar:** "Sunucuyu teşhis et" kararı ve süreyi döndürür; "Teşhis raporunu kopyala" maskelenmiş raporu kopyalar. macOS'un eylemleri indekslemesi için uygulamayı bir kez açın.
+- **CLI:** `diagnose`, `trend` ve `report` komutları; betiklerde kullanım için `--json` (`schemaVersion: 1`) ve `0/4/1/2/3` çıkış kodları.
+- **Günlükle başlatma:** bir düğme Xash3D'yi `-condebug` ile açar ve `qconsole.log` göründüğünde onaylar.
+- **Açılış özeti:** bir sunucu son 7 günde iki veya daha fazla ban kararı topladıysa ana pencere özet kartıyla açılır; gün için gizlenebilir.
+- **Spotlight:** sunucular Spotlight'ta dizinlenir ve ilgili ayrıntı görünümünü açar.
 - **Limitler:** uygulama hiçbir banı kaldırmaz; teşhisler tahmine değil, sunucu yanıtlarına ve motor günlüğüne dayanır.
 
 ## Güncellemeler

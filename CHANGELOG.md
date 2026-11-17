@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.18.0] - 2026-11-17
+
+### Added
+- **CLI diagnosis tools** (spec §67): `diagnose`, `trend` and `report` commands with `--json` (`schemaVersion: 1`) and exit codes `0/4/1/2/3`, so the app can be automated from scripts.
+- **Launch the game with logging**: one button opens Xash3D with `-condebug` and confirms when `qconsole.log` appears.
+- **Launch summary**: if a server collected two or more ban verdicts in the last seven days, the main window opens with a summary card (dismissible for the day).
+- **Spotlight indexing**: servers are searchable in Spotlight and open the matching detail view.
+
 ## [2.17.1] - 2026-11-17
 
 ### Fixed
@@ -241,6 +249,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.18.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.18.0
 [2.17.1]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.1
 [2.17.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.0
 [2.16.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.16.0
