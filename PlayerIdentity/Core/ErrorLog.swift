@@ -12,6 +12,10 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     case login
     /// §60: a menu bar copy did not reach the clipboard.
     case clipboard
+    /// §67.2: "Launch Game with Logging" could not start Xash3D.
+    case launch
+    /// §67.4: a Spotlight index update failed.
+    case spotlight
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {

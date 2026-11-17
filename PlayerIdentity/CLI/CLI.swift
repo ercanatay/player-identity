@@ -5,7 +5,8 @@ import Foundation
 // only read for the y/N answers of `update --install`, `restore` and `servers remove`, and only when it is a terminal
 // (§51, §52). Files it writes: the update files (`update --install`, see CLIUpdate.swift), one §39 sample in
 // `metrics.jsonl` after `ban` (`--no-metrics` turns it off) and, for the §52 data commands (CLIData.swift), the
-// backup / diagnostics ZIP, the restored data files and the edited record (`servers add/remove`). Never game files.
+// backup / diagnostics ZIP, the restored data files and the edited record (`servers add/remove`); §67.1 `diagnose`
+// adds one `history.jsonl` line and `report` writes the Markdown report (CLIDiagnose.swift). Never game files.
 
 /// Exit codes (§34).
 enum CLIExit {
@@ -44,6 +45,9 @@ struct CLIContext: Sendable {
     var prompt: CLIPrompt = .none
     /// §52 `diagnostics`: UserDefaults domain of the app (update state in the package); tests pass their own suite.
     var defaultsSuite: String = UpdateInstaller.bundleID
+    /// §67.1 `diagnose`: the default route goes through a VPN tunnel (§37; read-only, nothing is sent). Tests pass a
+    /// fixed value.
+    var vpnActive: @Sendable () -> Bool = { InterfaceReporter().report().isVPNActive }
 
     /// `profile.json` read by `status` (and for the identity/name defaults); `PLAYERIDENTITYCTL_SNAPSHOT` overrides it.
     var snapshotURL: URL {
@@ -89,6 +93,10 @@ enum CLICommand: Sendable, Equatable {
     case serversAdd(entry: String, label: String?, group: String?, watch: Bool, json: Bool)
     case serversRemove(target: String, yes: Bool, json: Bool)
     case diagnostics(out: String?, json: Bool)
+    // §67.1 diagnosis commands (CLIDiagnose.swift).
+    case diagnose(target: String, timeout: TimeInterval, json: Bool, failOnBan: Bool)
+    case trend(target: String, window: DiagnosisTrendWindow, json: Bool)
+    case report(target: String, window: DiagnosisTrendWindow, unmasked: Bool, out: String?)
 }
 
 struct CLIUsageError: Error, Sendable, Equatable {
@@ -122,10 +130,11 @@ enum CLIParser {
                 inlineValue = String(argument[argument.index(after: equals)...])
             }
             switch name {
-            case "--json", "--version", "--help", "-h", "--no-metrics", "--check", "--install", "--yes", "--watch":
+            case "--json", "--version", "--help", "-h", "--no-metrics", "--check", "--install", "--yes", "--watch",
+                 "--fail-on-ban", "--unmasked":
                 guard inlineValue == nil else { return .failure(CLIUsageError(message: "\(name) takes no value")) }
                 flags.insert(name == "-h" ? "--help" : name)
-            case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group":
+            case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group", "--days":
                 guard options[name] == nil else { return .failure(CLIUsageError(message: "\(name) given twice")) }
                 if let inlineValue {
                     options[name] = inlineValue
@@ -157,6 +166,12 @@ enum CLIParser {
         }
         if flags.contains("--watch"), command != "servers" {
             return .failure(CLIUsageError(message: "--watch is only valid for servers add"))
+        }
+        if flags.contains("--fail-on-ban"), command != "diagnose" {
+            return .failure(CLIUsageError(message: "--fail-on-ban is only valid for diagnose"))
+        }
+        if flags.contains("--unmasked"), command != "report" {
+            return .failure(CLIUsageError(message: "--unmasked is only valid for report"))
         }
         let rest = Array(positionals.dropFirst())
         func allow(_ allowed: Set<String>) -> CLIUsageError? {
@@ -247,6 +262,9 @@ enum CLIParser {
         case "servers":
             return parseServers(Array(rest), options: options, flags: flags, json: json)
 
+        case "diagnose", "trend", "report":
+            return parseDiagnosis(command, rest, options: options, flags: flags, json: json)
+
         default:
             return .failure(CLIUsageError(message: "unknown command \(command)"))
         }
@@ -289,6 +307,51 @@ enum CLIParser {
             return .success(.serversRemove(target: arguments[0], yes: yes, json: json))
         default:
             return .failure(CLIUsageError(message: "unknown servers action \(action) (list, add or remove)"))
+        }
+    }
+
+    /// §67.1 `diagnose <host:port|index> [--timeout] [--json] [--fail-on-ban]`,
+    /// `trend <host:port|index> [--days] [--json]`, `report <host:port|index> [--days] [--unmasked] [--out <path>|-]`.
+    private static func parseDiagnosis(_ command: String, _ rest: [String], options: [String: String], flags: Set<String>,
+                                       json: Bool) -> Result<CLICommand, CLIUsageError> {
+        let allowed: Set<String> = command == "diagnose" ? ["--timeout"] : command == "trend" ? ["--days"] : ["--days", "--out"]
+        if let name = options.keys.first(where: { !allowed.contains($0) }) {
+            return .failure(CLIUsageError(message: "\(name) is not valid for \(command)"))
+        }
+        if command == "report", json { return .failure(CLIUsageError(message: "--json is not valid for report")) }
+        guard rest.count == 1, !rest[0].trimmingCharacters(in: .whitespaces).isEmpty else {
+            return .failure(CLIUsageError(message: "\(command) needs exactly one <host:port|index>"))
+        }
+        let target = rest[0].trimmingCharacters(in: .whitespaces)
+        guard CLIServerTarget.isIndex(target) || CLIHostPort.parse(target) != nil else {
+            return .failure(CLIUsageError(message: "invalid <host:port|index>: \(rest[0])"))
+        }
+        var window = DiagnosisTrendWindow.default
+        if let text = options["--days"] {
+            guard let value = CLIDays.parse(text) else { return .failure(CLIUsageError(message: "--days must be 7, 30 or all")) }
+            window = value
+        }
+        switch command {
+        case "diagnose":
+            var timeout = ConnectionDiagnoser.stepTimeout
+            if let text = options["--timeout"] {
+                guard let value = TimeInterval(text), value.isFinite, value > 0, value <= maxTimeout else {
+                    return .failure(CLIUsageError(message: "--timeout must be a number of seconds between 0 and 30"))
+                }
+                timeout = value
+            }
+            return .success(.diagnose(target: target, timeout: timeout, json: json, failOnBan: flags.contains("--fail-on-ban")))
+        case "trend":
+            return .success(.trend(target: target, window: window, json: json))
+        default:
+            var out: String?
+            if let path = options["--out"] {
+                guard !path.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    return .failure(CLIUsageError(message: "--out needs a path or -"))
+                }
+                out = path
+            }
+            return .success(.report(target: target, window: window, unmasked: flags.contains("--unmasked"), out: out))
         }
     }
 
@@ -368,6 +431,18 @@ enum CLIRunner {
       servers remove <host:port|index> [--yes] [--json]      remove a server from the saved record
       diagnostics [--out <path>] [--json]                    redacted diagnostics ZIP; default
                                                              ~/Documents/PlayerIdentity-diagnostics-<time>.zip
+      diagnose <host:port|index> [--timeout 5] [--json] [--fail-on-ban]
+                                                             connection diagnosis (DNS, A2S_INFO,
+                                                             getchallenge, connect 49, engine log);
+                                                             --timeout per step (total 4x); adds a
+                                                             line to history.jsonl
+      trend <host:port|index> [--days 7|30|all] [--json]     diagnosis trend from the history
+      report <host:port|index> [--days 7|30|all] [--unmasked] [--out <path>|-]
+                                                             Markdown report of the last diagnosis
+                                                             (CID and IP masked unless --unmasked;
+                                                             engine log read now); default
+                                                             ~/Documents/playeridentity-diagnose-<host>-<time>.md,
+                                                             --out - prints it
       --version                                              print the version
 
     exit codes: 0 ok, 1 usage error, 2 network or resolution error, 3 banned
@@ -375,10 +450,14 @@ enum CLIRunner {
               verification error, 3 no update to install, 4 update available (--check)
       backup, restore, servers, diagnostics: 0 ok, 1 usage error or not confirmed, 2 validation or
               write error, 3 not found (no data, no record, no such server, already added)
+      diagnose, trend, report: 0 ok (a ban verdict too), 1 usage error, 2 network, validation or write
+              error, 3 not found (no such index, no record for an index, no diagnosis to report),
+              4 ban verdict with diagnose --fail-on-ban
     restore and servers remove ask y/N on a terminal; without one they need --yes.
     servers add/remove edit profile.json (a copy is kept as profile.json.appbak-<time>); a running app
     keeps its own list until it is reopened.
-    environment: PLAYERIDENTITYCTL_SNAPSHOT=<path> reads another profile.json (status, servers)
+    environment: PLAYERIDENTITYCTL_SNAPSHOT=<path> reads another profile.json (status, servers,
+      diagnose, trend, report; history.jsonl next to it)
 
     """
 
@@ -419,6 +498,12 @@ enum CLIRunner {
             return serversRemove(target: target, yes: yes, json: json, context: context)
         case .diagnostics(let out, let json):
             return diagnostics(out: out, json: json, context: context)
+        case .diagnose(let target, let timeout, let json, let failOnBan):
+            return await diagnose(target: target, timeout: timeout, json: json, failOnBan: failOnBan, context: context)
+        case .trend(let target, let window, let json):
+            return await trend(target: target, window: window, json: json, context: context)
+        case .report(let target, let window, let unmasked, let out):
+            return await report(target: target, window: window, unmasked: unmasked, out: out, context: context)
         }
     }
 

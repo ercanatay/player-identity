@@ -1097,6 +1097,18 @@ KEYS = [
     ("intentErrorNoDiagnosis", "intent.error.noDiagnosis", "Bu oturumda bu sunucu için teşhis yok; önce “Sunucuyu teşhis et” kısayolunu çalıştırın.", "There is no diagnosis of this server in this session; run “Diagnose Server” first."),
     ("intentErrorNoNetwork", "intent.error.noNetwork", "Ağ bağlantısı yok; teşhis yapılamadı.", "No network connection; the diagnosis could not run."),
     ("intentErrorClipboard", "intent.error.clipboard", "Panoya kopyalanamadı.", "Could not copy to the clipboard."),
+    ("diagnoseCondebugAction", "diagnose.condebug.action", "Oyunu günlükle başlat", "Launch Game with Logging"),
+    ("diagnoseCondebugHelp", "diagnose.condebug.help", "Xash3D'yi -condebug ile açar; motor qconsole.log günlüğünü yazar. Oyun dosyalarına dokunulmaz.", "Opens Xash3D with -condebug so the engine writes qconsole.log. No game file is changed."),
+    ("diagnoseCondebugGameRunning", "diagnose.condebug.gameRunning", "Oyun açık; günlükle başlatmak için önce oyunu kapatın.", "The game is running; quit it first to launch it with logging."),
+    ("diagnoseCondebugAppMissing", "diagnose.condebug.appMissing", "Xash3D-FWGS.app bulunamadı (/Applications).", "Xash3D-FWGS.app was not found (/Applications)."),
+    ("diagnoseCondebugWaiting", "diagnose.condebug.waiting", "Oyun başlatıldı; günlük bekleniyor…", "Game launched; waiting for the log…"),
+    ("diagnoseCondebugActive", "diagnose.condebug.active", "Günlük etkin: %@", "Logging is on: %@"),
+    ("diagnoseCondebugNoLog", "diagnose.condebug.noLog", "10 sn içinde günlük oluşmadı. Beklenen dosya: %@", "No log appeared within 10 seconds. Expected file: %@"),
+    ("diagnoseCondebugFailed", "diagnose.condebug.failed", "Oyun başlatılamadı: %@", "The game could not be launched: %@"),
+    ("launchSummaryTitle", "launchSummary.title", "Açılış özeti", "Launch summary"),
+    ("launchSummaryText", "launchSummary.text", "%@: son 7 günde %@ ban", "%@: %@ bans in the last 7 days"),
+    ("launchSummaryDetails", "launchSummary.details", "Ayrıntılar", "Details"),
+    ("launchSummaryDismiss", "launchSummary.dismiss", "Bugün gizle", "Hide for Today"),
 ]
 
 # InfoPlist.strings of every language: the Turkish product name for `tr`, the English one everywhere else.

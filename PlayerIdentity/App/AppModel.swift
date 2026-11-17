@@ -51,6 +51,12 @@ struct AppDependencies {
     var dataFileOperations: any DataFileOperating = LocalDataFileOperations()
     /// §54: log of the last app errors (diagnostics `errors.json`); the live app persists it to `errors.json`.
     var errorLog = ErrorLog()
+    /// §67.2: starts Xash3D with `-condebug` (the default never starts anything; NSWorkspace in `live()`), and the
+    /// modification date of the engine log it waits for.
+    var appLauncher: any AppLaunching = UnavailableAppLauncher()
+    var fileDating: any FileDating = LocalFileDating()
+    /// §67.4: the Spotlight index of the servers (the default indexes nothing; CoreSpotlight in `live()`).
+    var spotlightIndexer: any SpotlightIndexing = NoopSpotlightIndexer()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -102,6 +108,8 @@ struct AppDependencies {
                                urlOpener: WorkspaceURLOpener())
         deps.errorLog = ErrorLog(fileURL: paths.errorsFile)
         deps.pasteboard = SystemPasteboard()
+        deps.appLauncher = WorkspaceAppLauncher()
+        deps.spotlightIndexer = CoreSpotlightIndexer()
         return deps
     }
 }
@@ -132,7 +140,9 @@ final class AppModel {
     private(set) var lanAddresses: [LocalAddress] = []
     /// Public IP fetched in the last refresh; `nil` = could not be fetched or not checked yet.
     private(set) var publicIP: String?
-    private(set) var servers: [ServerEntry]
+    private(set) var servers: [ServerEntry] {
+        didSet { if servers != oldValue { syncSpotlight() } }
+    }
     private(set) var snapshotState: SnapshotLoadResult
     /// `nil` until the first full refresh finishes.
     private(set) var report: StatusReport?
@@ -410,6 +420,7 @@ final class AppModel {
             }
         }
         refreshBackupInfo()
+        reindexSpotlight()
     }
 
     // MARK: Derived state
@@ -2343,6 +2354,9 @@ final class AppModel {
         await metrics.reset()
         deps.errorLog.removeAll()
         metricsWriteFailure = nil
+        // §67.4: the whole Spotlight domain goes; whatever is still on disk is indexed again by the reload.
+        spotlightIndexed = [:]
+        enqueueSpotlight("deleteAll") { try await $0.deleteAll() }
         reloadFromDisk(keepGamedirWithoutRecord: true)
         updates.dataFolderErased()
         refreshBackupInfo()
@@ -2591,6 +2605,141 @@ final class AppModel {
         historyRevision += 1
         updates.evaluateRestore(snapshot: loaded)
         reevaluate()
+    }
+
+    // MARK: §67.2 launch the game with logging (`-condebug`)
+
+    /// Result of the last "Launch Game with Logging" (waiting / log active / no log / failed); not saved.
+    private(set) var condebugState: CondebugState?
+    @ObservationIgnored private var condebugTask: Task<Void, Never>?
+
+    /// Why "Launch Game with Logging" is disabled: Xash3D is not installed, or the game is already running.
+    var condebugBlocker: CondebugLaunchError? {
+        if !isGameAppInstalled { return .appNotFound }
+        if isGameRunning { return .gameRunning }
+        return nil
+    }
+
+    /// Opens Xash3D with `-condebug` (NSWorkspace; only a process is started, no file is written) and waits up to
+    /// 10 s for `qconsole.log`. A failure is shown and written to the error log (`launch`).
+    @discardableResult
+    func launchGameWithLogging() -> Task<Void, Never>? {
+        guard condebugTask == nil else { return nil }
+        let launcher = CondebugLauncher(locator: deps.gameAppLocator, detector: deps.gameProcessDetector,
+                                        launcher: deps.appLauncher, files: deps.fileDating, sleeper: deps.sleeper)
+        let (root, gamedir) = (dataRoot, selectedGamedir)
+        condebugState = .waiting
+        let task = Task {
+            let result = await launcher.launch(dataRoot: root, gamedir: gamedir) { state in
+                await self.setCondebugState(state)
+            }
+            condebugState = result
+            if case .failed(let error) = result {
+                switch error {
+                case .appNotFound: logError(.launch, "condebug: appNotFound")
+                case .gameRunning: logError(.launch, "condebug: gameRunning")
+                case .launchFailed(let reason): logError(.launch, "condebug: launchFailed: \(reason)")
+                }
+            }
+            isGameRunning = deps.gameProcessDetector.isGameRunning()
+            condebugTask = nil
+        }
+        condebugTask = task
+        return task
+    }
+
+    private func setCondebugState(_ state: CondebugState) {
+        condebugState = state
+    }
+
+    // MARK: §67.3 launch summary
+
+    /// The card at the top of the main window: a server with at least 2 ban verdicts in the last 7 days; `nil` when
+    /// there is none or the card was hidden today.
+    private(set) var launchSummary: LaunchSummary?
+
+    /// Scans the last 7 days of `diagnose` history lines (no network; read off the main thread).
+    func evaluateLaunchSummary() async {
+        guard !LaunchSummary.isDismissed(defaults: deps.defaults, now: deps.now()) else {
+            launchSummary = nil
+            return
+        }
+        let entries = await loadHistory()
+        launchSummary = LaunchSummary.make(entries: entries, servers: ServerOrganization.sections(servers).flatMap(\.servers),
+                                           now: deps.now())
+    }
+
+    /// Hides the card for the rest of the local day (UserDefaults); the next day it is evaluated again.
+    func dismissLaunchSummary() {
+        LaunchSummary.dismiss(defaults: deps.defaults, now: deps.now())
+        launchSummary = nil
+    }
+
+    /// "Details": opens the server details (diagnosis trend included). Returns the server opened.
+    @discardableResult
+    func openLaunchSummaryDetails() -> UUID? {
+        guard let id = launchSummary?.serverID, servers.contains(where: { $0.id == id }) else { return nil }
+        requestedServerDetail = id
+        return id
+    }
+
+    // MARK: §67.4 Spotlight
+
+    /// Items as last sent to the index (identifier → item); a change of the server list sends only the difference.
+    @ObservationIgnored private var spotlightIndexed: [String: SpotlightServerItem] = [:]
+    @ObservationIgnored private var spotlightTask: Task<Void, Never>?
+
+    /// Launch: the domain is replaced by the current servers (drops items of servers removed elsewhere).
+    private func reindexSpotlight() {
+        let items = servers.map(SpotlightServers.item(for:))
+        spotlightIndexed = Dictionary(items.map { ($0.identifier, $0) }, uniquingKeysWith: { _, last in last })
+        enqueueSpotlight("reindex") { indexer in
+            try await indexer.deleteAll()
+            try await indexer.index(items)
+        }
+    }
+
+    /// Adding, renaming, editing or deleting a server (and restores / imports) updates the changed items only.
+    private func syncSpotlight() {
+        let changes = SpotlightServers.changes(indexed: spotlightIndexed, servers: servers)
+        guard !changes.upsert.isEmpty || !changes.remove.isEmpty else { return }
+        for item in changes.upsert { spotlightIndexed[item.identifier] = item }
+        for identifier in changes.remove { spotlightIndexed[identifier] = nil }
+        enqueueSpotlight("update") { indexer in
+            if !changes.remove.isEmpty { try await indexer.delete(identifiers: changes.remove) }
+            if !changes.upsert.isEmpty { try await indexer.index(changes.upsert) }
+        }
+    }
+
+    /// Index calls run one after another; a failure is written to the error log (`spotlight`), never swallowed.
+    private func enqueueSpotlight(_ label: String,
+                                  _ operation: @escaping @Sendable (any SpotlightIndexing) async throws -> Void) {
+        let previous = spotlightTask
+        let indexer = deps.spotlightIndexer
+        spotlightTask = Task {
+            await previous?.value
+            do {
+                try await operation(indexer)
+            } catch {
+                logError(.spotlight, "\(label): \(error)")
+            }
+        }
+    }
+
+    /// Waits for the queued index updates (tests).
+    func waitForSpotlight() async {
+        while let task = spotlightTask {
+            await task.value
+            if spotlightTask == task { break }
+        }
+    }
+
+    /// A Spotlight result was opened: the server details are shown. `false` for an unknown server.
+    @discardableResult
+    func openSpotlightResult(_ identifier: String?) -> Bool {
+        guard let id = SpotlightServers.serverID(identifier: identifier, servers: servers) else { return false }
+        requestedServerDetail = id
+        return true
     }
 
     // MARK: §54 error log

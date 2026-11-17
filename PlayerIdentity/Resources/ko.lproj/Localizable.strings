@@ -977,3 +977,15 @@
 "intent.error.noDiagnosis" = "이 세션에 이 서버에 대한 진단 결과가 없습니다. 먼저 “서버 진단”을 실행하십시오.";
 "intent.error.noNetwork" = "네트워크 연결이 없어 진단을 실행할 수 없습니다.";
 "intent.error.clipboard" = "클립보드에 복사할 수 없습니다.";
+"diagnose.condebug.action" = "Launch Game with Logging";
+"diagnose.condebug.help" = "Opens Xash3D with -condebug so the engine writes qconsole.log. No game file is changed.";
+"diagnose.condebug.gameRunning" = "The game is running; quit it first to launch it with logging.";
+"diagnose.condebug.appMissing" = "Xash3D-FWGS.app was not found (/Applications).";
+"diagnose.condebug.waiting" = "Game launched; waiting for the log…";
+"diagnose.condebug.active" = "Logging is on: %@";
+"diagnose.condebug.noLog" = "No log appeared within 10 seconds. Expected file: %@";
+"diagnose.condebug.failed" = "The game could not be launched: %@";
+"launchSummary.title" = "Launch summary";
+"launchSummary.text" = "%@: %@ bans in the last 7 days";
+"launchSummary.details" = "Details";
+"launchSummary.dismiss" = "Hide for Today";

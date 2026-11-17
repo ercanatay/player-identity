@@ -99,6 +99,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private lazy var notificationResponder = NotificationResponder(model: model)
 
+    /// §67.4: an opened Spotlight result shows the server details in the main window.
+    func application(_ application: NSApplication, continue userActivity: NSUserActivity,
+                     restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void) -> Bool {
+        guard model.openSpotlightResult(SpotlightActivity.identifier(of: userActivity)) else { return false }
+        NSApp.activate()
+        NSApp.windows.first { $0.identifier?.rawValue == "main" }?.makeKeyAndOrderFront(nil)
+        return true
+    }
+
     /// §30: in menu bar mode closing the window keeps the app running.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         TerminationPolicy.quitsAfterLastWindowClosed(menuBarEnabled: model.menuBarEnabled)

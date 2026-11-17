@@ -977,3 +977,15 @@
 "intent.error.noDiagnosis" = "Bu oturumda bu sunucu için teşhis yok; önce “Sunucuyu teşhis et” kısayolunu çalıştırın.";
 "intent.error.noNetwork" = "Ağ bağlantısı yok; teşhis yapılamadı.";
 "intent.error.clipboard" = "Panoya kopyalanamadı.";
+"diagnose.condebug.action" = "Oyunu günlükle başlat";
+"diagnose.condebug.help" = "Xash3D'yi -condebug ile açar; motor qconsole.log günlüğünü yazar. Oyun dosyalarına dokunulmaz.";
+"diagnose.condebug.gameRunning" = "Oyun açık; günlükle başlatmak için önce oyunu kapatın.";
+"diagnose.condebug.appMissing" = "Xash3D-FWGS.app bulunamadı (/Applications).";
+"diagnose.condebug.waiting" = "Oyun başlatıldı; günlük bekleniyor…";
+"diagnose.condebug.active" = "Günlük etkin: %@";
+"diagnose.condebug.noLog" = "10 sn içinde günlük oluşmadı. Beklenen dosya: %@";
+"diagnose.condebug.failed" = "Oyun başlatılamadı: %@";
+"launchSummary.title" = "Açılış özeti";
+"launchSummary.text" = "%@: son 7 günde %@ ban";
+"launchSummary.details" = "Ayrıntılar";
+"launchSummary.dismiss" = "Bugün gizle";

@@ -977,3 +977,15 @@
 "intent.error.noDiagnosis" = "No hay ningún diagnóstico de este servidor en esta sesión; ejecuta primero \"Diagnosticar servidor\".";
 "intent.error.noNetwork" = "Sin conexión de red; no se pudo ejecutar el diagnóstico.";
 "intent.error.clipboard" = "No se pudo copiar al portapapeles.";
+"diagnose.condebug.action" = "Launch Game with Logging";
+"diagnose.condebug.help" = "Opens Xash3D with -condebug so the engine writes qconsole.log. No game file is changed.";
+"diagnose.condebug.gameRunning" = "The game is running; quit it first to launch it with logging.";
+"diagnose.condebug.appMissing" = "Xash3D-FWGS.app was not found (/Applications).";
+"diagnose.condebug.waiting" = "Game launched; waiting for the log…";
+"diagnose.condebug.active" = "Logging is on: %@";
+"diagnose.condebug.noLog" = "No log appeared within 10 seconds. Expected file: %@";
+"diagnose.condebug.failed" = "The game could not be launched: %@";
+"launchSummary.title" = "Launch summary";
+"launchSummary.text" = "%@: %@ bans in the last 7 days";
+"launchSummary.details" = "Details";
+"launchSummary.dismiss" = "Hide for Today";

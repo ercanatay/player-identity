@@ -35,6 +35,12 @@ struct ContentView: View {
             MainWindowBanners(model: model)
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.s4) {
+                    // §67.3: a server with ≥ 2 ban verdicts in the last 7 days (hidden for today on request).
+                    if let summary = model.launchSummary {
+                        LaunchSummaryCard(summary: summary,
+                                          onDetails: { model.openLaunchSummaryDetails() },
+                                          onDismiss: { model.dismissLaunchSummary() })
+                    }
                     TopRowLayout {
                         ProfileCard(model: model)
                         NetworkCard(model: model)
@@ -59,6 +65,7 @@ struct ContentView: View {
             model.checkForUpdates()
             model.updates.startPeriodicChecks()
             model.activateBackgroundTasks()
+            await model.evaluateLaunchSummary()
         }
         .sheet(item: Binding(
             get: { model.updates.pendingInstall?.origin == .banner ? model.updates.pendingInstall : nil },
@@ -99,6 +106,10 @@ struct ContentView: View {
         .onOpenURL { url in
             model.handleServerLink(url)
             NSApp.activate()
+        }
+        // §67.4 a Spotlight result opens the server details.
+        .onContinueUserActivity(SpotlightActivity.activityType) { activity in
+            if model.openSpotlightResult(SpotlightActivity.identifier(of: activity)) { NSApp.activate() }
         }
         // §66.2 a tapped diagnosis notification opens the server details.
         .onChange(of: model.requestedServerDetail, initial: true) { _, id in

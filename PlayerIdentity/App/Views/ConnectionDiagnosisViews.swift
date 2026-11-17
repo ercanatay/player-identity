@@ -38,6 +38,8 @@ struct ConnectionDiagnosisSection: View {
                 .accessibilityIdentifier("diagnoseStart")
             }
             DiagnosisTrendView(model: model, serverID: serverID, window: $window, onStart: restart)
+            // §67.2: start Xash3D with `-condebug` so the engine log (§64.3) exists for the next diagnosis.
+            CondebugLaunchRow(model: model)
             if session == nil {
                 Text(L10n.text(.diagnoseIntro))
                     .font(.caption)

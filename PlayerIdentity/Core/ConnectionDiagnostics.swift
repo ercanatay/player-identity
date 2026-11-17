@@ -36,6 +36,9 @@ enum DiagnosisStepStatus: String, Codable, Sendable {
 /// One recorded step: `step`, `status`, `durationMs`, `target`, `detail` (§64.1). `detail` is technical evidence
 /// (server text, error kind), not translated.
 struct DiagnosisStep: Codable, Sendable, Equatable {
+    /// §67.1 duration of a step rebuilt from a history line (the line keeps only `step=status`); shown as `—`.
+    static let unknownDuration = -1
+
     var step: DiagnosisStepKind
     var status: DiagnosisStepStatus
     var durationMs: Int
@@ -473,11 +476,14 @@ struct ConnectionDiagnosis: Sendable, Equatable {
     var publicIP: String?
     /// §66.3 total run time (probe + engine log) in milliseconds; `nil` when unknown.
     var durationMs: Int? = nil
+    /// §67.1 a diagnosis rebuilt from its history line (`playeridentityctl report`): the verdict written then, which
+    /// a later engine log never changes.
+    var recordedVerdict: DiagnosisVerdict? = nil
 
     var steps: [DiagnosisStep] { probe.steps }
     var probeVerdict: DiagnosisVerdict { probe.verdict }
     /// The single verdict shown (§64.2, §64.3).
-    var verdict: DiagnosisVerdict { DiagnosisClassifier.final(probe: probe.verdict, log: engineLog) }
+    var verdict: DiagnosisVerdict { recordedVerdict ?? DiagnosisClassifier.final(probe: probe.verdict, log: engineLog) }
     /// The verdict came from the engine log, not from the probe.
     var verdictFromLog: Bool { verdict != probe.verdict }
 
@@ -584,7 +590,8 @@ enum DiagnosisReport {
         lines.append("| \(L10n.text(.diagnoseColumnStep)) | \(L10n.text(.diagnoseColumnStatus)) | \(L10n.text(.diagnoseColumnDuration)) | \(L10n.text(.diagnoseColumnTarget)) | \(L10n.text(.diagnoseColumnDetail)) |")
         lines.append("|---|---|---|---|---|")
         for step in diagnosis.steps {
-            lines.append("| `\(step.step.rawValue)` | \(step.status.rawValue) | \(step.durationMs) ms | \(cell(step.target)) | \(cell(step.detail)) |")
+            let duration = step.durationMs == DiagnosisStep.unknownDuration ? "—" : "\(step.durationMs) ms"
+            lines.append("| `\(step.step.rawValue)` | \(step.status.rawValue) | \(duration) | \(cell(step.target)) | \(cell(step.detail)) |")
         }
         lines.append("")
         lines.append("## " + L10n.text(.diagnoseLogTitle))

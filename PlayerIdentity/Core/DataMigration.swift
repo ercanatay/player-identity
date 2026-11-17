@@ -20,6 +20,8 @@ enum DefaultsKey {
     /// §49.3 automatic full backups at launch (default on) and the local day of the last attempt (`yyyyMMdd`).
     static let autoBackupEnabled = "autoBackupEnabled"
     static let autoBackupLastRun = "autoBackupLastRun"
+    /// §67.3 local day (`yyyyMMdd`) the launch summary card was hidden for.
+    static let launchSummaryDismissedDay = "launchSummaryDismissedDay"
 }
 
 /// One-time migration from the legacy `tr.ercanatay.oyuncukimlik` bundle (§19.3).
