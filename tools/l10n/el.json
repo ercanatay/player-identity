@@ -557,7 +557,7 @@
   "menuBar.copyCID": "Αντιγραφή CID",
   "menuBar.copyCIDOf": "Αντιγραφή CID (%@)",
   "menuBar.copyFailed": "Δεν ήταν δυνατή η αντιγραφή στο πρόχειρο",
-  "menuBar.copyRawID": "Αντιγραφή ακατέργαστης ταυτότητας",
+  "menuBar.copyRawID": "Αντιγραφή ακατέργαστου ID",
   "menuBar.diagnose": "Διάγνωση",
   "menuBar.diagnoseResult": "%@ · %@ s",
   "menuBar.diagnoseRunning": "διάγνωση σε εξέλιξη…",

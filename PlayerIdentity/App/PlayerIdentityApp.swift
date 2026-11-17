@@ -11,6 +11,7 @@ struct PlayerIdentityApp: App {
         Window(L10n.text(.appWindowTitle), id: "main") {
             ContentView(model: appDelegate.model)
                 .id(appDelegate.model.appLanguage)
+                .appLayoutDirection(appDelegate.model.appLanguage)
         }
         .defaultSize(width: 900, height: 760)
         .windowResizability(.contentMinSize)
@@ -38,6 +39,7 @@ struct PlayerIdentityApp: App {
         Window(L10n.text(.historyTitle), id: "history") {
             HistoryView(model: appDelegate.model)
                 .id(appDelegate.model.appLanguage)
+                .appLayoutDirection(appDelegate.model.appLanguage)
         }
         .defaultSize(width: 760, height: 480)
         .keyboardShortcut("y", modifiers: .command)
@@ -48,6 +50,7 @@ struct PlayerIdentityApp: App {
         Window(L10n.text(.banMatrixTitle), id: "banMatrix") {
             BanMatrixView(model: appDelegate.model)
                 .id(appDelegate.model.appLanguage)
+                .appLayoutDirection(appDelegate.model.appLanguage)
         }
         .defaultSize(width: 860, height: 420)
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -55,6 +58,7 @@ struct PlayerIdentityApp: App {
         Settings {
             SettingsView(model: appDelegate.model)
                 .id(appDelegate.model.appLanguage)
+                .appLayoutDirection(appDelegate.model.appLanguage)
         }
 
         // §30 status item (only while "Show in menu bar" is on); the Dock icon stays (V1).

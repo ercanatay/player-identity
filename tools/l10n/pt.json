@@ -557,7 +557,7 @@
   "menuBar.copyCID": "Copiar CID",
   "menuBar.copyCIDOf": "Copiar CID (%@)",
   "menuBar.copyFailed": "Não foi possível copiar para a área de transferência",
-  "menuBar.copyRawID": "Copiar identidade não processada",
+  "menuBar.copyRawID": "Copiar ID bruto",
   "menuBar.diagnose": "Diagnosticar",
   "menuBar.diagnoseResult": "%@ · %@ s",
   "menuBar.diagnoseRunning": "a diagnosticar…",

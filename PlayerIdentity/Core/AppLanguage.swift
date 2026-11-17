@@ -29,6 +29,9 @@ enum AppLanguage: String, CaseIterable, Sendable {
     case az
     case vi
 
+    /// Right-to-left scripts (Arabic, Persian): the UI mirrors even when the system language is left-to-right.
+    var isRightToLeft: Bool { self == .ar || self == .fa }
+
     /// The language's own name (Deutsch, Nederlands, …; §62) from the unlocalized `LanguageNames.strings`.
     var nativeName: String { Self.nativeNames[rawValue] ?? rawValue }
 

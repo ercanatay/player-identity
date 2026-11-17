@@ -557,7 +557,7 @@
   "menuBar.copyCID": "Скопіювати CID",
   "menuBar.copyCIDOf": "Скопіювати CID (%@)",
   "menuBar.copyFailed": "Не вдалося скопіювати в буфер обміну",
-  "menuBar.copyRawID": "Скопіювати вихідну ідентичність",
+  "menuBar.copyRawID": "Скопіювати вихідний ID",
   "menuBar.diagnose": "Діагностувати",
   "menuBar.diagnoseResult": "%@ · %@ с",
   "menuBar.diagnoseRunning": "діагностування…",

@@ -399,7 +399,7 @@
 "menuBar.statusLine" = "%@ · %@";
 "menuBar.copyCID" = "Αντιγραφή CID";
 "menuBar.copyCIDOf" = "Αντιγραφή CID (%@)";
-"menuBar.copyRawID" = "Αντιγραφή ακατέργαστης ταυτότητας";
+"menuBar.copyRawID" = "Αντιγραφή ακατέργαστου ID";
 "menuBar.copyFailed" = "Δεν ήταν δυνατή η αντιγραφή στο πρόχειρο";
 "menuBar.servers" = "Servers";
 "settings.menuBar" = "Εμφάνιση στη γραμμή μενού";

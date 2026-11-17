@@ -44,6 +44,15 @@ final class MainWindowEvidenceTests: XCTestCase {
         }
     }
 
+    /// RTL evidence: Arabic at the minimum window width (720 pt) mirrors the layout on an LTR system.
+    func testRenderMainWindowArabicRTL() async throws {
+        L10n.setting = .ar
+        let (model, _) = try await makeDefaultModel(.ar)
+        directory = directory.deletingLastPathComponent().appendingPathComponent("rtl", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try render(window(model), size: CGSize(width: 720, height: 1500), dark: false, name: "main-ar-720")
+    }
+
     // MARK: M7–M10 states
 
     /// M7 loading: first refresh held at the public IP lookup → toolbar spinner, network skeleton, "Checking…" cells.
@@ -212,6 +221,7 @@ final class MainWindowEvidenceTests: XCTestCase {
             EvidenceToolbar(model: model)
             ContentView(model: model)
         }
+        .appLayoutDirection(model.appLanguage, preferredLanguages: ["en-US"])
     }
 
     private func render<V: View>(_ view: V, size: CGSize, dark: Bool, name: String) throws {

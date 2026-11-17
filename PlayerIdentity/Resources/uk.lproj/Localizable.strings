@@ -399,7 +399,7 @@
 "menuBar.statusLine" = "%@ · %@";
 "menuBar.copyCID" = "Скопіювати CID";
 "menuBar.copyCIDOf" = "Скопіювати CID (%@)";
-"menuBar.copyRawID" = "Скопіювати вихідну ідентичність";
+"menuBar.copyRawID" = "Скопіювати вихідний ID";
 "menuBar.copyFailed" = "Не вдалося скопіювати в буфер обміну";
 "menuBar.servers" = "Сервери";
 "settings.menuBar" = "Показувати в смузі меню";
