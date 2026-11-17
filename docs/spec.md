@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.5 · Tarih: 2026-11-17 · Durum: uygulanacak (v4.4 → v4.5: §67 CLI teşhis/trend/rapor, condebug başlatıcı, açılış özeti, Spotlight)
+Sürüm: 4.6 · Tarih: 2026-11-17 · Durum: uygulanacak (v4.5 → v4.6: §68 oyuncu/kural sorgusu, ban kaydı API'si, VPN gerçeği)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1504,3 +1504,27 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 - Sunucu ekleme/adlandırma/silme ve "tüm verileri sil" indeksi günceller; indeksleme hatası sessiz yutulmaz (`ErrorLog` `spotlight` alanı).
 - Spotlight sonucuna tıklama uygulamayı açar ve ilgili sunucu detayını gösterir (`NSUserActivity`/`CSSearchableItem` activity).
 - Testler: ekle/güncelle/sil çağrıları (sahte indeksleyici), etiket/kısaltma biçimi, hata kaydı, açma eşlemesi.
+
+## 68. Sprint 2 — sunucu ayrıntısı ve ban kanıtı (v4.6)
+### 68.1 A2S_PLAYER ve A2S_RULES
+- **A2S_PLAYER (`U`)**: sunucudaki oyuncular — `index`, `name`, `score`, `durationSec`. GoldSrc 48 baytlık yanıt; `A2S_SERVERQUERY_GETCHALLENGE` (`W`) ile challenge alınır, challenge yoksa tek yeniden deneme.
+- **A2S_RULES (`V`)**: sunucu cvarları; arayüzde aranabilir liste + öne çıkanlar: `sv_password` (boş değilse **şifreli**), `sv_cheats`, `sv_lan`, `sv_region`, `mp_timelimit`, `mp_friendlyfire`, `maxplayers`/`sv_maxplayers`.
+- **UI:** sunucu detayında **"Sunucu ayrıntıları"** bölümü: Oyuncular (isim/skor/süre) ve Kurallar (ilk 50 + arama). "Yenile" düğmesi; boş/hata durumları ayrı metinlerle.
+- **Teşhis:** `A2S_RULES` şifre bilgisi verirse hüküm **`passwordProtected`** olur (adım `rules` `ok`); bu hüküm yalnız bağlantı reddedilirken değil, her teşhiste gösterilir. Şifre varsa "Sunucu şifreli" açıklaması ve "Şifreyi sunucu sahibinden isteyin" önerisi.
+- **Sınırlar:** bu sorgular sunucuya ek paket gönderir; yalnız kullanıcı istediğinde (düğme) veya teşhis sırasında bir kez çalışır. Otomatik yenileme yok. Yanıt 4096 baytı aşarsa kısaltılır ve `truncated` işaretlenir.
+- **Testler:** challenge akışı, oyuncu/kural ayrıştırma (eksik/bozuk yanıt, 0 oyuncu, 200 kural), `truncated`, şifreli hüküm, UI modeli, ağ yok.
+
+### 68.2 Ban kaydı (JSON uç noktası)
+- Sunucuya özel **ban kaydı** yapılandırması: `urlTemplate` (https, `{cid}`/`{ip}` yer tutucuları), isteğe bağlı `bearerToken` (**Keychain'de**), `enabled`.
+- Uygulama HTTPS GET yapar (10 sn zaman aşımı) ve **esnek JSON** okur: kök dizi veya `bans`/`data`/`results` dizisi; alan adları esnek eşlenir: `reason`, `admin`/`adminName`, `created`/`createdAt`/`added`, `expires`/`expiresAt`/`ends`, `permanent` (bool), `playerIp`/`ip`, `playerId`/`steamId`/`cid`.
+- Sonuç: aktif ban sayısı, sebep, admin, başlangıç, **kalan süre** (süreliyse), kalıcı bayrağı; en yeni kayıt öne.
+- **UI:** teşhis bölümünde "Ban kaydı" kartı; "Unban mesajını kopyala" metni sebep+admin+süre ile zenginleşir.
+- **Hata/düşüş:** istek başarısızsa sessiz yutulmaz — kartta hata + `ErrorLog` (`banLookup`); URL şablonu (mevcut "Ban list") yedek yol olarak kalır.
+- **Gizlilik:** token ve yanıt gövdeleri teşhis raporuna **yazılmaz**; raporda yalnız "ban record: 1 active" gibi özet.
+- **Testler:** alan eşleme varyantları, dizi kökleri, süre hesabı (kalıcı/süreli/geçmiş), 401/404/zaman aşımı hata yolu, Keychain'e yazma/okuma (sahte), raporda sızıntı yok.
+
+### 68.3 VPN gerçeği kartı
+- Teşhis hükmü `cidBanned`/`rangeBanned` ve çıkışta VPN etkinse kart: **"VPN değiştirmek CID banını çözmez"** — CID sunucu adresinden türetilir, istemci IP'sinden değil; yalnız IP banında VPN/çıkış değişimi işe yarar.
+- `ipBanned` ve VPN etkinse: "VPN çıkışını değiştirmek yardımcı olabilir" + mevcut "Unban mesajını kopyala".
+- Kart yalnız ilgili hükümlerde görünür; statik yardım metni teşhis bölümünde her zaman erişilebilir.
+- **Testler:** hüküm × VPN durumu matrisi (4 kombinasyon), kart metni, yardım bağlantısı.

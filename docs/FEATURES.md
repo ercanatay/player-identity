@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.18.0** (879 automated tests), against behaviour specification **v4.5** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.19.0** (913 automated tests), against behaviour specification **v4.6** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -16,10 +16,10 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Game** | Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) with a `valve` or `gearbox` data folder |
 | **Data source** | Read-only access to the engine's `.xash_id` files and `config.cfg` / `userconfig.cfg`; public IP from `api.ipify.org` (fallback `ifconfig.me`); server answers over UDP |
 | **Write behaviour** | Read-only by default. The only game files ever written are the `name` and `model` lines of `config.cfg` / `userconfig.cfg`, and only after you confirm **Apply** (or **Remove line**). Everything else lives in the app's own folder |
-| **Languages** | 26 languages (977 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
+| **Languages** | 26 languages (1051 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
-| **Tests** | 879 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Tests** | 913 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -611,6 +611,12 @@ When a server refuses a connection, the engine usually says nothing useful. **Di
 - **Launch summary:** if a server collected two or more ban verdicts in the last 7 days, the main window opens with a summary card, dismissible for the day.
 - **Spotlight:** servers are indexed in Spotlight and open the matching detail view.
 - **Limits:** the app never lifts a ban; verdicts rest on server responses and the engine log, never on guesses.
+
+## Server details, ban record and VPN guidance
+
+- **Server details** (spec §68.1): the server page can query **A2S_PLAYER** and **A2S_RULES** on demand (never automatically) and shows the player list (name, score, time) and a searchable rules list. When `sv_password` is set, the diagnosis returns a `passwordProtected` verdict.
+- **Ban record** (spec §68.2): optionally set a per-server JSON endpoint (`{cid}` / `{ip}` template, optional bearer token stored only in the Keychain). The record shows reason, admin, start and remaining time; the unban message is enriched with it and lookup errors are shown instead of hidden.
+- **VPN guidance** (spec §68.3): changing the VPN cannot lift a **CID ban** (the CID derives from the server address and your identity file), but a different VPN exit can help against an **IP ban**; range bans need an exit in another range.
 
 ## Updates
 ![Updates settings](screenshots/settings-updates-light.png)

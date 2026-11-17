@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.18.0** (879 otomatik test) için, davranış spesifikasyonu **v4.5** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.19.0** (913 otomatik test) için, davranış spesifikasyonu **v4.6** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -18,10 +18,10 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Oyun** | `valve` veya `gearbox` veri klasörüne sahip Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) |
 | **Veri kaynağı** | Oyun motorunun `.xash_id` dosyalarına ve `config.cfg` / `userconfig.cfg` dosyalarına salt okunur erişim; `api.ipify.org` üzerinden genel IP (yedek: `ifconfig.me`); UDP üzerinden sunucu yanıtları |
 | **Yazma davranışı** | Varsayılan olarak salt okunur. Üzerine yazılan tek oyun dosyaları `config.cfg` / `userconfig.cfg` içindeki `name` ve `model` satırlarıdır ve bu yalnızca siz **Uygula**'yı (veya **Satırı kaldır**'ı) onayladıktan sonra gerçekleşir. Geri kalan her şey uygulamanın kendi klasöründe bulunur |
-| **Diller** | 26 dil (dil başına 977 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
+| **Diller** | 26 dil (dil başına 1051 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
-| **Testler** | Ana şemada 879 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
+| **Testler** | Ana şemada 913 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
 | **Sandbox** | Korumalı alanda değil (oyun klasörüne ve `/Applications` altında kendi kendini güncellemeye ihtiyaç duyar); hardened runtime etkindir |
 | **Telemetri** | Yok |
 | **Lisans** | MIT |
@@ -613,6 +613,12 @@ Bir sunucu bağlantıyı reddettiğinde motor genellikle işe yarar bir şey sö
 - **Açılış özeti:** bir sunucu son 7 günde iki veya daha fazla ban kararı topladıysa ana pencere özet kartıyla açılır; gün için gizlenebilir.
 - **Spotlight:** sunucular Spotlight'ta dizinlenir ve ilgili ayrıntı görünümünü açar.
 - **Limitler:** uygulama hiçbir banı kaldırmaz; teşhisler tahmine değil, sunucu yanıtlarına ve motor günlüğüne dayanır.
+
+## Sunucu ayrıntıları, ban kaydı ve VPN rehberi
+
+- **Sunucu ayrıntıları** (spec §68.1): sunucu sayfası **A2S_PLAYER** ve **A2S_RULES** sorgularını yalnızca isteğiniz üzerine (asla otomatik) yapar; oyuncu listesini (ad, skor, süre) ve aranabilir kural listesini gösterir. `sv_password` ayarlıysa teşhis `passwordProtected` kararını verir.
+- **Ban kaydı** (spec §68.2): sunucu başına isteğe bağlı JSON uç noktası (`{cid}` / `{ip}` şablonu, yalnızca Anahtar Zinciri'nde saklanan isteğe bağlı bearer token). Kayıt neden, yönetici, başlangıç ve kalan süreyi gösterir; ban kaldırma mesajı bununla zenginleşir ve sorgu hataları gizlenmez.
+- **VPN rehberi** (spec §68.3): VPN değiştirmek **CID banını** çözmez (CID, sunucu adresinden ve kimlik dosyanızdan türer); ancak farklı bir VPN çıkışı **IP banına** karşı işe yarayabilir; aralık banları başka aralıkta bir çıkış gerektirir.
 
 ## Güncellemeler
 ![Updates settings](screenshots/settings-updates-light.png)

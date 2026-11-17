@@ -59,9 +59,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.18.0
+## What's new in v2.19.0
 
-- **CLI diagnosis, `-condebug` launcher, launch summary and Spotlight**: automate the diagnosis from scripts, capture the engine log with one click, and find servers from Spotlight.
+- **Server players and rules, ban records and VPN guidance**: see who is online and what the server enforces, pull the actual ban record (reason, admin, time left) and get a clear answer on whether changing the VPN can help.
 
 Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -658,7 +658,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **879 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **913 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### Adding a string
@@ -702,7 +702,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 879 tests on `macos-26` |
+| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 913 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 
@@ -716,7 +716,7 @@ PlayerIdentity/
   Core/           identity, CID, config, ban checks, fix, history, metrics, updates, …
   Resources/      Localizable.strings, AppShortcuts.strings, InfoPlist.strings (26 languages)
   Assets.xcassets app icon
-PlayerIdentityTests/      Unit tests (879)
+PlayerIdentityTests/      Unit tests (913)
 PlayerIdentityUITests/    XCUITest smoke test
 CLI/                      playeridentityctl sources
 Casks/                    Homebrew cask

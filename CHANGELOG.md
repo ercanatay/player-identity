@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.19.0] - 2026-11-17
+
+### Added
+- **Server details** (spec §68.1): player list (name, score, time) and searchable server rules via A2S_PLAYER/A2S_RULES, with a `passwordProtected` verdict when `sv_password` is set.
+- **Ban record lookup** (spec §68.2): per-server JSON endpoint (`{cid}`/`{ip}` template, optional Keychain token) showing reason, admin, start and remaining time; the unban message is enriched and errors are surfaced.
+- **VPN guidance** (spec §68.3): explains that changing the VPN cannot lift a CID ban but may help against an IP ban.
+
 ## [2.18.0] - 2026-11-17
 
 ### Added
@@ -249,6 +256,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.19.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.19.0
 [2.18.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.18.0
 [2.17.1]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.1
 [2.17.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.0
