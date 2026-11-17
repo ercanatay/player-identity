@@ -14,7 +14,7 @@ enum A2SQueryFixture {
     static func challengeReply(_ bytes: [UInt8] = challenge) -> [UInt8] { header + [0x41] + bytes }
 
     static func players(_ players: [(name: String, score: Int32, seconds: Float)], count: UInt8? = nil) -> [UInt8] {
-        var bytes = header + [0x44, count ?? UInt8(players.count)]
+        var bytes: [UInt8] = header + [0x44, count ?? UInt8(players.count)]
         for (offset, player) in players.enumerated() {
             bytes += [UInt8(offset)] + Array(player.name.utf8) + [0]
             bytes += le32(UInt32(bitPattern: player.score)) + le32(player.seconds.bitPattern)
@@ -24,7 +24,7 @@ enum A2SQueryFixture {
 
     static func rules(_ rules: [(String, String)], count: UInt16? = nil) -> [UInt8] {
         let total = count ?? UInt16(rules.count)
-        var bytes = header + [0x45, UInt8(total & 0xFF), UInt8(total >> 8)]
+        var bytes: [UInt8] = header + [0x45, UInt8(total & 0xFF), UInt8(total >> 8)]
         for (name, value) in rules { bytes += Array(name.utf8) + [0] + Array(value.utf8) + [0] }
         return bytes
     }
