@@ -19,7 +19,7 @@ while [ $# -gt 0 ]; do
     --out) OUT="${2:?--out needs a value}"; shift 2 ;;
     --sums) SUMS="${2:?--sums needs a value}"; shift 2 ;;
     --signing) SIGNING="${2:?--signing needs a value}"; shift 2 ;;
-    -h|--help) usage; exit 0 ;;
+    -h|--help) usage; echo "Appends docs/release-notes/v<version>.md after the SHA-256 section when that file exists." >&2; exit 0 ;;
     -*) echo "error: unknown option $1" >&2; usage; exit 2 ;;
     *) [ -z "$VERSION" ] || { usage; exit 2; }; VERSION="${1#v}"; shift ;;
   esac
@@ -63,6 +63,11 @@ MD
     printf '```\n'
   else
     echo "note: $SUMS not found, skipping SHA-256 section" >&2
+  fi
+  local legacy="$ROOT/docs/release-notes/v$VERSION.md"
+  if [ -f "$legacy" ]; then
+    printf '\n---\n\n'
+    cat "$legacy"
   fi
 }
 
