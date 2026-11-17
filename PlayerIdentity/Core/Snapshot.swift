@@ -26,11 +26,14 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
     var watch: Bool
     /// §56: per-server notification override; `nil` (absent in old records) = inherit the general settings.
     var notifications: ServerNotificationSettings?
+    /// §68.2 ban record JSON endpoint (the token is in the Keychain, never here); absent in old records.
+    var banRecord: BanRecordConfig?
 
     init(id: UUID = UUID(), label: String, host: String, port: Int = ServerEntry.defaultPort,
          cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil,
          group: String? = nil, favorite: Bool = false, order: Int = 0, note: String = "", appeal: Appeal? = nil,
-         banListURL: String? = nil, watch: Bool = false, notifications: ServerNotificationSettings? = nil) {
+         banListURL: String? = nil, watch: Bool = false, notifications: ServerNotificationSettings? = nil,
+         banRecord: BanRecordConfig? = nil) {
         self.id = id
         self.label = label
         self.host = host
@@ -46,11 +49,12 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         self.banListURL = banListURL
         self.watch = watch
         self.notifications = notifications
+        self.banRecord = banRecord
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal, banListURL, watch
-        case notifications
+        case notifications, banRecord
     }
 
     /// Fields added after schema 1 are optional when decoding (old records stay readable).
@@ -72,6 +76,7 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         watch = try container.decodeIfPresent(Bool.self, forKey: .watch) ?? false
         // A broken override never makes the record unreadable: it falls back to inherit.
         notifications = try? container.decodeIfPresent(ServerNotificationSettings.self, forKey: .notifications)
+        banRecord = try? container.decodeIfPresent(BanRecordConfig.self, forKey: .banRecord)
     }
 }
 

@@ -44,7 +44,7 @@ final class ConnectionDiagnosticsTests: XCTestCase {
     func testHealthyServerIsNoBanWithEveryStepOK() async throws {
         let (result, transport) = try await run()
         XCTAssertEqual(result.verdict, .noBan)
-        XCTAssertEqual(result.steps.map(\.step), DiagnosisStepKind.allCases)
+        XCTAssertEqual(result.steps.map(\.step), DiagnosisStepKind.probeSteps)
         XCTAssertEqual(statuses(result), [.ok, .ok, .ok, .ok])
         XCTAssertEqual(result.address, server)
         XCTAssertEqual(result.cid, CIDCalculator.cid(rawID: rawID, host: server))
@@ -138,7 +138,7 @@ final class ConnectionDiagnosticsTests: XCTestCase {
         XCTAssertNotEqual(DiagnosisClassifier.verdict(facts), .noBan)
         XCTAssertEqual(Set(DiagnosisVerdict.allCases.map(\.rawValue)),
                        ["serverOffline", "dnsFailure", "timeout", "protocolMismatch", "ipBanned", "cidBanned", "rangeBanned",
-                        "cidUnverified", "vpnConflict", "checksDisabled", "noBan"])
+                        "cidUnverified", "vpnConflict", "checksDisabled", "noBan", "passwordProtected"])
         for verdict in DiagnosisVerdict.allCases {
             XCTAssertFalse(verdict.sentence.isEmpty)
             XCTAssertFalse(verdict.advice.isEmpty)

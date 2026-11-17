@@ -57,6 +57,10 @@ struct AppDependencies {
     var fileDating: any FileDating = LocalFileDating()
     /// §67.4: the Spotlight index of the servers (the default indexes nothing; CoreSpotlight in `live()`).
     var spotlightIndexer: any SpotlightIndexing = NoopSpotlightIndexer()
+    /// §68.2: HTTPS GET of the ban record (the default fails as a network error; `URLSession` in `live()`) and the
+    /// store of its bearer tokens (in memory by default; the Keychain in `live()`).
+    var banRecordHTTP: any BanRecordHTTP = UnavailableBanRecordHTTP()
+    var secretStore: any SecretStoring = InMemorySecretStore()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -110,6 +114,8 @@ struct AppDependencies {
         deps.pasteboard = SystemPasteboard()
         deps.appLauncher = WorkspaceAppLauncher()
         deps.spotlightIndexer = CoreSpotlightIndexer()
+        deps.banRecordHTTP = URLSessionBanRecordHTTP()
+        deps.secretStore = KeychainSecretStore()
         return deps
     }
 }
@@ -1431,6 +1437,7 @@ final class AppModel {
     }
 
     func deleteServer(id: UUID) {
+        if servers.first(where: { $0.id == id })?.banRecord != nil { removeBanRecordToken(for: id) }
         servers.removeAll { $0.id == id }
         markEdited()
         reevaluate()
@@ -1833,7 +1840,7 @@ final class AppModel {
         return AppealText.make(AppealInput(serverLabel: entry.label, host: entry.host, port: entry.port,
                                            checkedAt: check.checkedAt, playerName: config.name, cid: cid,
                                            publicIP: publicIP ?? L10n.text(.appealUnknown), gamedir: selectedGamedir ?? "—",
-                                           check: check, rangeBan: rangeBan))
+                                           check: check, rangeBan: rangeBan, banRecordLine: banRecordAppealLine(for: id)))
     }
 
     // MARK: §64 connection diagnosis
@@ -1876,6 +1883,9 @@ final class AppModel {
         let publicIP: String?
         let historyStore: HistoryStore
         let diagnoser: ConnectionDiagnoser
+        /// §68.1 / §68.2: the details' diagnosis also asks A2S_RULES and the ban record (once per run).
+        var queryRules = false
+        var banLookup: BanRecordLookup? = nil
 
         /// Probe + engine log; throws `CancellationError` when cancelled.
         func run(progress: @escaping @Sendable (DiagnosisProgress) async -> Void = { _ in }) async throws -> ConnectionDiagnosis {
@@ -1886,17 +1896,20 @@ final class AppModel {
             let vpnActive = await Task.detached { reporter.report().isVPNActive }.value
             let request = ConnectionDiagnosisRequest(host: entry.host, port: entry.port, rawID: rawID, name: name,
                                                      checksEnabled: checksEnabled, vpnActive: vpnActive,
-                                                     knownRange: knownRange)
+                                                     knownRange: knownRange, queryRules: queryRules)
+            let lookup = banLookup
+            async let recordOutcome: BanRecordOutcome? = lookup?.run()
             let probe = try await diagnoser.run(request, progress: progress)
             let (root, gamedir, fileSystem, redactor) = (root, gamedir, fileSystem, redactor)
             let log = await Task.detached {
                 EngineLogReader.read(dataRoot: root, gamedir: gamedir, fileSystem: fileSystem, redactor: redactor)
             }.value
+            let banRecord = await recordOutcome
             try Task.checkCancellation()
             let durationMs = max(0, Int((diagnoser.now().timeIntervalSince(started) * 1000).rounded()))
             return ConnectionDiagnosis(serverID: entry.id, label: entry.label, host: entry.host, port: entry.port,
                                        startedAt: started, probe: probe, engineLog: log, publicIP: publicIP,
-                                       durationMs: durationMs)
+                                       durationMs: durationMs, banRecord: banRecord)
         }
     }
 
@@ -1917,7 +1930,17 @@ final class AppModel {
     /// entry is not changed; the result is written to the history only (`diagnose`). A new run cancels the previous one.
     @discardableResult
     func startDiagnosis(for id: UUID) -> Task<Void, Never>? {
-        guard let job = diagnosisJob(for: id) else { return nil }
+        guard var job = diagnosisJob(for: id) else { return nil }
+        job.queryRules = true
+        switch banRecordLookup(for: id) {
+        case .success(let lookup)?:
+            job.banLookup = lookup
+            banRecords[id] = .loading
+        case .failure(let error)?:
+            finishBanRecord(.failure(error), for: id)
+        case nil:
+            break
+        }
         diagnosisTask?.cancel()
         let token = UUID()
         diagnosisSession = DiagnosisSession(token: token, serverID: id)
@@ -1932,12 +1955,14 @@ final class AppModel {
                 diagnosisSession?.current = nil
                 diagnosisSession?.isRunning = false
                 lastDiagnoses[id] = diagnosis
+                if let outcome = diagnosis.banRecord { finishBanRecord(outcome, for: id) }
                 let line = diagnosis.historyEntry
                 recordHistory { recorder in
                     await recorder.record(line)
                     return []
                 }
             } catch {
+                if banRecords[id] == .loading { banRecords[id] = nil }
                 guard diagnosisSession?.token == token else { return }
                 diagnosisSession?.current = nil
                 diagnosisSession?.isRunning = false
@@ -1997,6 +2022,172 @@ final class AppModel {
 
     func cancelDiagnosis() {
         diagnosisTask?.cancel()
+    }
+
+    // MARK: §68.1 server details (A2S_PLAYER / A2S_RULES)
+
+    /// The last "Server details" query of a server in this session (never saved, never refreshed automatically).
+    struct ServerDetailsState: Equatable {
+        var isLoading = false
+        var snapshot: ServerDetailsSnapshot?
+    }
+
+    private(set) var serverDetails: [UUID: ServerDetailsState] = [:]
+    @ObservationIgnored private var serverDetailsTasks: [UUID: Task<Void, Never>] = [:]
+
+    func serverDetailsState(for id: UUID) -> ServerDetailsState? { serverDetails[id] }
+
+    /// "Refresh" of the details: players, then rules, on one UDP session. Only on request; a running query is not
+    /// started twice.
+    @discardableResult
+    func refreshServerDetails(for id: UUID) -> Task<Void, Never>? {
+        guard let entry = servers.first(where: { $0.id == id }), serverDetails[id]?.isLoading != true else { return nil }
+        let querier = ServerQuerier(transport: deps.udpTransport, now: deps.now)
+        let endpoint = address(for: entry).flatMap { address -> UDPEndpoint? in
+            guard address != .localMachine, HostValidator.isValidPort(entry.port) else { return nil }
+            return UDPEndpoint(address: address, port: UInt16(entry.port))
+        }
+        serverDetails[id, default: ServerDetailsState()].isLoading = true
+        let now = deps.now
+        let task = Task {
+            defer { serverDetailsTasks[id] = nil }
+            let snapshot: ServerDetailsSnapshot
+            if let endpoint {
+                do {
+                    snapshot = try await querier.details(endpoint)
+                } catch {
+                    serverDetails[id]?.isLoading = false
+                    return
+                }
+            } else {
+                snapshot = ServerDetailsSnapshot(players: .failure(.unreachable), rules: .failure(.unreachable), at: now())
+            }
+            serverDetails[id] = ServerDetailsState(isLoading: false, snapshot: snapshot)
+        }
+        serverDetailsTasks[id] = task
+        return task
+    }
+
+    // MARK: §68.2 ban record (JSON endpoint)
+
+    enum BanRecordState: Equatable {
+        case loading
+        case finished(BanRecordOutcome)
+    }
+
+    /// The last ban record lookup per server in this session (never saved).
+    private(set) var banRecords: [UUID: BanRecordState] = [:]
+
+    func banRecordState(for id: UUID) -> BanRecordState? { banRecords[id] }
+
+    func banRecordConfig(for id: UUID) -> BanRecordConfig? {
+        servers.first { $0.id == id }?.banRecord
+    }
+
+    /// A bearer token is stored for this server (the token itself never leaves the store).
+    func hasBanRecordToken(for id: UUID) -> Bool {
+        ((try? deps.secretStore.secret(for: id.uuidString)) ?? nil)?.isEmpty == false
+    }
+
+    /// Saves the settings; `token` `nil` keeps the stored token, `""` removes it. An empty template removes the
+    /// settings and the token. Returns the problem without changing anything.
+    @discardableResult
+    func setBanRecord(urlTemplate: String, enabled: Bool, token: String?, for id: UUID) -> BanRecordError? {
+        guard let index = servers.firstIndex(where: { $0.id == id }) else { return nil }
+        let trimmed = urlTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            removeBanRecordToken(for: id)
+            if servers[index].banRecord != nil {
+                servers[index].banRecord = nil
+                markEdited()
+            }
+            banRecords[id] = nil
+            return nil
+        }
+        let valid: String
+        switch BanRecordConfig.validate(trimmed) {
+        case .success(let template): valid = template
+        case .failure(let error): return .invalidTemplate(error)
+        }
+        if let token {
+            do {
+                try deps.secretStore.setSecret(token.trimmingCharacters(in: .whitespacesAndNewlines), for: id.uuidString)
+            } catch {
+                deps.errorLog.record(.banLookup, "keychainWrite \(error)", at: deps.now())
+                return .keychain
+            }
+        }
+        let config = BanRecordConfig(urlTemplate: valid, enabled: enabled)
+        if servers[index].banRecord != config {
+            servers[index].banRecord = config
+            markEdited()
+        }
+        return nil
+    }
+
+    private func removeBanRecordToken(for id: UUID) {
+        do {
+            try deps.secretStore.setSecret(nil, for: id.uuidString)
+        } catch {
+            deps.errorLog.record(.banLookup, "keychainDelete \(error)", at: deps.now())
+        }
+    }
+
+    /// Everything one lookup needs, captured on the main actor; `nil` when the server has no enabled ban record.
+    func banRecordLookup(for id: UUID) -> Result<BanRecordLookup, BanRecordError>? {
+        guard let entry = servers.first(where: { $0.id == id }), let config = entry.banRecord, config.enabled else {
+            return nil
+        }
+        let values = BanListValues(cid: rowStatus(id)?.currentCID, ip: publicIP, host: entry.host, port: entry.port)
+        let template: String
+        switch BanRecordConfig.validate(config.urlTemplate) {
+        case .success(let valid): template = valid
+        case .failure(let error): return .failure(.invalidTemplate(error))
+        }
+        let url: URL
+        switch BanListTemplate.url(template, values: values) {
+        case .success(let filled): url = filled
+        case .failure(let error): return .failure(.invalidTemplate(error))
+        }
+        let token: String?
+        do {
+            token = try deps.secretStore.secret(for: id.uuidString)
+        } catch {
+            return .failure(.keychain)
+        }
+        return .success(BanRecordLookup(url: url, bearerToken: token, client: BanRecordClient(http: deps.banRecordHTTP),
+                                        now: deps.now))
+    }
+
+    /// "Check Ban Record" on the card (outside a diagnosis).
+    @discardableResult
+    func refreshBanRecord(for id: UUID) -> Task<Void, Never>? {
+        guard banRecords[id] != .loading, let lookup = banRecordLookup(for: id) else { return nil }
+        switch lookup {
+        case .failure(let error):
+            finishBanRecord(.failure(error), for: id)
+            return nil
+        case .success(let lookup):
+            banRecords[id] = .loading
+            return Task {
+                let outcome = await lookup.run()
+                finishBanRecord(outcome, for: id)
+            }
+        }
+    }
+
+    /// Stores the outcome; a failure is never swallowed: it stays on the card and goes to the error log (`banLookup`,
+    /// kind and status only — no URL, token or body).
+    private func finishBanRecord(_ outcome: BanRecordOutcome, for id: UUID) {
+        banRecords[id] = .finished(outcome)
+        if case .failure(let error) = outcome {
+            deps.errorLog.record(.banLookup, error.logMessage, at: deps.now())
+        }
+    }
+
+    private func banRecordAppealLine(for id: UUID) -> String? {
+        guard case .finished(.success(let result))? = banRecords[id] else { return nil }
+        return BanRecordText.appealLine(result)
     }
 
     /// Closes the diagnosis (sheet closed): a running probe is cancelled.

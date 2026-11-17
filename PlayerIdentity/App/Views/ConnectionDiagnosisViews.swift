@@ -49,6 +49,10 @@ struct ConnectionDiagnosisSection: View {
             if let session {
                 if let result = session.result {
                     verdictCard(result)
+                    // §68.3 VPN reality card (ban verdict + VPN egress only).
+                    if let guidance = VPNGuidance(result) {
+                        VPNGuidanceCard(guidance: guidance)
+                    }
                 } else if session.isRunning {
                     Label(L10n.text(.diagnoseRunning), systemImage: "hourglass")
                         .foregroundStyle(Palette.text2)
@@ -64,6 +68,12 @@ struct ConnectionDiagnosisSection: View {
                     actions(result)
                 }
             }
+            // §68.2 ban record card (only with an enabled ban record or a lookup result).
+            if model.banRecordConfig(for: serverID)?.enabled == true || model.banRecordState(for: serverID) != nil {
+                BanRecordCard(model: model, serverID: serverID)
+            }
+            // §68.3 static help, always reachable.
+            VPNHelpDisclosure()
         }
         .accessibilityIdentifier("diagnoseSection")
         .alert(L10n.text(.diagnoseUnmaskedTitle), isPresented: $confirmUnmasked) {
@@ -105,6 +115,12 @@ struct ConnectionDiagnosisSection: View {
                 if let note = RangeBanNote(result) {
                     rangeBanNote(note)
                 }
+                if result.passwordProtected, verdict != .passwordProtected {
+                    Label(L10n.text(.diagnosePasswordNote), systemImage: "lock.fill")
+                        .font(.caption)
+                        .foregroundStyle(Palette.orangeText)
+                        .accessibilityIdentifier("diagnosePasswordNote")
+                }
             }
             .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -114,7 +130,9 @@ struct ConnectionDiagnosisSection: View {
         .background(RoundedRectangle(cornerRadius: Radius.inner).fill(verdict.level.tint))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(L10n.text(.diagnoseVerdict))
-        .accessibilityValue(([verdict.sentence, verdict.advice] + (RangeBanNote(result)?.lines ?? [])).joined(separator: " "))
+        .accessibilityValue(([verdict.sentence, verdict.advice] + (RangeBanNote(result)?.lines ?? [])
+                             + (result.passwordProtected && verdict != .passwordProtected ? [L10n.text(.diagnosePasswordNote)] : []))
+            .joined(separator: " "))
         .accessibilityIdentifier("diagnoseVerdict")
     }
 
@@ -152,7 +170,7 @@ struct ConnectionDiagnosisSection: View {
     private func stepList(_ session: AppModel.DiagnosisSession) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(L10n.text(.diagnoseSteps)).font(.caption.bold()).foregroundStyle(Palette.text2)
-            ForEach(DiagnosisStepKind.allCases, id: \.self) { kind in
+            ForEach(Self.visibleSteps(session), id: \.self) { kind in
                 stepRow(kind, step: session.steps.first { $0.step == kind }, running: session.current == kind,
                         waiting: session.isRunning)
             }
@@ -194,6 +212,12 @@ struct ConnectionDiagnosisSection: View {
         .accessibilityLabel(kind.title)
         .accessibilityValue(Self.accessibilityValue(step: step, running: running, waiting: waiting))
         .accessibilityIdentifier("diagnoseStep-\(kind.rawValue)")
+    }
+
+    /// The four probe steps, plus §68.1 `rules` once it started.
+    static func visibleSteps(_ session: AppModel.DiagnosisSession) -> [DiagnosisStepKind] {
+        let rules = session.current == .rules || session.steps.contains { $0.step == .rules }
+        return DiagnosisStepKind.probeSteps + (rules ? [.rules] : [])
     }
 
     /// ✅ / ❌ / ⏭ (§64.4).

@@ -523,6 +523,8 @@ struct AppealInput: Sendable, Equatable {
     var check: BanCheck
     /// §17.10.4: suspected range ban (filled only after `rangeBanned`).
     var rangeBan: RangeBanInfo?
+    /// §68.2 newest active ban of the ban record (reason, admin, time left); `nil` = no lookup or no active ban.
+    var banRecordLine: String? = nil
 }
 
 struct RangeBanInfo: Sendable, Equatable {
@@ -561,7 +563,7 @@ enum AppealText {
             L10n.format(.appealClient, input.gamedir),
             L10n.format(.appealServerReply, raw),
             L10n.format(.appealCheckType, classification.checkTypeText),
-        ] + rangeLines + [
+        ] + rangeLines + (input.banRecordLine.map { [$0] } ?? []) + [
             "",
             L10n.text(.appealTimedBan),
             "",

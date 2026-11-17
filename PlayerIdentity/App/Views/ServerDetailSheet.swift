@@ -43,7 +43,7 @@ struct AppealDraft: Equatable {
     }
 }
 
-/// Row details: connection diagnosis (§64), notes (§32), appeal + timeline + postpone (§32, §36), ping/uptime charts (§39), ban list URL (§40),
+/// Row details: connection diagnosis (§64), server details (§68.1), notes (§32), appeal + timeline + postpone (§32, §36), ping/uptime charts (§39), ban list URL (§40),
 /// per-server notifications (§56).
 struct ServerDetailSheet: View {
     @Bindable var model: AppModel
@@ -88,6 +88,8 @@ struct ServerDetailSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     ConnectionDiagnosisSection(model: model, serverID: serverID)
+                    Divider()
+                    ServerDetailsSection(model: model, serverID: serverID)
                     Divider()
                     watchSection
                     Divider()
@@ -230,6 +232,9 @@ struct ServerDetailSheet: View {
                 Text(banListAppliedAll).font(.caption).foregroundStyle(Palette.text2)
                     .accessibilityIdentifier("banListAppliedAll")
             }
+            // §68.2 ban record JSON endpoint (the token goes to the Keychain only).
+            BanRecordSettingsView(model: model, serverID: serverID)
+                .padding(.top, 6)
         }
     }
 

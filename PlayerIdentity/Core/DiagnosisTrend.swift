@@ -52,6 +52,7 @@ extension DiagnosisVerdict {
         case .vpnConflict: return L10n.text(.diagnoseShortVpnConflict)
         case .checksDisabled: return L10n.text(.diagnoseShortChecksDisabled)
         case .noBan: return L10n.text(.diagnoseShortNoBan)
+        case .passwordProtected: return L10n.text(.diagnoseShortPasswordProtected)
         }
     }
 }

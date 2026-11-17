@@ -172,7 +172,7 @@ extension CLIRunner {
                                                  knownRange: knownRange)
         let diagnoser = ConnectionDiagnoser(transport: context.udpTransport, resolver: context.resolver, now: context.now,
                                             stepTimeout: timeout,
-                                            totalTimeout: timeout * Double(DiagnosisStepKind.allCases.count))
+                                            totalTimeout: timeout * Double(DiagnosisStepKind.probeSteps.count))
         let started = context.now()
         let probe: ConnectionProbeResult
         do {

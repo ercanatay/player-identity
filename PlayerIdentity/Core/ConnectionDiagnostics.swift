@@ -8,6 +8,12 @@ enum DiagnosisStepKind: String, Codable, Sendable, CaseIterable {
     case a2sInfo
     case getChallenge
     case connect49
+    /// §68.1 A2S_RULES (password, cvars): only in the details' diagnosis and only after a challenge was received;
+    /// never part of the fixed probe sequence (`probeSteps`).
+    case rules
+
+    /// The four probe steps every diagnosis records (§64.1).
+    static let probeSteps: [DiagnosisStepKind] = [.dns, .a2sInfo, .getChallenge, .connect49]
 
     var title: String {
         switch self {
@@ -15,6 +21,7 @@ enum DiagnosisStepKind: String, Codable, Sendable, CaseIterable {
         case .a2sInfo: return L10n.text(.diagnoseStepA2sInfo)
         case .getChallenge: return L10n.text(.diagnoseStepGetChallenge)
         case .connect49: return L10n.text(.diagnoseStepConnect49)
+        case .rules: return L10n.text(.diagnoseStepRules)
         }
     }
 }
@@ -59,6 +66,8 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
     case vpnConflict
     case checksDisabled
     case noBan
+    /// §68.1 A2S_RULES reports `sv_password`.
+    case passwordProtected
 
     /// One sentence for the verdict card.
     var sentence: String {
@@ -74,6 +83,7 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
         case .vpnConflict: return L10n.text(.diagnoseVerdictVpnConflict)
         case .checksDisabled: return L10n.text(.diagnoseVerdictChecksDisabled)
         case .noBan: return L10n.text(.diagnoseVerdictNoBan)
+        case .passwordProtected: return L10n.text(.diagnoseVerdictPasswordProtected)
         }
     }
 
@@ -91,6 +101,7 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
         case .vpnConflict: return L10n.text(.diagnoseAdviceVpnConflict)
         case .checksDisabled: return L10n.text(.diagnoseAdviceChecksDisabled)
         case .noBan: return L10n.text(.diagnoseAdviceNoBan)
+        case .passwordProtected: return L10n.text(.diagnoseAdvicePasswordProtected)
         }
     }
 
@@ -114,6 +125,7 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
         case .cidUnverified: return "questionmark.diamond"
         case .vpnConflict: return "lock.shield"
         case .checksDisabled: return "pause.circle"
+        case .passwordProtected: return "lock.fill"
         }
     }
 
@@ -141,11 +153,23 @@ struct DiagnosisFacts: Sendable, Equatable {
     var vpnActive = false
     /// §17.10 suspected range ban of this server (from the history / the last fix), e.g. `198.51.0.0/16`.
     var knownRange: String?
+    /// §68.1 A2S_RULES `sv_password` (`nil` = not asked or not reported).
+    var passwordProtected: Bool? = nil
 }
 
 enum DiagnosisClassifier {
     /// The probe verdict. "No ban" only when A2S_INFO, getchallenge and connect 49 all succeeded.
+    /// §68.1: a password reported by A2S_RULES decides every verdict except a ban (a ban keeps priority; the card
+    /// still names the password).
     static func verdict(_ facts: DiagnosisFacts) -> DiagnosisVerdict {
+        let verdict = probeVerdict(facts)
+        guard facts.passwordProtected == true, !verdict.isBan, verdict != .dnsFailure, verdict != .checksDisabled else {
+            return verdict
+        }
+        return .passwordProtected
+    }
+
+    private static func probeVerdict(_ facts: DiagnosisFacts) -> DiagnosisVerdict {
         guard facts.dns == .resolved else { return .dnsFailure }
         guard facts.checksEnabled else { return .checksDisabled }
         if facts.info == .socketError { return .timeout }
@@ -190,6 +214,8 @@ struct ConnectionDiagnosisRequest: Sendable, Equatable {
     let checksEnabled: Bool
     let vpnActive: Bool
     let knownRange: String?
+    /// §68.1: run the A2S_RULES step after the challenge (details diagnosis only).
+    var queryRules = false
 }
 
 struct ConnectionProbeResult: Sendable, Equatable {
@@ -199,6 +225,8 @@ struct ConnectionProbeResult: Sendable, Equatable {
     var address: String?
     var cid: String?
     var info: ServerInfo?
+    /// §68.1 rules of the `rules` step.
+    var rules: ServerRulesResult? = nil
 }
 
 /// Live progress for the UI: a step started, then finished.
@@ -251,7 +279,7 @@ struct ConnectionDiagnoser: Sendable {
             await progress(.finished(step))
         }
         func skipRest(from kind: DiagnosisStepKind, target: String, _ detail: String) async {
-            for later in DiagnosisStepKind.allCases where later.order >= kind.order && !steps.contains(where: { $0.step == later }) {
+            for later in DiagnosisStepKind.probeSteps where later.order >= kind.order && !steps.contains(where: { $0.step == later }) {
                 await record(later, .skipped, since: nil, target: target, detail)
             }
         }
@@ -310,6 +338,26 @@ struct ConnectionDiagnoser: Sendable {
             return finish()
         }
         defer { session.close() }
+        /// §68.1 A2S_RULES on the same session; never changes the probe steps, only adds `rules`.
+        func rulesStep() async throws {
+            guard request.queryRules, now() < overallDeadline else { return }
+            try Task.checkCancellation()
+            await progress(.started(.rules))
+            let rulesStart = now()
+            let deadline = min(rulesStart.addingTimeInterval(step), overallDeadline)
+            let querier = ServerQuerier(transport: transport, now: now, attemptTimeout: max(0.5, step / 4))
+            switch try await querier.rules(session, until: deadline) {
+            case .success(let rules):
+                result.rules = rules
+                facts.passwordProtected = rules.passwordProtected
+                var detail = "\(rules.rules.count) rules"
+                if let password = rules.passwordProtected { detail += " · password=\(password ? 1 : 0)" }
+                if rules.truncated { detail += " · truncated" }
+                await record(.rules, .ok, since: rulesStart, target: endpointTarget, detail)
+            case .failure(let error):
+                await record(.rules, .failed, since: rulesStart, target: endpointTarget, "\(error)")
+            }
+        }
         let infoDeadline = min(infoStart.addingTimeInterval(step), overallDeadline)
         var infoSentAt = now()
         if var reply = try await checker.exchange(session, BanPackets.info(), until: infoDeadline, ignoreInfo: false) {
@@ -380,6 +428,7 @@ struct ConnectionDiagnoser: Sendable {
         guard let rawID = request.rawID else {
             facts.connect = .noCID
             await record(.connect49, .skipped, since: nil, target: endpointTarget, "noCID")
+            try await rulesStep()
             return finish()
         }
         guard now() < overallDeadline else {
@@ -396,6 +445,7 @@ struct ConnectionDiagnoser: Sendable {
         guard let connectReply = try await checker.exchange(session, packet, until: connectDeadline, ignoreInfo: true) else {
             facts.connect = .noReply
             await record(.connect49, .failed, since: connectStart, target: endpointTarget, "noReply")
+            try await rulesStep()
             return finish()
         }
         switch BanReplies.classifyConnect(connectReply) {
@@ -415,6 +465,7 @@ struct ConnectionDiagnoser: Sendable {
             await record(.connect49, .failed, since: connectStart, target: endpointTarget,
                          "unrecognized: " + BanReplies.printable(text))
         }
+        try await rulesStep()
         return finish()
     }
 
@@ -479,6 +530,11 @@ struct ConnectionDiagnosis: Sendable, Equatable {
     /// §67.1 a diagnosis rebuilt from its history line (`playeridentityctl report`): the verdict written then, which
     /// a later engine log never changes.
     var recordedVerdict: DiagnosisVerdict? = nil
+    /// §68.2 ban record lookup of this run (only when the server has one enabled); the report shows its count only.
+    var banRecord: BanRecordOutcome? = nil
+
+    /// §68.1 the rules reported a password (shown with every verdict, also next to a ban).
+    var passwordProtected: Bool { probe.facts.passwordProtected == true }
 
     var steps: [DiagnosisStep] { probe.steps }
     var probeVerdict: DiagnosisVerdict { probe.verdict }
@@ -573,6 +629,9 @@ enum DiagnosisReport {
         if let history {
             lines.append("- \(L10n.text(.diagnoseTrendWindow)): \(history.window.title)")
         }
+        if let banRecord = diagnosis.banRecord {
+            lines.append("- " + BanRecordText.reportLine(banRecord))
+        }
         lines.append("- " + L10n.text(masked ? .diagnoseReportMasked : .diagnoseReportUnmaskedNote))
         lines.append("")
         lines.append("## \(L10n.text(.diagnoseVerdict)): `\(diagnosis.verdict.rawValue)`")
@@ -580,6 +639,10 @@ enum DiagnosisReport {
         lines.append(diagnosis.verdict.sentence)
         lines.append("")
         lines.append(diagnosis.verdict.advice)
+        if diagnosis.passwordProtected, diagnosis.verdict != .passwordProtected {
+            lines.append("")
+            lines.append(L10n.text(.diagnosePasswordNote))
+        }
         if diagnosis.verdictFromLog {
             lines.append("")
             lines.append(L10n.format(.diagnoseLogOverride, diagnosis.probeVerdict.rawValue))

@@ -16,6 +16,8 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     case launch
     /// §67.4: a Spotlight index update failed.
     case spotlight
+    /// §68.2: a ban record (JSON endpoint) lookup failed.
+    case banLookup
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {
