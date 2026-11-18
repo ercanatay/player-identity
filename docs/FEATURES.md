@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.19.0** (913 automated tests), against behaviour specification **v4.6** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.20.0** (935 automated tests), against behaviour specification **v4.7** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -19,7 +19,7 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Languages** | 26 languages (1051 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
-| **Tests** | 913 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Tests** | 935 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -618,6 +618,14 @@ When a server refuses a connection, the engine usually says nothing useful. **Di
 - **Ban record** (spec §68.2): optionally set a per-server JSON endpoint (`{cid}` / `{ip}` template, optional bearer token stored only in the Keychain). The record shows reason, admin, start and remaining time; the unban message is enriched with it and lookup errors are shown instead of hidden.
 - **VPN guidance** (spec §68.3): changing the VPN cannot lift a **CID ban** (the CID derives from the server address and your identity file), but a different VPN exit can help against an **IP ban**; range bans need an exit in another range.
 
+## Ban-expiry reminders
+
+- **Reminders** (spec §69.1): when the ban record shows a timed ban, the app schedules a notification ten minutes before it ends and once when it ends. Quiet hours defer delivery, each server can opt out, and the same alert is never delivered twice.
+
+## Widget
+
+- **WidgetKit** (spec §69.2): small and medium desktop widgets show the overall status, a shortened CID and your first servers with their ban state. They read a local snapshot written by the app (no IP addresses, no network access from the widget).
+
 ## Updates
 ![Updates settings](screenshots/settings-updates-light.png)
 
@@ -774,6 +782,7 @@ shasum -a 256 -c SHA256SUMS.txt
 - **Game rewrites config:** Xash3D rewrites `config.cfg` on exit, so edits are refused while it runs.
 - **Servers may force a model** server-side.
 - **A running app vs the CLI:** CLI edits to the record are seen by the app only after it is reopened.
+- **Expiry reminders (spec §69.3):** reminders are planned while the app runs; nothing is scheduled while it is closed.
 - **No push of data:** the app never uploads anything; "Fix" never executes server commands.
 
 ## Troubleshooting

@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.20.0] - 2026-11-18
+
+### Added
+- **Ban-expiry reminders** (spec §69.1): a timed ban from the ban record schedules a notification ten minutes before it ends and once when it ends, with quiet-hours deferral, per-server opt-out and no duplicate alerts.
+- **WidgetKit widget** (spec §69.2): small and medium widgets show the overall status, a shortened CID and your first servers with their ban state, fed by a local snapshot (no IP addresses, no network from the widget).
+- Both features are localized into all 26 languages.
+
+### Notes
+- Expiry reminders are planned while the app runs; nothing is scheduled while it is closed (documented limit).
+
 ## [2.19.0] - 2026-11-17
 
 ### Added
@@ -256,6 +266,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.20.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.20.0
 [2.19.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.19.0
 [2.18.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.18.0
 [2.17.1]: https://github.com/ercanatay/player-identity/releases/tag/v2.17.1

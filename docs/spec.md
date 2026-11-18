@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.6 · Tarih: 2026-11-17 · Durum: uygulanacak (v4.5 → v4.6: §68 oyuncu/kural sorgusu, ban kaydı API'si, VPN gerçeği)
+Sürüm: 4.7 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.6 → v4.7: §69 ban bitiş bildirimi, WidgetKit)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1528,3 +1528,25 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 - `ipBanned` ve VPN etkinse: "VPN çıkışını değiştirmek yardımcı olabilir" + mevcut "Unban mesajını kopyala".
 - Kart yalnız ilgili hükümlerde görünür; statik yardım metni teşhis bölümünde her zaman erişilebilir.
 - **Testler:** hüküm × VPN durumu matrisi (4 kombinasyon), kart metni, yardım bağlantısı.
+
+## 69. Sprint 3 — ban bitişi ve widget (v4.7)
+### 69.1 Ban bitiş bildirimi
+- Kaynak: §68.2 ban kaydı (yalnız `expires` bilinen ve gelecekte olan süreli banlar).
+- Kayıt başına **tek** bildirim: bitişten **10 dakika önce** "Ban 10 dakika içinde kalkıyor" ve bitişte "Ban kalktı" (ikisi tek bildirimde birleşmez; yalnız bitiş anı bildirimi zorunlu, "10 dk önce" ayarla kapatılabilir).
+- Kalıcılık: `profile.json` içinde `banExpiryWatch: [{serverID, cid, expiresAt, notifiedAt, kind}]`; uygulama kapalıyken bildirim **kurulmaz** (zamanlanmış yerel bildirim kullanılmaz), açılışta ve her başarılı ban kaydı sorgusunda yeniden planlanır.
+- Kurallar: bildirim ana şalteri ve ban bildirimleri açık olmalı; **sessiz saat** geçerliyse bildirim ertelenir (sessiz saat bitince bir kez); sunucuya özel bildirim modu `off` ise gönderilmez; aynı ban için tekrar bildirim yok (`notifiedAt`).
+- Ban kaydı artık yoksa veya ban erken kalkmışsa izleme kaydı silinir, bildirim gönderilmez.
+- UI: ban kaydı kartında **"Bitişte bildir"** anahtarı (expiry varsa varsayılan açık) + planlanan zaman; ana pencerede "yaklaşan ban bitişleri" satırı (en çok 1 gün kalanlar).
+- Testler: planlama (10 dk eşiği, bitiş), sessiz saat erteleme, `off` modu, tekrar engelleme, erken kalkma/temizlik, kalıcılık (yeniden yükleme), sessiz saat sonrası tek bildirim.
+
+### 69.2 WidgetKit widget'ı
+- macOS 14 widget eklentisi (`PlayerIdentityWidget`), aileler: **small** (genel durum ikonu + kısa CID + son kontrol) ve **medium** (ilk 3 sunucu: etiket + ban durumu + ping).
+- Veri paylaşımı: uygulama her yenilemeden sonra **widget anlık görüntüsü** yazar (`widget-snapshot.json`, `schemaVersion: 1`, `updatedAt`, `status`, `cidShort`, `servers[{label, host, port, ban, ping}]`); widget eklentisi bu dosyayı **salt okunur** okur. Dosya yolu App Group yerine uygulamanın kendi veri klasörüdür; eklenti sandbox'sız olduğu için aynı yolu okur (App Group gerekmez).
+- Zaman çizelgesi: 15 dakikada bir `.after` yenileme; veri yoksa "Uygulamayı açın" boş durumu. Widget'tan tıklama uygulamayı açar (deep link `playeridentity://show`).
+- Gizlilik: widget CID'i **kısaltılmış** gösterir; IP göstermez; dosyada IP yok.
+- Paketleme: `.appex` imzalanır ve uygulama içine gömülür; `spctl`/`codesign --verify --deep` temiz olmalı; notarization tüm eklentiyi kapsar.
+- Testler: anlık görüntü kodlama/çözme, eksik/bozuk dosya, timeline üretimi (boş/dolu), kısaltma biçimi, deep link.
+
+### 69.3 Sınırlar
+- Widget ağ isteği yapmaz; veri yalnız uygulama açıkken/yenilenirken güncellenir.
+- Bildirimler yalnız uygulama açılışında planlanır; uygulama tamamen kapalıyken ban bitişi bildirimi garanti edilmez (spec gereği zamanlanmış bildirim kullanılmıyor). Bu sınır dokümanda belirtilir.

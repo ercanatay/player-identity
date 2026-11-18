@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.19.0** (913 otomatik test) için, davranış spesifikasyonu **v4.6** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.20.0** (935 otomatik test) için, davranış spesifikasyonu **v4.7** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -21,7 +21,7 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Diller** | 26 dil (dil başına 1051 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
-| **Testler** | Ana şemada 913 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
+| **Testler** | Ana şemada 935 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
 | **Sandbox** | Korumalı alanda değil (oyun klasörüne ve `/Applications` altında kendi kendini güncellemeye ihtiyaç duyar); hardened runtime etkindir |
 | **Telemetri** | Yok |
 | **Lisans** | MIT |
@@ -620,6 +620,14 @@ Bir sunucu bağlantıyı reddettiğinde motor genellikle işe yarar bir şey sö
 - **Ban kaydı** (spec §68.2): sunucu başına isteğe bağlı JSON uç noktası (`{cid}` / `{ip}` şablonu, yalnızca Anahtar Zinciri'nde saklanan isteğe bağlı bearer token). Kayıt neden, yönetici, başlangıç ve kalan süreyi gösterir; ban kaldırma mesajı bununla zenginleşir ve sorgu hataları gizlenmez.
 - **VPN rehberi** (spec §68.3): VPN değiştirmek **CID banını** çözmez (CID, sunucu adresinden ve kimlik dosyanızdan türer); ancak farklı bir VPN çıkışı **IP banına** karşı işe yarayabilir; aralık banları başka aralıkta bir çıkış gerektirir.
 
+## Ban bitiş hatırlatmaları
+
+- **Hatırlatmalar** (spec §69.1): ban kaydında süreli bir ban görünürse uygulama bitişten on dakika önce ve bitişte birer bildirim planlar. Sessiz saatler teslimi erteler, her sunucu için kapatılabilir ve aynı uyarı iki kez gönderilmez.
+
+## Widget
+
+- **WidgetKit** (spec §69.2): küçük ve orta masaüstü widget'ları genel durumu, kısaltılmış CID'yi ve ilk sunucularınızı ban durumuyla gösterir. Uygulamanın yazdığı yerel bir anlık görüntüyü okur (IP adresi yok, widget'tan ağ erişimi yok).
+
 ## Güncellemeler
 ![Updates settings](screenshots/settings-updates-light.png)
 
@@ -776,6 +784,7 @@ shasum -a 256 -c SHA256SUMS.txt
 - **Oyun yapılandırmayı yeniden yazar:** Xash3D çıkışta `config.cfg` dosyasını yeniden yazar, bu nedenle çalışırken düzenlemeler reddedilir.
 - **Sunucular sunucu tarafında bir modeli zorunlu kılabilir.**
 - **Çalışan bir uygulama ve CLI:** Kayıttaki CLI düzenlemeleri uygulama tarafından yalnızca yeniden açıldıktan sonra görülür.
+- **Bitiş hatırlatmaları (spec §69.3):** Hatırlatmalar uygulama çalışırken planlanır; uygulama kapalıyken planlanmış bildirim yoktur.
 - **Veri gönderimi yok:** Uygulama asla hiçbir şey yüklemez; "Düzelt" asla sunucu komutları yürütmez.
 
 ## Sorun giderme
