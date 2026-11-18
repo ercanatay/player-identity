@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.21.0** (965 automated tests), against behaviour specification **v4.8** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.22.0** (982 automated tests), against behaviour specification **v4.9** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -19,7 +19,7 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Languages** | 26 languages (1051 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
-| **Tests** | 965 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Tests** | 982 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -595,6 +595,22 @@ Export writes `playeridentity-settings-YYYYMMDD-HHmmss.json` with `{ schemaVersi
 ### Reset and erase
 - **Reset Settings…** restores default preferences and keeps servers, record, history, metrics, backups, data root and gamedir.
 - **Erase All Data…** empties only the app's own folder (record, history, metrics, watch state, updates, `*.appbak`). Game files, the data root and preferences are untouched. An optional "Export settings first" (off by default) aborts the erase if the export fails. It is disabled while an update runs, reports leftover items by name and reloads from disk after a partial delete.
+
+## Sync
+
+Optional folder-based sync keeps profiles, servers, watched servers, notes and preferences in step across Macs (spec §71). No CloudKit or App Group is used.
+
+### Format
+The app reads and writes `playeridentity-sync.json` (`schemaVersion: 1`) in a folder you choose (iCloud Drive, a network disk or USB). A local ledger (`sync-state.json`) tracks what was last synced. The file is **unencrypted plain JSON**, and the interface says so.
+
+### Merging
+Records merge by **last write**; deletions propagate to the other Macs.
+
+### Atomic writes and damaged files
+The file is written atomically. If the remote file is damaged, it is kept aside as `playeridentity-sync.json.corrupt-<time>` instead of overwriting local data.
+
+### Privacy: fields never written
+Ban-list tokens, RCON passwords, CIDs, ban and metric history are **never** written to the sync file.
 
 ## Connection diagnosis
 

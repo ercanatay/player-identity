@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.21.0** (965 otomatik test) için, davranış spesifikasyonu **v4.8** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.22.0** (982 otomatik test) için, davranış spesifikasyonu **v4.9** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -21,7 +21,7 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Diller** | 26 dil (dil başına 1051 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
-| **Testler** | Ana şemada 965 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
+| **Testler** | Ana şemada 982 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
 | **Sandbox** | Korumalı alanda değil (oyun klasörüne ve `/Applications` altında kendi kendini güncellemeye ihtiyaç duyar); hardened runtime etkindir |
 | **Telemetri** | Yok |
 | **Lisans** | MIT |
@@ -586,6 +586,22 @@ Dışa aktarma, `{ schemaVersion: 1, appVersion, exportedAt, scope, settings, se
 ### Sıfırlama ve silme
 - **Ayarları Sıfırla…**, varsayılan tercihleri geri yükler ve sunucuları, kaydı, geçmişi, metrikleri, yedekleri, data root'u ve gamedir'i korur.
 - **Tüm Verileri Sil…**, yalnızca uygulamanın kendi klasörünü boşaltır (kayıt, geçmiş, metrikler, izleme durumu, güncellemeler, `*.appbak`). Oyun dosyalarına, data root'a ve tercihlere dokunulmaz. İsteğe bağlı bir "Önce ayarları dışa aktar" seçeneği (varsayılan olarak kapalı), dışa aktarma başarısız olursa silme işlemini durdurur. Bir güncelleme sürerken devre dışıdır, kalan öğeleri adlarıyla bildirir ve kısmi bir silme işleminden sonra diskten yeniden yüklenir.
+
+## Eşitleme
+
+İsteğe bağlı klasör tabanlı eşitleme; profilleri, sunucuları, izlenen sunucuları, notları ve tercihleri Mac'ler arasında aynı tutar (spec §71). CloudKit veya App Group kullanılmaz.
+
+### Biçim
+Uygulama, seçtiğiniz klasörde (iCloud Drive, ağ diski veya USB) `playeridentity-sync.json` dosyasını (`schemaVersion: 1`) okur ve yazar. Yerel bir defter (`sync-state.json`) en son neyin eşitlendiğini izler. Dosya **şifrelenmemiş düz JSON**'dur ve arayüz bunu belirtir.
+
+### Birleştirme
+Kayıtlar **son yazan kazanır** ilkesiyle birleşir; silmeler diğer Mac'lere yayılır.
+
+### Atomik yazma ve bozuk dosya
+Dosya atomik olarak yazılır. Uzak dosya bozuksa yerel verinin üzerine yazılmaz; `playeridentity-sync.json.corrupt-<zaman>` adıyla kenara alınır.
+
+### Gizlilik: yazılmayan alanlar
+Ban listesi token'ları, RCON parolaları, CID'ler, ban ve metrik geçmişi eşitleme dosyasına **asla** yazılmaz.
 
 ## Bağlantı teşhisi
 

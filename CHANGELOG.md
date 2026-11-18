@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.22.0] - 2026-11-18
+
+### Added
+- **Folder-based sync** (spec §71): keep profiles, servers, watched servers, notes and preferences in sync through `playeridentity-sync.json` in a folder you choose (iCloud Drive, a network disk or USB). Records merge by last write, deletions propagate, writes are atomic and a damaged remote file is kept aside instead of overwriting local data.
+- **Privacy by design**: ban-list tokens, RCON passwords, CIDs, history and metrics are never written to the sync file, and the interface states that the file is unencrypted plain JSON.
+
+### Notes
+- No CloudKit or App Group is used; the file lives in a folder you control.
+
 ## [2.21.0] - 2026-11-18
 
 ### Added
@@ -272,6 +281,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.22.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.22.0
 [2.21.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.21.0
 [2.20.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.20.0
 [2.19.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.19.0

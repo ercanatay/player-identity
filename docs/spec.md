@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.8 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.7 → v4.8: §70 GoldSrc sunucu tarayıcı)
+Sürüm: 4.9 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.8 → v4.9: §71 klasör tabanlı senkron)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1578,3 +1578,27 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 
 ### 70.5 Testler
 (a) master istek kodlama/çözme, sayfalama, boş/tekrar eden yanıt, 5.000 sınırı, iptal; (b) A2S_INFO toplama (eşzamanlılık sınırı, yanıtsız eleme, süre); (c) filtre/sıralama matrisi; (d) ekleme/yinelenen/teşhis eylemleri; (e) önbellek (bellek 5 dk, disk 24 saat) ve bozuk dosya; (f) 26 dilde anahtar eşitliği; (g) ağ yok — sahte taşıyıcı.
+
+## 71. Klasör tabanlı senkron (v4.9)
+CloudKit/App Group yerine **kullanıcı seçimli klasör** (iCloud Drive, ağ diski, USB) üzerinden senkron. Sunucu, hesap veya entitlement gerekmez; dosya kullanıcının kendi bulutunda durur.
+
+### 71.1 Kapsam ve biçim
+- Dosya: `<sync klasörü>/playeridentity-sync.json` (`schemaVersion: 1`).
+- İçerik: `deviceID`, `updatedAt`, `profiles[]`, `servers[]`, `watched[]`, `settings` (yalnız: dil, bildirim tercihleri, sessiz saat, görünüm), `notes[]` (sunucu notları/itirazlar).
+- **Asla yazılmaz:** ban listesi token'ı, RCON parolası, teşhis geçmişi, metrikler, CID/parola gibi sırlar. Dosya düz JSON'dur; kullanıcıya bu uyarı gösterilir.
+- Her kayıtta `updatedAt` + `deletedAt` (tombstone); birleştirme **kayıt bazında son yazan kazanır**, silme de senkronlanır.
+
+### 71.2 Davranış
+- Ayarlar > Veri > **"Senkron klasörü"**: seç / kaldır / "Şimdi senkronla".
+- Senkron anları: uygulama açılışı (gecikmeli), her kayıttan sonra 5 sn debounce, "Şimdi senkronla", uygulama kapanışı (en çok 2 sn).
+- Birleştirme: yerel + uzak kayıtlar `id` ile eşlenir; `updatedAt` yeni olan kazanır; yalnız yerelde olan eklenir; tombstone varsa iki tarafta da silinir. Aynı `updatedAt` ile farklı içerik → yerel kazanır ve çakışma sayacı artar.
+- Hata: klasör yok/erişilemez/JSON bozuk → senkron durur, açık hata + `ErrorLog` (`sync`), yerel veri bozulmaz; bozuk uzak dosya **.corrupt-<zaman>** olarak yedeklenir.
+- İki cihaz aynı anda yazarsa: dosya atomik yazılır (geçici + rename), okuma sonrası `updatedAt` kontrolü; çakışma durumunda ikinci geçiş yapar.
+
+### 71.3 Gizlilik ve sınırlar
+- Dosya kullanıcının seçtiği klasörde **şifrelenmemiş** durur; arayüzde bu açıkça yazar; hassas alanlar (token/parola) hiç yazılmaz.
+- Senkron yalnız tek dosya; büyük geçmiş/metrik/teşhis verisi taşınmaz.
+- Klasör kaldırılırsa uygulama yerel veriyle çalışmaya devam eder; uzak dosya silinmez.
+
+### 71.4 Testler
+(a) birleştirme: yeni/kopya/silme/tombstone/çakışma matrisi; (b) hassas alanların dosyaya **hiç** yazılmadığı; (c) atomik yazma ve bozuk dosya yedekleme; (d) debounce/kapanış senkronu (sahte saat); (e) klasör erişim hataları; (f) 26 dilde anahtar eşitliği.
