@@ -11,7 +11,6 @@
 ## Overview
 
 [![CI](https://github.com/ercanatay/player-identity/actions/workflows/ci.yml/badge.svg)](https://github.com/ercanatay/player-identity/actions/workflows/ci.yml)
-[![UI Tests](https://github.com/ercanatay/player-identity/actions/workflows/ui-tests.yml/badge.svg)](https://github.com/ercanatay/player-identity/actions/workflows/ui-tests.yml)
 [![Release](https://img.shields.io/github/v/release/ercanatay/player-identity)](https://github.com/ercanatay/player-identity/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)
@@ -76,9 +75,13 @@ Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
   - [Status colours and suggestions](#status-colours-and-suggestions)
   - [Ban checks](#ban-checks)
   - [Fix: what can and cannot be fixed](#fix-what-can-and-cannot-be-fixed)
+  - [Ban record lookup](#ban-record-lookup)
+  - [VPN guidance](#vpn-guidance)
   - [Full data backup and restore](#full-data-backup-and-restore)
   - [Servers: groups, favourites, filters](#servers-groups-favourites-filters)
   - [Adding servers from URLs or pasted lists](#adding-servers-from-urls-or-pasted-lists)
+  - [Server browser](#server-browser)
+  - [Server details: players and rules](#server-details-players-and-rules)
   - [Notes and appeal tracking](#notes-and-appeal-tracking)
   - [Watched servers and notifications](#watched-servers-and-notifications)
   - [Per-server notification thresholds](#per-server-notification-thresholds)
@@ -89,8 +92,12 @@ Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
   - [Model catalogue and previews](#model-catalogue-and-previews)
   - [Join game](#join-game)
   - [Settings export/import](#settings-exportimport)
+  - [Sync folder](#sync-folder)
+  - [Read-only RCON](#read-only-rcon)
   - [Share card](#share-card)
   - [Menu bar and launch at login](#menu-bar-and-launch-at-login)
+  - [Widget](#widget)
+  - [Spotlight, launch summary and launch with logging](#spotlight-launch-summary-and-launch-with-logging)
   - [Updates and downgrade](#updates-and-downgrade)
   - [Language](#language)
   - [Accessibility and keyboard](#accessibility-and-keyboard)
@@ -129,9 +136,14 @@ Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 | **Sharing** | 1200×630 PNG card with the CID and a QR code |
 | **Updates** | Signed, checksum-verified in-app updates with rollback; version history and downgrade with data backup |
 | **i18n** | 26 languages, switchable at runtime (System + 26 native names) |
-| **Automation** | `playeridentityctl` CLI and three Shortcuts/Siri actions |
+| **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme and five Shortcuts/Siri actions |
 | **Diagnosis** | Step-by-step probe with engine-log evidence, a 7/30-day verdict trend, menu bar runs and a shareable masked report |
 | **Diagnostics** | Redacted support bundle (ZIP) |
+| **Browser** | Find public servers from the master list with filters, then add or diagnose them |
+| **Sync** | Optional sync folder with last-writer-wins merge; no secrets written |
+| **RCON** | Read-only RCON console with fixed commands; password in the Keychain |
+| **Widget** | macOS 14 small/medium widget with status and server ping |
+| **macOS integration** | Spotlight server search and a 7-day ban summary at launch |
 
 ---
 
@@ -271,6 +283,19 @@ between attempts, no retries, and no spawn packet. The whole check can be disabl
 
 A single fix can run at a time, is cancellable, and always leaves the network interface enabled.
 
+### Ban record lookup
+
+Optionally set a per-server **HTTPS JSON endpoint** (a `{cid}` / `{ip}` URL template) and a bearer token. The
+token is stored **only in the Keychain**. The record shows reason, admin, start and **remaining time**, and
+enriches the unban message. If the lookup fails you get a visible warning and a **search the ban list** fallback.
+The token and the response body are never written to reports.
+
+### VPN guidance
+
+The CID derives from the server address and your identity file, so **changing VPN does not lift a CID ban**.
+A different VPN exit can only help against an **IP ban**; a range ban needs an exit in another range. See
+[FEATURES.md](docs/FEATURES.md#server-details-ban-record-and-vpn-guidance).
+
 ### Full data backup and restore
 
 - **Backup** writes records, history, metrics and watch state to one archive, with a manifest describing its contents.
@@ -315,6 +340,27 @@ open "playeridentity://add?host=198.51.100.10&host=198.51.100.11:27016&host=%5B2
 - The main window comes to the front and an alert reports how many servers were added, which were already in the
   list and which entries were invalid (and why). Added rows are **unsaved** (“Kaydedilmedi”) until you press Save.
 - Nothing is added while a restore, an erase or a settings import is running.
+
+### Server browser
+
+**Find server** (`⌘B`) in the main window lists public GoldSrc servers from the master list
+(`hl1master.steampowered.com:27010`), paging through it with a budget of 2 s per request, 30 s in total and
+5,000 addresses. Each address is then queried with A2S_INFO (20 at a time) for name, map, players, ping and
+password flag.
+
+- **Filters**: map, name, minimum players, not empty, no password, maximum ping; sortable columns.
+- Up to **300 rows** are shown. A note says the list may be incomplete.
+- **Row actions**: **Add** to your servers, **Diagnose** or **Refresh** a single row.
+- Cache: 5 minutes in memory plus 24 hours on disk, **addresses only** (no names or player data).
+
+See [FEATURES.md](docs/FEATURES.md#server-browser) for details.
+
+### Server details: players and rules
+
+On a server's page you can query **A2S_PLAYER** and **A2S_RULES** to see the player list and a searchable
+rules list. Queries run **only when you ask**, never automatically. If `sv_password` is set, the diagnosis
+verdict becomes **Password protected**. More in
+[FEATURES.md](docs/FEATURES.md#server-details-ban-record-and-vpn-guidance).
 
 ### Notes and appeal tracking
 
@@ -434,6 +480,19 @@ Optional menu bar item with a colour-coded status icon (green/orange/red) and a 
 last check time, **Refresh (⌘R)**, **Settings**, **Show** and **Quit**. While enabled, the app also refreshes
 every 30 minutes. **Launch at login** uses `SMAppService`; registration errors are shown in Settings.
 
+### Widget
+
+A macOS 14 widget shows status at a glance: **small** (status + short CID) and **medium** (first 3 servers with
+ban/ping). It reads `widget-snapshot.json` (no IP, short CID only), refreshes every 15 minutes and opens the app
+when clicked. See [FEATURES.md](docs/FEATURES.md#widget).
+
+### Spotlight, launch summary and launch with logging
+
+- **Spotlight** finds your servers by name.
+- At launch a **"N bans in the last 7 days"** card appears; it can be hidden for the day.
+- From the diagnosis section, **Launch with logging** starts the game with **`-condebug`** and shows whether
+  `qconsole.log` appeared.
+
 ### Updates and downgrade
 
 - **Feed:** the GitHub releases API (stable releases, semantic-version sorted).
@@ -497,11 +556,13 @@ belong to the running app).
 
 ### Shortcuts and Siri
 
-Three App Intents are exposed to Shortcuts and Siri:
+Five App Intents are exposed to Shortcuts and Siri:
 
 - **Check server ban** (with a server parameter)
 - **Show my CID** (with a server parameter)
 - **Refresh**
+- **Diagnose Server** (server parameter) — returns the verdict and duration
+- **Copy Diagnosis Report** (server, masking and window parameters) — copies the masked report
 
 Phrases are localized in Turkish and English and use the app name automatically.
 
@@ -576,6 +637,25 @@ Exports settings and, optionally, the server list to a JSON file named `playerid
 - A preview lists the planned changes before anything is written, and a result summary follows the import.
 - Identity (CID), history and metrics are **not** exported or imported.
 
+### Sync folder
+
+Pick a folder (iCloud Drive, network share or USB) and the app keeps **`playeridentity-sync.json`** in it:
+profiles, servers, watched servers, notes and selected settings. Records are merged **per record, last writer
+wins**, and deletions are kept as tombstones. Writes are atomic; a damaged remote file is moved aside as
+`.corrupt-<time>`.
+
+There are **no free-text or secret fields**: tokens, RCON passwords, the CID, history and metrics are **never**
+written. The file is **not encrypted**. CloudKit and App Groups are not used. See
+[FEATURES.md](docs/FEATURES.md#sync).
+
+### Read-only RCON
+
+Fixed commands only: `status`, `stats`, `listip`, `banlist`, `users`. There is no free-text input and no write
+command. The RCON password lives **only in the Keychain**. RCON is plain UDP, so the password travels
+unencrypted. Limit: on a real server the output is shown raw. See [FEATURES.md](docs/FEATURES.md#rcon-console).
+
+---
+
 ## Data and privacy
 
 Everything the app writes lives in:
@@ -604,6 +684,9 @@ Game data is read from `~/Library/Application Support/Xash3D FWGS/<gamedir>` and
 
 There is **no telemetry**. The app never uploads your record, notes or history. Diagnostics are only created
 when you ask for them, and they are redacted.
+
+The RCON password is stored **only in the Keychain**. The sync file is **not encrypted** and contains no
+sensitive fields (no tokens, RCON passwords, CID, history or metrics).
 
 ---
 
