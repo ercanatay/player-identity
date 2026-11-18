@@ -136,6 +136,11 @@ struct AppPaths: Sendable, Equatable {
         snapshotFile.deletingLastPathComponent().appendingPathComponent(MasterCacheStore.fileName, isDirectory: false)
     }
 
+    /// §71: `~/Library/Application Support/tr.ercanatay.playeridentity/sync-state.json` (ledger of the last sync).
+    var syncStateFile: URL {
+        snapshotFile.deletingLastPathComponent().appendingPathComponent("sync-state.json", isDirectory: false)
+    }
+
     /// Snapshot of the legacy bundle (§19.3): `~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json`.
     /// Only ever read by `DataMigration`; never written.
     var legacySnapshotFile: URL {

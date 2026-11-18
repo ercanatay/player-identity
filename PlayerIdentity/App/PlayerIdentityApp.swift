@@ -124,14 +124,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard TerminationPolicy.needsConfirmation(hasUnsavedChanges: model.hasUnsavedChanges) else { return .terminateNow }
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = L10n.text(.quitTitle)
-        alert.informativeText = L10n.text(.quitMessage)
-        alert.addButton(withTitle: L10n.text(.quitConfirm))
-        alert.addButton(withTitle: L10n.text(.actionCancel))
-        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+        if TerminationPolicy.needsConfirmation(hasUnsavedChanges: model.hasUnsavedChanges) {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = L10n.text(.quitTitle)
+            alert.informativeText = L10n.text(.quitMessage)
+            alert.addButton(withTitle: L10n.text(.quitConfirm))
+            alert.addButton(withTitle: L10n.text(.actionCancel))
+            guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
+        }
+        // §71.2: a last folder sync before quitting, at most 2 seconds.
+        guard model.syncFolder != nil, !AppModel.isRunningTests else { return .terminateNow }
+        let model = self.model
+        Task { @MainActor in
+            _ = await model.syncBeforeQuit()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }
 

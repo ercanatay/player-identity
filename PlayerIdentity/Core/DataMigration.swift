@@ -26,6 +26,9 @@ enum DefaultsKey {
     /// off (UUID strings; default: none, i.e. on for every ban with a known end).
     static let banExpirySoonEnabled = "banExpirySoonEnabled"
     static let banExpiryMutedServers = "banExpiryMutedServers"
+    /// §71 sync folder path (absent = sync off) and this Mac's id in the sync file.
+    static let syncFolder = "syncFolder"
+    static let syncDeviceID = "syncDeviceID"
 }
 
 /// One-time migration from the legacy `tr.ercanatay.oyuncukimlik` bundle (§19.3).

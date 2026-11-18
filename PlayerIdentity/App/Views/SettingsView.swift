@@ -41,6 +41,8 @@ struct GeneralSettingsView: View {
                 SettingsDivider()
                 DataSettingsRow(model: model)
                 SettingsDivider()
+                SyncFolderSettingsRows(model: model)
+                SettingsDivider()
                 FullBackupSettingsRows(model: model)
                 SettingsDivider()
                 DiagnosticsSettingsRow(model: model)

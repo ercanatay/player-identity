@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import os
 
 /// External dependencies; tests pass fakes (§9).
 struct AppDependencies {
@@ -66,6 +67,8 @@ struct AppDependencies {
     /// §70.1: the GoldSrc master server of "Find Servers" (tests point it at an IP literal behind the fake transport).
     var masterServerHost = MasterServerQuery.defaultHost
     var masterServerPort = MasterServerQuery.defaultPort
+    /// §71: file access of the sync folder (tests inject failures and slow disks).
+    var syncFolderAccess: any SyncFolderAccessing = LocalSyncFolderAccess()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -296,6 +299,24 @@ final class AppModel {
     /// "Find Servers" window (master list + A2S_INFO); see `ServerBrowserController`.
     let serverBrowser: ServerBrowserController
 
+    // MARK: §71 folder sync
+
+    /// The chosen sync folder (`nil` = sync off), kept in UserDefaults.
+    private(set) var syncFolder: URL?
+    private(set) var isSyncing = false
+    /// End of the last successful sync (this launch).
+    private(set) var syncLastSuccess: Date?
+    /// Why the last sync stopped; cleared by the next successful one.
+    private(set) var syncError: FolderSyncError?
+    /// Records where both sides had the same stamp but different content (the local copy was kept), this launch.
+    private(set) var syncConflictCount = 0
+    /// Finished sync runs that reached the folder (tests).
+    private(set) var syncRunCount = 0
+    @ObservationIgnored private var syncDebounce = SyncDebounce()
+    @ObservationIgnored private var syncTimerTask: Task<Void, Never>?
+    @ObservationIgnored private var syncRunTask: Task<Void, Never>?
+    @ObservationIgnored private var syncRequestedDuringRun = false
+
     // MARK: §24 apply preview
     struct ApplyPreview: Identifiable, Equatable {
         let id = UUID()
@@ -444,6 +465,9 @@ final class AppModel {
         }
         refreshBackupInfo()
         reindexSpotlight()
+        syncFolder = dependencies.defaults.string(forKey: DefaultsKey.syncFolder).flatMap {
+            $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true)
+        }
     }
 
     // MARK: Derived state
@@ -997,6 +1021,7 @@ final class AppModel {
             return false
         }
         snapshotState = .loaded(saved)
+        scheduleSync()
         return true
     }
 
@@ -1334,6 +1359,8 @@ final class AppModel {
         // §69.1: the saved ban expiries are planned again at launch (no scheduled local notifications).
         if checkBanExpiryNotifications() == nil { scheduleBanExpiryTimer() }
         if menuBarEnabled { startMenuBarRefresh() }
+        // §71.2: the launch sync waits a little, so it never competes with the first refresh.
+        scheduleSync(delay: SyncDebounce.launchDelay)
     }
 
     private func startMenuBarRefresh() {
@@ -2372,6 +2399,7 @@ final class AppModel {
         fixedSinceSave = false
         saveErrorMessage = nil
         reevaluate()
+        scheduleSync()
     }
 
     // MARK: Settings export / import (§46)
@@ -3189,5 +3217,234 @@ final class AppModel {
 
     nonisolated static var isUITesting: Bool {
         ProcessInfo.processInfo.arguments.contains(uiTestingArgument)
+    }
+
+    // MARK: §71 folder sync
+
+    /// "Choose Folder…": sync starts at once.
+    @discardableResult
+    func setSyncFolder(_ url: URL) -> Task<Void, Never> {
+        let folder = url.standardizedFileURL
+        syncFolder = folder
+        deps.defaults.set(folder.path, forKey: DefaultsKey.syncFolder)
+        syncError = nil
+        syncLastSuccess = nil
+        return syncNow()
+    }
+
+    /// "Remove": sync stops; the local data and the file in the folder stay as they are (§71.3).
+    func removeSyncFolder() {
+        syncFolder = nil
+        deps.defaults.removeObject(forKey: DefaultsKey.syncFolder)
+        syncDebounce.cancel()
+        syncTimerTask?.cancel()
+        syncTimerTask = nil
+        syncError = nil
+        syncLastSuccess = nil
+    }
+
+    /// Plans a sync `delay` seconds from now; another request before then pushes it back (5 s debounce after each
+    /// record write, §71.2). No-op without a sync folder.
+    func scheduleSync(delay: TimeInterval = SyncDebounce.delay) {
+        guard syncFolder != nil else { return }
+        syncDebounce.schedule(now: deps.now(), delay: delay)
+        guard syncTimerTask == nil else { return }
+        let sleeper = deps.sleeper
+        syncTimerTask = Task { [weak self] in
+            while let wait = self?.syncDebounce.remaining(now: self?.deps.now() ?? Date()) {
+                if wait > 0 { try? await sleeper.sleep(seconds: wait) }
+                guard !Task.isCancelled, let self else { return }
+                if self.syncDebounce.fire(now: self.deps.now()) { await self.syncNow().value }
+            }
+            self?.syncTimerTask = nil
+        }
+    }
+
+    /// The running debounce timer (tests await it).
+    var pendingSyncTimer: Task<Void, Never>? { syncTimerTask }
+
+    /// "Sync Now" (and every planned sync). A request while one runs is queued once and runs right after it.
+    @discardableResult
+    func syncNow() -> Task<Void, Never> {
+        if let running = syncRunTask {
+            syncRequestedDuringRun = true
+            return running
+        }
+        let task = Task { [weak self] in
+            await self?.performSync()
+            guard let self else { return }
+            self.syncRunTask = nil
+            if self.syncRequestedDuringRun {
+                self.syncRequestedDuringRun = false
+                await self.syncNow().value
+            }
+        }
+        syncRunTask = task
+        return task
+    }
+
+    /// §71.2 quit: one last sync, at most `SyncDebounce.quitBudget` seconds. Returns whether it finished in time.
+    func syncBeforeQuit() async -> Bool {
+        guard syncFolder != nil else { return true }
+        syncDebounce.cancel()
+        syncTimerTask?.cancel()
+        syncTimerTask = nil
+        let run = syncNow()
+        let sleeper = deps.sleeper
+        // A race without a task group: a group would wait for the stuck sync too (a disk that does not answer).
+        let resumed = OSAllocatedUnfairLock(initialState: false)
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            let finish: @Sendable (Bool) -> Void = { value in
+                if resumed.withLock({ done in defer { done = true }; return !done }) { continuation.resume(returning: value) }
+            }
+            let timer = Task {
+                try? await sleeper.sleep(seconds: SyncDebounce.quitBudget)
+                finish(false)
+            }
+            Task {
+                await run.value
+                timer.cancel()
+                finish(true)
+            }
+        }
+    }
+
+    /// The synced preferences (language, notifications, quiet hours, menu bar mode).
+    func currentSyncSettings() -> SyncSettings {
+        SyncSettings(language: appLanguage.rawValue, notificationsEnabled: notificationsEnabled,
+                     notifyBanChanges: notifyBanChanges, notifyOnlineChanges: notifyOnlineChanges,
+                     notifyMapChanges: notifyMapChanges, quietHoursEnabled: quietHoursEnabled,
+                     quietHoursStart: quietHoursStart, quietHoursEnd: quietHoursEnd, showInMenuBar: menuBarEnabled)
+    }
+
+    private var syncDeviceID: String {
+        if let id = deps.defaults.string(forKey: DefaultsKey.syncDeviceID), !id.isEmpty { return id }
+        let id = UUID().uuidString
+        deps.defaults.set(id, forKey: DefaultsKey.syncDeviceID)
+        return id
+    }
+
+    /// Reads, merges and writes the sync file off the main thread, then applies the merged records to the saved
+    /// record, the open list, the profiles and the preferences. A failed sync changes nothing locally.
+    private func performSync() async {
+        guard let folder = syncFolder else { return }
+        if isDataOperationRunning {
+            scheduleSync()   // a restore/erase/import is replacing the data: try again afterwards
+            return
+        }
+        // The local source is the saved record; without one (first run) the open list, and nothing is deleted.
+        let saved: Snapshot?
+        switch snapshotState {
+        case .loaded(let snapshot): saved = snapshot
+        case .missing: saved = nil
+        case .corrupt, .unsupportedSchema:
+            failSync(.localRecordUnreadable)
+            return
+        }
+        let base = SyncLocalData.make(profiles: profileList.profiles, servers: saved?.servers ?? servers,
+                                      settings: currentSyncSettings())
+        let ledgerStore = SyncLedgerStore(fileURL: deps.paths.syncStateFile)
+        let ledger = ledgerStore.load()
+        let engine = FolderSyncEngine(access: deps.syncFolderAccess)
+        let now = deps.now()
+        let deviceID = syncDeviceID
+        let allowDeletions = saved != nil
+        isSyncing = true
+        let result = await Task.detached {
+            engine.run(folder: folder, local: base, ledger: ledger, deviceID: deviceID, now: now,
+                       allowDeletions: allowDeletions)
+        }.value
+        isSyncing = false
+        guard syncFolder == folder else { return }   // removed or changed meanwhile
+        syncRunCount += 1
+        switch result {
+        case .failure(let error):
+            failSync(error)
+        case .success(let outcome):
+            guard applySync(outcome.merged.live, base: base) else { return }
+            do {
+                try ledgerStore.save(FolderSyncMerge.ledger(merged: outcome.merged, applied: currentSyncLocalData()))
+            } catch {
+                logError(.sync, "ledgerWrite: \(error.localizedDescription)")
+            }
+            syncConflictCount += outcome.conflicts
+            syncError = nil
+            syncLastSuccess = deps.now()
+        }
+    }
+
+    private func failSync(_ error: FolderSyncError) {
+        syncError = error
+        logError(.sync, error.logMessage)
+    }
+
+    /// What the local data is now (the saved record when there is one).
+    private func currentSyncLocalData() -> SyncLocalData {
+        SyncLocalData.make(profiles: profileList.profiles, servers: snapshotState.snapshot?.servers ?? servers,
+                           settings: currentSyncSettings())
+    }
+
+    /// Applies merged values everywhere they were not changed since `base` (an edit made during the sync wins and
+    /// is synced next time). Returns `false` when the record could not be written (the ledger is then kept, so the
+    /// next sync applies the same changes again).
+    private func applySync(_ merged: SyncLocalData, base: SyncLocalData) -> Bool {
+        if var saved = snapshotState.snapshot {
+            let rebased = FolderSyncApply.servers(current: saved.servers, base: base, merged: merged)
+            let profiles = FolderSyncApply.profiles(current: profileList.profiles, base: base, merged: merged,
+                                                    defaultDataRoot: profileList.defaultDataRoot)
+            if rebased != saved.servers || profiles != nil {
+                saved.servers = rebased
+                if let profiles { saved.profiles = profiles }
+                do {
+                    try deps.snapshotStore.save(saved)
+                } catch {
+                    saveErrorMessage = L10n.format(.saveFailed, error.localizedDescription)
+                    logError(.sync, "recordWrite: \(error.localizedDescription)")
+                    return false
+                }
+                snapshotState = .loaded(saved)
+            }
+            applySyncedProfiles(profiles)
+            servers = FolderSyncApply.servers(current: servers, base: base, merged: merged)
+        } else {
+            applySyncedProfiles(FolderSyncApply.profiles(current: profileList.profiles, base: base, merged: merged,
+                                                         defaultDataRoot: profileList.defaultDataRoot))
+            // First run (no record yet): the synced list becomes the record, unless the user already edited.
+            let rebased = FolderSyncApply.servers(current: servers, base: base, merged: merged)
+            if rebased != servers {
+                let edited = editedWithoutSnapshot
+                servers = rebased
+                if edited { markEdited() } else { save() }
+            }
+        }
+        for entry in servers { resolveIfNeeded(entry.host) }
+        if let settings = merged.settings, settings != currentSyncSettings(), base.settings == currentSyncSettings() {
+            applySyncedSettings(settings)
+        }
+        reevaluate()
+        return true
+    }
+
+    private func applySyncedProfiles(_ profiles: [Profile]?) {
+        guard let profiles else { return }
+        let previous = profileList.active
+        profileList = ProfileList(profiles: profiles, activeID: profileList.activeID,
+                                  defaultDataRoot: profileList.defaultDataRoot)
+        let active = profileList.active
+        if active.id != previous.id || active.dataRoot != previous.dataRoot || active.gamedir != previous.gamedir {
+            applyActiveProfile()
+        }
+    }
+
+    private func applySyncedSettings(_ settings: SyncSettings) {
+        if let language = AppLanguageSetting(rawValue: settings.language) { appLanguage = language }
+        notificationsEnabled = settings.notificationsEnabled
+        notifyBanChanges = settings.notifyBanChanges
+        notifyOnlineChanges = settings.notifyOnlineChanges
+        notifyMapChanges = settings.notifyMapChanges
+        quietHoursEnabled = settings.quietHoursEnabled
+        if QuietHours.minutes(settings.quietHoursStart) != nil { quietHoursStart = settings.quietHoursStart }
+        if QuietHours.minutes(settings.quietHoursEnd) != nil { quietHoursEnd = settings.quietHoursEnd }
+        menuBarEnabled = settings.showInMenuBar
     }
 }

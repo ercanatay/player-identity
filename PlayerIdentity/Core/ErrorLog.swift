@@ -20,6 +20,8 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     case banLookup
     /// §69.2: `widget-snapshot.json` could not be written.
     case widget
+    /// §71.2: the folder sync stopped (folder missing or not accessible, damaged or newer sync file).
+    case sync
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {
