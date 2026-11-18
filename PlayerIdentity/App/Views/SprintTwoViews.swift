@@ -194,6 +194,10 @@ struct BanRecordCard: View {
                         Text(verbatim: line).font(.caption).foregroundStyle(Palette.text)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    // §69.1: a timed ban with a known end gets the "Notify When It Ends" switch.
+                    if BanExpiryPlanner.expiry(of: result) != nil {
+                        BanExpiryControls(model: model, serverID: serverID)
+                    }
                 } else {
                     Text(L10n.text(.banRecordNone)).font(.caption).foregroundStyle(Palette.greenText)
                         .accessibilityIdentifier("banRecordNone")

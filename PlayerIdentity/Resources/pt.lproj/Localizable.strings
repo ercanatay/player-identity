@@ -1051,3 +1051,17 @@
 "vpn.card.ip.text" = "Trata-se de um banimento de IP: uma saída de VPN que o servidor não baniu pode permitir o acesso. Envie a mensagem de desbanimento para uma solução definitiva.";
 "vpn.help.title" = "VPN e banimentos";
 "vpn.help.text" = "Um banimento de IP está ligado ao seu IP público; outra rede ou saída de VPN evita o problema. Um banimento de faixa bloqueia toda a /24 ou /16; você precisa de uma saída em outra faixa. Um banimento de CID está ligado à sua identidade neste servidor; uma VPN não o altera, então peça ao administrador um desbanimento.";
+"banExpiry.notifyToggle" = "Notify When It Ends";
+"banExpiry.scheduled" = "Scheduled notification: %@";
+"banExpiry.soonTitle" = "Ban lifts in 10 minutes";
+"banExpiry.endedTitle" = "Ban lifted";
+"banExpiry.soonBody" = "%@: the ban ends at %@";
+"banExpiry.endedBody" = "%@: the timed ban has ended";
+"banExpiry.upcomingTitle" = "Upcoming ban expiries";
+"banExpiry.upcomingLine" = "%@: in %@ (%@)";
+"banExpiry.soonSetting" = "Also notify 10 minutes before a ban ends";
+"banExpiry.limitNote" = "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.";
+"widget.displayName" = "Player Identity";
+"widget.description" = "Overall status, short CID and the ban status of your first servers.";
+"widget.openApp" = "Open the app";
+"widget.noServers" = "No servers";

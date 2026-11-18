@@ -99,6 +99,16 @@
   "ban.status.unknown": "Naməlum",
   "ban.status.unreachable": "Əlçatmazdır",
   "ban.unverified": "Ban növü təsdiqlənməyib (plugin/SQL ola bilər)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "Şablon %@ serverə tətbiq edildi; saxlamaq üçün Saxla düyməsinə basın.",
   "banList.applyAll": "Bütün serverlərə tətbiq et",
   "banList.error.empty": "URL şablonu daxil edin.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "İzləmə",
   "watch.stateSaveFailed": "İzləmə vəziyyəti saxlanıla bilmədi: %@. Eyni dəyişikliklər tətbiq yenidən başladıldıqdan sonra təkrar bildirilə bilər.",
   "watch.toggle.off": "İzləməni dayandır",
-  "watch.toggle.on": "Bu serveri izlə"
+  "watch.toggle.on": "Bu serveri izlə",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

@@ -1051,3 +1051,17 @@
 "vpn.card.ip.text" = "Bu bir IP banı: sunucunun banlamadığı bir VPN çıkışı bağlanmanızı sağlayabilir. Kalıcı çözüm için unban mesajını da gönderin.";
 "vpn.help.title" = "VPN ve banlar";
 "vpn.help.text" = "IP banı genel IP'nize bağlıdır; başka bir ağ veya VPN çıkışı onu aşar. Aralık banı /24 veya /16 bloğunu kapatır; başka bir aralıktan çıkış gerekir. CID banı bu sunucu için kimliğinize bağlıdır; VPN onu değiştirmez, yöneticiden unban isteyin.";
+"banExpiry.notifyToggle" = "Bitişte bildir";
+"banExpiry.scheduled" = "Planlanan bildirim: %@";
+"banExpiry.soonTitle" = "Ban 10 dakika içinde kalkıyor";
+"banExpiry.endedTitle" = "Ban kalktı";
+"banExpiry.soonBody" = "%@: ban %@ itibarıyla bitiyor";
+"banExpiry.endedBody" = "%@: süreli ban sona erdi";
+"banExpiry.upcomingTitle" = "Yaklaşan ban bitişleri";
+"banExpiry.upcomingLine" = "%@: %@ sonra (%@)";
+"banExpiry.soonSetting" = "Ban bitişinden 10 dakika önce de bildir";
+"banExpiry.limitNote" = "Ban bitişi yalnız uygulama açıkken bildirilir; uygulama kapalıyken bildirim kurulmaz.";
+"widget.displayName" = "Oyuncu Kimliği";
+"widget.description" = "Genel durum, kısa CID ve ilk sunucuların ban durumu.";
+"widget.openApp" = "Uygulamayı açın";
+"widget.noServers" = "Sunucu yok";

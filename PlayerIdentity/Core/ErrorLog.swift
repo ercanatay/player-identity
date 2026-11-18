@@ -18,6 +18,8 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     case spotlight
     /// §68.2: a ban record (JSON endpoint) lookup failed.
     case banLookup
+    /// §69.2: `widget-snapshot.json` could not be written.
+    case widget
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {

@@ -139,6 +139,13 @@ struct NotificationSettingsSection: View {
                 SettingsDivider()
                 SettingsCheckboxRow(symbol: "checkmark.shield.fill", title: L10n.text(.settingsNotifyBan),
                                     isOn: $model.notifyBanChanges)
+                // §69.1: "10 minutes before" on top of the always-on "ban lifted" notification of a timed ban.
+                SettingsCheckboxRow(symbol: "clock.badge.checkmark", title: L10n.text(.banExpirySoonSetting),
+                                    isOn: $model.banExpirySoonEnabled)
+                    .padding(.leading, 20)
+                    .disabled(!model.notifyBanChanges)
+                    .accessibilityHint(L10n.text(.banExpiryLimitNote))
+                    .help(L10n.text(.banExpiryLimitNote))
                 SettingsDivider()
                 SettingsCheckboxRow(symbol: "bell", title: L10n.text(.settingsNotifyOnline),
                                     isOn: $model.notifyOnlineChanges)

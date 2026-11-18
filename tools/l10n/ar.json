@@ -99,6 +99,16 @@
   "ban.status.unknown": "غير معروف",
   "ban.status.unreachable": "تعذر الوصول",
   "ban.unverified": "نوع الـ ban غير مؤكد (قد يكون plugin/SQL)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "تم تطبيق القالب على %@ خادم؛ احفظ للاحتفاظ به.",
   "banList.applyAll": "تطبيق على جميع الخوادم",
   "banList.error.empty": "أدخل قالب URL.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "المراقبة",
   "watch.stateSaveFailed": "تعذر حفظ حالة المراقبة: %@. قد يتم الإشعار بنفس التغييرات مرة أخرى بعد إعادة التشغيل.",
   "watch.toggle.off": "إيقاف المراقبة",
-  "watch.toggle.on": "مراقبة هذا الخادم"
+  "watch.toggle.on": "مراقبة هذا الخادم",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

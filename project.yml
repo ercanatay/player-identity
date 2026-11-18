@@ -33,6 +33,10 @@ targets:
         copy:
           destination: wrapper
           subpath: Contents/Helpers
+      # §69.2: the widget extension ships signed inside the app (Contents/PlugIns/PlayerIdentityWidget.appex).
+      - target: PlayerIdentityWidget
+        embed: true
+        codeSign: true
     info:
       path: PlayerIdentity/Info.plist
       properties:
@@ -70,6 +74,51 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSHumanReadableCopyright: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  # §69.2 WidgetKit extension (small + medium). It only reads `widget-snapshot.json` from the app's data folder:
+  # macOS extensions run in the App Sandbox, so a read-only home-relative exception opens that one folder (no App
+  # Group). Shares the snapshot model and the localization keys/strings with the app.
+  PlayerIdentityWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: PlayerIdentityWidget
+      - path: PlayerIdentity/Core/WidgetSnapshot.swift
+      - path: PlayerIdentity/Core/L10nKey.swift
+      - path: PlayerIdentity/Resources
+        includes:
+          - "*.lproj/Localizable.strings"
+        buildPhase: resources
+    info:
+      path: PlayerIdentityWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Player Identity
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleLocalizations: [tr, en, de, fr, es, it, pt, nl, sv, pl, cs, ro, hu, el, bg, uk, ru, ar, fa, hi, zh-Hans, ja, ko, id, az, vi]
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: PlayerIdentityWidget/PlayerIdentityWidget.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.temporary-exception.files.home-relative-path.read-only:
+          - /Library/Application Support/tr.ercanatay.playeridentity/
+    settings:
+      configs:
+        Release:
+          CODE_SIGN_IDENTITY: "Developer ID Application"
+          CODE_SIGN_STYLE: Manual
+          DEVELOPMENT_TEAM: GJ3Y762WQ9
+          ENABLE_HARDENED_RUNTIME: YES
+          OTHER_CODE_SIGN_FLAGS: "--timestamp --options runtime"
+          CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tr.ercanatay.playeridentity.widget
+        PRODUCT_NAME: PlayerIdentityWidget
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        ENABLE_APP_SANDBOX: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks"
   # §34 command-line helper; compiles the same Core sources as the app (no separate module).
   playeridentityctl:
     type: tool

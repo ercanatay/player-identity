@@ -99,6 +99,16 @@
   "ban.status.unknown": "Desconocido",
   "ban.status.unreachable": "Inaccesible",
   "ban.unverified": "Tipo de ban no verificado (puede ser plugin/SQL)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "Plantilla aplicada a %@ servidores; guarda para conservarla.",
   "banList.applyAll": "Aplicar a todos los servidores",
   "banList.error.empty": "Introduce una plantilla de URL.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "Vigilancia",
   "watch.stateSaveFailed": "No se pudo guardar el estado de vigilancia: %@. Es posible que se vuelvan a notificar los mismos cambios tras reiniciar.",
   "watch.toggle.off": "Dejar de vigilar",
-  "watch.toggle.on": "Vigilar este servidor"
+  "watch.toggle.on": "Vigilar este servidor",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

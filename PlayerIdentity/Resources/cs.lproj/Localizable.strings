@@ -1051,3 +1051,17 @@
 "vpn.card.ip.text" = "Jde o IP ban: výstup VPN, který server nezablokoval, vás může vpustit. Pro trvalé řešení odešlete zprávu o odblokování.";
 "vpn.help.title" = "VPN a bany";
 "vpn.help.text" = "IP ban je vázán na vaši veřejnou IP; jiná síť nebo výstup VPN jej obejde. Rozsahový ban blokuje celou /24 nebo /16; potřebujete výstup v jiném rozsahu. CID ban je vázán na vaši identitu pro tento server; VPN jej nemění, proto požádejte správce o odblokování.";
+"banExpiry.notifyToggle" = "Notify When It Ends";
+"banExpiry.scheduled" = "Scheduled notification: %@";
+"banExpiry.soonTitle" = "Ban lifts in 10 minutes";
+"banExpiry.endedTitle" = "Ban lifted";
+"banExpiry.soonBody" = "%@: the ban ends at %@";
+"banExpiry.endedBody" = "%@: the timed ban has ended";
+"banExpiry.upcomingTitle" = "Upcoming ban expiries";
+"banExpiry.upcomingLine" = "%@: in %@ (%@)";
+"banExpiry.soonSetting" = "Also notify 10 minutes before a ban ends";
+"banExpiry.limitNote" = "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.";
+"widget.displayName" = "Player Identity";
+"widget.description" = "Overall status, short CID and the ban status of your first servers.";
+"widget.openApp" = "Open the app";
+"widget.noServers" = "No servers";

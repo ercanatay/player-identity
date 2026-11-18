@@ -1051,3 +1051,17 @@
 "vpn.card.ip.text" = "Dies ist ein IP-Ban: Ein VPN-Ausgang, den der Server nicht gebannt hat, kann Sie hineinlassen. Senden Sie die Entbannungsnachricht für eine dauerhafte Behebung.";
 "vpn.help.title" = "VPN und Bans";
 "vpn.help.text" = "Ein IP-Ban ist an Ihre öffentliche IP gebunden; ein anderes Netzwerk oder VPN-Ausgang vermeidet ihn. Ein Bereichs-Ban blockiert den gesamten /24- oder /16-Bereich; Sie benötigen einen Ausgang in einem anderen Bereich. Ein CID-Ban ist an Ihre Identität für diesen Server gebunden; ein VPN ändert dies nicht, bitten Sie daher den Admin um Aufhebung.";
+"banExpiry.notifyToggle" = "Notify When It Ends";
+"banExpiry.scheduled" = "Scheduled notification: %@";
+"banExpiry.soonTitle" = "Ban lifts in 10 minutes";
+"banExpiry.endedTitle" = "Ban lifted";
+"banExpiry.soonBody" = "%@: the ban ends at %@";
+"banExpiry.endedBody" = "%@: the timed ban has ended";
+"banExpiry.upcomingTitle" = "Upcoming ban expiries";
+"banExpiry.upcomingLine" = "%@: in %@ (%@)";
+"banExpiry.soonSetting" = "Also notify 10 minutes before a ban ends";
+"banExpiry.limitNote" = "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.";
+"widget.displayName" = "Player Identity";
+"widget.description" = "Overall status, short CID and the ban status of your first servers.";
+"widget.openApp" = "Open the app";
+"widget.noServers" = "No servers";

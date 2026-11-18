@@ -41,6 +41,10 @@ struct ContentView: View {
                                           onDetails: { model.openLaunchSummaryDetails() },
                                           onDismiss: { model.dismissLaunchSummary() })
                     }
+                    // §69.1: timed bans ending within a day.
+                    if !model.upcomingBanExpiries.isEmpty {
+                        UpcomingBanExpiriesRow(model: model)
+                    }
                     TopRowLayout {
                         ProfileCard(model: model)
                         NetworkCard(model: model)
@@ -104,7 +108,7 @@ struct ContentView: View {
         // §53 `playeridentity://add?…`: the servers are added unsaved, the window comes to the front and the result
         // (added / already there / invalid) is shown once.
         .onOpenURL { url in
-            model.handleServerLink(url)
+            model.handleOpenURL(url)
             NSApp.activate()
         }
         // §67.4 a Spotlight result opens the server details.

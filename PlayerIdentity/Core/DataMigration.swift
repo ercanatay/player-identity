@@ -22,6 +22,10 @@ enum DefaultsKey {
     static let autoBackupLastRun = "autoBackupLastRun"
     /// §67.3 local day (`yyyyMMdd`) the launch summary card was hidden for.
     static let launchSummaryDismissedDay = "launchSummaryDismissedDay"
+    /// §69.1 "also 10 minutes before a ban ends" (default on) and the servers whose "Notify When It Ends" switch is
+    /// off (UUID strings; default: none, i.e. on for every ban with a known end).
+    static let banExpirySoonEnabled = "banExpirySoonEnabled"
+    static let banExpiryMutedServers = "banExpiryMutedServers"
 }
 
 /// One-time migration from the legacy `tr.ercanatay.oyuncukimlik` bundle (§19.3).

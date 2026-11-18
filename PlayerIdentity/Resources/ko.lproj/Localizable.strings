@@ -1051,3 +1051,17 @@
 "vpn.card.ip.text" = "IP ban입니다. 서버가 차단하지 않은 VPN 출구를 사용하면 접속할 수 있습니다. 확실한 해결을 위해 ban 해제 요청 메시지를 보내십시오.";
 "vpn.help.title" = "VPN 및 ban";
 "vpn.help.text" = "IP ban은 공인 IP에 연결되어 있으므로 다른 네트워크나 VPN 출구를 통해 우회할 수 있습니다. 대역 ban은 전체 /24 또는 /16 서브넷을 차단하므로 다른 대역의 출구가 필요합니다. CID ban은 이 서버에서의 식별자에 연결되어 있어 VPN으로 변경되지 않으므로 관리자에게 ban 해제를 요청하십시오.";
+"banExpiry.notifyToggle" = "Notify When It Ends";
+"banExpiry.scheduled" = "Scheduled notification: %@";
+"banExpiry.soonTitle" = "Ban lifts in 10 minutes";
+"banExpiry.endedTitle" = "Ban lifted";
+"banExpiry.soonBody" = "%@: the ban ends at %@";
+"banExpiry.endedBody" = "%@: the timed ban has ended";
+"banExpiry.upcomingTitle" = "Upcoming ban expiries";
+"banExpiry.upcomingLine" = "%@: in %@ (%@)";
+"banExpiry.soonSetting" = "Also notify 10 minutes before a ban ends";
+"banExpiry.limitNote" = "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.";
+"widget.displayName" = "Player Identity";
+"widget.description" = "Overall status, short CID and the ban status of your first servers.";
+"widget.openApp" = "Open the app";
+"widget.noServers" = "No servers";

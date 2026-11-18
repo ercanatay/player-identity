@@ -99,6 +99,16 @@
   "ban.status.unknown": "Άγνωστο",
   "ban.status.unreachable": "Μη προσβάσιμος",
   "ban.unverified": "Μη επαληθευμένος τύπος ban (μπορεί να είναι πρόσθετο/SQL)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "Το πρότυπο εφαρμόστηκε σε %@ servers· αποθηκεύστε για διατήρηση.",
   "banList.applyAll": "Εφαρμογή σε όλους τους servers",
   "banList.error.empty": "Εισαγάγετε ένα πρότυπο URL.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "Παρακολούθηση",
   "watch.stateSaveFailed": "Δεν ήταν δυνατή η αποθήκευση της κατάστασης παρακολούθησης: %@. Οι ίδιες αλλαγές ενδέχεται να γνωστοποιηθούν ξανά μετά από επανεκκίνηση.",
   "watch.toggle.off": "Διακοπή παρακολούθησης",
-  "watch.toggle.on": "Παρακολούθηση αυτού του server"
+  "watch.toggle.on": "Παρακολούθηση αυτού του server",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

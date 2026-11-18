@@ -99,6 +99,16 @@
   "ban.status.unknown": "Không xác định",
   "ban.status.unreachable": "Không thể tiếp cận",
   "ban.unverified": "Chưa xác minh kiểu ban (có thể do plugin/SQL)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "Đã áp dụng mẫu cho %@ máy chủ; hãy lưu để giữ lại.",
   "banList.applyAll": "Áp dụng cho tất cả máy chủ",
   "banList.error.empty": "Nhập mẫu URL.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "Đang theo dõi",
   "watch.stateSaveFailed": "Không thể lưu trạng thái theo dõi: %@. Các thay đổi tương tự có thể được thông báo lại sau khi khởi chạy lại.",
   "watch.toggle.off": "Dừng theo dõi",
-  "watch.toggle.on": "Theo dõi máy chủ này"
+  "watch.toggle.on": "Theo dõi máy chủ này",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

@@ -99,6 +99,16 @@
   "ban.status.unknown": "Inconnu",
   "ban.status.unreachable": "Inaccessible",
   "ban.unverified": "Type de ban non vérifié (peut être dû à un plugin/SQL)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "Modèle appliqué à %@ serveurs ; enregistrez pour le conserver.",
   "banList.applyAll": "Appliquer à tous les serveurs",
   "banList.error.empty": "Entrez un modèle d'URL.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "Surveillance",
   "watch.stateSaveFailed": "Impossible d'enregistrer l'état de surveillance : %@. Les mêmes modifications peuvent être notifiées à nouveau après une relance.",
   "watch.toggle.off": "Arrêter la surveillance",
-  "watch.toggle.on": "Surveiller ce serveur"
+  "watch.toggle.on": "Surveiller ce serveur",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

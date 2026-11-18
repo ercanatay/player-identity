@@ -61,6 +61,8 @@ struct AppDependencies {
     /// store of its bearer tokens (in memory by default; the Keychain in `live()`).
     var banRecordHTTP: any BanRecordHTTP = UnavailableBanRecordHTTP()
     var secretStore: any SecretStoring = InMemorySecretStore()
+    /// §69.2: asks WidgetKit to reload the widget after `widget-snapshot.json` was written (no-op unless injected).
+    var widgetReloader: any WidgetReloading = NoopWidgetReloader()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -116,6 +118,7 @@ struct AppDependencies {
         deps.spotlightIndexer = CoreSpotlightIndexer()
         deps.banRecordHTTP = URLSessionBanRecordHTTP()
         deps.secretStore = KeychainSecretStore()
+        deps.widgetReloader = WidgetCenterReloader()
         return deps
     }
 }
@@ -410,6 +413,11 @@ final class AppModel {
         quietHoursEnabled = defaults.object(forKey: DefaultsKey.quietHoursEnabled) as? Bool ?? false
         quietHoursStart = defaults.string(forKey: DefaultsKey.quietHoursStart) ?? QuietHours.defaultStart
         quietHoursEnd = defaults.string(forKey: DefaultsKey.quietHoursEnd) ?? QuietHours.defaultEnd
+        let soonEnabled = defaults.object(forKey: DefaultsKey.banExpirySoonEnabled) as? Bool ?? true
+        banExpirySoonEnabled = soonEnabled
+        banExpiryWatches = BanExpiryPlanner.prune(snapshot?.banExpiryWatch ?? [],
+                                                  serverIDs: Set((snapshot?.servers ?? []).map(\.id)),
+                                                  soonEnabled: soonEnabled, now: dependencies.now())
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
         menuBarEnabled = MenuBarPreferences(defaults: dependencies.defaults).showInMenuBar
         watchState = WatchStateStore(fileURL: dependencies.paths.watchStateFile).load()
@@ -548,6 +556,8 @@ final class AppModel {
         reevaluate()
         if includeNetwork { recordRefreshHistory() }
         checkAppealReminders()
+        writeWidgetSnapshot()
+        checkBanExpiryNotifications()
     }
 
     /// Recomputes the status from current data without network requests (§8). No evaluation before the first full refresh.
@@ -1112,6 +1122,14 @@ final class AppModel {
     /// Result of the last handled link (the main window shows it once).
     var serverLinkOutcome: ServerLink.Outcome?
 
+    /// Any `playeridentity:` URL: §69.2 `show` (the widget) only brings up the main window; the rest is a §53 link.
+    /// Returns `nil` for `show` (nothing to report).
+    @discardableResult
+    func handleOpenURL(_ url: URL) -> ServerLink.Outcome? {
+        if ServerLink.isShowLink(url) { return nil }
+        return handleServerLink(url)
+    }
+
     /// `playeridentity://add?host=…`: the valid, new entries are added unsaved (like the §50 import); existing,
     /// repeated and invalid entries are reported. Refused while a data operation runs.
     @discardableResult
@@ -1304,6 +1322,8 @@ final class AppModel {
     func activateBackgroundTasks() {
         backgroundTasksActive = true
         checkAppealReminders()
+        // §69.1: the saved ban expiries are planned again at launch (no scheduled local notifications).
+        if checkBanExpiryNotifications() == nil { scheduleBanExpiryTimer() }
         if menuBarEnabled { startMenuBarRefresh() }
     }
 
@@ -1439,6 +1459,7 @@ final class AppModel {
     func deleteServer(id: UUID) {
         if servers.first(where: { $0.id == id })?.banRecord != nil { removeBanRecordToken(for: id) }
         servers.removeAll { $0.id == id }
+        forgetBanExpiry(for: id)
         markEdited()
         reevaluate()
     }
@@ -2102,6 +2123,7 @@ final class AppModel {
                 markEdited()
             }
             banRecords[id] = nil
+            forgetBanExpiry(for: id)
             return nil
         }
         let valid: String
@@ -2180,8 +2202,11 @@ final class AppModel {
     /// kind and status only — no URL, token or body).
     private func finishBanRecord(_ outcome: BanRecordOutcome, for id: UUID) {
         banRecords[id] = .finished(outcome)
-        if case .failure(let error) = outcome {
+        switch outcome {
+        case .failure(let error):
             deps.errorLog.record(.banLookup, error.logMessage, at: deps.now())
+        case .success(let result):
+            planBanExpiry(result, for: id)
         }
     }
 
@@ -2323,6 +2348,7 @@ final class AppModel {
                                             resolutions: hostResolutions)
         snapshot.profiles = profileList.profiles
         snapshot.activeProfileID = profileList.activeID
+        snapshot.banExpiryWatch = banExpiryWatches.isEmpty ? nil : banExpiryWatches
         do {
             try deps.snapshotStore.save(snapshot)
         } catch {
@@ -2788,6 +2814,9 @@ final class AppModel {
             profileList = ProfileList(profiles: [migrated], activeID: migrated.id, defaultDataRoot: deps.paths.defaultDataRoot)
         }
         watchState = WatchStateStore(fileURL: deps.paths.watchStateFile).load()
+        banExpiryWatches = BanExpiryPlanner.prune(snapshot?.banExpiryWatch ?? [], serverIDs: Set(servers.map(\.id)),
+                                                  soonEnabled: banExpirySoonEnabled, now: deps.now())
+        scheduleBanExpiryTimer()
         for entry in servers { resolveIfNeeded(entry.host) }
         editedWithoutSnapshot = false
         appliedSinceSave = false
@@ -2941,6 +2970,202 @@ final class AppModel {
     /// Records an error for the diagnostics package only; nothing is shown to the user.
     func logError(_ area: ErrorLogArea, _ message: String) {
         deps.errorLog.record(area, message, at: deps.now())
+    }
+
+    // MARK: §69.1 ban expiry notifications
+
+    /// Planned ban expiry notifications (`profile.json` → `banExpiryWatch`); written straight into the saved record
+    /// (bookkeeping, not an unsaved change).
+    private(set) var banExpiryWatches: [BanExpiryWatch] = []
+    /// Settings > Notifications: "Also notify 10 minutes before a ban ends" (on by default).
+    var banExpirySoonEnabled: Bool {
+        didSet {
+            guard banExpirySoonEnabled != oldValue else { return }
+            deps.defaults.set(banExpirySoonEnabled, forKey: DefaultsKey.banExpirySoonEnabled)
+            replanBanExpiries()
+        }
+    }
+    @ObservationIgnored private var banExpiryTimer: Task<Void, Never>?
+    @ObservationIgnored private var banExpiryTask: Task<Void, Never>?
+    @ObservationIgnored private var banExpiryInFlight: Set<String> = []
+
+    private var mutedBanExpiryServers: Set<String> {
+        Set(deps.defaults.stringArray(forKey: DefaultsKey.banExpiryMutedServers) ?? [])
+    }
+
+    /// The card's "Notify When It Ends" switch (on unless the user turned it off for this server).
+    func isBanExpiryNotifyOn(for id: UUID) -> Bool {
+        !mutedBanExpiryServers.contains(id.uuidString)
+    }
+
+    /// Turning it off removes the server's planned notifications; turning it on plans them from the last lookup.
+    func setBanExpiryNotify(_ on: Bool, for id: UUID) {
+        var muted = mutedBanExpiryServers
+        if on { muted.remove(id.uuidString) } else { muted.insert(id.uuidString) }
+        deps.defaults.set(muted.sorted(), forKey: DefaultsKey.banExpiryMutedServers)
+        if on, case .finished(.success(let result))? = banRecords[id] {
+            planBanExpiry(result, for: id)
+        } else if !on {
+            forgetBanExpiry(for: id)
+        }
+    }
+
+    /// Unsent notifications planned for a server (the card's "Scheduled notification" line).
+    func plannedBanExpiries(for id: UUID) -> [BanExpiryWatch] {
+        banExpiryWatches.filter { $0.serverID == id && $0.notifiedAt == nil }
+    }
+
+    /// Main window row: timed bans ending within a day, with the server label.
+    var upcomingBanExpiries: [(watch: BanExpiryWatch, label: String)] {
+        BanExpiryPlanner.upcoming(banExpiryWatches, now: deps.now()).compactMap { watch in
+            servers.first { $0.id == watch.serverID }.map { (watch, $0.label) }
+        }
+    }
+
+    /// The row's lines: "<server>: in 2h 5m (date)".
+    var upcomingBanExpiryLines: [String] {
+        let now = deps.now()
+        return upcomingBanExpiries.map { BanExpiryText.upcomingLine($0.watch, serverLabel: $0.label, now: now) }
+    }
+
+    /// A successful lookup plans (or clears) the server's notifications.
+    private func planBanExpiry(_ result: BanRecordResult, for id: UUID) {
+        let updated = BanExpiryPlanner.reconcile(banExpiryWatches, serverID: id, cid: rowStatus(id)?.currentCID ?? "",
+                                                 result: result, notify: isBanExpiryNotifyOn(for: id),
+                                                 soonEnabled: banExpirySoonEnabled)
+        setBanExpiryWatches(updated)
+        if checkBanExpiryNotifications() == nil { scheduleBanExpiryTimer() }
+    }
+
+    /// The ban record went away (server deleted, endpoint removed, switch off): nothing is notified for it.
+    private func forgetBanExpiry(for id: UUID) {
+        setBanExpiryWatches(banExpiryWatches.filter { $0.serverID != id })
+        scheduleBanExpiryTimer()
+    }
+
+    /// The "10 minutes before" setting changed: `soon` records are added to or removed from the unsent bans.
+    private func replanBanExpiries() {
+        var watches = banExpiryWatches.filter { $0.kind != .soon || $0.notifiedAt != nil || banExpirySoonEnabled }
+        if banExpirySoonEnabled {
+            for ended in watches where ended.kind == .ended && ended.notifiedAt == nil
+                && !watches.contains(where: { $0.serverID == ended.serverID && $0.kind == .soon }) {
+                watches.append(BanExpiryWatch(serverID: ended.serverID, cid: ended.cid, expiresAt: ended.expiresAt,
+                                              notifiedAt: nil, kind: .soon))
+            }
+        }
+        setBanExpiryWatches(watches)
+        scheduleBanExpiryTimer()
+    }
+
+    private func setBanExpiryWatches(_ watches: [BanExpiryWatch]) {
+        guard watches != banExpiryWatches else { return }
+        banExpiryWatches = watches
+        persistBanExpiryWatches()
+    }
+
+    /// Writes the list into the saved record (the rest unchanged). Without a record it is written with the first Save.
+    private func persistBanExpiryWatches() {
+        guard var saved = snapshotState.snapshot else { return }
+        let value = banExpiryWatches.isEmpty ? nil : banExpiryWatches
+        guard saved.banExpiryWatch != value else { return }
+        saved.banExpiryWatch = value
+        do {
+            try deps.snapshotStore.save(saved)
+        } catch {
+            logError(.banLookup, "banExpiryWatch: \(error.localizedDescription)")
+            return
+        }
+        snapshotState = .loaded(saved)
+    }
+
+    /// Posts the due notifications: once per record, held back during quiet hours (posted once they end), dropped
+    /// when notifications, ban changes or the server's notifications (`off`) are switched off. Returns the posting
+    /// task, `nil` when nothing was posted.
+    @discardableResult
+    func checkBanExpiryNotifications() -> Task<Void, Never>? {
+        let now = deps.now()
+        let ids = Set(servers.map(\.id))
+        let obsolete = BanExpiryPlanner.obsolete(banExpiryWatches, now: now)
+        var watches = banExpiryWatches.filter { ids.contains($0.serverID) && !obsolete.contains($0) }
+        var contents: [NotificationContent] = []
+        var posting: [String: BanExpiryWatch] = [:]
+        for watch in BanExpiryPlanner.due(watches, now: now) {
+            guard let entry = servers.first(where: { $0.id == watch.serverID }) else { continue }
+            let content = BanExpiryText.content(for: watch, serverLabel: entry.label)
+            guard !banExpiryInFlight.contains(content.key) else { continue }
+            switch BanExpiryPlanner.decision(policy: notificationPolicy, server: entry.notifications, at: now) {
+            case .drop: watches.removeAll { $0 == watch }
+            case .postpone: continue
+            case .post:
+                contents.append(content)
+                posting[content.key] = watch
+            }
+        }
+        setBanExpiryWatches(watches)
+        guard !contents.isEmpty else { return nil }
+        let keys = Set(posting.keys)
+        banExpiryInFlight.formUnion(keys)
+        let dispatcher = notificationDispatcher
+        let enabled = notificationsEnabled
+        let previous = banExpiryTask
+        let task = Task {
+            await previous?.value
+            let posted = await dispatcher.handle(contents, enabled: enabled)
+            await updateNotificationPermission(from: dispatcher)
+            banExpiryInFlight.subtract(keys)
+            let sent = posted.compactMap { posting[$0.key] }
+            if !sent.isEmpty {
+                let at = deps.now()
+                setBanExpiryWatches(banExpiryWatches.map { watch in
+                    guard sent.contains(watch) else { return watch }
+                    var marked = watch
+                    marked.notifiedAt = at
+                    return marked
+                })
+            }
+            scheduleBanExpiryTimer()
+        }
+        banExpiryTask = task
+        return task
+    }
+
+    /// In-app timer (only while the app runs): wakes at the next planned time, at least every 15 minutes while
+    /// something is pending; stops when nothing is.
+    private func scheduleBanExpiryTimer() {
+        guard backgroundTasksActive else { return }
+        banExpiryTimer?.cancel()
+        banExpiryTimer = nil
+        guard let delay = BanExpiryPlanner.nextDelay(banExpiryWatches, now: deps.now()) else { return }
+        let sleeper = deps.sleeper
+        banExpiryTimer = Task { [weak self] in
+            do {
+                try await sleeper.sleep(seconds: delay)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled, let self else { return }
+            if self.checkBanExpiryNotifications() == nil { self.scheduleBanExpiryTimer() }
+        }
+    }
+
+    /// For tests: waits until the running ban expiry posting finishes.
+    func waitForBanExpiry() async {
+        await banExpiryTask?.value
+    }
+
+    // MARK: §69.2 widget
+
+    /// Writes `widget-snapshot.json` (status, short CID, first three servers; no player IP) and reloads the widget.
+    func writeWidgetSnapshot() {
+        let ordered = ServerOrganization.sections(servers).flatMap(\.servers)
+        let snapshot = WidgetSnapshotBuilder.make(report: report, servers: ordered, updatedAt: lastChecked ?? deps.now())
+        do {
+            try WidgetSnapshotStore.save(snapshot, to: deps.paths.widgetSnapshotFile)
+        } catch {
+            logError(.widget, "widgetSnapshot: \(error.localizedDescription)")
+            return
+        }
+        deps.widgetReloader.reloadTimelines()
     }
 
     // MARK: Environment

@@ -126,6 +126,11 @@ struct AppPaths: Sendable, Equatable {
         snapshotFile.deletingLastPathComponent().appendingPathComponent("errors.json", isDirectory: false)
     }
 
+    /// §69.2: `~/Library/Application Support/tr.ercanatay.playeridentity/widget-snapshot.json` (read by the widget).
+    var widgetSnapshotFile: URL {
+        WidgetSnapshotStore.fileURL(home: home)
+    }
+
     /// Snapshot of the legacy bundle (§19.3): `~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json`.
     /// Only ever read by `DataMigration`; never written.
     var legacySnapshotFile: URL {

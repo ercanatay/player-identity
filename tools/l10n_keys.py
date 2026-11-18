@@ -1171,6 +1171,20 @@ KEYS = [
     ("vpnCardIpText", "vpn.card.ip.text", "Bu bir IP banı: sunucunun banlamadığı bir VPN çıkışı bağlanmanızı sağlayabilir. Kalıcı çözüm için unban mesajını da gönderin.", "This is an IP ban: a VPN exit the server has not banned can let you in. Send the unban message for a lasting fix."),
     ("vpnHelpTitle", "vpn.help.title", "VPN ve banlar", "VPN and bans"),
     ("vpnHelpText", "vpn.help.text", "IP banı genel IP'nize bağlıdır; başka bir ağ veya VPN çıkışı onu aşar. Aralık banı /24 veya /16 bloğunu kapatır; başka bir aralıktan çıkış gerekir. CID banı bu sunucu için kimliğinize bağlıdır; VPN onu değiştirmez, yöneticiden unban isteyin.", "An IP ban is tied to your public IP; another network or VPN exit avoids it. A range ban blocks the whole /24 or /16; you need an exit in another range. A CID ban is tied to your identity for this server; a VPN does not change it, so ask the admin for an unban."),
+    ("banExpiryNotifyToggle", "banExpiry.notifyToggle", "Bitişte bildir", "Notify When It Ends"),
+    ("banExpiryScheduled", "banExpiry.scheduled", "Planlanan bildirim: %@", "Scheduled notification: %@"),
+    ("banExpirySoonTitle", "banExpiry.soonTitle", "Ban 10 dakika içinde kalkıyor", "Ban lifts in 10 minutes"),
+    ("banExpiryEndedTitle", "banExpiry.endedTitle", "Ban kalktı", "Ban lifted"),
+    ("banExpirySoonBody", "banExpiry.soonBody", "%@: ban %@ itibarıyla bitiyor", "%@: the ban ends at %@"),
+    ("banExpiryEndedBody", "banExpiry.endedBody", "%@: süreli ban sona erdi", "%@: the timed ban has ended"),
+    ("banExpiryUpcomingTitle", "banExpiry.upcomingTitle", "Yaklaşan ban bitişleri", "Upcoming ban expiries"),
+    ("banExpiryUpcomingLine", "banExpiry.upcomingLine", "%@: %@ sonra (%@)", "%@: in %@ (%@)"),
+    ("banExpirySoonSetting", "banExpiry.soonSetting", "Ban bitişinden 10 dakika önce de bildir", "Also notify 10 minutes before a ban ends"),
+    ("banExpiryLimitNote", "banExpiry.limitNote", "Ban bitişi yalnız uygulama açıkken bildirilir; uygulama kapalıyken bildirim kurulmaz.", "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed."),
+    ("widgetDisplayName", "widget.displayName", "Oyuncu Kimliği", "Player Identity"),
+    ("widgetDescription", "widget.description", "Genel durum, kısa CID ve ilk sunucuların ban durumu.", "Overall status, short CID and the ban status of your first servers."),
+    ("widgetOpenApp", "widget.openApp", "Uygulamayı açın", "Open the app"),
+    ("widgetNoServers", "widget.noServers", "Sunucu yok", "No servers"),
 ]
 
 # InfoPlist.strings of every language: the Turkish product name for `tr`, the English one everywhere else.

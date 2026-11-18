@@ -25,6 +25,8 @@ OUTPUT_DIR=${OUTPUT_DIR:-dist}
 DERIVED=${DERIVED_DATA:-.build-release}
 NOTARY_TIMEOUT=${NOTARY_TIMEOUT:-60m}
 ENTITLEMENTS="$ROOT/PlayerIdentity/PlayerIdentity.entitlements"
+# §69.2: the widget extension keeps its own entitlements (App Sandbox + read-only access to the app's data folder).
+WIDGET_ENTITLEMENTS="$ROOT/PlayerIdentityWidget/PlayerIdentityWidget.entitlements"
 
 log() { printf '==> %s\n' "$*"; }
 fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -66,6 +68,7 @@ xcodebuild "${build_args[@]}" clean build >"$DERIVED.log" 2>&1 || { tail -40 "$D
 APP="$DERIVED/Build/Products/Release/PlayerIdentity.app"
 [[ -d "$APP" ]] || fail "missing $APP"
 [[ -x "$APP/Contents/Helpers/playeridentityctl" ]] || fail "missing Contents/Helpers/playeridentityctl (§34)"
+[[ -d "$APP/Contents/PlugIns/PlayerIdentityWidget.appex" ]] || fail "missing Contents/PlugIns/PlayerIdentityWidget.appex (§69.2)"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
 BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")
 log "Version $VERSION ($BUILD)"
@@ -82,6 +85,15 @@ if [[ "$MODE" == devid ]]; then
     for helper in "$APP"/Contents/Helpers/*; do
         [[ -f "$helper" ]] || continue
         codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" ${keychain_sign[@]+"${keychain_sign[@]}"} "$helper"
+    done
+    # §69.2: the widget extension, signed before the app (the app seal covers it; notarization includes it).
+    for appex in "$APP"/Contents/PlugIns/*.appex; do
+        [[ -d "$appex" ]] || continue
+        codesign --force --options runtime --timestamp --entitlements "$WIDGET_ENTITLEMENTS" --sign "$SIGN_IDENTITY" \
+            ${keychain_sign[@]+"${keychain_sign[@]}"} "$appex"
+        if codesign -d --entitlements - --xml "$appex" 2>/dev/null | grep -q "get-task-allow"; then
+            fail "get-task-allow entitlement present in $(basename "$appex")"
+        fi
     done
     sign_args=(--force --options runtime --timestamp --entitlements "$ENTITLEMENTS" --sign "$SIGN_IDENTITY")
     sign_args+=(${keychain_sign[@]+"${keychain_sign[@]}"})

@@ -6,6 +6,21 @@ import Foundation
 enum ServerLink {
     static let scheme = "playeridentity"
     static let addAction = "add"
+    /// §69.2 `playeridentity://show` (the widget): only brings up the main window.
+    static let showAction = "show"
+
+    /// `playeridentity://show` or `playeridentity:show`.
+    static func isShowLink(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == scheme,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+        return action(of: components) == showAction
+    }
+
+    /// `playeridentity://add?…` (action = host) and `playeridentity:add?…` (action = path) are both accepted.
+    private static func action(of components: URLComponents) -> String {
+        (components.host.flatMap { $0.isEmpty ? nil : $0 } ?? components.path)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+    }
 
     enum Failure: Error, Sendable, Equatable {
         /// Not a `playeridentity:` URL.
@@ -40,9 +55,7 @@ enum ServerLink {
               let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return .failure(.unsupportedScheme(url.absoluteString))
         }
-        // `playeridentity://add?…` (action = host) and `playeridentity:add?…` (action = path) are both accepted.
-        let action = (components.host.flatMap { $0.isEmpty ? nil : $0 } ?? components.path)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        let action = Self.action(of: components)
         guard action == addAction else { return .failure(.unsupportedAction(action)) }
 
         let items = components.queryItems ?? []

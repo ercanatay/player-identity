@@ -1051,3 +1051,17 @@
 "vpn.card.ip.text" = "Es un baneo por IP: una salida de VPN que el servidor no haya baneado puede permitirte entrar. Envía el mensaje de desbaneo para una solución duradera.";
 "vpn.help.title" = "VPN y baneos";
 "vpn.help.text" = "Un baneo por IP está ligado a tu IP pública; otra red o una salida de VPN lo evita. Un baneo de rango bloquea todo el /24 o /16; necesitas una salida en otro rango. Un baneo por CID está ligado a tu identidad para este servidor; una VPN no lo cambia, así que pide al administrador un desbaneo.";
+"banExpiry.notifyToggle" = "Notify When It Ends";
+"banExpiry.scheduled" = "Scheduled notification: %@";
+"banExpiry.soonTitle" = "Ban lifts in 10 minutes";
+"banExpiry.endedTitle" = "Ban lifted";
+"banExpiry.soonBody" = "%@: the ban ends at %@";
+"banExpiry.endedBody" = "%@: the timed ban has ended";
+"banExpiry.upcomingTitle" = "Upcoming ban expiries";
+"banExpiry.upcomingLine" = "%@: in %@ (%@)";
+"banExpiry.soonSetting" = "Also notify 10 minutes before a ban ends";
+"banExpiry.limitNote" = "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.";
+"widget.displayName" = "Player Identity";
+"widget.description" = "Overall status, short CID and the ban status of your first servers.";
+"widget.openApp" = "Open the app";
+"widget.noServers" = "No servers";

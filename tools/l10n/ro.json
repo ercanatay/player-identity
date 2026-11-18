@@ -99,6 +99,16 @@
   "ban.status.unknown": "Necunoscut",
   "ban.status.unreachable": "Inaccesibil",
   "ban.unverified": "Tip de ban neverificat (poate fi plugin/SQL)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "Șablon aplicat la %@ servere; salvați pentru a-l păstra.",
   "banList.applyAll": "Aplică la toate serverele",
   "banList.error.empty": "Introduceți un șablon URL.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "Urmărire",
   "watch.stateSaveFailed": "Starea de urmărire nu a putut fi salvată: %@. Aceleași modificări ar putea fi notificate din nou după o repornire.",
   "watch.toggle.off": "Oprește urmărirea",
-  "watch.toggle.on": "Urmărește acest server"
+  "watch.toggle.on": "Urmărește acest server",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

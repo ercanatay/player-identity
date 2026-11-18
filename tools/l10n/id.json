@@ -99,6 +99,16 @@
   "ban.status.unknown": "Tidak diketahui",
   "ban.status.unreachable": "Tidak dapat dijangkau",
   "ban.unverified": "Jenis ban belum diverifikasi (mungkin plugin/SQL)",
+  "banExpiry.endedBody": "%@: the timed ban has ended",
+  "banExpiry.endedTitle": "Ban lifted",
+  "banExpiry.limitNote": "Ban expiries are notified only while the app is running; nothing is scheduled while it is closed.",
+  "banExpiry.notifyToggle": "Notify When It Ends",
+  "banExpiry.scheduled": "Scheduled notification: %@",
+  "banExpiry.soonBody": "%@: the ban ends at %@",
+  "banExpiry.soonSetting": "Also notify 10 minutes before a ban ends",
+  "banExpiry.soonTitle": "Ban lifts in 10 minutes",
+  "banExpiry.upcomingLine": "%@: in %@ (%@)",
+  "banExpiry.upcomingTitle": "Upcoming ban expiries",
   "banList.appliedAll": "Templat diterapkan ke %@ server; simpan untuk mempertahankannya.",
   "banList.applyAll": "Terapkan ke Semua Server",
   "banList.error.empty": "Masukkan templat URL.",
@@ -1049,5 +1059,9 @@
   "watch.section.title": "Memantau",
   "watch.stateSaveFailed": "Status pantau tidak dapat disimpan: %@. Perubahan yang sama mungkin diberitahukan lagi setelah peluncuran ulang.",
   "watch.toggle.off": "Berhenti Memantau",
-  "watch.toggle.on": "Pantau Server Ini"
+  "watch.toggle.on": "Pantau Server Ini",
+  "widget.description": "Overall status, short CID and the ban status of your first servers.",
+  "widget.displayName": "Player Identity",
+  "widget.noServers": "No servers",
+  "widget.openApp": "Open the app"
 }

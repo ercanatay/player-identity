@@ -103,6 +103,8 @@ struct Snapshot: Codable, Sendable, Equatable {
     /// §61 profiles and the active one; absent in older records (migrated into `Default` on load).
     var profiles: [Profile]? = nil
     var activeProfileID: UUID? = nil
+    /// §69.1 planned ban expiry notifications; absent in older records (= none).
+    var banExpiryWatch: [BanExpiryWatch]? = nil
 }
 
 extension Snapshot {
@@ -123,6 +125,9 @@ extension Snapshot {
         let decoded = (try? container.decodeIfPresent([Profile].self, forKey: .profiles)) ?? nil
         profiles = decoded?.isEmpty == true ? nil : decoded
         activeProfileID = (try? container.decodeIfPresent(UUID.self, forKey: .activeProfileID)) ?? nil
+        // A broken list never makes the record unreadable: the watches are planned again by the next lookup.
+        let watches = (try? container.decodeIfPresent([BanExpiryWatch].self, forKey: .banExpiryWatch)) ?? nil
+        banExpiryWatch = watches?.isEmpty == true ? nil : watches
     }
 }
 
