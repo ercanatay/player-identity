@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.20.0** (935 automated tests), against behaviour specification **v4.7** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.21.0** (965 automated tests), against behaviour specification **v4.8** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -19,7 +19,7 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Languages** | 26 languages (1051 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
-| **Tests** | 935 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Tests** | 965 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -517,6 +517,17 @@ open "playeridentity://add?host=198.51.100.10&host=198.51.100.11:27016&host=%5B2
 - The main window comes to the front and an alert reports how many servers were added, which were already present and which were invalid (and why).
 - Added rows are **unsaved** ("Kaydedilmedi") until you press **Save**.
 - Nothing is added while a restore, erase or settings import is running.
+
+## Server browser
+Finds GoldSrc servers without leaving the app (spec §70).
+
+- **Master protocol:** queries the GoldSrc master server over UDP, paging through the address list until it ends.
+- **Limits:** the query stops after **30 seconds** or **5,000 addresses**, whichever comes first; a partial list is flagged as incomplete.
+- **A2S collection:** each address is enriched with A2S_INFO (name, map, players, ping, password flag); servers that do not answer are dropped from the list.
+- **Filters and sorting:** filter by map, name, minimum players, password and maximum ping; sort by name, players or ping. Very long lists show the first rows with a hint to narrow the filter.
+- **Actions:** add a server to your list, run a diagnosis on it or refresh a single row.
+- **Cache:** addresses are cached in memory for five minutes and on disk for 24 hours.
+- **Privacy:** only server addresses are stored on disk (no player data); the list is fetched from the master server only when you open or reload the browser.
 
 ## Menu bar quick actions
 With **Show in menu bar** on, the menu gains identity shortcuts above the existing items:

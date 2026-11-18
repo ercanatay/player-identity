@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.21.0] - 2026-11-18
+
+### Added
+- **Server browser** (spec §70): query the GoldSrc master server, enrich results with A2S_INFO (map, players, ping, password), then filter and sort them; add a server, diagnose it or refresh it from the list. Addresses are cached in memory for five minutes and on disk for 24 hours (addresses only).
+- The browser is localized into all 26 languages.
+
 ## [2.20.0] - 2026-11-18
 
 ### Added
@@ -266,6 +272,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.21.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.21.0
 [2.20.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.20.0
 [2.19.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.19.0
 [2.18.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.18.0

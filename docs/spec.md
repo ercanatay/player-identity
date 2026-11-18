@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.7 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.6 → v4.7: §69 ban bitiş bildirimi, WidgetKit)
+Sürüm: 4.8 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.7 → v4.8: §70 GoldSrc sunucu tarayıcı)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1550,3 +1550,31 @@ Hüküm **tek** olur; kanıt adımları ayrıca gösterilir. "Ban yok" sonucu ya
 ### 69.3 Sınırlar
 - Widget ağ isteği yapmaz; veri yalnız uygulama açıkken/yenilenirken güncellenir.
 - Bildirimler yalnız uygulama açılışında planlanır; uygulama tamamen kapalıyken ban bitişi bildirimi garanti edilmez (spec gereği zamanlanmış bildirim kullanılmıyor). Bu sınır dokümanda belirtilir.
+
+## 70. Sunucu tarayıcı — GoldSrc master (v4.8)
+### 70.1 Master sorgusu
+- Kaynak: `hl1master.steampowered.com:27010` (ayarlanabilir; yedek `hl2master.steampowered.com:27011` yok — GoldSrc için yalnız hl1).
+- İstek: `0x31 0xFF "<son IP>:<port>" 0x00`; ilk istek `0.0.0.0:0`; yanıt `0xFF 0xFF 0xFF 0xFF 0x66 0x0A` + **6 baytlık** (IP×4 + port×2, big-endian) kayıtlar.
+- Sayfalama: son kaydın IP:port'u bir sonraki istekte kullanılır; boş yanıt veya tekrar eden son adres → dur.
+- Sınırlar: istek başına 2 sn, toplam **30 sn**, en çok **5.000** sunucu adresi; kullanıcı iptal edebilir. Sonuç önbelleğe alınır (5 dk) ve diskte `master-cache.json` (24 saat, adresler yalnız).
+- Hata: DNS/ağ/zaman aşımı → açık mesaj + tekrar dene; boş liste → "Sunucu bulunamadı".
+
+### 70.2 Sunucu bilgisi toplama
+- Master listesinden adresler alındıktan sonra **A2S_INFO** ile paralel sorgu: eşzamanlılık **20**, sunucu başına 2 sn, toplam 20 sn; yanıtsızlar elenir.
+- Toplanan: isim, harita, oyuncu (`players/max`), ping, şifreli mi (A2S_INFO `visibility` alanı varsa), ülke yok.
+- Filtreler: **harita** (içerir), **isim** (içerir), **oyuncu ≥ N**, **boş değil**, **şifresiz**, **ping ≤ N ms**; sıralama: oyuncu, ping, isim.
+- Sonuç listesi en çok **300** satır gösterir (fazlası "filtreyi daraltın").
+
+### 70.3 Arayüz
+- Ana pencerede **"Sunucu bul"** düğmesi → ayrı pencere (`⌘B`): ilerleme (kaç adres / kaç yanıt), iptal, filtre çubuğu, tablo (isim, harita, oyuncu, ping, şifre), alt bilgi.
+- Satır eylemleri: **"Ekle"** (listeye ekler, "Kaydedilmedi"), **"Teşhis et"** (mevcut teşhis akışı), **"Yenile"**.
+- Zaten kayıtlı sunucu `host:port` eşleşmesiyle "Eklendi" olarak işaretlenir; ekleme yinelenen kayıt oluşturmaz.
+- Boş/hata/iptal durumları ayrı metinlerle; VoiceOver etiketleri.
+
+### 70.4 Gizlilik ve sınırlar
+- Sorgular doğrudan üçüncü taraf sunuculara gider; telemetri yok; master yanıtı ve A2S yanıtları kalıcı saklanmaz (yalnız 5 dk bellek, 24 saat adres önbelleği).
+- Master listesi zaman zaman kararsız; uygulama bunu "liste eksik olabilir" notuyla belirtir.
+- Tarayıcı yalnız GoldSrc sunucularını hedefler; Source filtreleri yok.
+
+### 70.5 Testler
+(a) master istek kodlama/çözme, sayfalama, boş/tekrar eden yanıt, 5.000 sınırı, iptal; (b) A2S_INFO toplama (eşzamanlılık sınırı, yanıtsız eleme, süre); (c) filtre/sıralama matrisi; (d) ekleme/yinelenen/teşhis eylemleri; (e) önbellek (bellek 5 dk, disk 24 saat) ve bozuk dosya; (f) 26 dilde anahtar eşitliği; (g) ağ yok — sahte taşıyıcı.

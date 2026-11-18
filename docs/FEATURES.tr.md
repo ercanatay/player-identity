@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.20.0** (935 otomatik test) için, davranış spesifikasyonu **v4.7** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.21.0** (965 otomatik test) için, davranış spesifikasyonu **v4.8** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -21,7 +21,7 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Diller** | 26 dil (dil başına 1051 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
-| **Testler** | Ana şemada 935 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
+| **Testler** | Ana şemada 965 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
 | **Sandbox** | Korumalı alanda değil (oyun klasörüne ve `/Applications` altında kendi kendini güncellemeye ihtiyaç duyar); hardened runtime etkindir |
 | **Telemetri** | Yok |
 | **Lisans** | MIT |
@@ -627,6 +627,17 @@ Bir sunucu bağlantıyı reddettiğinde motor genellikle işe yarar bir şey sö
 ## Widget
 
 - **WidgetKit** (spec §69.2): küçük ve orta masaüstü widget'ları genel durumu, kısaltılmış CID'yi ve ilk sunucularınızı ban durumuyla gösterir. Uygulamanın yazdığı yerel bir anlık görüntüyü okur (IP adresi yok, widget'tan ağ erişimi yok).
+
+## Sunucu tarayıcısı
+Uygulamadan çıkmadan GoldSrc sunucularını bulur (spec §70).
+
+- **Master protokolü:** GoldSrc master sunucusunu UDP ile sorgular, adres listesi bitene kadar sayfa sayfa ilerler.
+- **Sınırlar:** sorgu **30 saniye** veya **5.000 adres** sınırından hangisi önce dolarsa durur; kısmi liste eksik olarak işaretlenir.
+- **A2S toplama:** her adres A2S_INFO ile zenginleştirilir (ad, harita, oyuncu, ping, parola bayrağı); yanıt vermeyen sunucular listeden düşer.
+- **Filtreler ve sıralama:** harita, ad, en az oyuncu, parola ve en yüksek pinge göre filtre; ad, oyuncu veya pinge göre sıralama. Çok uzun listelerde ilk satırlar gösterilir ve filtreyi daraltma ipucu çıkar.
+- **Eylemler:** sunucuyu listene ekle, teşhis çalıştır veya tek satırı yenile.
+- **Önbellek:** adresler bellekte beş dakika, diskte 24 saat saklanır.
+- **Gizlilik:** diske yalnızca sunucu adresleri yazılır (oyuncu verisi yok); liste yalnızca tarayıcıyı açtığında veya yenilediğinde master sunucudan alınır.
 
 ## Güncellemeler
 ![Updates settings](screenshots/settings-updates-light.png)
