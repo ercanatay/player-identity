@@ -62,6 +62,8 @@ struct AppDependencies {
     /// store of its bearer tokens (in memory by default; the Keychain in `live()`).
     var banRecordHTTP: any BanRecordHTTP = UnavailableBanRecordHTTP()
     var secretStore: any SecretStoring = InMemorySecretStore()
+    /// §72.1: store of the RCON passwords (account `rcon.<serverID>`; in memory by default, the Keychain in `live()`).
+    var rconSecretStore: any SecretStoring = InMemorySecretStore()
     /// §69.2: asks WidgetKit to reload the widget after `widget-snapshot.json` was written (no-op unless injected).
     var widgetReloader: any WidgetReloading = NoopWidgetReloader()
     /// §70.1: the GoldSrc master server of "Find Servers" (tests point it at an IP literal behind the fake transport).
@@ -124,6 +126,7 @@ struct AppDependencies {
         deps.spotlightIndexer = CoreSpotlightIndexer()
         deps.banRecordHTTP = URLSessionBanRecordHTTP()
         deps.secretStore = KeychainSecretStore()
+        deps.rconSecretStore = KeychainSecretStore(service: RconKeychain.service)
         deps.widgetReloader = WidgetCenterReloader()
         return deps
     }
@@ -1494,6 +1497,8 @@ final class AppModel {
 
     func deleteServer(id: UUID) {
         if servers.first(where: { $0.id == id })?.banRecord != nil { removeBanRecordToken(for: id) }
+        if hasRconPassword(for: id) { _ = setRconPassword(nil, for: id) }
+        rconConsoles[id] = nil
         servers.removeAll { $0.id == id }
         forgetBanExpiry(for: id)
         markEdited()
@@ -2243,6 +2248,103 @@ final class AppModel {
             deps.errorLog.record(.banLookup, error.logMessage, at: deps.now())
         case .success(let result):
             planBanExpiry(result, for: id)
+        }
+    }
+
+    // MARK: §72 read-only RCON console
+
+    enum RconConsoleState: Equatable {
+        case running(RconCommand)
+        case finished(RconCommand, RconOutcome)
+    }
+
+    /// The last console run per server in this session (never saved).
+    private(set) var rconConsoles: [UUID: RconConsoleState] = [:]
+
+    func rconState(for id: UUID) -> RconConsoleState? { rconConsoles[id] }
+
+    /// A password is stored for this server (the password itself never leaves the store).
+    func hasRconPassword(for id: UUID) -> Bool {
+        ((try? deps.rconSecretStore.secret(for: RconKeychain.account(id))) ?? nil)?.isEmpty == false
+    }
+
+    /// Stores (`nil`/empty removes) the password in the Keychain only. A failure is logged by kind, never the value.
+    @discardableResult
+    func setRconPassword(_ password: String?, for id: UUID) -> RconError? {
+        do {
+            try deps.rconSecretStore.setSecret(password, for: RconKeychain.account(id))
+            return nil
+        } catch {
+            deps.errorLog.record(.rcon, password?.isEmpty == false ? "keychainWrite" : "keychainDelete", at: deps.now())
+            return .keychain
+        }
+    }
+
+    func setRconEnabled(_ enabled: Bool, for id: UUID) {
+        guard let index = servers.firstIndex(where: { $0.id == id }), servers[index].rconEnabled != enabled else { return }
+        servers[index].rconEnabled = enabled
+        markEdited()
+    }
+
+    /// `false` (nothing changes) for a port outside 1–65535.
+    @discardableResult
+    func setRconPort(_ port: Int, for id: UUID) -> Bool {
+        guard HostValidator.isValidPort(port), let index = servers.firstIndex(where: { $0.id == id }) else { return false }
+        if servers[index].rconPort != port {
+            servers[index].rconPort = port
+            markEdited()
+        }
+        return true
+    }
+
+    /// Everything one run needs, captured on the main actor.
+    func rconRun(_ command: RconCommand, for id: UUID) -> Result<RconRun, RconError> {
+        guard let entry = servers.first(where: { $0.id == id }) else { return .failure(.unreachable) }
+        guard entry.rconEnabled else { return .failure(.disabled) }
+        let password: String?
+        do {
+            password = try deps.rconSecretStore.secret(for: RconKeychain.account(id))
+        } catch {
+            return .failure(.keychain)
+        }
+        guard let password, !password.isEmpty else { return .failure(.noPassword) }
+        guard let address = address(for: entry), address != .localMachine, HostValidator.isValidPort(entry.rconPort) else {
+            return .failure(.unreachable)
+        }
+        return .success(RconRun(command: command, endpoint: UDPEndpoint(address: address, port: UInt16(entry.rconPort)),
+                                password: password, client: RconClient(transport: deps.udpTransport, now: deps.now)))
+    }
+
+    /// A console button: one allowlisted command; a running one is not started twice.
+    @discardableResult
+    func runRcon(_ command: RconCommand, for id: UUID) -> Task<Void, Never>? {
+        if case .running? = rconConsoles[id] { return nil }
+        switch rconRun(command, for: id) {
+        case .failure(let error):
+            finishRcon(command, .failure(error), for: id)
+            return nil
+        case .success(let run):
+            rconConsoles[id] = .running(command)
+            return Task {
+                do {
+                    finishRcon(command, try await run.run(), for: id)
+                } catch {
+                    rconConsoles[id] = nil
+                }
+            }
+        }
+    }
+
+    /// Keeps the result; a failure or an unknown command goes to `ErrorLog(rcon)` as kind + command only.
+    private func finishRcon(_ command: RconCommand, _ outcome: RconOutcome, for id: UUID) {
+        rconConsoles[id] = .finished(command, outcome)
+        switch outcome {
+        case .failure(let error):
+            deps.errorLog.record(.rcon, "\(error.logMessage) \(command.rawValue)", at: deps.now())
+        case .success(let output) where output.isUnknownCommand:
+            deps.errorLog.record(.rcon, "unknownCommand \(command.rawValue)", at: deps.now())
+        case .success:
+            break
         }
     }
 

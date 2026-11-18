@@ -22,6 +22,8 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     case widget
     /// §71.2: the folder sync stopped (folder missing or not accessible, damaged or newer sync file).
     case sync
+    /// §72.2: a read-only RCON command failed (kind only, never the password).
+    case rcon
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {

@@ -28,12 +28,16 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
     var notifications: ServerNotificationSettings?
     /// §68.2 ban record JSON endpoint (the token is in the Keychain, never here); absent in old records.
     var banRecord: BanRecordConfig?
+    /// §72.1 read-only RCON console: off by default; the password lives in the Keychain only, never here. Written
+    /// only when they differ from the defaults (older records and files stay unchanged).
+    var rconEnabled: Bool
+    var rconPort: Int
 
     init(id: UUID = UUID(), label: String, host: String, port: Int = ServerEntry.defaultPort,
          cid: String = "", lastCheckedAt: Date? = nil, banCheck: BanCheck? = nil,
          group: String? = nil, favorite: Bool = false, order: Int = 0, note: String = "", appeal: Appeal? = nil,
          banListURL: String? = nil, watch: Bool = false, notifications: ServerNotificationSettings? = nil,
-         banRecord: BanRecordConfig? = nil) {
+         banRecord: BanRecordConfig? = nil, rconEnabled: Bool = false, rconPort: Int = ServerEntry.defaultPort) {
         self.id = id
         self.label = label
         self.host = host
@@ -50,11 +54,13 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         self.watch = watch
         self.notifications = notifications
         self.banRecord = banRecord
+        self.rconEnabled = rconEnabled
+        self.rconPort = rconPort
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, label, host, port, cid, lastCheckedAt, banCheck, group, favorite, order, note, appeal, banListURL, watch
-        case notifications, banRecord
+        case notifications, banRecord, rconEnabled, rconPort
     }
 
     /// Fields added after schema 1 are optional when decoding (old records stay readable).
@@ -77,6 +83,31 @@ struct ServerEntry: Codable, Sendable, Equatable, Identifiable {
         // A broken override never makes the record unreadable: it falls back to inherit.
         notifications = try? container.decodeIfPresent(ServerNotificationSettings.self, forKey: .notifications)
         banRecord = try? container.decodeIfPresent(BanRecordConfig.self, forKey: .banRecord)
+        rconEnabled = (try? container.decodeIfPresent(Bool.self, forKey: .rconEnabled)) ?? false
+        let port = (try? container.decodeIfPresent(Int.self, forKey: .rconPort)) ?? nil
+        rconPort = port.flatMap { HostValidator.isValidPort($0) ? $0 : nil } ?? ServerEntry.defaultPort
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(label, forKey: .label)
+        try container.encode(host, forKey: .host)
+        try container.encode(port, forKey: .port)
+        try container.encode(cid, forKey: .cid)
+        try container.encodeIfPresent(lastCheckedAt, forKey: .lastCheckedAt)
+        try container.encodeIfPresent(banCheck, forKey: .banCheck)
+        try container.encodeIfPresent(group, forKey: .group)
+        try container.encode(favorite, forKey: .favorite)
+        try container.encode(order, forKey: .order)
+        try container.encode(note, forKey: .note)
+        try container.encodeIfPresent(appeal, forKey: .appeal)
+        try container.encodeIfPresent(banListURL, forKey: .banListURL)
+        try container.encode(watch, forKey: .watch)
+        try container.encodeIfPresent(notifications, forKey: .notifications)
+        try container.encodeIfPresent(banRecord, forKey: .banRecord)
+        if rconEnabled { try container.encode(rconEnabled, forKey: .rconEnabled) }
+        if rconPort != ServerEntry.defaultPort { try container.encode(rconPort, forKey: .rconPort) }
     }
 }
 
