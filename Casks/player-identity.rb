@@ -3,7 +3,7 @@
 # (scripts/release.sh runs it after packaging; the release workflow commits the result).
 cask "player-identity" do
   version "2.23.0"
-  sha256 "a5adfd6dfc079337da6c704929025daddeca3a6ea9a8c23ade587e4cbef48406"
+  sha256 "7b7d4753a9cd82551f028b44476b77fe5c7877cea50b49c4c24d3f9adde5d8d7"
 
   url "https://github.com/ercanatay/player-identity/releases/download/v#{version}/PlayerIdentity-#{version}-macos.zip"
   name "Cybokron Player Identity"
