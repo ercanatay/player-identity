@@ -131,6 +131,11 @@ struct AppPaths: Sendable, Equatable {
         WidgetSnapshotStore.fileURL(home: home)
     }
 
+    /// §70.4: `~/Library/Application Support/tr.ercanatay.playeridentity/master-cache.json` (master addresses, 24 h).
+    var masterCacheFile: URL {
+        snapshotFile.deletingLastPathComponent().appendingPathComponent(MasterCacheStore.fileName, isDirectory: false)
+    }
+
     /// Snapshot of the legacy bundle (§19.3): `~/Library/Application Support/tr.ercanatay.oyuncukimlik/profile.json`.
     /// Only ever read by `DataMigration`; never written.
     var legacySnapshotFile: URL {

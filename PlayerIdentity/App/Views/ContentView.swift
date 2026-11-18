@@ -147,7 +147,8 @@ struct ContentView: View {
             editServer: { sheet = .edit($0) },
             details: { sheet = .details($0) },
             shareCard: { sheet = .shareCard($0) },
-            openBanMatrix: { openWindow(id: "banMatrix") })
+            openBanMatrix: { openWindow(id: "banMatrix") },
+            openServerBrowser: { openWindow(id: ServerBrowserWindow.id) })
     }
 
     @ViewBuilder
@@ -193,6 +194,8 @@ struct MainWindowPresenter {
     var details: (UUID) -> Void = { _ in }
     var shareCard: (UUID) -> Void = { _ in }
     var openBanMatrix: () -> Void = {}
+    /// §70 "Find Servers" window.
+    var openServerBrowser: () -> Void = {}
 }
 
 /// Update / restore banners: full-width strips under the toolbar, outside the scroll view (they push content down).

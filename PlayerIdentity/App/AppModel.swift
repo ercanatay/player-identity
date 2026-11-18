@@ -63,6 +63,9 @@ struct AppDependencies {
     var secretStore: any SecretStoring = InMemorySecretStore()
     /// §69.2: asks WidgetKit to reload the widget after `widget-snapshot.json` was written (no-op unless injected).
     var widgetReloader: any WidgetReloading = NoopWidgetReloader()
+    /// §70.1: the GoldSrc master server of "Find Servers" (tests point it at an IP literal behind the fake transport).
+    var masterServerHost = MasterServerQuery.defaultHost
+    var masterServerPort = MasterServerQuery.defaultPort
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -288,6 +291,11 @@ final class AppModel {
     /// Banner content: a newer, not ignored release.
     var availableUpdate: AppUpdate? { updates.availableUpdate }
 
+    // MARK: §70 server browser
+
+    /// "Find Servers" window (master list + A2S_INFO); see `ServerBrowserController`.
+    let serverBrowser: ServerBrowserController
+
     // MARK: §24 apply preview
     struct ApplyPreview: Identifiable, Equatable {
         let id = UUID()
@@ -426,6 +434,7 @@ final class AppModel {
         isGameAppInstalled = dependencies.gameAppLocator.locate() != nil
         loginItemStatus = dependencies.loginItem?.status() ?? .notRegistered
         updates = UpdateController(dependencies: dependencies)
+        serverBrowser = ServerBrowserController(dependencies: dependencies)
         updates.evaluateRestore(snapshot: loaded)
         updates.onUpdateFound = { [weak self] version in
             self?.recordHistory { recorder in

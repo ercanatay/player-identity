@@ -125,6 +125,8 @@ struct ServersCard: View {
                 StateBlock(symbol: "tray", symbolColor: Palette.text3, title: L10n.text(.serversEmptyTitle),
                            message: L10n.text(.serversEmptyBody), minHeight: 240, dashed: true) {
                     addServerButton(prominent: true)
+                    Button(L10n.text(.serverBrowserTitle), action: presenter.openServerBrowser)
+                        .accessibilityIdentifier("emptyOpenServerBrowser")
                 }
                 .accessibilityIdentifier("serversEmpty")
             } else {
@@ -239,6 +241,12 @@ struct ServersCard: View {
             IconButton(symbol: "tablecells", label: L10n.text(.banMatrixOpen),
                        size: CGSize(width: 28, height: Metrics.control), symbolSize: 13, action: presenter.openBanMatrix)
                 .accessibilityIdentifier("openBanMatrix")
+
+            // §70 "Find Servers" window (⌘B)
+            IconButton(symbol: "globe", label: L10n.text(.serverBrowserHelp),
+                       size: CGSize(width: 28, height: Metrics.control), symbolSize: 13, action: presenter.openServerBrowser)
+                .accessibilityLabel(L10n.text(.serverBrowserTitle))
+                .accessibilityIdentifier("openServerBrowser")
 
             addServerButton(prominent: false)
         }

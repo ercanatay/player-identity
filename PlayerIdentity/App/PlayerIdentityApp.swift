@@ -55,6 +55,16 @@ struct PlayerIdentityApp: App {
         .defaultSize(width: 860, height: 420)
         .windowToolbarStyle(.unified(showsTitle: false))
 
+        // §70 "Find Servers" (GoldSrc master list + A2S_INFO), ⌘B.
+        Window(L10n.text(.serverBrowserTitle), id: ServerBrowserWindow.id) {
+            ServerBrowserWindow(model: appDelegate.model)
+                .id(appDelegate.model.appLanguage)
+                .appLayoutDirection(appDelegate.model.appLanguage)
+        }
+        .defaultSize(width: 980, height: 620)
+        .keyboardShortcut("b", modifiers: .command)
+        .windowToolbarStyle(.unified(showsTitle: false))
+
         Settings {
             SettingsView(model: appDelegate.model)
                 .id(appDelegate.model.appLanguage)
