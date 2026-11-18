@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 4.9 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.8 → v4.9: §71 klasör tabanlı senkron)
+Sürüm: 5.0 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.9 → v5.0: §72 salt-okunur RCON)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1602,3 +1602,29 @@ CloudKit/App Group yerine **kullanıcı seçimli klasör** (iCloud Drive, ağ di
 
 ### 71.4 Testler
 (a) birleştirme: yeni/kopya/silme/tombstone/çakışma matrisi; (b) hassas alanların dosyaya **hiç** yazılmadığı; (c) atomik yazma ve bozuk dosya yedekleme; (d) debounce/kapanış senkronu (sahte saat); (e) klasör erişim hataları; (f) 26 dilde anahtar eşitliği.
+
+## 72. Salt-okunur RCON (v5.0)
+Amaç: sunucu sahibi/yoneticisinin ban listesini ve oyuncularını uygulamadan görebilmesi. **Yazma komutu yok.**
+
+### 72.1 Protokol ve güvenlik
+- Kaynak RCON (GoldSrc/Source, UDP): auth paketi (`id`, tip `3`, parola), cevap tipi `2` = komut çıktısı, `0` = hata; paket başlığı `size, id, type, body, 0x00 0x00`.
+- Zaman aşımı: auth 3 sn, komut 3 sn, en çok 2 yeniden deneme; yanıt parçalıysa (çok paket) birleştirilir (üst sınır 64 KB).
+- Parola **yalnız Keychain'de** (`rcon.<serverID>`); `profile.json`, `playeridentity-sync.json`, teşhis raporu ve loglara **asla** yazılmaz. Arayüzde "RCON düz UDP'dir, şifreleme yoktur" uyarısı.
+- Sunucu bazında `rconEnabled` (varsayılan kapalı) ve `rconPort` (varsayılan 27015).
+
+### 72.2 Komut beyaz listesi
+- Yalnız şu komutlar çalıştırılabilir: `status`, `stats`, `listip`, `banlist` (varsa), `users` (varsa). Serbest metin girişi **yok**; düğmeler sabit komut gönderir.
+- Bilinmeyen/başarısız komut: sunucunun ham çıktısı gösterilir, komut tekrar denenmez; `ErrorLog(rcon)` yalnız tür/HTTP benzeri durum kodu yazar (parola yok).
+- Çıktı ayrıştırma: `status` → oyuncular (isim, skor, süre); `listip` → IP listesi; `banlist` → satır sayısı + ilk 50 satır; ayrıştırılamayan çıktı ham metin olarak gösterilir.
+
+### 72.3 Arayüz
+- Sunucu detayında **"Sunucu konsolu (salt okunur)"** bölümü: etkinleştirme anahtarı, port alanı, "Parolayı ayarla" (Keychain), komut düğmeleri (Status / Ban listesi / IP listesi), çıktı paneli, "Kopyala".
+- Parola yoksa düğmeler pasif; hata durumunda açık mesaj (auth başarısız / zaman aşımı / sunucu RCON kapalı).
+- VoiceOver etiketleri; çıktı seçilebilir metin.
+
+### 72.4 Testler
+(a) paket kodlama/çözme ve parçalı yanıt birleştirme; (b) auth başarısız/zaman aşımı/kapalı port; (c) beyaz liste dışı komut reddi; (d) Keychain'e yazma/okuma/silme (sahte), **hiçbir dosyaya/loga parola sızmaması**; (e) `status`/`listip`/`banlist` ayrıştırma; (f) 26 dilde anahtar eşitliği; (g) ağ yok — sahte taşıyıcı.
+
+### 72.5 Sınırlar
+- RCON düz UDP'dir; parola ağda açık gider. Uygulama yalnız okuma komutları gönderir; ban ekleme/kaldırma **yoktur**.
+- Sunucuda RCON kapalıysa ya da parola yanlışsa özellik kullanılamaz; bu durum açıkça yazılır.

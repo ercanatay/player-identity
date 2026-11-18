@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.0] - 2026-11-18
+
+### Added
+- **Read-only RCON console** (spec §72): read a server's player list, IP list and bans over RCON with fixed read-only commands (status, stats, listip, banlist, users). There is no free-text input and no write command.
+- The RCON password lives only in the Keychain; it is never written to `profile.json`, the sync file, reports or logs, and a dedicated test proves it.
+- The console is localized into all 26 languages.
+
+### Notes
+- RCON is plain UDP; the interface warns that the password travels unencrypted.
+
 ## [2.22.0] - 2026-11-18
 
 ### Added
@@ -281,6 +291,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 ### Added
 - Initial release.
 
+[2.23.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.23.0
 [2.22.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.22.0
 [2.21.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.21.0
 [2.20.0]: https://github.com/ercanatay/player-identity/releases/tag/v2.20.0

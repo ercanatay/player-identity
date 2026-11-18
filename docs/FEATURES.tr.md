@@ -7,7 +7,7 @@
 # Cybokron Player Identity — Özellik Referansı
 macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI yardımcı programı olan **Cybokron Player Identity**'nin davranış düzeyinde eksiksiz bir açıklamasıdır. Oyun istemcisinin gerçekte kullandığı kimliği gösterir, sunucuların gördüğü ve ban uygularken temel aldığı sunucuya özel **CID** değerini türetir, IP ve CID banlarını denetler ve çıkan sonuca göre harekete geçmenize yardımcı olur.
 
-> **Dokümantasyon sürümü:** Uygulama **v2.22.0** (982 otomatik test) için, davranış spesifikasyonu **v4.9** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Dokümantasyon sürümü:** Uygulama **v2.23.0** (1006 otomatik test) için, davranış spesifikasyonu **v5.0** ([`spec.md`](spec.md), Türkçe, temizlenmiş genel kopya) temel alınarak yazılmıştır. Bu doküman ile spesifikasyon arasında fark olması durumunda spesifikasyon ve kod esas alınır. Örnek sunucularda dokümantasyon için ayrılmış adresler kullanılmıştır (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -18,10 +18,10 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Oyun** | `valve` veya `gearbox` veri klasörüne sahip Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) |
 | **Veri kaynağı** | Oyun motorunun `.xash_id` dosyalarına ve `config.cfg` / `userconfig.cfg` dosyalarına salt okunur erişim; `api.ipify.org` üzerinden genel IP (yedek: `ifconfig.me`); UDP üzerinden sunucu yanıtları |
 | **Yazma davranışı** | Varsayılan olarak salt okunur. Üzerine yazılan tek oyun dosyaları `config.cfg` / `userconfig.cfg` içindeki `name` ve `model` satırlarıdır ve bu yalnızca siz **Uygula**'yı (veya **Satırı kaldır**'ı) onayladıktan sonra gerçekleşir. Geri kalan her şey uygulamanın kendi klasöründe bulunur |
-| **Diller** | 26 dil (dil başına 1051 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
+| **Diller** | 26 dil (dil başına 1161 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
-| **Testler** | Ana şemada 982 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
+| **Testler** | Ana şemada 1006 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
 | **Sandbox** | Korumalı alanda değil (oyun klasörüne ve `/Applications` altında kendi kendini güncellemeye ihtiyaç duyar); hardened runtime etkindir |
 | **Telemetri** | Yok |
 | **Lisans** | MIT |
@@ -602,6 +602,16 @@ Dosya atomik olarak yazılır. Uzak dosya bozuksa yerel verinin üzerine yazılm
 
 ### Gizlilik: yazılmayan alanlar
 Ban listesi token'ları, RCON parolaları, CID'ler, ban ve metrik geçmişi eşitleme dosyasına **asla** yazılmaz.
+
+## RCON konsolu
+
+RCON üzerinden salt okunur sunucu konsolu (spec §72). Oyuncu listesini, IP listesini ve banları sabit komutlarla okur.
+
+- **Beyaz liste:** yalnız `status`, `stats`, `listip`, `banlist` ve `users` gönderilebilir. Serbest metin girişi yoktur.
+- **Yazma komutu yok:** ban eklenemez, kaldırılamaz, hiçbir şey değiştirilemez; başka her komut gönderilmeden reddedilir.
+- **Keychain:** RCON parolası yalnız macOS Keychain'de saklanır; `profile.json`, eşitleme dosyası, raporlar ve loglara asla yazılmaz.
+- **Düz UDP uyarısı:** RCON şifresiz UDP'dir, parola ağda açık gider; arayüz bunu uyarır.
+- **Sınırlar:** çıktı 64 KB'de kesilir; ban çıktısında yalnız ilk satırlar gösterilir. Konsol 26 dile yerelleştirilmiştir.
 
 ## Bağlantı teşhisi
 

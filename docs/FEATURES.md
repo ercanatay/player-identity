@@ -5,7 +5,7 @@
 # Cybokron Player Identity — Feature Reference
 A complete, behaviour-level description of **Cybokron Player Identity**, a native SwiftUI utility for **Xash3D FWGS / GoldSrc** players on macOS. It shows the identity the game client really uses, derives the per-server **CID** that servers see and ban by, checks IP and CID bans, and helps you act on the result.
 
-> **Documentation version:** written for app **v2.22.0** (982 automated tests), against behaviour specification **v4.9** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
+> **Documentation version:** written for app **v2.23.0** (1006 automated tests), against behaviour specification **v5.0** ([`spec.md`](spec.md), Turkish, sanitized public copy). Where this document and the spec differ, the spec and the code win. Example hosts use reserved documentation addresses (`192.0.2.x`, `198.51.100.x`, `example.test`).
 
 ![Main window — light](screenshots/main-light.png)
 
@@ -16,10 +16,10 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Game** | Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) with a `valve` or `gearbox` data folder |
 | **Data source** | Read-only access to the engine's `.xash_id` files and `config.cfg` / `userconfig.cfg`; public IP from `api.ipify.org` (fallback `ifconfig.me`); server answers over UDP |
 | **Write behaviour** | Read-only by default. The only game files ever written are the `name` and `model` lines of `config.cfg` / `userconfig.cfg`, and only after you confirm **Apply** (or **Remove line**). Everything else lives in the app's own folder |
-| **Languages** | 26 languages (1051 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
+| **Languages** | 26 languages (1161 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
-| **Tests** | 982 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
+| **Tests** | 1006 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
 | **Sandbox** | Not sandboxed (needs the game folder and self-update in `/Applications`); hardened runtime enabled |
 | **Telemetry** | None |
 | **License** | MIT |
@@ -611,6 +611,16 @@ The file is written atomically. If the remote file is damaged, it is kept aside 
 
 ### Privacy: fields never written
 Ban-list tokens, RCON passwords, CIDs, ban and metric history are **never** written to the sync file.
+
+## RCON console
+
+A read-only server console over RCON (spec §72). It reads the player list, the IP list and the bans with fixed commands.
+
+- **Allowlist:** only `status`, `stats`, `listip`, `banlist` and `users` can be sent. There is no free-text input.
+- **No write commands:** nothing can be banned, unbanned or changed; any other command is refused before it is sent.
+- **Keychain:** the RCON password is stored only in the macOS Keychain and is never written to `profile.json`, the sync file, reports or logs.
+- **Plain UDP warning:** RCON is unencrypted UDP, so the password travels over the network in the clear; the interface warns about it.
+- **Limits:** output is cut at 64 KB; ban output shows only the first lines. The console is localized into all 26 languages.
 
 ## Connection diagnosis
 
