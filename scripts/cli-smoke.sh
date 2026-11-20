@@ -47,6 +47,16 @@ expect 1 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CT
 expect 2 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CTL" servers add 2001:db8::9
 expect 3 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CTL" servers add 192.0.2.20
 expect 1 "$CTL" diagnostics --yes
+# §73: diagnose --macos-identity usage errors (the check itself depends on the installed engine; see the unit tests)
+expect 1 "$CTL" diagnose --macos-identity 1
+expect 1 "$CTL" diagnose --macos-identity --fail-on-ban
+expect 1 "$CTL" status --macos-identity
+# §73 v2.25: a rejected explicit engine override never exits 0 (at least 2), whatever the default engine says; the
+# identity files come from an empty temporary folder, so the user's identity is not read.
+IDENTITY_HOME=$(mktemp -d)
+expect 2 env PLAYERIDENTITYCTL_ENGINE_APP=/nonexistent/Engine.app PLAYERIDENTITYCTL_IDENTITY_HOME="$IDENTITY_HOME" \
+    PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/does-not-exist.json" "$CTL" diagnose --macos-identity --json
+rmdir "$IDENTITY_HOME"
 
 cid=$("$CTL" cid 51.68.190.91 --raw-id 0 </dev/null)
 if [[ "$cid" == "d9de0eb4419608a8423241430581e91c" ]]; then echo "ok   cid vector"; else echo "FAIL cid vector: $cid"; failures=$((failures + 1)); fi

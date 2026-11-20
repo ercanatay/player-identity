@@ -45,6 +45,20 @@ If no file is readable and valid, the status turns **red** (identity missing/inv
 ### Shared identity on macOS
 The Xash3D build shipped for macOS has no hardware serial source, so the raw identity collapses to `0000000000000000` and the `.xash_id` files contain only the mask. In practice **every macOS client derives the same CID for a given server**. The app detects a raw identity of zero and shows a permanent, non-critical **shared identity** warning (orange) instead of pretending the identity is unique.
 
+### macOS hardware identity card (2.24)
+Newer upstream engine builds derive the identity from the Mac's hardware. The **macOS Hardware Identity** card checks, read-only, whether the installed engine (`/Applications/Xash3D-FWGS.app` or the one chosen in Settings → Data → Engine app) shows static indicators of that support (evidence K1–K4: IOKit and CoreFoundation links, IORegistry access, the `IOPlatformSerialNumber` string) and combines them with the raw identity state. Indicators are not a proof of uniqueness; the card never claims that the identity is unique.
+
+| Engine indicators | Raw identity | Card | Action |
+|---|---|---|---|
+| yes | non-zero | Indicators found (uniqueness not directly verified) | — |
+| no | non-zero | Uncertain (no static hardware-identity verification) | **Download Compatible Engine** suggested |
+| yes | zero / missing | Uncertain | **Regenerate Identity** (opens the engine while it is closed; quit it, then Refresh) |
+| no | zero / missing | Not supported | **Download Compatible Engine** (official release page only) |
+| unknown | any | Uncertain (engine not found / package not verifiable) | check the engine path and permissions |
+| any | unreadable | Uncertain (identity file cannot be accessed) | check the file permissions |
+
+While the engine is running, or when its process state cannot be verified, the card checks nothing (no scan, no hash, no identity read) and asks you to quit the engine and press Refresh. The app never writes or deletes `.xash_id`, never downloads or changes the engine and never shows the raw identity or the full CID (only a masked CID). There is no random identity change: the same Mac recreates the same identity.
+
 ### The CID
 The value a server sees is not the raw identity. It is derived per server:
 
@@ -424,6 +438,10 @@ playeridentityctl servers list --json
 playeridentityctl servers add play.example.test:27016 --label Demo --group EU --watch
 playeridentityctl servers remove 2 --yes
 playeridentityctl diagnostics --out ~/Desktop
+playeridentityctl diagnose 1 --json
+playeridentityctl trend 1 --days 30
+playeridentityctl report 1 --out -
+playeridentityctl diagnose --macos-identity --json
 playeridentityctl --version
 ```
 
@@ -440,6 +458,10 @@ playeridentityctl --version
 | `servers add` | `servers add <host:port> [--label <t>] [--group <g>] [--watch] [--json]` — import-sheet rules, GameTracker/`steam://` links accepted; an existing entry is refused | `server`, `recordBackup` |
 | `servers remove` | `servers remove <host:port\|index> [--yes] [--json]` — an address that appears twice must be removed by index | `removed`, `recordBackup` |
 | `diagnostics` | `diagnostics [--out <path>] [--json]` — the redacted ZIP (default `~/Documents/PlayerIdentity-diagnostics-<time>.zip`); its `errors.json` is empty (the log belongs to the running app) | `path`, `files`, `redacted` |
+| `diagnose` | `diagnose <host:port\|index> [--timeout <s>] [--json] [--fail-on-ban]` — connection diagnosis; adds a `history.jsonl` line; exit `0` ok, `4` ban verdict with `--fail-on-ban`, `3` not found | verdict, steps, engine log |
+| `trend` | `trend <host:port\|index> [--days 7\|30\|all] [--json]` — diagnosis trend from the history | trend counts |
+| `report` | `report <host:port\|index> [--days 7\|30\|all] [--unmasked] [--out <path>\|-]` — Markdown report of the last diagnosis (masked unless `--unmasked`) | — |
+| `diagnose --macos-identity` | `diagnose --macos-identity [--json]` — macOS hardware identity health, read-only and offline; exit `0` supported, `1` unsupported, `2` unknown (also a rejected engine override), `3` error; `PLAYERIDENTITYCTL_ENGINE_APP` checks another `.app`. Never prints the raw identity or a full CID; never claims uniqueness | `state`, `process_state`, `static_support`, `evidence`, `raw_state`, `cid_masked`, `requested_engine_path`, `effective_engine_path`, `override_rejected`, `reject_reason`, `engine_hash_short`, `uniqueness_verified`, `app_version`, `timestamp` |
 
 ### Confirmation, backups and the running app
 - `update --install`, `restore` and `servers remove` ask **y/N on a terminal**. Without a terminal (script, pipe) they refuse unless **`--yes`** is given.

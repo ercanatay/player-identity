@@ -39,6 +39,8 @@ struct GeneralSettingsView: View {
                 SettingsDivider()
                 DataRootRow(model: model)
                 SettingsDivider()
+                EngineAppRow(model: model)
+                SettingsDivider()
                 DataSettingsRow(model: model)
                 SettingsDivider()
                 SyncFolderSettingsRows(model: model)

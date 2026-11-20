@@ -48,6 +48,12 @@ struct CLIContext: Sendable {
     /// §67.1 `diagnose`: the default route goes through a VPN tunnel (§37; read-only, nothing is sent). Tests pass a
     /// fixed value.
     var vpnActive: @Sendable () -> Bool = { InterfaceReporter().report().isVPNActive }
+    /// §73.7 `diagnose --macos-identity`: read-only probe of the engine bundle and identity files, the engine process
+    /// check (tri-state), the timestamp clock and the monotonic clock of the 3-second scan limit. Tests pass fakes.
+    var fileProbe: any ReadOnlyFileProbing = LocalFileProbe()
+    var gameProcessDetector: any GameProcessDetecting = SystemGameProcessDetector()
+    var clock: @Sendable () -> Date = { Date() }
+    var monotonicClock: MonotonicClock = .system
 
     /// `profile.json` read by `status` (and for the identity/name defaults); `PLAYERIDENTITYCTL_SNAPSHOT` overrides it.
     var snapshotURL: URL {
@@ -97,6 +103,8 @@ enum CLICommand: Sendable, Equatable {
     case diagnose(target: String, timeout: TimeInterval, json: Bool, failOnBan: Bool)
     case trend(target: String, window: DiagnosisTrendWindow, json: Bool)
     case report(target: String, window: DiagnosisTrendWindow, unmasked: Bool, out: String?)
+    // §73.7 macOS unique identity health (CLIMacIdentity.swift).
+    case diagnoseMacIdentity(json: Bool)
 }
 
 struct CLIUsageError: Error, Sendable, Equatable {
@@ -131,7 +139,7 @@ enum CLIParser {
             }
             switch name {
             case "--json", "--version", "--help", "-h", "--no-metrics", "--check", "--install", "--yes", "--watch",
-                 "--fail-on-ban", "--unmasked":
+                 "--fail-on-ban", "--unmasked", "--macos-identity":
                 guard inlineValue == nil else { return .failure(CLIUsageError(message: "\(name) takes no value")) }
                 flags.insert(name == "-h" ? "--help" : name)
             case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group", "--days":
@@ -169,6 +177,9 @@ enum CLIParser {
         }
         if flags.contains("--fail-on-ban"), command != "diagnose" {
             return .failure(CLIUsageError(message: "--fail-on-ban is only valid for diagnose"))
+        }
+        if flags.contains("--macos-identity"), command != "diagnose" {
+            return .failure(CLIUsageError(message: "--macos-identity is only valid for diagnose"))
         }
         if flags.contains("--unmasked"), command != "report" {
             return .failure(CLIUsageError(message: "--unmasked is only valid for report"))
@@ -314,6 +325,18 @@ enum CLIParser {
     /// `trend <host:port|index> [--days] [--json]`, `report <host:port|index> [--days] [--unmasked] [--out <path>|-]`.
     private static func parseDiagnosis(_ command: String, _ rest: [String], options: [String: String], flags: Set<String>,
                                        json: Bool) -> Result<CLICommand, CLIUsageError> {
+        if command == "diagnose", flags.contains("--macos-identity") {
+            if let name = options.keys.first {
+                return .failure(CLIUsageError(message: "\(name) is not valid for diagnose --macos-identity"))
+            }
+            if flags.contains("--fail-on-ban") {
+                return .failure(CLIUsageError(message: "--fail-on-ban is not valid with --macos-identity"))
+            }
+            guard rest.isEmpty else {
+                return .failure(CLIUsageError(message: "diagnose --macos-identity takes no <host:port|index>"))
+            }
+            return .success(.diagnoseMacIdentity(json: json))
+        }
         let allowed: Set<String> = command == "diagnose" ? ["--timeout"] : command == "trend" ? ["--days"] : ["--days", "--out"]
         if let name = options.keys.first(where: { !allowed.contains($0) }) {
             return .failure(CLIUsageError(message: "\(name) is not valid for \(command)"))
@@ -436,6 +459,11 @@ enum CLIRunner {
                                                              getchallenge, connect 49, engine log);
                                                              --timeout per step (total 4x); adds a
                                                              line to history.jsonl
+      diagnose --macos-identity [--json]                     macOS hardware identity health: static
+                                                             hardware-identity indicators of the engine,
+                                                             is the raw identity zero (read-only;
+                                                             uniqueness not verified; raw ID and full
+                                                             CID never printed)
       trend <host:port|index> [--days 7|30|all] [--json]     diagnosis trend from the history
       report <host:port|index> [--days 7|30|all] [--unmasked] [--out <path>|-]
                                                              Markdown report of the last diagnosis
@@ -453,11 +481,15 @@ enum CLIRunner {
       diagnose, trend, report: 0 ok (a ban verdict too), 1 usage error, 2 network, validation or write
               error, 3 not found (no such index, no record for an index, no diagnosis to report),
               4 ban verdict with diagnose --fail-on-ban
+      diagnose --macos-identity: 0 supported, 1 unsupported (or usage error), 2 unknown (also a rejected
+              engine override, even when the default engine passes), 3 unexpected error
     restore and servers remove ask y/N on a terminal; without one they need --yes.
     servers add/remove edit profile.json (a copy is kept as profile.json.appbak-<time>); a running app
     keeps its own list until it is reopened.
     environment: PLAYERIDENTITYCTL_SNAPSHOT=<path> reads another profile.json (status, servers,
-      diagnose, trend, report; history.jsonl next to it)
+      diagnose, trend, report; history.jsonl next to it); PLAYERIDENTITYCTL_ENGINE_APP=<path> checks
+      another Xash3D .app with diagnose --macos-identity (default /Applications/Xash3D-FWGS.app);
+      PLAYERIDENTITYCTL_IDENTITY_HOME=<folder> reads the .xash_id files of another folder (calibration)
 
     """
 
@@ -504,6 +536,8 @@ enum CLIRunner {
             return await trend(target: target, window: window, json: json, context: context)
         case .report(let target, let window, let unmasked, let out):
             return await report(target: target, window: window, unmasked: unmasked, out: out, context: context)
+        case .diagnoseMacIdentity(let json):
+            return await diagnoseMacIdentity(json: json, context: context)
         }
     }
 

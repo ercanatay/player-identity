@@ -584,6 +584,11 @@ playeridentityctl servers list --json
 playeridentityctl servers add play.example.com:27016 --label Demo --group EU --watch
 playeridentityctl servers remove 2 --yes
 playeridentityctl diagnostics --out ~/Desktop
+playeridentityctl diagnose 1 --json
+playeridentityctl diagnose play.example.com:27015 --fail-on-ban
+playeridentityctl trend 1 --days 30 --json
+playeridentityctl report 1 --out -
+playeridentityctl diagnose --macos-identity --json
 playeridentityctl --version
 ```
 
@@ -614,6 +619,19 @@ playeridentityctl --version
   `profile.json.appbak-<time>`; a running app keeps its own list until it is reopened (its next Save would replace
   the change)
 - `diagnostics [--out <path>]` — the redacted diagnostics ZIP (default `~/Documents/PlayerIdentity-diagnostics-<time>.zip`)
+- `diagnose <host:port|index> [--timeout 5] [--json] [--fail-on-ban]` — connection diagnosis (DNS, A2S_INFO,
+  getchallenge, connect, engine log); adds one line to `history.jsonl`. Exit `0` ok (a ban verdict too), `4` ban
+  verdict with `--fail-on-ban`, `1` usage, `2` network/validation/write error, `3` not found
+- `trend <host:port|index> [--days 7|30|all] [--json]` — the diagnosis trend from the history
+- `report <host:port|index> [--days 7|30|all] [--unmasked] [--out <path>|-]` — Markdown report of the last diagnosis
+  (CID and IP masked unless `--unmasked`)
+- `diagnose --macos-identity [--json]` — macOS hardware identity health: engine process state
+  (`running`/`notRunning`/`unavailable`), static hardware-identity indicators (`yes`/`no`/`unknown` with the K1–K4
+  evidence), raw identity state (`nonzero`/`zero`/`absent`/`unreadable`), a **masked** CID, the engine path and short
+  hash. Indicators are not a uniqueness proof (`uniqueness_verified: false`). Read-only and offline; nothing is scanned
+  or read while the engine runs; the raw identity and the full CID are never printed. Exit `0` supported, `1`
+  unsupported, `2` unknown (also a rejected engine override), `3` unexpected error. `PLAYERIDENTITYCTL_ENGINE_APP=<path>`
+  checks another Xash3D `.app` (default `/Applications/Xash3D-FWGS.app`)
 - Exit codes: `0` success, `1` usage error, `2` network/resolution error, `3` a ban was found
 - `backup` / `restore` / `servers` / `diagnostics` exit codes: `0` success, `1` usage error or not confirmed,
   `2` validation or write error, `3` not found (no data to back up, no saved record, no such file or server,

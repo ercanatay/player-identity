@@ -191,13 +191,52 @@ enum ConfigEditor {
 
 // MARK: - Game process detection
 
+/// §73 engine process state as a tri-state: `unavailable` means the process list could not be read reliably and is
+/// never treated as `notRunning`.
+enum EngineProcessState: String, Sendable, Equatable, CaseIterable {
+    case running
+    case notRunning
+    case unavailable
+}
+
 protocol GameProcessDetecting: Sendable {
+    /// Config editing (§15.6): `false` also when the process list cannot be read (unchanged behaviour).
     func isGameRunning() -> Bool
+    /// §73: the tri-state used by the macOS identity check.
+    func engineProcessState() -> EngineProcessState
+}
+
+extension GameProcessDetecting {
+    /// Compatible default for detectors that only know a yes/no answer.
+    func engineProcessState() -> EngineProcessState {
+        isGameRunning() ? .running : .notRunning
+    }
 }
 
 /// Process name starting with `xash3d` (case-insensitive).
 struct SystemGameProcessDetector: GameProcessDetecting {
     init() {}
+
+    /// §73 tri-state: `unavailable` when the process list cannot be read, looks truncated, or no process name at all
+    /// could be read (the answer would not be reliable).
+    func engineProcessState() -> EngineProcessState {
+        let estimate = proc_listallpids(nil, 0)
+        guard estimate > 0 else { return .unavailable }
+        var pids = [pid_t](repeating: 0, count: Int(estimate) + 64)
+        let count = pids.withUnsafeMutableBufferPointer { buffer in
+            proc_listallpids(buffer.baseAddress, Int32(buffer.count * MemoryLayout<pid_t>.size))
+        }
+        guard count > 0, Int(count) < pids.count else { return .unavailable }
+        var name = [CChar](repeating: 0, count: 256)
+        var namesRead = 0
+        for pid in pids.prefix(Int(count)) where pid > 0 {
+            guard proc_name(pid, &name, UInt32(name.count)) > 0 else { continue }
+            namesRead += 1
+            let bytes = name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+            if String(decoding: bytes, as: UTF8.self).lowercased().hasPrefix("xash3d") { return .running }
+        }
+        return namesRead > 0 ? .notRunning : .unavailable
+    }
 
     func isGameRunning() -> Bool {
         let estimate = proc_listallpids(nil, 0)

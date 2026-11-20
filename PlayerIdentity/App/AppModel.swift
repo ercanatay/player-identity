@@ -71,6 +71,9 @@ struct AppDependencies {
     var masterServerPort = MasterServerQuery.defaultPort
     /// §71: file access of the sync folder (tests inject failures and slow disks).
     var syncFolderAccess: any SyncFolderAccessing = LocalSyncFolderAccess()
+    /// §73: read-only probe of the engine bundle and the identity files (the default sees nothing; `lstat`/`pread` in
+    /// `live()`).
+    var fileProbe: any ReadOnlyFileProbing = UnavailableFileProbe()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -128,6 +131,7 @@ struct AppDependencies {
         deps.secretStore = KeychainSecretStore()
         deps.rconSecretStore = KeychainSecretStore(service: RconKeychain.service)
         deps.widgetReloader = WidgetCenterReloader()
+        deps.fileProbe = LocalFileProbe()
         return deps
     }
 }
@@ -515,8 +519,9 @@ final class AppModel {
         let root = dataRoot
         let preferred = selectedGamedir
         let detector = deps.gameProcessDetector
-        let (profile, gameRunning) = await Task.detached {
-            (loader.load(dataRoot: root, preferredGamedir: preferred), detector.isGameRunning())
+        // §73: the tri-state, so a process list that cannot be read never shows the engine as closed.
+        let (profile, processState) = await Task.detached {
+            (loader.load(dataRoot: root, preferredGamedir: preferred), detector.engineProcessState())
         }.value
         guard current == generation else { return }
         gamedirs = profile.gamedirs
@@ -531,8 +536,10 @@ final class AppModel {
         configSources = profile.configSources
         availableModels = profile.models
         modelSources = profile.modelSources
-        isGameRunning = gameRunning
+        syncEngineProcessState(processState)
         loadPreviews(resetting: gamedirChanged)
+        // §73: the macOS identity health check runs next to the network steps (read-only, no network).
+        refreshMacIdentity()
 
         if includeNetwork {
             // §20: resolve hostnames first (cached); CIDs and ban checks use the resolved address.
@@ -3009,6 +3016,225 @@ final class AppModel {
 
     private func setCondebugState(_ state: CondebugState) {
         condebugState = state
+    }
+
+    // MARK: §73 macOS hardware identity health
+
+    /// Why "Regenerate Identity" ended (launched, or failed with a reason); cleared by the next identity check.
+    enum MacIdentityRegenerateStatus: Sendable, Equatable {
+        case launched
+        case failed(MacIdentityRegenerateError)
+    }
+
+    /// Result of the last check; `nil` before the first one. Holds no raw identity and no full CID. While
+    /// `isCheckingMacIdentity` is set the card hides it completely (it belongs to the previous generation).
+    private(set) var macIdentity: MacIdentityReport?
+    private(set) var isCheckingMacIdentity = false
+    /// The engine app the check uses (a valid override, else the default).
+    private(set) var engineResolution = EnginePathResolution(app: EnginePaths.defaultApp, isOverride: false,
+                                                             rejectedOverride: nil)
+    /// The override the user just chose was refused (not stored; the default is used).
+    private(set) var engineOverrideRejection: EnginePathError?
+    private(set) var macIdentityRegenerateStatus: MacIdentityRegenerateStatus?
+    private(set) var isRegeneratingMacIdentity = false
+    /// The release page could not be opened, or the link was refused by the allowlist (shown under the button).
+    private(set) var engineDownloadFailed = false
+    /// §73 tri-state of the engine process, from the same source as the identity report (`nil` before the first
+    /// check). `.unavailable` means "unknown": `isGameRunning` is then left as it was and nothing treats it as closed.
+    private(set) var engineProcessState: EngineProcessState?
+    /// "Open the engine?" confirmation of "Regenerate Identity".
+    var showsMacIdentityRegenerateConfirmation = false
+    @ObservationIgnored private var macIdentityTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var macIdentityGeneration = 0
+    @ObservationIgnored private var regenerateTask: Task<Void, Never>?
+    @ObservationIgnored private var loggedEngineRejection: EnginePathError?
+
+    /// The stored engine app override (`nil` = the default path).
+    var engineAppOverride: String? {
+        deps.defaults.string(forKey: DefaultsKey.engineApp).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    private var engineForbiddenRoots: [URL] {
+        EnginePaths.forbiddenRoots(home: deps.paths.home, dataRoot: dataRoot)
+    }
+
+    /// §73 `isGameRunning` follows the identity check's process state: running → true, not running → false;
+    /// unavailable leaves the flag alone (unknown) and is kept in `engineProcessState`.
+    private func syncEngineProcessState(_ state: EngineProcessState) {
+        engineProcessState = state
+        switch state {
+        case .running: isGameRunning = true
+        case .notRunning: isGameRunning = false
+        case .unavailable: break
+        }
+    }
+
+    /// §73.5.3: starts a new generation (the card shows only "Checking…" until its result arrives), resolves the
+    /// engine path, then checks the engine process, its static evidence and the raw identity state off the main
+    /// thread. The previous scan is cancelled (its result is dropped). Read-only; never starts the engine and never
+    /// refreshes on its own after an action.
+    @discardableResult
+    func refreshMacIdentity() -> Task<Void, Never> {
+        macIdentityGeneration += 1
+        let current = macIdentityGeneration
+        macIdentityTask?.cancel()
+        isCheckingMacIdentity = true
+        macIdentityRegenerateStatus = nil
+        engineDownloadFailed = false
+        showsMacIdentityRegenerateConfirmation = false
+        let override = engineAppOverride
+        let roots = engineForbiddenRoots
+        let checker = MacIdentityChecker(files: deps.fileProbe, detector: deps.gameProcessDetector,
+                                         home: deps.paths.home)
+        let gamedir = selectedGamedir.map { dataRoot.appendingPathComponent($0, isDirectory: true) }
+        let task = Task {
+            // The process state is taken before the override is validated (its bundle and Info.plist are read only
+            // when the engine is known to be closed).
+            let scan = Task.detached { checker.check(override: override, forbiddenRoots: roots, gamedir: gamedir) }
+            let result = await withTaskCancellationHandler {
+                await scan.value
+            } onCancel: {
+                scan.cancel()
+            }
+            guard current == macIdentityGeneration, !Task.isCancelled else { return }
+            applyEngineResolution(result.resolution)
+            macIdentity = result.report
+            syncEngineProcessState(result.report.processState)
+            isCheckingMacIdentity = false
+            macIdentityTask = nil
+        }
+        macIdentityTask = task
+        return task
+    }
+
+    /// The resolution of a finished check; a rejected override is logged once (not on every refresh). An unvalidated
+    /// resolution (engine running / state unknown) keeps the previous rejection state.
+    private func applyEngineResolution(_ resolution: EnginePathResolution) {
+        engineResolution = resolution
+        guard resolution.validated else { return }
+        if let rejected = resolution.rejectedOverride, rejected != loggedEngineRejection {
+            logError(.launch, "macIdentity: overrideRejected=\(rejected.rawValue)")
+        }
+        loggedEngineRejection = resolution.rejectedOverride
+    }
+
+    /// §73.6.2: stores a valid engine app override (`nil` = back to the default) and checks again. An invalid one is
+    /// refused: nothing is stored, the default is used, the reason is shown and logged. The process state comes first:
+    /// while the engine runs (or its state is unknown) the chosen bundle is not read; the choice is kept and the first
+    /// check that sees the engine closed validates it (a refused one then shows and logs its reason).
+    @discardableResult
+    func setEngineApp(_ url: URL?) -> EnginePathError? {
+        if let url {
+            let state = deps.gameProcessDetector.engineProcessState()
+            syncEngineProcessState(state)
+            guard state == .notRunning else {
+                deps.defaults.set(url.standardized.path, forKey: DefaultsKey.engineApp)
+                engineOverrideRejection = nil
+                refreshMacIdentity()
+                return nil
+            }
+            if let error = EnginePaths.validateOverride(url, files: deps.fileProbe, forbiddenRoots: engineForbiddenRoots) {
+                deps.defaults.removeObject(forKey: DefaultsKey.engineApp)
+                engineOverrideRejection = error
+                logError(.launch, "macIdentity: overrideRejected=\(error.rawValue)")
+                refreshMacIdentity()
+                return error
+            }
+            deps.defaults.set(url.standardized.path, forKey: DefaultsKey.engineApp)
+        } else {
+            deps.defaults.removeObject(forKey: DefaultsKey.engineApp)
+        }
+        engineOverrideRejection = nil
+        refreshMacIdentity()
+        return nil
+    }
+
+    /// "Regenerate Identity" pressed: only for the current (not checking) report that offers it; the engine must be
+    /// known to be closed (checked again now, tri-state); then the confirmation opens.
+    func requestMacIdentityRegeneration() {
+        guard !isCheckingMacIdentity, let report = macIdentity, report.action == .regenerate,
+              report.processState == .notRunning else {
+            macIdentityRegenerateStatus = .failed(.notOffered)
+            return
+        }
+        let state = deps.gameProcessDetector.engineProcessState()
+        syncEngineProcessState(state)
+        switch state {
+        case .running:
+            macIdentityRegenerateStatus = .failed(.engineRunning)
+            return
+        case .unavailable:
+            macIdentityRegenerateStatus = .failed(.processUnavailable)
+            logError(.launch, "macIdentity: processUnavailable")
+            return
+        case .notRunning:
+            break
+        }
+        showsMacIdentityRegenerateConfirmation = true
+    }
+
+    /// Confirmed: opens the engine (no arguments) so it repairs the identity itself. The app writes and deletes no
+    /// identity file, does not quit the engine and does not refresh afterwards (the user quits it and presses Refresh).
+    /// After a successful launch the engine is assumed to be running. The result belongs to the generation that
+    /// started it: if a refresh started meanwhile, it is only logged as stale and never touches the new report.
+    @discardableResult
+    func confirmMacIdentityRegeneration() -> Task<Void, Never>? {
+        showsMacIdentityRegenerateConfirmation = false
+        guard regenerateTask == nil, !isCheckingMacIdentity, let report = macIdentity else { return nil }
+        let generation = macIdentityGeneration
+        let regenerator = MacIdentityRegenerator(files: deps.fileProbe, detector: deps.gameProcessDetector,
+                                                 launcher: deps.appLauncher)
+        isRegeneratingMacIdentity = true
+        macIdentityRegenerateStatus = nil
+        let task = Task {
+            var outcome: MacIdentityRegenerateStatus
+            do {
+                try await regenerator.regenerate(report: report)
+                outcome = .launched
+            } catch {
+                outcome = .failed(error as? MacIdentityRegenerateError ?? .launchFailed(String(describing: error)))
+            }
+            isRegeneratingMacIdentity = false
+            regenerateTask = nil
+            guard generation == macIdentityGeneration else {
+                // The status belongs to the old report, but a launched (or running) engine is a fact of the real
+                // world: the process state is synced anyway.
+                if outcome == .launched || outcome == .failed(.engineRunning) { syncEngineProcessState(.running) }
+                logError(.launch, "macIdentity: staleRegenerate=\(generation)->\(macIdentityGeneration),\(outcome)")
+                return
+            }
+            macIdentityRegenerateStatus = outcome
+            switch outcome {
+            case .launched:
+                syncEngineProcessState(.running)
+            case .failed(let failure):
+                if failure == .engineRunning { syncEngineProcessState(.running) }
+                if failure == .processUnavailable { syncEngineProcessState(.unavailable) }
+                logError(.launch, "macIdentity: \(failure)")
+            }
+        }
+        regenerateTask = task
+        return task
+    }
+
+    func cancelMacIdentityRegeneration() {
+        showsMacIdentityRegenerateConfirmation = false
+    }
+
+    /// "Download Compatible Engine": opens only the fixed official release page (https allowlist). Nothing is
+    /// downloaded, installed or changed. A link refused by the allowlist is never silent: the card shows the failure
+    /// and the error log records it.
+    @discardableResult
+    func openCompatibleEngineDownload(_ url: URL = EngineDownloadLink.url) -> Bool {
+        guard EngineDownloadLink.isAllowed(url) else {
+            engineDownloadFailed = true
+            logError(.launch, "macIdentity: downloadPage=notAllowed")
+            return false
+        }
+        let opened = deps.urlOpener.open(url)
+        engineDownloadFailed = !opened
+        if !opened { logError(.launch, "macIdentity: downloadPage") }
+        return opened
     }
 
     // MARK: §67.3 launch summary

@@ -146,6 +146,25 @@ final class FakeGameDetector: GameProcessDetecting, @unchecked Sendable {
             return running
         }
     }
+
+    // §73 tri-state: `processState` overrides the yes/no answer (e.g. `.unavailable`); `isGameRunning()` keeps the
+    // legacy answer.
+    private var state: EngineProcessState?
+    private var stateChecks = 0
+
+    var processState: EngineProcessState? {
+        get { lock.withLock { state } }
+        set { lock.withLock { state = newValue } }
+    }
+
+    var processStateCheckCount: Int { lock.withLock { stateChecks } }
+
+    func engineProcessState() -> EngineProcessState {
+        lock.withLock {
+            stateChecks += 1
+            return state ?? (running ? .running : .notRunning)
+        }
+    }
 }
 
 /// §17 fake command runner: runs no real command; records calls, enforces the allowlist.

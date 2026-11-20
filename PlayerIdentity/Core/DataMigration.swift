@@ -29,6 +29,8 @@ enum DefaultsKey {
     /// §71 sync folder path (absent = sync off) and this Mac's id in the sync file.
     static let syncFolder = "syncFolder"
     static let syncDeviceID = "syncDeviceID"
+    /// §73.6.2 engine app override for the macOS identity check (absent = `/Applications/Xash3D-FWGS.app`).
+    static let engineApp = "engineAppPath"
 }
 
 /// One-time migration from the legacy `tr.ercanatay.oyuncukimlik` bundle (§19.3).

@@ -49,6 +49,8 @@ struct ContentView: View {
                         ProfileCard(model: model)
                         NetworkCard(model: model)
                     }
+                    // §73: macOS unique identity health (engine capability × raw identity state).
+                    MacIdentityCard(model: model)
                     ServersCard(model: model, presenter: presenter)
                     ReasonsCard(model: model, presenter: presenter)
                 }

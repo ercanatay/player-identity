@@ -47,6 +47,20 @@ Hiçbir dosya okunabilir ve geçerli değilse durum **kırmızıya** döner (kim
 ### macOS üzerinde paylaşımlı kimlik
 macOS için dağıtılan Xash3D derlemesinde donanım seri numarası kaynağı bulunmadığından ham kimlik `0000000000000000` değerine çöker ve `.xash_id` dosyaları yalnızca maskeyi içerir. Pratikte **her macOS istemcisi belirli bir sunucu için aynı CID değerini türetir**. Uygulama, ham kimliğin sıfır olduğunu tespit eder ve kimlik benzersizmiş gibi davranmak yerine kalıcı, kritik olmayan bir **paylaşımlı kimlik** uyarısı (turuncu) gösterir.
 
+### macOS donanım kimliği kartı (2.24)
+Yeni upstream motor derlemeleri kimliği Mac'in donanımından türetir. **macOS donanım kimliği** kartı, kurulu motorda (`/Applications/Xash3D-FWGS.app` veya Ayarlar → Veri → Motor uygulaması) bu desteğin statik göstergelerinin bulunup bulunmadığını salt okunur inceler (kanıt K1–K4: IOKit ve CoreFoundation bağları, IORegistry erişimi, `IOPlatformSerialNumber` dizesi) ve ham kimlik durumuyla birleştirir. Göstergeler tekillik kanıtı değildir; kart kimliğin tekil olduğunu iddia etmez.
+
+| Motor göstergeleri | Ham kimlik | Kart | Eylem |
+|---|---|---|---|
+| var | sıfır değil | Göstergeler bulundu (tekillik doğrudan doğrulanmadı) | — |
+| yok | sıfır değil | Belirsiz (statik donanım-kimliği doğrulaması yok) | **Uyumlu motoru indir** önerilir |
+| var | sıfır / yok | Belirsiz | **Kimliği yeniden oluştur** (motor kapalıyken motoru açar; kapatıp Yenile'ye basın) |
+| yok | sıfır / yok | Desteklenmiyor | **Uyumlu motoru indir** (yalnız resmi sürüm sayfası) |
+| bilinmiyor | herhangi | Belirsiz (motor bulunamadı / paket doğrulanamadı) | motor yolunu ve izinleri kontrol edin |
+| herhangi | okunamıyor | Belirsiz (kimlik dosyası erişilemiyor) | dosya izinlerini kontrol edin |
+
+Motor açıkken veya süreç durumu doğrulanamadığında kart hiçbir şeyi incelemez (tarama, hash, kimlik okuma yok) ve motoru kapatıp Yenile'ye basmanızı ister. Uygulama `.xash_id` dosyasını yazmaz veya silmez, motoru indirmez veya değiştirmez, ham kimliği ve tam CID'yi göstermez (yalnız maskeli CID). Rastgele kimlik değişimi yoktur: aynı Mac aynı kimliği yeniden oluşturur.
+
 ### CID
 Sunucunun gördüğü değer ham kimlik değildir; her sunucu için özel olarak türetilir:
 
@@ -426,6 +440,10 @@ playeridentityctl servers list --json
 playeridentityctl servers add play.example.test:27016 --label Demo --group EU --watch
 playeridentityctl servers remove 2 --yes
 playeridentityctl diagnostics --out ~/Desktop
+playeridentityctl diagnose 1 --json
+playeridentityctl trend 1 --days 30
+playeridentityctl report 1 --out -
+playeridentityctl diagnose --macos-identity --json
 playeridentityctl --version
 ```
 
@@ -442,6 +460,10 @@ playeridentityctl --version
 | `servers add` | `servers add <host:port> [--label <t>] [--group <g>] [--watch] [--json]` — içe aktarma sayfası kuralları, GameTracker/`steam://` bağlantıları kabul edilir; var olan bir girdi reddedilir | `server`, `recordBackup` |
 | `servers remove` | `servers remove <host:port\|index> [--yes] [--json]` — iki kez görünen bir adres indeks ile kaldırılmalıdır | `removed`, `recordBackup` |
 | `diagnostics` | `diagnostics [--out <path>] [--json]` — gizlenmiş (redacted) ZIP (varsayılan `~/Documents/PlayerIdentity-diagnostics-<time>.zip`); `errors.json` boştur (günlük çalışan uygulamaya aittir) | `path`, `files`, `redacted` |
+| `diagnose` | `diagnose <host:port\|index> [--timeout <s>] [--json] [--fail-on-ban]` — bağlantı teşhisi; `history.jsonl` dosyasına bir satır ekler; çıkış `0` tamam, `--fail-on-ban` ile ban kararında `4`, bulunamadıysa `3` | karar, adımlar, motor günlüğü |
+| `trend` | `trend <host:port\|index> [--days 7\|30\|all] [--json]` — geçmişten teşhis eğilimi | eğilim sayıları |
+| `report` | `report <host:port\|index> [--days 7\|30\|all] [--unmasked] [--out <path>\|-]` — son teşhisin Markdown raporu (`--unmasked` yoksa maskeli) | — |
+| `diagnose --macos-identity` | `diagnose --macos-identity [--json]` — macOS donanım kimliği sağlığı, salt okunur ve ağsız; çıkış `0` destekleniyor, `1` desteklenmiyor, `2` belirsiz (reddedilen motor yolu da), `3` hata; `PLAYERIDENTITYCTL_ENGINE_APP` başka bir `.app` inceletir. Ham kimliği ve tam CID'yi asla yazdırmaz; tekillik iddia etmez | `state`, `process_state`, `static_support`, `evidence`, `raw_state`, `cid_masked`, `requested_engine_path`, `effective_engine_path`, `override_rejected`, `reject_reason`, `engine_hash_short`, `uniqueness_verified`, `app_version`, `timestamp` |
 
 ### Onay, yedekler ve çalışan uygulama
 - `update --install`, `restore` ve `servers remove` bir **terminalde y/N** sorar. Bir terminal olmadan (komut dosyası, pipe), **`--yes`** verilmediği sürece işlemi reddederler.

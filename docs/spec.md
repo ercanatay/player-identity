@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 5.0 · Tarih: 2026-11-18 · Durum: uygulanacak (v4.9 → v5.0: §72 salt-okunur RCON)
+Sürüm: 5.2 · Tarih: 2026-11-20 · Durum: uygulanacak (v5.0 → v5.1: §73 macOS donanım kimliği sağlığı; v5.1 → v5.2: §73 bağımsız inceleme düzeltmeleri — kimlik özelliği spec v2.25.0)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1628,3 +1628,112 @@ Amaç: sunucu sahibi/yoneticisinin ban listesini ve oyuncularını uygulamadan g
 ### 72.5 Sınırlar
 - RCON düz UDP'dir; parola ağda açık gider. Uygulama yalnız okuma komutları gönderir; ban ekleme/kaldırma **yoktur**.
 - Sunucuda RCON kapalıysa ya da parola yanlışsa özellik kullanılamaz; bu durum açıkça yazılır.
+
+---
+
+## 73. macOS donanım kimliği sağlığı (v5.1, uygulama 2.24.0; v5.2 = kimlik özelliği spec v2.25.0)
+Amaç: kurulu Xash3D motoru kimliği Mac'in donanımından türetmediğinde ham kimlik `0` kalır ve bu motoru kullanan bütün Mac'ler her sunucuda **aynı CID'yi** paylaşır. Uygulama bu durumu açıkça gösterir, destekleme göstergesi olan motorda sıfır kimliğin onarımı için motoru açar, göstergesi olmayan motorda resmi sürüm sayfasına yönlendirir. **Rastgele kimlik üretimi/rotasyonu yoktur** ve vaat edilmez.
+
+### 73.1 Bağlayıcı kurallar
+- Uygulama `.xash_id` dosyalarını **yazmaz, silmez, düzenlemez**; motoru indirmez, güncellemez, değiştirmez, paketlemez; motoru sonlandırmaz; oyun verisine yazmaz (§1 istisnası genişlemez); ağ isteği yapmaz.
+- Ham kimlik, tam CID, seri numarası hiçbir ekrana, CLI çıktısına, log'a, teşhis paketine veya panoya yazılmaz. Yalnız durum etiketi ve **maskeli CID** (ilk 4 + `…` + son 4 karakter; adres baytı olmadan, yalnız ham kimlikten türetilen yerel CID) gösterilir.
+- Motor sürüm metni yalnız bilgi amaçlı raporlanır; karar girdisi değildir.
+- **Doğruluk dili:** "unique/benzersiz/tekil" kesin garanti olarak kullanılmaz. Sıfır olmayan kimlik + statik donanım-kimliği göstergeleri tekillik kanıtı değildir; doğru ifade "Sıfır olmayan kimlik ve donanım-kimliği göstergeleri bulundu; tekillik doğrudan doğrulanmadı." `supported` yalnız "statik gösterge + sıfır olmayan kimlik" anlamına gelir. Kart başlığı "macOS donanım kimliği"dir.
+
+### 73.2 Girdiler
+- **Süreç durumu (P):** `running` / `notRunning` / `unavailable`. Süreç listesi alınamazsa, kesik görünürse veya hiçbir süreç adı okunamazsa `unavailable`; `unavailable` **asla** `notRunning` sayılmaz. Ayar düzenlemenin (§15.6) yazma öncesi evet/hayır süreç kontrolü değişmez (eski davranış: okunamayan liste = çalışmıyor); ancak ana pencerenin tam yenilemesi de `isGameRunning` bayrağını üç durumlu sonuçla günceller (`unavailable` bayrağı `false`'a çevirmez).
+- **P her şeyden önce alınır:** uygulamada ve CLI'da süreç durumu, motor yolu geçersiz kılmasının doğrulanmasından (paket, `Info.plist`, ikililer) önce alınır. P `running`/`unavailable` iken motor paketine hiç dokunulmaz; istenen yol yalnız sözcüksel olarak normalize edilip raporlanır ("doğrulanmadı"). Ayarlar'da bu durumda seçilen yol okunmadan saklanır ve motor kapalıyken yapılan ilk kontrol doğrular (reddedilirse neden gösterilir ve loglanır).
+- **Paket okunabilirliği (B):** `readable` / `unverifiable`. Motor yok, paket geçersiz, sembolik bağlantı, okunamıyor (izin, G/Ç), Mach-O değil/bozuk, 512 MB üstü, zaman aşımı veya iptal → `unverifiable`.
+- **Statik destek (S):** `yes` / `no` / `unknown` (§73.3).
+- **Ham kimlik (R):** `nonzero` / `zero` / `absent` / `unreadable` (§73.4).
+
+### 73.3 Statik destek (S)
+- Motor paketindeki ikili dosyalar salt okunur incelenir: `Contents/MacOS/<CFBundleExecutable>` (`Info.plist` yoksa veya özellik listesi değilse `xash3d`; `Info.plist` varsa ama okunamıyorsa paket `unverifiable`; çalıştırılabilir dosya en az bir POSIX çalıştırma bitine sahip normal dosya olmalı, yoksa "çalıştırılabilir yok") ve varsa motor kütüphanesi `Contents/MacOS/libxash.dylib` (bu adda normal dosya olmayan bir öğe — klasör, FIFO, soket — "kütüphane yok" sayılmaz, paket `unverifiable`). Kanıtlar dosyalar arasında birleştirilir. Evrensel (fat) dosyalarda her dilim taranır.
+- Yalnız Mach-O başlığı, yükleme komutları, sembol dize tablosu ve C-dize bölümleri parça parça okunur; dosyanın tamamı belleğe alınmaz.
+- Kanıtlar: **K1** yükleme komutlarında IOKit framework bağı; **K2** CoreFoundation framework bağı; **K3** IORegistry/IOService erişim sembolü veya dize izi; **K4** `IOPlatformSerialNumber` dizesi.
+- `yes`: en az üç kanıt **ve** K4. `no`: ikili **geçerli Mach-O olarak ayrıştırıldı** ve koşul sağlanmıyor (K4'süz K1–K3 de `no`). `unknown`: B = `unverifiable`.
+- **Yapısal bozukluk `no` değildir:** komut sayısı veya komut bayt toplamı 0, komut boyutu 4 bayta hizalı değil, komutlar bildirilen bayt toplamını tam doldurmuyor (eksik/fazla komut), dylib adı komut dışında, sembol/dize tablosu dilim dışında veya boş değilken 0 ofsetinde, segment dosya aralığı dilim dışında, dosya içerikli boş olmayan bir bölüm (gerçek zerofill türleri hariç) 0 ofsetinde veya dilim dışında, tanınmayan magic → `notMachO` → `unknown`. Geçerli ama ilgisiz yükleme komutları atlanır.
+- İptal edilen kontrol (yeni Yenile veya CLI komutunun iptali taramayı da iptal eder) ham kimliği **okumaz**: rapor `unknown`, ham durum ve maskeli CID yok.
+- Süre sınırı **monotonik saatle** 3 saniyedir (duvar saati değişimi etkisiz); her okuma (parça sınırı) öncesi ve sonrası iptal ve süre kontrol edilir; tarama sonunda bir kez daha kontrol edilir. Tek bir okuma çağrısının donması kesilemeyebilir (pratik sınır); bu durumda sonuç yine `unknown` (zaman aşımı) olur, asla sessiz başarı olmaz.
+- Motor ikili dosyasının (kütüphane varsa o, yoksa çalıştırılabilir) SHA-256 değerinin ilk 12 karakteri raporlanır; motor açıkken/P bilinmezken hesaplanmaz (`null`).
+
+### 73.4 Ham kimlik (R) ve dosya sistemi hataları
+- R, §3.1 sırasındaki konumlardan ilk okunabilir ve geçerli dosyadan okunur: 16 hex + isteğe bağlı satır sonu, en çok 64 bayt.
+- **Yalnız kesin yokluk (`ENOENT`) `absent`'tir.** Aday dosyanın yolunda (`~`, `~/.config`, `~/.local`, oyun klasörü veya üstleri) kullanıcı denetimli bir sembolik bağlantı varsa (fiziksel yol yazılan yolla eşleşmiyorsa) dosya izlenmez ve `unreadable` sayılır; yalnız macOS sistem takma adları (`/var`, `/tmp`, `/etc` → `/private/…`) bağlantı sayılmaz. Erişim reddi, G/Ç hatası, eskimiş tutamaç vb. her `lstat` hatası, sembolik bağlantı, klasör, okuma hatası, 64 bayt üstü veya hatalı biçim `unreadable`'dır. Bir konum `unreadable` ise ve geçerli dosya yoksa sonuç `absent` değil `unreadable`'dır.
+
+### 73.5 Karar sırası ve tablosu
+1. P = `unavailable` → `unknown` (processUnavailable); hiçbir şey taranmaz/okunmaz; yeniden oluşturma engellenir.
+2. P = `running` → `unknown` (engineRunning); statik tarama ve hash **yapılmaz**, motor paketi incelenmez, ham kimlik **okunmaz**; kanıt yok/`null`, hash `null`; "motoru kapatıp Yenile'ye basın".
+3. B = `unverifiable` → `unknown`; motor yoksa "Motor bulunamadı", diğerlerinde "Motor paketi doğrulanamadı". `unsupported` veya indirme önerisi **yapılmaz**.
+4. Tablo (P = `notRunning`, B = `readable`):
+
+| S | R | Durum | Eylem |
+|---|---|---|---|
+| yes | nonzero | `supported` (göstergeler bulundu; tekillik doğrulanmadı) | yok |
+| no | nonzero | `unknown` (statik donanım-kimliği doğrulaması yok) | "Uyumlu motoru indir" önerisi |
+| yes | zero | `unknown` | "Kimliği yeniden oluştur" |
+| yes | absent | `unknown` (henüz üretilmemiş) | "Kimliği yeniden oluştur" |
+| no | zero / absent | `unsupported` | "Uyumlu motoru indir" |
+| yes / no | unreadable | `unknown` (kimlik dosyası erişilemiyor) | yok |
+
+- `raw=0` durumu mevcut §7.2 `rawIDZero` nedeniyle uyumludur; kart ek olarak "kimliği sıfır olan tüm Mac'ler aynı CID'yi paylaşır" açıklamasını gösterir.
+- Kontrol ana pencerenin her yenilemesinde ve kartın "Yenile" düğmesiyle arka planda çalışır.
+
+### 73.6 Arayüz — "macOS donanım kimliği" kartı
+- Ana pencerede Profil/Ağ satırının altında. Durum her zaman simge + etiket + metinle verilir (renk tek başına bilgi taşımaz); etiketler: "Göstergeler bulundu" / "Desteklenmiyor" / "Belirsiz" / "Kontrol ediliyor…". Maskeli CID, statik kanıt sayısı (`n/4`, yalnız tarandıysa) ve `~` ile kısaltılmış motor yolu gösterilir.
+- Metinler: yes+nonzero → "Sıfır olmayan kimlik ve donanım-kimliği statik göstergeleri bulundu. Tekillik doğrudan doğrulanmadı."; no+nonzero → "Kimlik dolu (sıfır değil), ancak bu motorda statik donanım-kimliği doğrulaması yapılamadı. Uyumlu motor önerilir."; yes+zero/absent → "Kimlik henüz oluşmadı veya sıfır. Motoru açıp kapatarak yeniden oluşturabilirsiniz."; unsupported → "Kurulu motor macOS donanım kimliğini desteklemiyor. Uyumlu bir sürüm gerekli."; motor açık → "Motor açık; motor taranmadı ve kimlik okunmadı. Motoru kapatıp Yenile'ye basın."; P bilinmiyor → "Motor süreç durumu doğrulanamadı; motor taranmadı ve kimlik okunmadı. Yeniden oluşturma engellendi. …"; B doğrulanamadı → "Motor paketi doğrulanamadı. Motor yolunu ve dosya izinlerini kontrol edin."; R erişilemiyor → "Kimlik dosyası erişilemiyor (izin, G/Ç veya biçim hatası). …". `unknown` durumunda "Yenile" ve `playeridentityctl diagnose --macos-identity` yönlendirmesi gösterilir. Yasak: "yeni rastgele ID", "benzersiz kimlik (garantisi)".
+- **Yenile / checking:** Yenile başlarken yeni bir nesil numarası atanır, önceki tarama iptal edilir ve kart yalnız "Kontrol ediliyor…" gösterir: önceki sonuç, notlar, ayrıntılar, eylemler ve geri bildirim **tamamen gizlenir**; checking durumu da VoiceOver'a duyurulur. Sonuç yalnız kendi nesline bağlanır; iptal edilmiş/eski neslin sonucu yayımlanmaz. Checking sırasında eylem istenemez.
+- **"Uyumlu motoru indir"**: yalnız `unsupported` ve no+nonzero durumunda görünür; varsayılan tarayıcıda yalnız `https://github.com/FWGS/xash3d-fwgs/releases/tag/continuous` açılır (sabit https izin listesi). Hedef adres kartta yazılır. Açılamazsa **veya izin listesi bağlantıyı reddederse** kartta hata gösterilir ve `ErrorLog(launch)` yazılır; sessiz ret yoktur.
+- **"Kimliği yeniden oluştur"**: yalnız yes+zero / yes+absent, P = `notRunning`, B = `readable` iken etkindir. Motor açıksa "Önce motoru kapatın.", P bilinmiyorsa süreç-doğrulanamadı nedeniyle devre dışıdır (VoiceOver da okur). Basılınca motor yeniden (üç durumlu) kontrol edilir, onay sorulur ("Motor açılsın mı?"), onaylanırsa motor argümansız açılır. Başarıda motor **açık kabul edilir** (`isGameRunning` = true), düğme "Önce motoru kapatın." ile devre dışı kalır ve "Motor açıldı. Motoru kapatın, sonra Yenile'ye basın." yazılır; **otomatik yenileme yapılmaz**. Kullanıcı motoru kapatıp Yenile'ye basınca rapor `notRunning` olur ve düğme yeniden etkinleşir. Başarısızlık sessiz yutulmaz: neden kartta gösterilir ve `ErrorLog(launch)` yazılır. Eylem sürerken yeni bir Yenile başlarsa eski eylemin sonucu (durum metni) yeni rapora bağlanmaz; yalnız log'a "eski" olarak yazılır. Ancak başarılı açılış (veya "motor açık" hatası) gerçek dünya bilgisidir: eski nesle ait olsa da süreç durumu `running` olarak senkronlanır.
+- `isGameRunning` kimlik raporuyla senkron tutulur: rapor `running` → true, `notRunning` → false, `unavailable` → bayrak değiştirilmez ("bilinmiyor" ayrıca tutulur).
+- Kartın altında sınır notu: rastgele kimlik değişimi yoktur; kimlik donanımdan türetilir, dosya silinse bile aynı Mac'te aynı kimlik yeniden oluşur.
+- Erişilebilirlik: durum satırı tek VoiceOver öğesidir ("macOS donanım kimliği durumu: …"); düğmelerin ipucu ve devre dışı nedeni okunur; durum değişimi ve checking duyurulur; metinler kesilmeden sarılır; tüm eylemler klavyeyle kullanılabilir.
+
+### 73.7 Motor yolu
+- Varsayılan: `/Applications/Xash3D-FWGS.app`.
+- Ayarlar > Veri > "Motor uygulaması": "Değiştir…" (yalnız `.app` seçilir) ve "Varsayılanı Kullan". Geçersiz seçim **saklanmaz**, varsayılan kullanılır; neden Ayarlar'da **ve kartta** gösterilir ve log'a yazılır. Kurallar: dizin ve `.app` uzantısı; yolda sembolik bağlantı yok (fiziksel/çözümlenmiş yol yazılan yolla aynı); `Contents/MacOS` altında çalıştırılabilir dosya var; okunamayan öğe → `unreadable` reddi; veri kökü veya `~/.config` / `~/.local` içinde değil.
+- **Containment:** yasak kök kontrolü hem yazılan (sözcüksel) hem fiziksel (bağlantılar çözülmüş) yol üzerinden, adayın ve kökün her iki biçimiyle yapılır; aday bir takma ad/bağlantı ile yasak köke işaret etse de, yasak kökün kendisi bir bağlantı olsa da reddedilir.
+- Paket içinde okunan hiçbir öğe sembolik bağlantı olamaz; bağlantılar izlenmez.
+
+### 73.8 CLI
+- `playeridentityctl diagnose --macos-identity [--json]` (salt okunur, ağsız, dosya yazmaz; geçmiş satırı da eklemez).
+- Çıkış kodları: `0` supported, `1` unsupported, `2` unknown, `3` beklenmeyen hata (kullanım hatası her komutta olduğu gibi `1`). **Açıkça istenen motor yolu (`PLAYERIDENTITYCTL_ENGINE_APP` veya uygulama ayarı) reddedilirse**, varsayılan motor incelenip sonuç raporlansa bile çıkış `0` olmaz; en az `2`.
+- JSON alanları: `state`, `finding`, `action`, `uniqueness_verified` (her zaman `false`), `process_state`, `package_readability` (`readable`/`unverifiable`, taranmadıysa `null`), `static_support`, `evidence` (`k1_iokit_linked`, `k2_corefoundation_linked`, `k3_ioregistry_access`, `k4_platform_serial_string`, `count`; taranmadıysa `null`), `static_failure`, `raw_state` (okunmadıysa `null`), `cid_masked`, `engine_path` (= `effective_engine_path`, `~` ile), `engine_path_validated` (motor açıkken/P bilinmezken `false`; o zaman `effective_engine_path` ve `engine_physical_path` `null`), `engine_physical_path`, `requested_engine_path`, `override_rejected`, `reject_reason`, `engine_hash_short`, `engine_running`, `engine_version_informational`, `app_version`, `timestamp` (UTC ISO-8601), `schemaVersion: 1`. Ham kimlik ve tam CID alanı **yoktur**. İnsan-okur çıktı aynı bilgiyi, istenen/etkin motor ayrımını ("REJECTED … / default fallback") ve bir sonraki adımı yazar; reddedilen yol stderr'e hata olarak yazılır.
+- `PLAYERIDENTITYCTL_ENGINE_APP=<yol>` başka bir motor paketini (§73.7 kurallarıyla) inceletir; yoksa uygulamanın ayarı, o da yoksa varsayılan kullanılır. `PLAYERIDENTITYCTL_IDENTITY_HOME=<klasör>` kimlik dosyalarını ev klasörü yerine bu klasörden (yine salt okunur) okutur; kalibrasyon fixture'ları içindir.
+
+### 73.9 Yerelleştirme
+- Metinler `macIdentity.*` anahtarlarıyla 26 dilde bulunur; yeni veya değişen değerler, çevrilene kadar diğer 24 dilde İngilizce yer tutucu taşır (§63 aracı; anahtar seti korunur).
+
+### 73.10 Testler
+Karar tablosunun her satırı ve süreç önceliği (running/unavailable her S×R için); K4'süz K1–K3 → `yes` değil; çalıştırılabilir + kütüphane kanıt birleştirme; fat dosya; okunamayan / Mach-O olmayan / yapısal bozuk (yükleme komutu, dylib adı, sembol/dize tablosu, bölüm, segment sınırları) / 512 MB üstü / monotonik zaman aşımı / duvar saati sıçraması etkisiz / parça sınırında iptal / tek okuma donması → `unknown`; geçerli ilgisiz komut atlanır; `ENOENT` dışı `lstat` hataları `unreadable` (sahte ve gerçek izin reddi); okunamayan paket `unknown`, indirme önerisi yok; motor açıkken tarama/hash/okuma sayacı 0; `unavailable` asla `notRunning` değil ve yeniden oluşturmayı engeller; ayar düzenleme süreç dedektörü değişmez; `isGameRunning` senkronu; başarılı açılış sonrası motor açık kabul ve Yenile sonrası düğme yeniden etkin; checking önceki sonucu/eylemi gizler; yeni Yenile önceki taramayı iptal eder; eski nesil yeniden oluşturma sonucu yeni rapora yapışmaz; izin listesi reddi görünür + log; sembolik bağlantı / takma ad / bağlantılı kök ile veri klasörü override reddi (sahte ve gerçek); CLI JSON/insan çıktısında ham kimlik ve tam CID yok, tekillik iddiası yok, çıkış kodları, reddedilen override ≠ 0 ve istenen/etkin ayrımı; gerçek dosyalarda kontrol öncesi/sonrası SHA-256 aynı; 26 dilde anahtar eşitliği. Testler sahte dosya sistemi ve sentetik Mach-O ile gerçek motor olmadan çalışır.
+
+### 73.11 Kalibrasyon (yayın kapısı, repo dışı)
+- `scripts/calibrate-macos-identity.sh` isteğe bağlıdır ve birim testlerinden ayrıdır (birim test paketinde atlanan test yoktur); yayın kontrol listesi onu ayrıca çalıştırır.
+- Resmi upstream "continuous" Apple arm64 asset'ini repo dışındaki çalışma klasörüne indirir (varsa yeniden kullanır), SHA-256'sını kaydeder (isteğe bağlı sabitlenmiş değerle karşılaştırır); geçici, salt okunur bir `Upstream.app` ve sentetik kimlik fixture klasörleri (zero/nonzero/absent) oluşturur; `playeridentityctl`'i repo dışı DerivedData ile derler ve kurulu `/Applications/Xash3D-FWGS.app` ile karşılaştırır. Gerçek kimlik dosyalarına, oyun verisine ve uygulama kaydına dokunmaz; kurulu motorun ikilileri önce/sonra hash'lenir; hiçbir motor başlatılmaz.
+- Beklenen: upstream 4/4 `yes`; kurulu 0/4 `no`; upstream+nonzero → `supported`; upstream+zero → `unknown` + yeniden oluştur; kurulu+zero/absent → `unsupported`; kurulu+nonzero → `unknown` + indirme önerisi.
+- Çıkış: `0` PASS, `1` FAIL, `4` NOT CONFIGURED (asset veya kurulu uygulama yok ve sağlanamıyor) — kapı kapalı kalır, sessiz atlama yoktur. Özet (`summary.txt`, `summary.json`), komutlar, asset hash'i ve vaka JSON'ları kanıt klasörüne yazılır; ham kimlik kaydedilmez.
+- Ortam değişkenleri: `PI_CAL_WORK`, `PI_CAL_ASSET_NAME`, `PI_CAL_ASSET_URL`, `PI_CAL_UPSTREAM_ASSET`, `PI_CAL_UPSTREAM_SHA256`, `PI_CAL_DOWNLOAD`, `PI_CAL_INSTALLED_APP`, `PI_CAL_CTL`, `PI_CAL_DERIVED_DATA`, `PI_CAL_EVIDENCE_DIR`.
+
+### 73.11.1 Kalıcı kanıt — S1–S7 (bu özellik için bir kez doğrulandı)
+- **Tarih:** 2026-11-20. **Kanıt dizini:** `/private/var/folders/c8/h1kf9qwj6vxbltzgvh9_7q040000gn/T/opencode/player-identity-macos-identity-spike` (`REPORT.md`, `evidence/spike-run.log`, `evidence/*-before|after|after2.sha256`, `evidence/logs/`). Ortam: macOS 27.2.1, Apple silicon fiziksel Mac. Upstream asset: `xash3d-fwgs-apple-arm64.tar.xz` (continuous, commit `11ed246c`, yayın 2026-11-17), SHA-256 `a12ea04ca0165690a9c25a953aa46c5e2c8c43efa98a3e7fb3a921144826c237` = GitHub digest. Upstream binary repoya konmadı; kanıt yalnız repo dışında durur. Ham kimlik/tam CID kaydedilmedi (yalnız tuzlu parmak izi ve maskeli CID).
+- Bağımsız spike (motor, ağ çıkışı ve gerçek `$HOME`/`/Applications` yazımı yasaklanmış sandbox'ta, izole fixture'da) sonuçları:
+
+| Kod | Spike testi | Sonuç |
+|---|---|---|
+| S1 | S-a, S-f | Kurulu build (`libxash.dylib` `d38e3624…`): K1–K4 yok, çalışmada raw = 0 → `unsupported` |
+| S2 | S-b | Upstream (`libxash.dylib` `c0ced709…`): K1–K4 var, raw ≠ 0, iki koşuda bayt bayt aynı |
+| S3 | S-b-neg | Aynı upstream'de yalnız seri numarası özelliği okuması engellenince raw = 0 (nedensellik) |
+| S4 | S-g | Upstream, eski raw = 0 dosyalarıyla açılınca dosyaları donanım kimliğiyle onardı |
+| S5 | S-c, S-c' | Dosyalar silinip yeniden başlatılınca (ve farklı yolda) aynı raw yeniden üretildi; rastgele rotasyon yok |
+| S6 | S-d | Uygulamanın Identity/CID hesabı bağımsız referansla ve sabit vektörlerle eşleşti. Sınır: motorun ağa gönderdiği CID ile uçtan uca karşılaştırma yapılmadı (sunucuya paket gönderimi yasak) |
+| S7 | S-e | Gerçek kimlik dosyaları, oyun verisi (6876 dosya), kurulu uygulama ve repo SHA-256'ları önce = sonra = sonra-2 (`cmp` IDENTICAL; repo HEAD `0876c4b1`) |
+
+- **Bu görevde 2026-11-20'de yeniden doğrulananlar:** (a) spike kanıt dosyaları `cmp` ile yeniden karşılaştırıldı: `idfiles`, `gamedata`, `installed-app`, `repo-files` before = after = after2 IDENTICAL; (b) `scripts/calibrate-macos-identity.sh` aynı asset (sabitlenmiş SHA-256) ve kurulu `/Applications/Xash3D-FWGS.app` ile koşuldu: **PASS** — upstream 4/4 `yes` (supported / zero→regenerate / absent→regenerate), kurulu 0/4 `no` (zero ve absent → unsupported, nonzero → unknown + indirme önerisi), kurulu ikililer önce = sonra (T-K1–T-K5). Bu S1 ve S2'yi uygulamanın kendi tarayıcısıyla yeniden üretir.
+- **Kalıcılık:** S1–S7 bu özelliğin davranış varsayımlarını (donanım kaynaklı, deterministik, onarılabilir kimlik; okuma izolasyonu) bir kez kanıtlar ve **her sürümde yeniden koşulmaz**. Her sürüm yalnız §73.11 kalibrasyonunu (T-K1–T-K6) çalıştırır. S1–S7 ancak şu durumlarda yeniden üretilir: upstream kimlik türetme davranışı değişirse, karar kuralı/kanıt eşiği (K1–K4) değişirse, kalibrasyon başarısız olursa veya yeni bir platform/mimari (ör. amd64, başka macOS ana sürümü) desteklenirse.
+
+### 73.12 Sınırlar
+- Statik gösterge eşiği yanlış pozitif/negatif üretebilir; gerçek motor sürümleriyle kalibre edilir (§73.11). Göstergeler tekillik kanıtı değildir.
+- `absent` için motorun ilk açılışta kimliği oluşturduğu varsayılır; oluşmazsa kullanıcı `unknown` + Yenile/teşhis yönlendirmesiyle kalır (otomatik yeniden deneme yok).
+- Motor çalışma tespiti süreç adına (`xash3d*`) dayanır; süreç listesinin okunamadığı durumlar `unavailable` olarak raporlanır.
+- Tek bir bloklayan okuma çağrısı iptal edilemeyebilir; sonuç `unknown` olur.
+- Gerçek rastgele rotasyon ancak motorun açık, kullanıcı yönetimli bir kimlik geçersiz kılma protokolü desteklemesiyle ve ayrı bir spesifikasyonla mümkün olur; bu sürümün kapsamı dışındadır.

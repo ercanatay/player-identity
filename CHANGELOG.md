@@ -5,6 +5,33 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.0] - 2026-11-20
+
+### Added
+- **macOS hardware identity health** (spec §73): a new main-window card checks, read-only, whether the installed Xash3D engine shows static indicators of deriving the identity from the Mac's hardware (evidence K1–K4 in the engine binaries) and whether the raw identity is non-zero, zero, absent or unreadable. A zero identity is explained plainly: every Mac with a zero identity shares the same CID on each server. "Supported" means "non-zero identity and hardware-identity indicators found"; uniqueness itself is never claimed or verified.
+- **Regenerate Identity**: when the engine supports the hardware identity but the identity is zero or missing, the card opens the engine (after a confirmation, only while it is closed) so the engine rebuilds the identity itself. The app never writes or deletes `.xash_id`, never quits the engine and does not refresh on its own.
+- **Download Compatible Engine**: when the engine has no hardware identity support, the card opens only the official release page (`https://github.com/FWGS/xash3d-fwgs/releases/tag/continuous`); the app downloads and changes nothing.
+- Settings → Data → **Engine app**: choose another Xash3D `.app` (validated: `.app` bundle, no symbolic links, an executable, not inside the data or identity folders — checked on both the written and the physical path, so a link or alias cannot escape it). A refused choice is shown on the card and logged.
+- `playeridentityctl diagnose --macos-identity [--json]`: the same check from the command line with exit codes `0` supported, `1` unsupported, `2` unknown, `3` error; `PLAYERIDENTITYCTL_ENGINE_APP` checks another bundle. A rejected override never exits `0` (at least `2`, even when the default engine passes); the JSON separates `requested_engine_path`, `effective_engine_path`, `override_rejected` and `reject_reason`, and adds `process_state`, `package_readability` and `uniqueness_verified: false`.
+- `scripts/calibrate-macos-identity.sh`: opt-in release-gate calibration against the real official upstream asset and the installed engine (isolated temporary bundle and identity fixtures outside the repo; upstream 4/4 `yes`, installed 0/4 `no`); `NOT CONFIGURED` (exit 4) keeps the gate closed instead of skipping.
+
+### Safety (independent review, spec v2.25.0)
+- The engine process state is a tri-state (`running` / `notRunning` / `unavailable`); a process list that cannot be read is never treated as "not running". While the engine runs (or its state is unknown) nothing is scanned, hashed or read and "Regenerate Identity" stays blocked; after a successful launch the engine is assumed to run until the user quits it and presses Refresh.
+- Only a definite `ENOENT` counts as "missing": permission, I/O and other errors make the identity `unreadable` and the engine package `unknown` (unverifiable), never `unsupported` or a download suggestion.
+- A non-zero identity without static evidence is now `unknown` (with the compatible engine suggestion), no longer `supported`.
+- Structurally broken Mach-O files (load commands, sections, symbol or string tables out of bounds) are `unknown`, never `no`.
+- The 3-second scan limit uses a monotonic clock and the scan stops on cancellation at every chunk; a refresh hides the previous result until the new one arrives, and a stale "Regenerate Identity" result never attaches to a newer check.
+- A link refused by the allowlist is shown and logged, never silently ignored.
+- The process state is taken before an engine override is validated: while the engine runs (or its state is unknown) no bundle, `Info.plist` or binary is read and the requested path is only reported lexically (`engine_path_validated: false`). The full refresh also keeps an unknown process state unknown.
+- An identity file reached through a user link in a parent folder (`~`, `~/.config`, `~/.local`, the game folder) is `unreadable`, not followed; system aliases such as `/var` are not links.
+- Mach-O checks also reject zero or inconsistent command totals, unaligned command sizes and non-empty file-backed sections or tables at offset 0; a `libxash.dylib` that is not a regular file, or an executable without an execute bit, makes the package unverifiable / not executable.
+- A cancelled check (new Refresh or a cancelled CLI command) never reads the identity; a successful "Regenerate Identity" launch marks the engine as running even when its status line belongs to an older check.
+
+### Notes
+- The raw identity and the full CID are never shown, printed or logged by this feature; only a state label and a masked CID.
+- There is no random identity rotation: the identity comes from the hardware, so the same Mac recreates the same identity.
+- New and changed texts carry English placeholders in the 24 languages other than Turkish and English until they are translated.
+
 ## [2.23.0] - 2026-11-18
 
 ### Added
