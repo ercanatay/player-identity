@@ -56,6 +56,18 @@ expect 1 "$CTL" status --macos-identity
 IDENTITY_HOME=$(mktemp -d)
 expect 2 env PLAYERIDENTITYCTL_ENGINE_APP=/nonexistent/Engine.app PLAYERIDENTITYCTL_IDENTITY_HOME="$IDENTITY_HOME" \
     PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/does-not-exist.json" "$CTL" diagnose --macos-identity --json
+# §74 engine commands: usage errors and the refused install (stdin is not a terminal, no --yes) stay offline and
+# write nothing; status and the backup list are read-only (identity files from the empty temporary folder).
+expect 1 "$CTL" engine
+expect 1 "$CTL" engine frobnicate
+expect 1 "$CTL" engine status --yes
+expect 1 "$CTL" engine backups delete
+expect 1 "$CTL" engine install-compatible --confirm abc
+expect 1 "$CTL" engine install-compatible
+expect 1 "$CTL" engine install-compatible --json
+expect 0 env PLAYERIDENTITYCTL_ENGINE_APP=/nonexistent/Engine.app PLAYERIDENTITYCTL_IDENTITY_HOME="$IDENTITY_HOME" \
+    PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/does-not-exist.json" "$CTL" engine status --json
+expect 0 "$CTL" engine backups --json
 rmdir "$IDENTITY_HOME"
 
 cid=$("$CTL" cid 51.68.190.91 --raw-id 0 </dev/null)

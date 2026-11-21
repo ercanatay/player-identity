@@ -54,6 +54,11 @@ struct CLIContext: Sendable {
     var gameProcessDetector: any GameProcessDetecting = SystemGameProcessDetector()
     var clock: @Sendable () -> Date = { Date() }
     var monotonicClock: MonotonicClock = .system
+    /// §74 `engine …`: the installer of one environment (real GitHub/tar/codesign by default; tests pass fakes), the
+    /// file operations of the engine backup inventory and the Mac's architecture.
+    var engineInstallerFactory: EngineInstallerFactory = { EngineInstaller.live(environment: $0) }
+    var engineFileOperations: any EngineFileOperating = LocalEngineFileOperations()
+    var engineArchitecture: EngineArchitecture = .current()
 
     /// `profile.json` read by `status` (and for the identity/name defaults); `PLAYERIDENTITYCTL_SNAPSHOT` overrides it.
     var snapshotURL: URL {
@@ -105,6 +110,11 @@ enum CLICommand: Sendable, Equatable {
     case report(target: String, window: DiagnosisTrendWindow, unmasked: Bool, out: String?)
     // §73.7 macOS unique identity health (CLIMacIdentity.swift).
     case diagnoseMacIdentity(json: Bool)
+    // §74 "Install Compatible Engine" (CLIEngine.swift).
+    case engineStatus(json: Bool)
+    case engineInstall(yes: Bool, json: Bool)
+    case engineBackups(json: Bool)
+    case engineBackupsDelete(confirm: String, json: Bool)
 }
 
 struct CLIUsageError: Error, Sendable, Equatable {
@@ -142,7 +152,7 @@ enum CLIParser {
                  "--fail-on-ban", "--unmasked", "--macos-identity":
                 guard inlineValue == nil else { return .failure(CLIUsageError(message: "\(name) takes no value")) }
                 flags.insert(name == "-h" ? "--help" : name)
-            case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group", "--days":
+            case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group", "--days", "--confirm":
                 guard options[name] == nil else { return .failure(CLIUsageError(message: "\(name) given twice")) }
                 if let inlineValue {
                     options[name] = inlineValue
@@ -169,8 +179,9 @@ enum CLIParser {
         if command != "update", let flag = ["--check", "--install"].first(where: flags.contains) {
             return .failure(CLIUsageError(message: "\(flag) is only valid for update"))
         }
-        if flags.contains("--yes"), !["update", "restore", "servers"].contains(command) {
-            return .failure(CLIUsageError(message: "--yes is only valid for update, restore and servers remove"))
+        if flags.contains("--yes"), !["update", "restore", "servers", "engine"].contains(command) {
+            return .failure(CLIUsageError(message: "--yes is only valid for update, restore, servers remove and "
+                                          + "engine install-compatible"))
         }
         if flags.contains("--watch"), command != "servers" {
             return .failure(CLIUsageError(message: "--watch is only valid for servers add"))
@@ -276,6 +287,9 @@ enum CLIParser {
         case "diagnose", "trend", "report":
             return parseDiagnosis(command, rest, options: options, flags: flags, json: json)
 
+        case "engine":
+            return parseEngine(rest, options: options, flags: flags, json: json)
+
         default:
             return .failure(CLIUsageError(message: "unknown command \(command)"))
         }
@@ -318,6 +332,45 @@ enum CLIParser {
             return .success(.serversRemove(target: arguments[0], yes: yes, json: json))
         default:
             return .failure(CLIUsageError(message: "unknown servers action \(action) (list, add or remove)"))
+        }
+    }
+
+    /// §74 `engine status | install-compatible [--yes] | backups | backups delete --confirm <code>`.
+    private static func parseEngine(_ rest: [String], options: [String: String], flags: Set<String>,
+                                    json: Bool) -> Result<CLICommand, CLIUsageError> {
+        guard let action = rest.first else {
+            return .failure(CLIUsageError(message: "engine needs status, install-compatible or backups"))
+        }
+        let arguments = Array(rest.dropFirst())
+        let yes = flags.contains("--yes")
+        let confirm = options["--confirm"]
+        if let name = options.keys.first(where: { $0 != "--confirm" }) {
+            return .failure(CLIUsageError(message: "\(name) is not valid for engine \(action)"))
+        }
+        if yes, action != "install-compatible" {
+            return .failure(CLIUsageError(message: "--yes is only valid for engine install-compatible"))
+        }
+        switch action {
+        case "status", "install-compatible":
+            guard arguments.isEmpty else { return .failure(CLIUsageError(message: "engine \(action) takes no arguments")) }
+            if confirm != nil { return .failure(CLIUsageError(message: "--confirm is only valid for engine backups delete")) }
+            return .success(action == "status" ? .engineStatus(json: json) : .engineInstall(yes: yes, json: json))
+        case "backups":
+            if arguments.isEmpty {
+                if confirm != nil {
+                    return .failure(CLIUsageError(message: "--confirm is only valid for engine backups delete"))
+                }
+                return .success(.engineBackups(json: json))
+            }
+            guard arguments == ["delete"] else {
+                return .failure(CLIUsageError(message: "engine backups takes no arguments or delete --confirm <code>"))
+            }
+            guard let code = confirm?.trimmingCharacters(in: .whitespaces), !code.isEmpty else {
+                return .failure(CLIUsageError(message: "engine backups delete needs --confirm <code> (from engine backups)"))
+            }
+            return .success(.engineBackupsDelete(confirm: code, json: json))
+        default:
+            return .failure(CLIUsageError(message: "unknown engine action \(action) (status, install-compatible or backups)"))
         }
     }
 
@@ -464,6 +517,16 @@ enum CLIRunner {
                                                              is the raw identity zero (read-only;
                                                              uniqueness not verified; raw ID and full
                                                              CID never printed)
+      engine status [--json]                                 compatible engine install: is it offered,
+                                                             engine process state, backups (offline)
+      engine install-compatible [--yes] [--json]             install the official Xash3D-FWGS build over
+                                                             an unsupported engine (backup + atomic swap +
+                                                             rollback); asks y/N with the CID warning,
+                                                             without a terminal needs --yes; the CID may
+                                                             change; never opens the engine
+      engine backups [--json]                                engine backups (newest 3 kept) and the code
+                                                             to delete the older ones
+      engine backups delete --confirm <code> [--json]        delete the older engine backups
       trend <host:port|index> [--days 7|30|all] [--json]     diagnosis trend from the history
       report <host:port|index> [--days 7|30|all] [--unmasked] [--out <path>|-]
                                                              Markdown report of the last diagnosis
@@ -483,6 +546,10 @@ enum CLIRunner {
               4 ban verdict with diagnose --fail-on-ban
       diagnose --macos-identity: 0 supported, 1 unsupported (or usage error), 2 unknown (also a rejected
               engine override, even when the default engine passes), 3 unexpected error
+      engine install-compatible: 0 installed (identity verification pending), 1 usage error or no --yes
+              without a terminal, 2 failed (nothing changed, engine running, or rollbackIncomplete: critical),
+              3 cancelled, declined or rolled back, 4 not offered (not unsupported, Intel Mac)
+      engine status, engine backups: 0 ok, 1 usage error, 2 read or delete error (also a partial deletion)
     restore and servers remove ask y/N on a terminal; without one they need --yes.
     servers add/remove edit profile.json (a copy is kept as profile.json.appbak-<time>); a running app
     keeps its own list until it is reopened.
@@ -538,6 +605,14 @@ enum CLIRunner {
             return await report(target: target, window: window, unmasked: unmasked, out: out, context: context)
         case .diagnoseMacIdentity(let json):
             return await diagnoseMacIdentity(json: json, context: context)
+        case .engineStatus(let json):
+            return await engineStatus(json: json, context: context)
+        case .engineInstall(let yes, let json):
+            return await engineInstallCompatible(yes: yes, json: json, context: context)
+        case .engineBackups(let json):
+            return engineBackups(json: json, context: context)
+        case .engineBackupsDelete(let code, let json):
+            return engineBackupsDelete(confirm: code, json: json, context: context)
         }
     }
 

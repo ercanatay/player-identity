@@ -52,7 +52,7 @@ struct MacIdentityPresentation: Equatable {
     ///   - overrideRejection: the engine override that was refused (shown as a visible note).
     init(report: MacIdentityReport?, checking: Bool, engineRunning: Bool, processState: EngineProcessState? = nil,
          regenerateStatus: AppModel.MacIdentityRegenerateStatus? = nil, downloadFailed: Bool = false,
-         overrideRejection: EnginePathError? = nil, home: URL? = nil) {
+         overrideRejection: EnginePathError? = nil, home: URL? = nil, installVerificationPending: Bool = false) {
         guard let report, !checking else {
             stateLabel = L10n.text(.macIdentityStateChecking)
             symbol = "hourglass"
@@ -65,7 +65,14 @@ struct MacIdentityPresentation: Equatable {
             actionFeedback = nil
             return
         }
+        // §74 (AC-E45, AC-E87a): after "Install Compatible Engine" nothing is called supported until the core
+        // verification said identityRepaired / alreadyHealthy.
+        let pendingInstall = installVerificationPending && report.state == .supported
         switch report.state {
+        case .supported where pendingInstall:
+            stateLabel = L10n.text(.engineInstallStateVerifying)
+            symbol = "hourglass.circle.fill"
+            tone = .warning
         case .supported:
             stateLabel = L10n.text(.macIdentityStateSupported)
             symbol = "checkmark.circle.fill"
@@ -84,7 +91,7 @@ struct MacIdentityPresentation: Equatable {
                 tone = .warning
             }
         }
-        message = Self.message(report.finding)
+        message = pendingInstall ? L10n.text(.engineInstallResultInstalled) : Self.message(report.finding)
 
         var notes: [String] = []
         if let overrideRejection {
@@ -176,7 +183,8 @@ struct MacIdentityCard: View {
                                 downloadFailed: model.engineDownloadFailed,
                                 overrideRejection: model.engineOverrideRejection
                                     ?? model.engineResolution.rejectedOverride,
-                                home: model.homeDirectory)
+                                home: model.homeDirectory,
+                                installVerificationPending: model.engineInstallAwaitingVerification)
     }
 
     var body: some View {
@@ -289,7 +297,10 @@ struct MacIdentityCard: View {
                 }
             }
         }
-        if presentation.showsDownload {
+        // §74: for `unsupported` "Install Compatible Engine" is the primary action and the release page a secondary link
+        // inside it; the plain page button stays for the other states that recommend a compatible engine.
+        EngineInstallSection(model: model)
+        if presentation.showsDownload, model.engineInstallAvailability == .hidden {
             VStack(alignment: .leading, spacing: Space.s1) {
                 Button {
                     model.openCompatibleEngineDownload()

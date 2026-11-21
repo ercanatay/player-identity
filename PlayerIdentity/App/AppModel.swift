@@ -74,6 +74,12 @@ struct AppDependencies {
     /// §73: read-only probe of the engine bundle and the identity files (the default sees nothing; `lstat`/`pread` in
     /// `live()`).
     var fileProbe: any ReadOnlyFileProbing = UnavailableFileProbe()
+    /// §74 "Install Compatible Engine": builds the installer of one environment (the default downloads and writes
+    /// nothing; the real GitHub/tar/codesign installer in `live()`), the file operations of the engine backup
+    /// inventory (only under `engine-backups` of `paths`) and the Mac's architecture (Intel installs stay closed).
+    var engineInstallerFactory: EngineInstallerFactory = { _ in UnavailableEngineInstaller() }
+    var engineFileOperations: any EngineFileOperating = LocalEngineFileOperations()
+    var engineArchitecture: EngineArchitecture = .current()
 
     /// UI smoke test (§41): live UI, but nothing touches the network, the user's record or preferences.
     static func uiTesting() -> AppDependencies {
@@ -132,6 +138,7 @@ struct AppDependencies {
         deps.rconSecretStore = KeychainSecretStore(service: RconKeychain.service)
         deps.widgetReloader = WidgetCenterReloader()
         deps.fileProbe = LocalFileProbe()
+        deps.engineInstallerFactory = { EngineInstaller.live(environment: $0) }
         return deps
     }
 }
@@ -3073,8 +3080,12 @@ final class AppModel {
     /// engine path, then checks the engine process, its static evidence and the raw identity state off the main
     /// thread. The previous scan is cancelled (its result is dropped). Read-only; never starts the engine and never
     /// refreshes on its own after an action.
+    ///
+    /// - Parameter verifyInstall: §74: when an engine install waits for its identity verification and the engine is
+    ///   known to be closed, the identity before and after the install is compared (only the refresh right after the
+    ///   install passes `false`: the engine has not been opened yet).
     @discardableResult
-    func refreshMacIdentity() -> Task<Void, Never> {
+    func refreshMacIdentity(verifyInstall: Bool = true) -> Task<Void, Never> {
         macIdentityGeneration += 1
         let current = macIdentityGeneration
         macIdentityTask?.cancel()
@@ -3100,6 +3111,7 @@ final class AppModel {
             applyEngineResolution(result.resolution)
             macIdentity = result.report
             syncEngineProcessState(result.report.processState)
+            if verifyInstall { verifyEngineInstall(result.report) }
             isCheckingMacIdentity = false
             macIdentityTask = nil
         }
@@ -3235,6 +3247,327 @@ final class AppModel {
         engineDownloadFailed = !opened
         if !opened { logError(.launch, "macIdentity: downloadPage") }
         return opened
+    }
+
+    // MARK: §74 "Install Compatible Engine"
+
+    /// Where the install flow is (button → release details → confirmation → progress → result → verification).
+    private(set) var engineInstall: EngineInstallFlow = .idle
+    /// The install finished (`installed`) and the identity is not verified yet: the card never claims "supported"
+    /// meanwhile (AC-E45, AC-E87a).
+    private(set) var engineInstallAwaitingVerification = false
+    /// Result of "Open Engine" after an install (cleared by the next install).
+    private(set) var engineInstallLaunchStatus: EngineInstallLaunchStatus?
+    @ObservationIgnored private var engineInstallTask: Task<Void, Never>?
+    @ObservationIgnored private var engineInstallLaunchTask: Task<Void, Never>?
+    /// Identity labels + masked CID at confirmation time (AC-E2c); runtime only, never persisted.
+    @ObservationIgnored private var engineInstallBefore: EngineIdentitySnapshot?
+    @ObservationIgnored private(set) var engineInstallEnvironment: EngineInstallEnvironment?
+
+    /// Whether the card shows "Install Compatible Engine" and why it is disabled.
+    var engineInstallAvailability: EngineInstallAvailability {
+        EngineInstallAvailability.evaluate(report: macIdentity, checking: isCheckingMacIdentity,
+                                           engineRunning: isGameRunning, processState: engineProcessState,
+                                           architecture: deps.engineArchitecture, flow: engineInstall)
+    }
+
+    /// A fetch or an install is in flight (quit and window close handle it; a second install is refused).
+    var isEngineInstallRunning: Bool { engineInstallTask != nil }
+
+    private var engineIdentityReader: LocalEngineIdentityReader { LocalEngineIdentityReader(files: deps.fileProbe) }
+
+    /// "Install Compatible Engine" pressed: the engine must be known to be closed (checked again now); then only the
+    /// release API is read (no download, no write) and the confirmation opens with its details.
+    @discardableResult
+    func requestEngineInstall() -> Task<Void, Never>? {
+        guard engineInstallTask == nil else {
+            engineInstall = engineInstall.isBusy ? engineInstall : .blocked(.busy)
+            return nil
+        }
+        switch engineInstallAvailability {
+        case .hidden:
+            engineInstall = .blocked(.notOffered)
+            return nil
+        case .disabled(let block):
+            engineInstall = .blocked(block)
+            return nil
+        case .enabled:
+            break
+        }
+        guard let report = macIdentity else { return nil }
+        let state = deps.gameProcessDetector.engineProcessState()
+        syncEngineProcessState(state)
+        guard state == .notRunning else {
+            engineInstall = .blocked(state == .running ? .engineRunning : .processUnavailable)
+            if state == .unavailable { logError(.engineInstall, "request: error=processUnavailable") }
+            return nil
+        }
+        let environment = EngineInstallEnvironment.make(targetApp: report.engineApp, dataRoot: dataRoot,
+                                                        gamedir: selectedGamedir, paths: deps.paths,
+                                                        architecture: deps.engineArchitecture)
+        let installer = deps.engineInstallerFactory(environment)
+        let cid = report.cidMasked
+        engineInstall = .fetchingRelease
+        engineInstallLaunchStatus = nil
+        let task = Task {
+            let result = await installer.fetchRelease()
+            engineInstallTask = nil
+            guard case .fetchingRelease = engineInstall else { return }   // cancelled meanwhile
+            switch result {
+            case .success(let release):
+                engineInstall = .confirming(EngineInstallOffer(
+                    summary: EngineInstallPlanSummary(release: release, environment: environment, cidMasked: cid),
+                    environment: environment))
+            case .failure(.cancelled):
+                engineInstall = .idle
+            case .failure(let failure):
+                engineInstall = .fetchFailed(failure)
+                logError(.engineInstall, "fetch: error=\(failure.code)")
+            }
+        }
+        engineInstallTask = task
+        return task
+    }
+
+    /// The confirmation was declined (or closed): nothing was downloaded or written.
+    func declineEngineInstall() {
+        guard engineInstall.offer != nil else { return }
+        engineInstall = .idle
+    }
+
+    /// Confirmed with the CID warning accepted. The process state is checked once more, the identity labels and the
+    /// masked CID are taken (`cidBefore`, read-only) and the install runs off the main actor with live progress.
+    /// Without the accepted warning nothing happens (AC-E2a).
+    @discardableResult
+    func confirmEngineInstall(acceptedCIDWarning: Bool) -> Task<Void, Never>? {
+        guard acceptedCIDWarning, let offer = engineInstall.offer, engineInstallTask == nil else { return nil }
+        let state = deps.gameProcessDetector.engineProcessState()
+        syncEngineProcessState(state)
+        guard state == .notRunning else {
+            engineInstall = .blocked(state == .running ? .engineRunning : .processUnavailable)
+            logError(.engineInstall, "confirm: error=\(state == .running ? "engineRunning" : "processUnavailable")")
+            return nil
+        }
+        let environment = offer.environment
+        let before = engineIdentityReader.snapshot(home: deps.paths.home, gamedir: environment.gamedirURL)
+        engineInstallBefore = before
+        engineInstallEnvironment = environment
+        engineInstallAwaitingVerification = false
+        engineInstallLaunchStatus = nil
+        let confirmation = EngineInstallConfirmation(acceptedCIDWarning: true,
+                                                     cidBefore: before.cidMasked ?? offer.summary.cidMasked)
+        let installer = deps.engineInstallerFactory(environment)
+        let release = offer.summary.release
+        engineInstall = .installing(EngineInstallProgress(phase: .downloading, bytes: 0, total: release.asset.size),
+                                    cancelling: false)
+        let task = Task {
+            let result = await installer.install(release, confirmation: confirmation) { progress in
+                await self.applyEngineInstallProgress(progress)
+            }
+            engineInstallTask = nil
+            finishEngineInstall(result)
+        }
+        engineInstallTask = task
+        return task
+    }
+
+    private func applyEngineInstallProgress(_ progress: EngineInstallProgress) {
+        guard case .installing(_, let cancelling) = engineInstall, !progress.phase.isTerminal,
+              progress.phase != .awaitingIdentityRepair else { return }
+        engineInstall = .installing(progress, cancelling: cancelling && progress.phase.isCancellable)
+    }
+
+    private func finishEngineInstall(_ result: EngineInstallResult) {
+        engineInstall = .finished(EngineInstallFinish(outcome: result.outcome, report: result.report))
+        switch result.outcome {
+        case .installed:
+            engineInstallAwaitingVerification = true
+        case .failed(let failure):
+            logError(.engineInstall, "install: stage=failed,error=\(failure.code)")
+        case .rolledBack(let failure):
+            logError(.engineInstall, "install: stage=rolledBack,error=\(failure.code),backupKept=yes")
+        case .rollbackIncomplete(let failure):
+            logError(.engineInstall, "install: stage=rollbackIncomplete,error=\(failure.code),critical=yes,"
+                     + "backup=\(result.report.backup?.root.path ?? "-")")
+        case .cancelled:
+            logError(.engineInstall, "install: stage=cancelled")
+        }
+        if !result.report.leftovers.isEmpty {
+            logError(.engineInstall, "install: leftovers=\(result.report.leftovers.count)")
+        }
+        // The engine may have changed: check again (the engine is not opened; no identity verification yet).
+        refreshMacIdentity(verifyInstall: false)
+        loadEngineBackups()
+    }
+
+    /// Cancel: the release fetch, or the install only while it downloads or extracts (AC-E7). Once the backup has
+    /// started nothing is cancelled; the install then completes or rolls back.
+    func cancelEngineInstall() {
+        switch engineInstall {
+        case .fetchingRelease:
+            engineInstallTask?.cancel()
+            engineInstallTask = nil
+            engineInstall = .idle
+        case .confirming:
+            engineInstall = .idle
+        case .installing(let progress, _) where progress.phase.isCancellable:
+            engineInstallTask?.cancel()
+            engineInstall = .installing(progress, cancelling: true)
+        default:
+            break
+        }
+    }
+
+    /// The main window closes: a fetch or a confirmation is dropped and a download/extraction is cancelled (its
+    /// temporary files are removed by the core); a running backup/install is left to finish or roll back.
+    func engineInstallWindowWillClose() {
+        cancelEngineInstall()
+    }
+
+    /// The app quits: like a window close, then waits until the install task has ended (cleanup or rollback done).
+    func stopEngineInstallForQuit() async {
+        cancelEngineInstall()
+        await engineInstallTask?.value
+    }
+
+    /// Hides the finished / failed / blocked result. While an installed engine waits for its identity verification
+    /// the result stays (no "supported" claim before it).
+    func dismissEngineInstallResult() {
+        switch engineInstall {
+        case .finished where engineInstallAwaitingVerification:
+            return
+        case .finished, .fetchFailed, .blocked:
+            engineInstall = .idle
+            engineInstallLaunchStatus = nil
+        default:
+            break
+        }
+    }
+
+    /// "Open Engine" after an install (user action only; the app never opens it by itself): the engine must be known
+    /// to be closed. Afterwards the engine is assumed to run; the user quits it and presses Refresh.
+    @discardableResult
+    func openEngineAfterInstall() -> Task<Void, Never>? {
+        guard engineInstallAwaitingVerification, engineInstallLaunchTask == nil,
+              let environment = engineInstallEnvironment else { return nil }
+        let state = deps.gameProcessDetector.engineProcessState()
+        syncEngineProcessState(state)
+        switch state {
+        case .running:
+            engineInstallLaunchStatus = .engineRunning
+            return nil
+        case .unavailable:
+            engineInstallLaunchStatus = .processUnavailable
+            logError(.engineInstall, "open: error=processUnavailable")
+            return nil
+        case .notRunning:
+            break
+        }
+        let launcher = deps.appLauncher
+        let app = environment.targetApp
+        let task = Task {
+            do {
+                try await launcher.open(app: app, arguments: [])
+                engineInstallLaunchStatus = .launched
+                syncEngineProcessState(.running)
+            } catch {
+                engineInstallLaunchStatus = .failed(String(describing: error))
+                logError(.engineInstall, "open: error=launchFailed")
+            }
+            engineInstallLaunchTask = nil
+        }
+        engineInstallLaunchTask = task
+        return task
+    }
+
+    /// After a refresh with the engine closed: compares the identity labels before and after the install in the core
+    /// verifier (global + game folder non-zero and equal). Only `identityRepaired` / `alreadyHealthy` end the wait.
+    private func verifyEngineInstall(_ report: MacIdentityReport) {
+        guard engineInstallAwaitingVerification, report.processState == .notRunning,
+              let before = engineInstallBefore, let environment = engineInstallEnvironment,
+              var finish = engineInstall.finish else { return }
+        let after = engineIdentityReader.snapshot(home: deps.paths.home, gamedir: environment.gamedirURL)
+        let result = EngineIdentityVerifier.evaluate(before: before, after: after)
+        finish.verification = result
+        engineInstall = .finished(finish)
+        if result.mayClaimSupported { engineInstallAwaitingVerification = false }
+    }
+
+    // MARK: §74 engine backups (Settings > Data)
+
+    /// Inventory of `engine-backups` (`nil` before the first read).
+    private(set) var engineBackups: EngineBackupInventory?
+    private(set) var engineBackupsError: EngineInstallFailure?
+    /// Result of the last confirmed deletion (a partial failure is shown, never called a success).
+    private(set) var engineBackupDeletion: EngineBackupDeletionReport?
+    /// `confirmationRequired`: the folder changed since the confirmation; `locked`: an install is running.
+    private(set) var engineBackupDeletionError: EngineInstallFailure?
+    var showsEngineBackupDeletionConfirmation = false
+    @ObservationIgnored private var engineBackupToken: EngineBackupDeletionToken?
+
+    var engineBackupStore: EngineBackupStore {
+        EngineBackupStore(root: deps.paths.engineBackupsDirectory, files: deps.engineFileOperations)
+    }
+
+    /// Reads the backup folder (read-only; nothing is ever deleted automatically).
+    func loadEngineBackups() {
+        do {
+            engineBackups = try engineBackupStore.inventory()
+            engineBackupsError = nil
+        } catch {
+            let failure = error as? EngineInstallFailure ?? .backupFailed
+            engineBackups = nil
+            engineBackupsError = failure
+            logError(.engineInstall, "backups: error=\(failure.code)")
+        }
+    }
+
+    /// "Delete Older Backups…": a token is issued for the prune candidates of the current inventory only; the
+    /// confirmation opens. Nothing is deleted here.
+    func requestEngineBackupDeletion() {
+        engineBackupDeletion = nil
+        engineBackupDeletionError = nil
+        guard engineInstallTask == nil else {
+            engineBackupDeletionError = .locked
+            return
+        }
+        loadEngineBackups()
+        guard let inventory = engineBackups, !inventory.pruneCandidates.isEmpty else { return }
+        switch engineBackupStore.confirmDeletion(of: inventory.pruneCandidates.map(\.stamp), in: inventory) {
+        case .success(let token):
+            engineBackupToken = token
+            showsEngineBackupDeletionConfirmation = true
+        case .failure(let failure):
+            engineBackupDeletionError = failure
+        }
+    }
+
+    /// Confirmed: deletes exactly the confirmed groups (a changed folder deletes nothing). Partial failures are shown
+    /// and logged; the records of a group that could not be removed are kept by the core.
+    func confirmEngineBackupDeletion() {
+        showsEngineBackupDeletionConfirmation = false
+        guard let token = engineBackupToken else { return }
+        engineBackupToken = nil
+        guard engineInstallTask == nil else {
+            engineBackupDeletionError = .locked
+            return
+        }
+        switch engineBackupStore.deleteBackups(token) {
+        case .success(let report):
+            engineBackupDeletion = report
+            if report.status == .partialFailure {
+                logError(.engineInstall, "backups: delete=partialFailure,failed=\(report.failed.count)")
+            }
+        case .failure(let failure):
+            engineBackupDeletionError = failure
+            logError(.engineInstall, "backups: delete,error=\(failure.code)")
+        }
+        loadEngineBackups()
+    }
+
+    func cancelEngineBackupDeletion() {
+        showsEngineBackupDeletionConfirmation = false
+        engineBackupToken = nil
     }
 
     // MARK: §67.3 launch summary

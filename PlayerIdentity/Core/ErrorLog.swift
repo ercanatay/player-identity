@@ -24,6 +24,9 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     case sync
     /// §72.2: a read-only RCON command failed (kind only, never the password).
     case rcon
+    /// §74: "Install Compatible Engine" failed, was rolled back, was cancelled or left items behind (failure code,
+    /// stage and masked CID only; never a raw identity or a full CID).
+    case engineInstall
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {

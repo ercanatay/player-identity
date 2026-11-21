@@ -61,6 +61,16 @@ Yeni upstream motor derlemeleri kimliği Mac'in donanımından türetir. **macOS
 
 Motor açıkken veya süreç durumu doğrulanamadığında kart hiçbir şeyi incelemez (tarama, hash, kimlik okuma yok) ve motoru kapatıp Yenile'ye basmanızı ister. Uygulama `.xash_id` dosyasını yazmaz veya silmez, motoru indirmez veya değiştirmez, ham kimliği ve tam CID'yi göstermez (yalnız maskeli CID). Rastgele kimlik değişimi yoktur: aynı Mac aynı kimliği yeniden oluşturur.
 
+### Uyumlu motoru kur (2.25)
+Kart **Desteklenmiyor** dediğinde (motorda gösterge yok, kimlik sıfır veya eksik, motor kapalı) **Uyumlu motoru kur**, resmi Xash3D-FWGS `continuous` sürümünü (yalnız Apple Silicon) motorun üzerine kurar:
+
+1. Önce yalnız sürüm API'si okunur; onay ekranı kaynağı, commit'i, dosya adı ve boyutu, motor yolunu, değişecek dosyaları (motor uygulaması ve etkin oyun klasöründeki 2 oyun kütüphanesi; `.xash_id` dosyaları yalnız yedeklenir), yedek yerini ve mevcut maskeli CID'yi gösterir.
+2. **CID değişebilir.** Onay ekranı: "Bu güncelleme yeni bir kimlik (CID) oluşturabilir. Sunucudaki ban veya hesap kaydı yeni kimlikle eşleşmeyebilir." Bu uyarıyı kabul etmeden hiçbir şey indirilmez veya yazılmaz.
+3. İndirme (boyut ve SHA-256 sürüm API'sinden), güvenli açma, imza kontrolü, ön kontroller, tam yedek, atomik değişim; değişimden sonraki her hata geri alınır ve yedekle doğrulanır. İptal yalnız indirme ve açma sırasında mümkündür.
+4. Uygulama motoru kendiliğinden açmaz: motoru bir kez açın (Motoru Aç), ana menüde kapatın, Yenile'ye basın. Kimlik doğrulanana kadar (genel ve oyun klasörü kimliği sıfır değil ve aynı) kart *Kuruldu, doğrulanıyor* der, asla *destekleniyor* demez. Değişen kimlik "önce → sonra" (maskeli) olarak gösterilir.
+
+macOS ad-hoc imzalı motorun ilk açılışını engellerse: Sistem Ayarları → Gizlilik ve Güvenlik → "Yine de Aç" (yalnız bu uygulama için); uygulama Gatekeeper'ı asla aşmaz (temiz hesapta davranış ölçülmedi). Intel Mac'lerde yalnız sürüm sayfası sunulur. Ayarlar → Veri → Motor yedekleri yedekleri listeler (en yeni 3 tutulur); eskileri yalnız onayla silinir. CLI: `playeridentityctl engine status`, `engine install-compatible [--yes]`, `engine backups [delete --confirm <kod>]`.
+
 ### CID
 Sunucunun gördüğü değer ham kimlik değildir; her sunucu için özel olarak türetilir:
 

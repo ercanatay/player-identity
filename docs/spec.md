@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 5.2 · Tarih: 2026-11-20 · Durum: uygulanacak (v5.0 → v5.1: §73 macOS donanım kimliği sağlığı; v5.1 → v5.2: §73 bağımsız inceleme düzeltmeleri — kimlik özelliği spec v2.25.0)
+Sürüm: 5.3 · Tarih: 2026-11-21 · Durum: uygulanacak (v5.0 → v5.1: §73 macOS donanım kimliği sağlığı; v5.1 → v5.2: §73 bağımsız inceleme düzeltmeleri — kimlik özelliği spec v2.25.0; v5.2 → v5.3: §74 uyumlu motoru kur — uygulama 2.25.0 build 53, özellik spec'i E0–E21)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1737,3 +1737,39 @@ Karar tablosunun her satırı ve süreç önceliği (running/unavailable her S×
 - Motor çalışma tespiti süreç adına (`xash3d*`) dayanır; süreç listesinin okunamadığı durumlar `unavailable` olarak raporlanır.
 - Tek bir bloklayan okuma çağrısı iptal edilemeyebilir; sonuç `unknown` olur.
 - Gerçek rastgele rotasyon ancak motorun açık, kullanıcı yönetimli bir kimlik geçersiz kılma protokolü desteklemesiyle ve ayrı bir spesifikasyonla mümkün olur; bu sürümün kapsamı dışındadır.
+
+---
+
+## 74. Uyumlu motoru kur (v5.3, uygulama 2.25.0 build 53)
+
+Bu bölüm, ayrı davranış spec'inin (E0–E21) uygulama tarafı özetidir. Çelişkide E bölümleri geçerlidir. §73'teki "motor indirme/değiştirme yok" kuralı yalnız bu akış için, onay ve yedekle gevşetilir; §73'ün diğer kuralları (kimlik dosyasına yazma yok, rastgele kimlik yok, tekillik iddiası yok) aynen geçerlidir.
+
+### 74.1 Görünürlük
+- "Uyumlu motoru kur" yalnız §73 durumu `unsupported` iken (S = no, R ∈ {zero, absent}, paket okunabilir, motor kapalı) ve kontrol sürmüyorken gösterilir. Birincil eylem budur; resmi sürüm sayfası ikincil bağlantıdır. `unknown + S=no + R=nonzero` durumunda yalnız sayfa bağlantısı kalır.
+- Motor açıksa veya süreç durumu doğrulanamıyorsa buton devre dışıdır ve nedeni yazılır. Intel (x86_64) Mac'lerde amd64 kapısı geçene kadar devre dışıdır. Bir alma veya kurulum sürerken ikinci kurulum başlamaz (çekirdekteki hedef kilidi ayrıca korur).
+
+### 74.2 Akış
+1. Tıklama: süreç durumu yeniden alınır (tri-state); yalnız `notRunning` ile devam edilir. Yalnız sürüm API'si okunur; indirme ve yazma yoktur.
+2. Onay ekranı: kaynak (`FWGS/xash3d-fwgs`, `continuous`, ön sürüm), commit, dosya adı ve boyutu, değişecek motor yolu, değişecek dosyalar (motor uygulaması + etkin oyun klasöründeki 2 oyun kütüphanesi; kimlik dosyaları yalnız yedeklenir), yedek yeri, mevcut maskeli CID, ilk açılış bilgisi ve lisans atfı. Uyarı metni: "Bu güncelleme yeni bir kimlik (CID) oluşturabilir. Sunucudaki ban veya hesap kaydı yeni kimlikle eşleşmeyebilir." Uyarı kabul edilmeden "Kur" etkin değildir; varsayılan eylem Vazgeç'tir.
+3. Onay: süreç durumu bir kez daha alınır; kimlik dosyalarının durum etiketleri ve maskeli CID salt okunur alınır (`cidBefore`, yalnız bellekte). Kurulum çekirdekte çalışır.
+4. İlerleme: indiriliyor (bayt/toplam + yüzde), SHA-256, açılıyor, imza, ön kontrol, yedekleniyor, kuruluyor, geri alınıyor; metin + simge, VoiceOver duyurusu. İptal yalnız indirme ve açma sırasında, gerçek görev iptaliyle; yedek başladıktan sonra iptal gösterilmez.
+5. Pencere kapanırsa alma/onay bırakılır, indirme/açma iptal edilir; yedek/kurulum tamamlanır veya geri alınır. Uygulamadan çıkışta kurulum görevi bitene kadar beklenir.
+
+### 74.3 Sonuç ve doğrulama
+- Kurulumdan sonra §73 kontrolü yeniden çalışır (doğrulama yapılmadan). Uygulama motoru kendiliğinden açmaz; "Motoru Aç" yalnız kullanıcı eylemiyle ve motor kapalıyken çalışır. Talimat: motoru bir kez açın, ana menüde kapatın, Yenile'ye basın; Gatekeeper engellerse Sistem Ayarları > Gizlilik ve Güvenlik > "Yine de Aç". Uygulama Gatekeeper'ı aşmaz.
+- Motor kapalıyken yapılan her Yenile, öncesi/sonrası kimlik etiketlerini çekirdek doğrulayıcıyla karşılaştırır. `identityRepaired` veya `alreadyHealthy` gelene kadar kart "Kuruldu, doğrulanıyor" der; `supported`/sağlıklı denmez. `notVerified` uyarı olarak gösterilir ve bekleme sürer. CID değiştiyse "Kimlik değişti: önce → sonra" (maskeli) gösterilir.
+- `failed`, `rolledBack` (yedek yolu), `rollbackIncomplete` (kritik, yedek yolu, otomatik silme yok), `cancelled`, kalıntılar, karantina hataları ve değişen kimlik dosyası `EngineInstallFailure.code` ile görünür; hata günlüğüne `engineInstall` alanıyla yazılır (yalnız kod/aşama; ham kimlik ve tam CID yok).
+
+### 74.4 Motor yedekleri (Ayarlar > Veri)
+- Envanter gösterilir; en yeni 3 yedek tutulur. "Eski Yedekleri Sil…" yalnız açık onayla ve onay anındaki envantere bağlı belirteçle siler; klasör değiştiyse hiçbir şey silinmez ve yeniden onay istenir. Kısmi hata görünür ve günlüğe yazılır; silinemeyen yedeğin kaydı korunur. Kurulum sürerken silme yapılmaz. Otomatik silme yoktur.
+
+### 74.5 CLI
+- `playeridentityctl engine status [--json]`: ağsız; süreç durumu, kimlik durumu, kurulumun sunulup sunulmadığı, yedek envanteri.
+- `engine install-compatible [--yes] [--json]`: terminalde CID uyarısıyla y/N sorulur; terminal yoksa `--yes` zorunludur, yoksa ağdan önce çıkış 1. `--json` her satırda bir nesne (`stage`, `bytes`, `total`, `error`, `cidBefore`, `cidAfter`), son satır sonuçtur. Motor açılmaz; doğrulama sonra `diagnose --macos-identity` ile yapılır. Çıkış: 0 kuruldu (doğrulama bekliyor), 1 kullanım/onay yok, 2 başarısız (motor açık, hiçbir şey değişmedi veya geri alma tamamlanamadı — kritik), 3 iptal/reddedildi/geri alındı, 4 sunulmuyor (unsupported değil, Intel, reddedilen override). (Not: bu kodlar E12'deki 0–7 taslağının yerine geçer.)
+- `engine backups [--json]` envanter ve onay kodu; `engine backups delete --confirm <kod>` yalnız kod güncel envanteri adlandırıyorsa siler.
+
+### 74.6 Gizlilik, güvenlik ve sınırlar
+- Ham kimlik, tam CID, seri numarası UI/CLI/JSON/günlükte yoktur; yalnız maskeli CID.
+- Birim testleri sahte kurucu/indirici kullanır; gerçek ağ, gerçek `/Applications`, gerçek oyun verisi ve gerçek kimlik dosyası yazılmaz.
+- Resmi asset uçtan uca testi (`scripts/test-engine-installer-e2e.sh`, T-E-GE7) sürüm kapısıdır; elle veya zamanlanmış iş akışıyla çalışır, her push'ta çalışmaz.
+- Sınırlar: Gatekeeper davranışı temiz hesapta ölçülmedi; Intel kurulum kapalı; `continuous` ön sürümdür ve içerik değişebilir; aynı Mac için aynı kimlik garantisi ve rotasyon iddiası yoktur.

@@ -58,9 +58,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.23.0
+## What's new in v2.25.0
 
-- **Read-only RCON console**: read a server's players, IP list and bans from the app with fixed read-only commands; the password stays in the Keychain.
+- **Install Compatible Engine**: when the macOS hardware identity card says *Not supported*, the app can install the official Xash3D-FWGS build (`continuous`) over the engine after a confirmation: SHA-256 check, full backup, atomic swap and rollback. **The CID may change** with the new engine; a server ban or account record may not match the new identity. The engine is never opened on its own, Gatekeeper is never bypassed (System Settings → Privacy & Security → "Open Anyway" if macOS asks) and Intel Macs keep the release page only. Settings → Data → Engine backups keeps the newest 3 backups. CLI: `playeridentityctl engine status | install-compatible | backups`.
 
 Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -142,6 +142,7 @@ Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 | **Browser** | Find public servers from the master list with filters, then add or diagnose them |
 | **Sync** | Optional sync folder with last-writer-wins merge; no secrets written |
 | **RCON** | Read-only RCON console with fixed commands; password in the Keychain |
+| **Engine** | macOS hardware identity health and a confirmed, backed-up install of the compatible upstream engine (the CID may change) |
 | **Widget** | macOS 14 small/medium widget with status and server ping |
 | **macOS integration** | Spotlight server search and a 7-day ban summary at launch |
 

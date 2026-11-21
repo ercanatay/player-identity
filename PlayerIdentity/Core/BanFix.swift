@@ -83,6 +83,14 @@ enum CommandError: Error, Equatable {
     case timedOut
     /// The task waiting for the process was cancelled and the process was stopped.
     case cancelled
+    /// `waitpid` failed (`ECHILD`, another error, or a result for a different process): the outcome is unknown.
+    case waitFailed
+    /// The child ended through a signal (never a success, also after a time-limit kill that raced a normal exit).
+    case signaled(Int32)
+    /// Stopping the process group failed (`kill(-pgid)` error other than "no such process").
+    case signalFailed
+    /// Reading the output or writing stdin failed (an unread input with a successful exit is not trusted).
+    case ioFailed
 }
 
 protocol CommandRunning: Sendable {

@@ -1,0 +1,21 @@
+# §74 / spec E19.9, E21.10 (T-E-GE7): official-asset end-to-end gate of "Install Compatible Engine".
+# Opt-in and network-bound (the upstream `continuous` asset changes), so it runs only by hand or on a schedule, never
+# on every push. Release checklist: this job (or a local `scripts/test-engine-installer-e2e.sh`) must pass first.
+name: Engine install E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  engine-e2e:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: T-E-GE7 official asset end to end (temporary HOME and target only)
+        run: bash scripts/test-engine-installer-e2e.sh

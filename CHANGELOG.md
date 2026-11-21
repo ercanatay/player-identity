@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.25.0] - 2026-11-21
+
+### Added
+- **Install Compatible Engine** (spec §74): when the macOS hardware identity card says *Not supported* (engine without hardware-identity indicators, identity zero or missing, engine closed), the card offers **Install Compatible Engine** as its primary action; the official release page stays as a secondary link. The app reads only the release API first and shows a confirmation with the source (`FWGS/xash3d-fwgs`, `continuous` prerelease), the commit, the asset name and size, the engine path, the files that change (engine app + the 2 game libraries of the active game folder; identity files are only backed up), the backup location and the current masked CID.
+- **CID change warning**: the confirmation says "This update may create a new identity (CID). A ban or account record on a server may not match the new identity." and must be accepted before anything is downloaded or written. After the install the card compares the identity before and after (masked CIDs only) and shows "The identity changed: before → after" when it changed.
+- Install progress on the card (download bytes/total and percentage, SHA-256 check, extraction, signature check, pre-flight, backup, install, rollback), announced to VoiceOver. Cancel is offered only while downloading or extracting; once the backup starts the install completes or rolls back.
+- The engine is never opened on its own: after the install the card asks you to open it once (an **Open Engine** button), quit it at the main menu and press Refresh. "Installed" is never "supported": the card says *Installed, verifying* until the core verification finds the global and game folder identities non-zero and equal (`identityRepaired` / `alreadyHealthy`).
+- Failures, rollbacks (with the kept backup path), an incomplete rollback (critical), cancelled runs and leftovers are shown with their `EngineInstallFailure` code and written to the diagnostics error log (`engineInstall` area).
+- Settings → Data → **Engine backups**: the backup inventory (newest 3 kept) and **Delete Older Backups…** with an explicit confirmation; a changed folder or a partial failure is shown, nothing is deleted automatically.
+- `playeridentityctl engine status [--json]` (offline), `engine install-compatible [--yes] [--json]` (y/N with the CID warning on a terminal; without one `--yes` is required; JSON lines progress; exit `0` installed, `1` usage / no `--yes`, `2` failed or incomplete rollback, `3` cancelled / declined / rolled back, `4` not offered), `engine backups [--json]` and `engine backups delete --confirm <code>`.
+
+### Limits
+- **Gatekeeper**: the installed engine is ad-hoc signed. If macOS blocks its first launch, open System Settings → Privacy & Security → "Open Anyway" (for this app only) and open the engine again; the app never bypasses this warning. The behaviour on a clean macOS account was **not measured** for this release.
+- **Intel Macs**: the install stays closed on x86_64 until the amd64 end-to-end gate passes; the official release page is offered instead.
+- The `continuous` upstream build is a prerelease and can change; its digest is read from the release API on every install.
+
+### Release gate
+- `scripts/test-engine-installer-e2e.sh` (T-E-GE7, opt-in, arm64): the official asset end to end in a temporary HOME and target with writes to the real `/Applications`, game data and identity files denied; it must pass before a release. It also runs as the manual/scheduled `engine-e2e` workflow, never on every push.
+
+### Notes
+- The raw identity and the full CID are never shown, printed or logged; only masked CIDs.
+- There is no random identity rotation and no uniqueness claim.
+- New texts carry English placeholders in the 24 languages other than Turkish and English until they are translated.
+
 ## [2.24.0] - 2026-11-20
 
 ### Added

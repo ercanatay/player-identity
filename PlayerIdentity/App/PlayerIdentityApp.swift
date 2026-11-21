@@ -133,9 +133,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             alert.addButton(withTitle: L10n.text(.actionCancel))
             guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
         }
+        let model = self.model
+        // §74: an engine install is never cut off: a download/extraction is cancelled (temporary files removed), a
+        // backup/install is waited for until it completes or rolls back.
+        if model.isEngineInstallRunning, !AppModel.isRunningTests {
+            Task { @MainActor in
+                await model.stopEngineInstallForQuit()
+                if model.syncFolder != nil { _ = await model.syncBeforeQuit() }
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+            return .terminateLater
+        }
         // §71.2: a last folder sync before quitting, at most 2 seconds.
         guard model.syncFolder != nil, !AppModel.isRunningTests else { return .terminateNow }
-        let model = self.model
         Task { @MainActor in
             _ = await model.syncBeforeQuit()
             NSApp.reply(toApplicationShouldTerminate: true)

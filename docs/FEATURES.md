@@ -59,6 +59,16 @@ Newer upstream engine builds derive the identity from the Mac's hardware. The **
 
 While the engine is running, or when its process state cannot be verified, the card checks nothing (no scan, no hash, no identity read) and asks you to quit the engine and press Refresh. The app never writes or deletes `.xash_id`, never downloads or changes the engine and never shows the raw identity or the full CID (only a masked CID). There is no random identity change: the same Mac recreates the same identity.
 
+### Install Compatible Engine (2.25)
+When the card says **Not supported** (no engine indicators, identity zero or missing, engine closed), **Install Compatible Engine** installs the official Xash3D-FWGS `continuous` build (Apple Silicon only) over the engine:
+
+1. Only the release API is read first; the confirmation shows the source, commit, asset and size, the engine path, the files that change (the engine app and the 2 game libraries of the active game folder; `.xash_id` files are only backed up), the backup location and the current masked CID.
+2. **The CID may change.** The confirmation says: "This update may create a new identity (CID). A ban or account record on a server may not match the new identity." Nothing is downloaded or written until you accept it.
+3. Download (size and SHA-256 from the release API), safe extraction, signature check, pre-flight, full backup, atomic swap; any failure after the swap is rolled back and verified against the backup. Cancel works only while downloading or extracting.
+4. The app never opens the engine by itself: open it once (Open Engine), quit it at the main menu, press Refresh. Until the identity is verified (global and game folder identity non-zero and equal) the card says *Installed, verifying*, never *supported*. A changed identity is shown as "before → after" (masked).
+
+If macOS blocks the first launch of the ad-hoc signed engine: System Settings → Privacy & Security → "Open Anyway" (for this app only); the app never bypasses Gatekeeper (behaviour on a clean account not measured). Intel Macs keep the release page only. Settings → Data → Engine backups lists the backups (newest 3 kept); older ones are deleted only after a confirmation. CLI: `playeridentityctl engine status`, `engine install-compatible [--yes]`, `engine backups [delete --confirm <code>]`.
+
 ### The CID
 The value a server sees is not the raw identity. It is derived per server:
 

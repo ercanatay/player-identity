@@ -207,14 +207,20 @@ struct ProcessUpdateCommandRunner: UpdateCommandRunning {
 }
 
 enum SystemProcess {
-    /// Runs `argv[0]` with the remaining arguments; stdout and stderr are combined. Never blocks the caller's thread.
+    /// Runs `argv[0]` with the remaining arguments in its own process group; stdout and stderr are combined unless
+    /// `includeStandardError` is `false` (stderr is then discarded). `input` is written to stdin (otherwise stdin is
+    /// `/dev/null`). Never blocks the caller's thread.
     ///
-    /// `timeout`: the process is stopped (`SIGTERM`, then `SIGKILL`) after this many seconds and `CommandError.timedOut`
-    /// is thrown. `cancellable`: cancelling the waiting task stops the process and throws `CommandError.cancelled`;
-    /// otherwise the process always runs to its end (steps that must not be interrupted). The defaults keep the
-    /// previous behaviour: no limit, not cancellable.
-    static func run(_ argv: [String], timeout: TimeInterval? = nil, cancellable: Bool = false) async throws -> CommandOutput {
-        let running = RunningProcess(argv)
+    /// A child that exits normally returns its exit status (callers treat non-zero as failure). A child that ends
+    /// through a signal throws `CommandError.signaled`. `timeout`: after this many seconds the process group gets
+    /// `SIGTERM`, then `SIGKILL` after a short grace, and `CommandError.timedOut` is thrown. `cancellable`: cancelling
+    /// the waiting task does the same and throws `CommandError.cancelled`. In every case the call returns only after
+    /// `waitpid` reaped exactly this child; a failing `waitpid` is `CommandError.waitFailed`, a failing spawn step is
+    /// `launchFailed`, a failing group signal is `signalFailed` (AC-E75, AC-E97–E97b).
+    static func run(_ argv: [String], timeout: TimeInterval? = nil, cancellable: Bool = false,
+                    includeStandardError: Bool = true, input: Data? = nil,
+                    system: ProcessSystemCalls = .live) async throws -> CommandOutput {
+        let running = RunningProcess(argv, includeStandardError: includeStandardError, input: input, system: system)
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 running.start(timeout: timeout, continuation: continuation)
@@ -223,93 +229,341 @@ enum SystemProcess {
             if cancellable { running.stop(.cancelled) }
         }
     }
+
+    /// Grace between `SIGTERM` and `SIGKILL` of a stopped process group.
+    static let killGrace: TimeInterval = 2
 }
 
-/// One `Process` with its output pipe. The output is read on a background thread until the pipe closes; the
-/// continuation is resumed exactly once: with the output when the process exits, or with an error when it could not
-/// start, ran too long or was cancelled (then it is terminated and the continuation does not wait for it).
-private final class RunningProcess: @unchecked Sendable {
-    private let lock = NSLock()
-    private let process = Process()
-    private let pipe = Pipe()
-    private var continuation: CheckedContinuation<CommandOutput, any Error>?
-    /// Set once the result is decided (also when `stop` comes before `start`).
-    private var outcome: CommandError?
-    private var finished = false
+/// The spawn setup steps whose failure is reported (never ignored).
+enum ProcessSpawnStep: String, Sendable, CaseIterable {
+    case fileActionsInit
+    case attributesInit
+    case stdin
+    case stdout
+    case stderr
+    case signalDefaults
+    case signalMask
+    case processGroup
+    case flags
+}
 
-    init(_ argv: [String]) {
-        process.executableURL = URL(fileURLWithPath: argv[0])
-        process.arguments = Array(argv.dropFirst())
-        process.standardOutput = pipe
-        process.standardError = pipe
+/// The system calls of `SystemProcess` (tests inject failures; production uses `.live`).
+struct ProcessSystemCalls: Sendable {
+    /// `pipe(2)`: read and write ends, or `nil` on failure.
+    var makePipe: @Sendable () -> (read: Int32, write: Int32)?
+    /// Extra failure for a setup step (`0`: none). Production never injects.
+    var injectSetupFailure: @Sendable (ProcessSpawnStep) -> Int32
+    /// `posix_spawn`: (error, pid).
+    var spawn: @Sendable (_ path: String, _ actions: UnsafePointer<posix_spawn_file_actions_t?>,
+                          _ attributes: UnsafePointer<posix_spawnattr_t?>,
+                          _ argv: UnsafePointer<UnsafeMutablePointer<CChar>?>,
+                          _ environment: UnsafePointer<UnsafeMutablePointer<CChar>?>) -> (error: Int32, pid: pid_t)
+    /// `waitpid(pid, &status, 0)` retried on `EINTR`: (returned pid, status, errno).
+    var wait: @Sendable (pid_t) -> (pid: pid_t, status: Int32, error: Int32)
+    /// `kill(2)`: `0` or errno.
+    var signal: @Sendable (pid_t, Int32) -> Int32
+
+    static let live = ProcessSystemCalls(
+        makePipe: {
+            var ends: [Int32] = [-1, -1]
+            return pipe(&ends) == 0 ? (ends[0], ends[1]) : nil
+        },
+        injectSetupFailure: { _ in 0 },
+        spawn: { path, actions, attributes, argv, environment in
+            var child: pid_t = 0
+            let error = posix_spawn(&child, path, actions, attributes,
+                                    UnsafeMutablePointer(mutating: argv), UnsafeMutablePointer(mutating: environment))
+            return (error, child)
+        },
+        wait: { pid in
+            var status: Int32 = 0
+            while true {
+                let result = waitpid(pid, &status, 0)
+                if result < 0 && errno == EINTR { continue }
+                return (result, status, result < 0 ? errno : 0)
+            }
+        },
+        signal: { pid, signal in kill(pid, signal) == 0 ? 0 : errno }
+    )
+}
+
+/// Output collected by the reader threads.
+private final class OutputBuffer: @unchecked Sendable {
+    private let lock = NSLock()
+    private var buffer = Data()
+    private var readError = false
+    private var writeError = false
+
+    var data: Data { lock.withLock { buffer } }
+    var failedRead: Bool { lock.withLock { readError } }
+    var failedWrite: Bool { lock.withLock { writeError } }
+
+    func append(_ data: Data) { lock.withLock { buffer.append(data) } }
+    func markReadFailure() { lock.withLock { readError = true } }
+    func markWriteFailure() { lock.withLock { writeError = true } }
+}
+
+/// One child process spawned with `posix_spawn` into its own process group. Output is read on background threads;
+/// a waiter thread reaps the child with `waitpid`. The continuation is resumed exactly once and only after the child
+/// was reaped: with the output, or with the stop reason (time limit / cancellation) after `SIGTERM` → wait →
+/// `SIGKILL` → wait of the whole group.
+private final class RunningProcess: @unchecked Sendable {
+    /// Guards the state; also signalled when the child is reaped (the timer threads wait on it). Timers run on their
+    /// own threads, never on the shared dispatch pool, so a busy or exhausted pool cannot delay a time limit or the
+    /// `SIGKILL` escalation.
+    private let lock = NSCondition()
+    private let argv: [String]
+    private let includeStandardError: Bool
+    private let input: Data?
+    private let system: ProcessSystemCalls
+    private var continuation: CheckedContinuation<CommandOutput, any Error>?
+    private var pid: pid_t = 0
+    private var stopReason: CommandError?
+    private var signalFailure = false
+    private var reaped = false
+
+    init(_ argv: [String], includeStandardError: Bool, input: Data?, system: ProcessSystemCalls) {
+        self.argv = argv
+        self.includeStandardError = includeStandardError
+        self.input = input
+        self.system = system
     }
 
     func start(timeout: TimeInterval?, continuation: CheckedContinuation<CommandOutput, any Error>) {
-        let stoppedEarly: CommandError? = lock.withLock {
-            if let outcome { return outcome }
+        let early: CommandError? = lock.withLock {
+            if let stopReason { return stopReason }
             self.continuation = continuation
             return nil
         }
-        if let stoppedEarly {   // cancelled before it started: nothing is launched
-            continuation.resume(throwing: stoppedEarly)
+        if let early {   // cancelled before it started: nothing is launched
+            continuation.resume(throwing: early)
             return
         }
-        do {
-            try process.run()
-        } catch {
-            finish(.failure(CommandError.launchFailed))
+        guard !argv.isEmpty, let spawned = spawn() else {
+            resume(.failure(CommandError.launchFailed))
             return
         }
-        // Stopped while it was being launched: the waiting task already has the error, the process must not stay.
-        if lock.withLock({ outcome != nil }) { terminate() }
+        let stoppedWhileSpawning = lock.withLock { () -> Bool in
+            pid = spawned.pid
+            return stopReason != nil
+        }
+        if stoppedWhileSpawning { signalGroup(SIGTERM, scheduleKill: true) }
         if let timeout {
-            DispatchQueue.global().asyncAfter(deadline: .now() + max(timeout, 0)) { [self] in stop(.timedOut) }
+            let deadline = Date().addingTimeInterval(max(timeout, 0))
+            Thread.detachNewThread { [self] in
+                if !waitForReap(until: deadline) { stop(.timedOut) }
+            }
         }
-        let process = self.process
-        let reader = pipe.fileHandleForReading
-        DispatchQueue.global(qos: .userInitiated).async { [self] in
-            let data = reader.readDataToEndOfFile()
-            process.waitUntilExit()
-            finish(.success(CommandOutput(status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))))
+
+        let readers = DispatchGroup()
+        let collected = OutputBuffer()
+        for descriptor in spawned.outputs {
+            readers.enter()
+            Thread.detachNewThread {
+                let result = Self.readAll(descriptor)
+                collected.append(result.data)
+                if !result.complete { collected.markReadFailure() }
+                readers.leave()
+            }
+        }
+        if let writer = spawned.input {
+            let data = input ?? Data()
+            readers.enter()
+            Thread.detachNewThread {
+                if !Self.writeAll(data, to: writer) { collected.markWriteFailure() }
+                readers.leave()
+            }
+        }
+        let child = spawned.pid
+        let system = self.system
+        Thread.detachNewThread { [self] in
+            let waited = system.wait(child)
+            // Only a reap of exactly this child counts; ECHILD, any other error or another pid is a failure.
+            let reapedChild = waited.pid == child && waited.error == 0
+            let state: (reason: CommandError?, signalFailed: Bool) = lock.withLock {
+                reaped = true
+                lock.broadcast()
+                return (stopReason, signalFailure)
+            }
+            // A stopped run also removes anything left in its process group.
+            if state.reason != nil { _ = system.signal(-child, SIGKILL) }
+            readers.wait()
+            let output = String(decoding: collected.data, as: UTF8.self)
+            let termination = waited.status & 0x7F
+            let exitStatus = (waited.status >> 8) & 0xFF
+            if !reapedChild {
+                resume(.failure(CommandError.waitFailed))
+            } else if state.signalFailed {
+                resume(.failure(CommandError.signalFailed))
+            } else if let reason = state.reason {
+                resume(.failure(reason))
+            } else if termination != 0 {
+                resume(.failure(CommandError.signaled(termination)))
+            } else if collected.failedRead || (collected.failedWrite && exitStatus == 0) {
+                resume(.failure(CommandError.ioFailed))
+            } else {
+                resume(.success(CommandOutput(status: exitStatus, output: output)))
+            }
         }
     }
 
-    /// Stops the process (time limit or cancellation); the waiting task gets `reason` right away.
+    /// Records the stop reason and signals the group; the waiting task is resumed by the waiter after the reap.
     func stop(_ reason: CommandError) {
-        let state: (CheckedContinuation<CommandOutput, any Error>?, Bool) = lock.withLock {
-            guard !finished, outcome == nil else { return (nil, false) }
-            outcome = reason
-            finished = continuation != nil
-            let pending = continuation
-            continuation = nil
-            return (pending, true)
+        // Not started yet (no pid): `start` throws the reason without launching anything, or signals the group
+        // itself when the stop came while it was spawning.
+        let signal: Bool = lock.withLock {
+            guard !reaped, stopReason == nil else { return false }
+            stopReason = reason
+            return pid > 0
         }
-        guard state.1 else { return }
-        if let pending = state.0 {
-            terminate()
-            pending.resume(throwing: reason)
+        if signal { signalGroup(SIGTERM, scheduleKill: true) }
+    }
+
+    /// Signals the process group. A failure other than "no such process" is recorded (the run then ends with
+    /// `signalFailed`) and the child itself is signalled directly, so it still ends and is reaped.
+    private func signalGroup(_ signal: Int32, scheduleKill: Bool) {
+        let group = lock.withLock { pid }
+        guard group > 0 else { return }
+        send(signal, to: group)
+        if scheduleKill {
+            let deadline = Date().addingTimeInterval(SystemProcess.killGrace)
+            Thread.detachNewThread { [self] in
+                if !waitForReap(until: deadline) { send(SIGKILL, to: group) }
+            }
         }
     }
 
-    private func terminate() {
-        guard process.isRunning else { return }
-        let pid = process.processIdentifier
-        process.terminate()
-        // A process that ignores SIGTERM is killed two seconds later.
-        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { [process] in
-            if process.isRunning { kill(pid, SIGKILL) }
-        }
+    private func send(_ signal: Int32, to group: pid_t) {
+        let error = system.signal(-group, signal)
+        guard error != 0, error != ESRCH else { return }
+        lock.withLock { signalFailure = true }
+        _ = system.signal(group, signal)
     }
 
-    private func finish(_ result: Result<CommandOutput, any Error>) {
+    /// `true` as soon as the child is reaped; `false` when `deadline` passes first.
+    private func waitForReap(until deadline: Date) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        while !reaped {
+            if !lock.wait(until: deadline) { return reaped }
+        }
+        return true
+    }
+
+    private func resume(_ result: Result<CommandOutput, any Error>) {
         let pending: CheckedContinuation<CommandOutput, any Error>? = lock.withLock {
-            guard !finished else { return nil }
-            finished = true
             let pending = continuation
             continuation = nil
             return pending
         }
         pending?.resume(with: result)
+    }
+
+    private struct Spawned {
+        let pid: pid_t
+        let outputs: [Int32]
+        let input: Int32?
+    }
+
+    /// `posix_spawn` with its own process group, only fds 0–2 inherited, default signal handling. Every setup step
+    /// is checked; any failure closes what was opened and returns `nil` (reported as `launchFailed`).
+    private func spawn() -> Spawned? {
+        guard let output = system.makePipe() else { return nil }
+        var inputEnds: (read: Int32, write: Int32)?
+        if input != nil {
+            guard let ends = system.makePipe() else {
+                close(output.read); close(output.write)
+                return nil
+            }
+            inputEnds = ends
+        }
+        func closeAll() {
+            close(output.read); close(output.write)
+            if let inputEnds { close(inputEnds.read); close(inputEnds.write) }
+        }
+        var actions: posix_spawn_file_actions_t?
+        var attributes: posix_spawnattr_t?
+        func step(_ name: ProcessSpawnStep, _ result: Int32) -> Bool {
+            result == 0 && system.injectSetupFailure(name) == 0
+        }
+        guard step(.fileActionsInit, posix_spawn_file_actions_init(&actions)) else { closeAll(); return nil }
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        guard step(.attributesInit, posix_spawnattr_init(&attributes)) else { closeAll(); return nil }
+        defer { posix_spawnattr_destroy(&attributes) }
+
+        let stdinResult = inputEnds.map { posix_spawn_file_actions_adddup2(&actions, $0.read, 0) }
+            ?? posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        let stderrResult = includeStandardError ? posix_spawn_file_actions_adddup2(&actions, output.write, 2)
+            : posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY, 0)
+        var defaults = sigset_t()
+        sigfillset(&defaults)
+        var mask = sigset_t()
+        sigemptyset(&mask)
+        let flags = Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK
+                          | POSIX_SPAWN_CLOEXEC_DEFAULT)
+        guard step(.stdin, stdinResult),
+              step(.stdout, posix_spawn_file_actions_adddup2(&actions, output.write, 1)),
+              step(.stderr, stderrResult),
+              step(.signalDefaults, posix_spawnattr_setsigdefault(&attributes, &defaults)),
+              step(.signalMask, posix_spawnattr_setsigmask(&attributes, &mask)),
+              step(.processGroup, posix_spawnattr_setpgroup(&attributes, 0)),
+              step(.flags, posix_spawnattr_setflags(&attributes, flags)) else {
+            closeAll()
+            return nil
+        }
+
+        let cArguments: [UnsafeMutablePointer<CChar>?] = argv.map { strdup($0) } + [nil]
+        let cEnvironment: [UnsafeMutablePointer<CChar>?] = ProcessInfo.processInfo.environment
+            .map { strdup("\($0.key)=\($0.value)") } + [nil]
+        defer { for pointer in cArguments + cEnvironment { free(pointer) } }
+        let spawned = cArguments.withUnsafeBufferPointer { argvPointer in
+            cEnvironment.withUnsafeBufferPointer { environmentPointer in
+                system.spawn(argv[0], &actions, &attributes, argvPointer.baseAddress!, environmentPointer.baseAddress!)
+            }
+        }
+        close(output.write)
+        if let inputEnds { close(inputEnds.read) }
+        guard spawned.error == 0, spawned.pid > 0 else {
+            close(output.read)
+            if let inputEnds { close(inputEnds.write) }
+            return nil
+        }
+        if let inputEnds { _ = fcntl(inputEnds.write, F_SETNOSIGPIPE, 1) }
+        return Spawned(pid: spawned.pid, outputs: [output.read], input: inputEnds?.write)
+    }
+
+    /// Reads to end of file; `complete == false` when a read failed.
+    private static func readAll(_ descriptor: Int32) -> (data: Data, complete: Bool) {
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+        var complete = true
+        while true {
+            let count = buffer.withUnsafeMutableBytes { read(descriptor, $0.baseAddress, $0.count) }
+            if count < 0 && errno == EINTR { continue }
+            if count < 0 { complete = false }
+            if count <= 0 { break }
+            data.append(buffer, count: count)
+        }
+        close(descriptor)
+        return (data, complete)
+    }
+
+    /// Writes everything; `false` when the child stopped reading (closed stdin or exited) or a write failed.
+    private static func writeAll(_ data: Data, to descriptor: Int32) -> Bool {
+        let complete = data.withUnsafeBytes { raw -> Bool in
+            var offset = 0
+            while offset < raw.count {
+                let written = write(descriptor, raw.baseAddress! + offset, raw.count - offset)
+                if written < 0 {
+                    if errno == EINTR { continue }
+                    return false
+                }
+                offset += written
+            }
+            return true
+        }
+        close(descriptor)
+        return complete
     }
 }
 
