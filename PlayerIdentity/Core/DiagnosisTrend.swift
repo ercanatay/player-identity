@@ -53,6 +53,8 @@ extension DiagnosisVerdict {
         case .checksDisabled: return L10n.text(.diagnoseShortChecksDisabled)
         case .noBan: return L10n.text(.diagnoseShortNoBan)
         case .passwordProtected: return L10n.text(.diagnoseShortPasswordProtected)
+        case .goldSrcBanned: return L10n.text(.diagnosisGoldsrcBannedShort)
+        case .legacyVerificationUnavailable: return L10n.text(.diagnosisGoldsrcUnavailableShort)
         }
     }
 }

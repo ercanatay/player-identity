@@ -100,7 +100,10 @@ enum SnapshotBuilder {
         let identityValue = try? identity?.get()
         let savedServers = servers.map { entry -> ServerEntry in
             var copy = entry
-            if entry.lastCheckedAt != nil, let rawID = identityValue?.rawID {
+            // §75.3: a GoldSrc 48 server keeps no CID (an old legacy CID is dropped with this save).
+            if StatusEvaluator.protocolOf(entry) == .goldsrc48 {
+                copy.cid = ""
+            } else if entry.lastCheckedAt != nil, let rawID = identityValue?.rawID {
                 copy.cid = HostAddressing.address(for: entry.host, in: resolutions)
                     .map { CIDCalculator.cid(rawID: rawID, address: $0) } ?? ""
             } else {

@@ -46,6 +46,14 @@ enum A2SFixture {
             + cString("Half-Life") + [players, max, 47, 0x64, 0x6C, 0x00, 0x00]
     }
 
+    /// §75.2 a complete Source/Xash `0x49` reply with protocol byte 49 (`source49`): the "healthy server" fixture of
+    /// the CID flows (name, map, players and max as given).
+    static func xash(name: [UInt8] = Array("POLIGON RPG".utf8), map: String = "rpg_city",
+                     players: UInt8 = 9, max: UInt8 = 26) -> [UInt8] {
+        header + [0x49, 49] + cString(name) + cString(map) + cString("valve") + cString("Half-Life")
+            + [0x46, 0x00, players, max, 0, 0x64, 0x6C, 0x00, 0x00]
+    }
+
     /// Source `0x49`: protocol, name, map, folder, game, app id, players, max, bots, …
     static func source(name: [UInt8] = Array("Source Server".utf8), map: String = "de_dust2",
                        players: UInt8 = 12, max: UInt8 = 32) -> [UInt8] {

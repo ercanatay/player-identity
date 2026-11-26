@@ -26,7 +26,7 @@ final class ConnectionDiagnosticsTests: XCTestCase {
                             totalTimeout: total)
     }
 
-    private func run(info: FakeReply? = FakeReply(bytes: FakeServer.oob(0x49, [0x30])),
+    private func run(info: FakeReply? = FakeReply(bytes: FakeServer.sourceInfo),
                      challenge: FakeReply? = FakeReply(bytes: FakeServer.oob(0x41, FakeServer.challengeBytes)),
                      connect: FakeReply? = FakeReply(bytes: FakeServer.oob(0x42)),
                      request: ConnectionDiagnosisRequest? = nil) async throws -> (ConnectionProbeResult, FakeUDPTransport) {
@@ -50,8 +50,9 @@ final class ConnectionDiagnosticsTests: XCTestCase {
         XCTAssertEqual(result.cid, CIDCalculator.cid(rawID: rawID, host: server))
         XCTAssertEqual(result.steps[1].target, "\(server):27015")
         XCTAssertEqual(transport.sessionCount, 1)
-        XCTAssertEqual(transport.sentCount, 3)
+        XCTAssertEqual(transport.sentCount, 4)   // §75.3: capability probe (placeholder CID), then the real CID
         XCTAssertTrue(transport.sentPackets[2].starts(with: BanPackets.header + Array("connect 49 ".utf8)))
+        XCTAssertTrue(transport.sentPackets[3].starts(with: BanPackets.header + Array("connect 49 ".utf8)))
     }
 
     func testDNSFailureSkipsEveryLaterStepAndSendsNothing() async throws {
@@ -103,7 +104,10 @@ final class ConnectionDiagnosticsTests: XCTestCase {
         XCTAssertEqual(cid.verdict, .cidBanned)
         XCTAssertEqual(statuses(cid), [.ok, .ok, .ok, .failed])
         let (proto, _) = try await run(connect: FakeReply(bytes: FakeServer.oobText("errormsg Unsupported protocol 48")))
-        XCTAssertEqual(proto.verdict, .protocolMismatch)
+        // §75.13: "older/unsupported protocol" = a GoldSrc 48 server: unverified, never a protocol mismatch or a CID.
+        XCTAssertEqual(proto.verdict, .legacyVerificationUnavailable)
+        XCTAssertEqual(proto.serverProtocol, .goldsrc48)
+        XCTAssertNil(proto.cid)
         let (odd, _) = try await run(connect: FakeReply(bytes: FakeServer.oobText("print hello")))
         XCTAssertEqual(odd.verdict, .cidUnverified)
         let (silent, _) = try await run(connect: nil)
@@ -138,7 +142,8 @@ final class ConnectionDiagnosticsTests: XCTestCase {
         XCTAssertNotEqual(DiagnosisClassifier.verdict(facts), .noBan)
         XCTAssertEqual(Set(DiagnosisVerdict.allCases.map(\.rawValue)),
                        ["serverOffline", "dnsFailure", "timeout", "protocolMismatch", "ipBanned", "cidBanned", "rangeBanned",
-                        "cidUnverified", "vpnConflict", "checksDisabled", "noBan", "passwordProtected"])
+                        "cidUnverified", "vpnConflict", "checksDisabled", "noBan", "passwordProtected", "banned",
+                        "legacyVerificationUnavailable"])
         for verdict in DiagnosisVerdict.allCases {
             XCTAssertFalse(verdict.sentence.isEmpty)
             XCTAssertFalse(verdict.advice.isEmpty)
@@ -151,7 +156,7 @@ final class ConnectionDiagnosticsTests: XCTestCase {
     func testDurationsAndProgressOrder() async throws {
         let clock = TestClock()
         let transport = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: FakeServer.oob(0x49, [0x30]), delay: 0.04),
+            info: FakeReply(bytes: FakeServer.sourceInfo, delay: 0.04),
             challenge: FakeReply(bytes: FakeServer.oob(0x41, FakeServer.challengeBytes), delay: 0.12),
             connect: nil))
         let events = EventLog()

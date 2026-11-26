@@ -8,12 +8,21 @@ enum DiagnosisStepKind: String, Codable, Sendable, CaseIterable {
     case a2sInfo
     case getChallenge
     case connect49
+    /// §75.6 GoldSrc 48 legacy connect probe: replaces `connect49` on a `goldsrc48` server (never both).
+    case connect48
     /// §68.1 A2S_RULES (password, cvars): only in the details' diagnosis and only after a challenge was received;
     /// never part of the fixed probe sequence (`probeSteps`).
     case rules
 
     /// The four probe steps every diagnosis records (§64.1).
     static let probeSteps: [DiagnosisStepKind] = [.dns, .a2sInfo, .getChallenge, .connect49]
+    /// §75.5 the GoldSrc 48 path: the legacy probe takes the place of connect 49.
+    static let goldSrcProbeSteps: [DiagnosisStepKind] = [.dns, .a2sInfo, .getChallenge, .connect48]
+
+    /// The probe steps of a server with this protocol (`unknown` follows the `source49` default, §75.4).
+    static func probeSteps(for serverProtocol: ServerProtocol) -> [DiagnosisStepKind] {
+        serverProtocol == .goldsrc48 ? goldSrcProbeSteps : probeSteps
+    }
 
     var title: String {
         switch self {
@@ -21,6 +30,7 @@ enum DiagnosisStepKind: String, Codable, Sendable, CaseIterable {
         case .a2sInfo: return L10n.text(.diagnoseStepA2sInfo)
         case .getChallenge: return L10n.text(.diagnoseStepGetChallenge)
         case .connect49: return L10n.text(.diagnoseStepConnect49)
+        case .connect48: return L10n.text(.diagnosisGoldsrcStep)
         case .rules: return L10n.text(.diagnoseStepRules)
         }
     }
@@ -68,6 +78,13 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
     case noBan
     /// §68.1 A2S_RULES reports `sv_password`.
     case passwordProtected
+    /// §75.7/§75.13 the GoldSrc 48 path (CID not applicable; `ipBanned`, `cidBanned`, `rangeBanned`,
+    /// `protocolMismatch` and `noBan` are never produced on it): the server banned the connection — a ban text in the
+    /// probe's answer or in the engine log of the last GoldSrc connection to this server.
+    case goldSrcBanned = "banned"
+    /// §75.13 the GoldSrc 48 path without a ban text: the null-ticket probe cannot verify the ban status (silence, a
+    /// ping, a refusal for another reason or an accepted probe never mean "no ban").
+    case legacyVerificationUnavailable
 
     /// One sentence for the verdict card.
     var sentence: String {
@@ -84,6 +101,8 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
         case .checksDisabled: return L10n.text(.diagnoseVerdictChecksDisabled)
         case .noBan: return L10n.text(.diagnoseVerdictNoBan)
         case .passwordProtected: return L10n.text(.diagnoseVerdictPasswordProtected)
+        case .goldSrcBanned: return L10n.text(.diagnosisGoldsrcBanned)
+        case .legacyVerificationUnavailable: return L10n.text(.diagnosisGoldsrcUnavailableVerdict)
         }
     }
 
@@ -102,13 +121,15 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
         case .checksDisabled: return L10n.text(.diagnoseAdviceChecksDisabled)
         case .noBan: return L10n.text(.diagnoseAdviceNoBan)
         case .passwordProtected: return L10n.text(.diagnoseAdvicePasswordProtected)
+        case .goldSrcBanned: return L10n.text(.diagnosisGoldsrcBannedAdvice)
+        case .legacyVerificationUnavailable: return L10n.text(.diagnosisGoldsrcUnavailableAdvice)
         }
     }
 
     /// Card colour: bans red, a clean result green, everything else orange.
     var level: StatusLevel {
         switch self {
-        case .ipBanned, .cidBanned, .rangeBanned: return .red
+        case .ipBanned, .cidBanned, .rangeBanned, .goldSrcBanned: return .red
         case .noBan: return .green
         default: return .orange
         }
@@ -116,7 +137,7 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
 
     var symbolName: String {
         switch self {
-        case .ipBanned, .cidBanned, .rangeBanned: return "xmark.octagon.fill"
+        case .ipBanned, .cidBanned, .rangeBanned, .goldSrcBanned: return "xmark.octagon.fill"
         case .noBan: return "checkmark.seal.fill"
         case .dnsFailure: return "questionmark.circle.fill"
         case .serverOffline: return "powerplug"
@@ -126,11 +147,15 @@ enum DiagnosisVerdict: String, Codable, Sendable, CaseIterable {
         case .vpnConflict: return "lock.shield"
         case .checksDisabled: return "pause.circle"
         case .passwordProtected: return "lock.fill"
+        case .legacyVerificationUnavailable: return "questionmark.diamond"
         }
     }
 
     /// The verdicts a ban message (§17.9.1) makes sense for.
-    var isBan: Bool { self == .ipBanned || self == .cidBanned || self == .rangeBanned }
+    var isBan: Bool { self == .ipBanned || self == .cidBanned || self == .rangeBanned || self == .goldSrcBanned }
+
+    /// §75.13 a verdict of the GoldSrc 48 path.
+    var isGoldSrc: Bool { self == .goldSrcBanned || self == .legacyVerificationUnavailable }
 }
 
 // MARK: - Classification (§64.2)
@@ -140,7 +165,8 @@ struct DiagnosisFacts: Sendable, Equatable {
     enum DNS: Sendable, Equatable { case resolved, failed }
     enum Info: Sendable, Equatable { case replied, noReply, socketError }
     enum Challenge: Sendable, Equatable { case challenge, banned, unrecognized, noReply }
-    enum Connect: Sendable, Equatable { case ok, banned, notApplicable, unrecognized, noReply, noCID }
+    /// `capabilityBanned` (§75.3): the CID-less capability probe got a ban text — a general/IP ban, never a CID ban.
+    enum Connect: Sendable, Equatable { case ok, banned, notApplicable, unrecognized, noReply, noCID, capabilityBanned }
 
     var checksEnabled = true
     var dns: DNS?
@@ -155,6 +181,10 @@ struct DiagnosisFacts: Sendable, Equatable {
     var knownRange: String?
     /// §68.1 A2S_RULES `sv_password` (`nil` = not asked or not reported).
     var passwordProtected: Bool? = nil
+    /// §75.1 protocol of the A2S_INFO reply (`unknown` without a usable reply).
+    var serverProtocol: ServerProtocol = .unknown
+    /// §75.6 outcome of the GoldSrc 48 legacy probe (only on the GoldSrc path).
+    var goldSrc: GoldSrcProbeOutcome? = nil
 }
 
 enum DiagnosisClassifier {
@@ -163,7 +193,8 @@ enum DiagnosisClassifier {
     /// still names the password).
     static func verdict(_ facts: DiagnosisFacts) -> DiagnosisVerdict {
         let verdict = probeVerdict(facts)
-        guard facts.passwordProtected == true, !verdict.isBan, verdict != .dnsFailure, verdict != .checksDisabled else {
+        // §75.7: the GoldSrc verdict keeps its own outcome; the card names a password next to it.
+        guard !verdict.isGoldSrc, facts.passwordProtected == true, !verdict.isBan, verdict != .dnsFailure, verdict != .checksDisabled else {
             return verdict
         }
         return .passwordProtected
@@ -173,6 +204,10 @@ enum DiagnosisClassifier {
         guard facts.dns == .resolved else { return .dnsFailure }
         guard facts.checksEnabled else { return .checksDisabled }
         if facts.info == .socketError { return .timeout }
+        // §75.7: a GoldSrc 48 server gets the GoldSrc verdict (ban, rejection, time-out are its outcome).
+        if facts.serverProtocol == .goldsrc48 {
+            return facts.goldSrc == .banned ? .goldSrcBanned : .legacyVerificationUnavailable
+        }
         switch facts.challenge {
         case .banned?:
             return facts.knownRange == nil ? .ipBanned : .rangeBanned
@@ -181,6 +216,7 @@ enum DiagnosisClassifier {
             case .ok?:
                 return facts.info == .replied ? .noBan : .cidUnverified
             case .banned?: return .cidBanned
+            case .capabilityBanned?: return facts.knownRange == nil ? .ipBanned : .rangeBanned
             case .notApplicable?: return .protocolMismatch
             case .unrecognized?, .noReply?: return facts.vpnActive ? .vpnConflict : .cidUnverified
             case .noCID?: return .cidUnverified
@@ -198,7 +234,8 @@ enum DiagnosisClassifier {
     /// §64.3: a direct engine statement (`Your IP is banned` / `You have been banned`) decides the verdict, unless the
     /// probe already found a ban or proved there is none (all of steps 2–4 `ok`).
     static func final(probe: DiagnosisVerdict, log: EngineLogReport) -> DiagnosisVerdict {
-        guard !probe.isBan, probe != .noBan, let direct = log.directVerdict else { return probe }
+        // §75.7: the engine log never turns the GoldSrc verdict into an IP/CID ban.
+        guard !probe.isBan, probe != .noBan, !probe.isGoldSrc, let direct = log.directVerdict else { return probe }
         return direct
     }
 }
@@ -216,6 +253,12 @@ struct ConnectionDiagnosisRequest: Sendable, Equatable {
     let knownRange: String?
     /// §68.1: run the A2S_RULES step after the challenge (details diagnosis only).
     var queryRules = false
+    /// §75.10 AC-75.R1: the GoldSrc 48 legacy probe is sent only on a user request (the Diagnose button / command or
+    /// `playeridentityctl diagnose --confirm`); without it the probe step is skipped (`notConfirmed`).
+    var legacyProbeConfirmed = false
+    /// §75.4 the last decided A2S protocol of the server (saved row / this session). When this run's A2S_INFO gets no
+    /// usable reply, a known `goldsrc48` keeps the GoldSrc path (connect 49 is never sent to a known GoldSrc server).
+    var knownProtocol: ServerProtocol = .unknown
 }
 
 struct ConnectionProbeResult: Sendable, Equatable {
@@ -227,6 +270,12 @@ struct ConnectionProbeResult: Sendable, Equatable {
     var info: ServerInfo?
     /// §68.1 rules of the `rules` step.
     var rules: ServerRulesResult? = nil
+    /// §75.1 protocol decided by the A2S_INFO step.
+    var serverProtocol: ServerProtocol = .unknown
+    /// §75.6 the GoldSrc 48 legacy probe result (only on the GoldSrc path).
+    var goldSrc: GoldSrcProbeResult? = nil
+    /// §75.3 (v5.4.6) the real-CID check did not run (capability probe undecided / no time left): never "not banned".
+    var cidCheckIncomplete = false
 }
 
 /// Live progress for the UI: a step started, then finished.
@@ -245,17 +294,21 @@ struct ConnectionDiagnoser: Sendable {
     let resolver: any ServerAddressResolver
     let now: @Sendable () -> Date
     let qport: @Sendable () -> UInt16
+    /// §75.6 CD key of the legacy probe (random per probe, never derived from the identity).
+    let cdKey: @Sendable () -> String
     let step: TimeInterval
     let total: TimeInterval
 
     init(transport: any UDPTransport, resolver: any ServerAddressResolver, now: @escaping @Sendable () -> Date,
          qport: @escaping @Sendable () -> UInt16 = { UInt16.random(in: 1...UInt16.max) },
+         cdKey: @escaping @Sendable () -> String = { GoldSrcPackets.randomCDKey() },
          stepTimeout: TimeInterval = ConnectionDiagnoser.stepTimeout,
          totalTimeout: TimeInterval = ConnectionDiagnoser.totalTimeout) {
         self.transport = transport
         self.resolver = resolver
         self.now = now
         self.qport = qport
+        self.cdKey = cdKey
         self.step = stepTimeout
         self.total = totalTimeout
     }
@@ -269,6 +322,10 @@ struct ConnectionDiagnoser: Sendable {
                                    knownRange: request.knownRange)
         var steps: [DiagnosisStep] = []
         var result = ConnectionProbeResult(steps: [], facts: facts, verdict: .timeout)
+        // §75.4 the known protocol holds until this run's A2S reply decides one (also through a DNS or network
+        // failure: a known GoldSrc 48 server never reads as "not banned").
+        facts.serverProtocol = request.knownProtocol
+        result.serverProtocol = request.knownProtocol
 
         func millis(since date: Date) -> Int { max(0, Int((now().timeIntervalSince(date) * 1000).rounded())) }
         func record(_ kind: DiagnosisStepKind, _ status: DiagnosisStepStatus, since date: Date?, target: String,
@@ -279,7 +336,8 @@ struct ConnectionDiagnoser: Sendable {
             await progress(.finished(step))
         }
         func skipRest(from kind: DiagnosisStepKind, target: String, _ detail: String) async {
-            for later in DiagnosisStepKind.probeSteps where later.order >= kind.order && !steps.contains(where: { $0.step == later }) {
+            for later in DiagnosisStepKind.probeSteps(for: facts.serverProtocol)
+            where later.order >= kind.order && !steps.contains(where: { $0.step == later }) {
                 await record(later, .skipped, since: nil, target: target, detail)
             }
         }
@@ -360,22 +418,28 @@ struct ConnectionDiagnoser: Sendable {
         }
         let infoDeadline = min(infoStart.addingTimeInterval(step), overallDeadline)
         var infoSentAt = now()
-        if var reply = try await checker.exchange(session, BanPackets.info(), until: infoDeadline, ignoreInfo: false) {
-            var receivedAt = now()
+        // §75.2: a GoldSrc 48 server's legacy `0x6D` reply is preferred over its Source-layout reply.
+        if let first = try await checker.exchangeInfo(session, BanPackets.info(), until: infoDeadline) {
+            var reply = first.bytes
+            var receivedAt = first.receivedAt
             if case .challenge(let challenge) = BanReplies.classifyInfo(reply) {
                 infoSentAt = now()
-                if let second = try await checker.exchange(session, BanPackets.info(challenge: challenge),
-                                                           until: infoDeadline, ignoreInfo: false) {
-                    reply = second
-                    receivedAt = now()
+                if let second = try await checker.exchangeInfo(session, BanPackets.info(challenge: challenge),
+                                                               until: infoDeadline) {
+                    reply = second.bytes
+                    receivedAt = second.receivedAt
                 }
             }
-            var info = ServerInfoParser.parse(reply)
+            let inspection = ServerInfoParser.inspect(reply)
+            var info = inspection.info
             info?.pingMillis = max(0, Int((receivedAt.timeIntervalSince(infoSentAt) * 1000).rounded()))
             result.info = info
             if info != nil {
                 facts.info = .replied
-                await record(.a2sInfo, .ok, since: infoStart, target: endpointTarget, Self.infoDetail(info))
+                facts.serverProtocol = info?.serverProtocol ?? .unknown
+                result.serverProtocol = facts.serverProtocol
+                await record(.a2sInfo, .ok, since: infoStart, target: endpointTarget,
+                             Self.infoDetail(info, trailingBytes: inspection.trailingBytes))
             } else {
                 facts.info = .noReply
                 await record(.a2sInfo, .failed, since: infoStart, target: endpointTarget,
@@ -384,6 +448,99 @@ struct ConnectionDiagnoser: Sendable {
         } else {
             facts.info = .noReply
             await record(.a2sInfo, .failed, since: infoStart, target: endpointTarget, "noReply")
+        }
+
+        // §75.5 GoldSrc 48: GoldSrc challenge → legacy probe; connect 49 is never sent on this path.
+        func goldSrcPath() async throws -> ConnectionProbeResult {
+            func outcome(_ value: GoldSrcProbeResult) {
+                result.goldSrc = value
+                facts.goldSrc = value.outcome
+            }
+            // §75.10 AC-75.R1: without the user's confirmation no legacy packet at all (no `getchallenge steam`, no
+            // connect 48).
+            guard request.legacyProbeConfirmed else {
+                outcome(GoldSrcProbeResult(.notConfirmed))
+                await record(.getChallenge, .skipped, since: nil, target: endpointTarget, "notConfirmed")
+                await record(.connect48, .skipped, since: nil, target: endpointTarget, "notConfirmed")
+                return finish()
+            }
+            // 3. getchallenge (GoldSrc form)
+            try Task.checkCancellation()
+            guard now() < overallDeadline else {
+                facts.totalTimedOut = true
+                outcome(GoldSrcProbeResult(.noReply))
+                await skipRest(from: .getChallenge, target: endpointTarget, "totalTimeout")
+                return finish()
+            }
+            await progress(.started(.getChallenge))
+            let challengeStart = now()
+            let challengeDeadline = min(challengeStart.addingTimeInterval(step), overallDeadline)
+            guard let reply = try await checker.exchange(session, GoldSrcPackets.getChallenge(), until: challengeDeadline,
+                                                         ignoreInfo: true) else {
+                facts.challenge = .noReply
+                outcome(GoldSrcProbeResult(.noReply))
+                await record(.getChallenge, .failed, since: challengeStart, target: endpointTarget, "noReply")
+                await skipRest(from: .connect48, target: endpointTarget, "noChallenge")
+                return finish()
+            }
+            let challenge: String
+            switch GoldSrcReplies.challenge(reply) {
+            case .banned(let message):
+                facts.challenge = .banned
+                outcome(GoldSrcProbeResult(.banned, message: message))
+                await record(.getChallenge, .failed, since: challengeStart, target: endpointTarget, "banned: " + message)
+                await skipRest(from: .connect48, target: endpointTarget, "banned")
+                return finish()
+            case .unrecognized(let text):
+                facts.challenge = .unrecognized
+                outcome(GoldSrcProbeResult(.incomplete, message: text))
+                await record(.getChallenge, .failed, since: challengeStart, target: endpointTarget, "unrecognized: " + text)
+                await skipRest(from: .connect48, target: endpointTarget, "noChallenge")
+                return finish()
+            case .challenge(let value):
+                challenge = value
+                facts.challenge = .challenge
+                await record(.getChallenge, .ok, since: challengeStart, target: endpointTarget, "challenge")
+            }
+
+            // 4. connect 48 (legacy probe; confirmed above).
+            try Task.checkCancellation()
+            guard now() < overallDeadline else {
+                facts.totalTimedOut = true
+                outcome(GoldSrcProbeResult(.noReply))
+                await skipRest(from: .connect48, target: endpointTarget, "totalTimeout")
+                return finish()
+            }
+            await progress(.started(.connect48))
+            let connectStart = now()
+            let connectDeadline = min(connectStart.addingTimeInterval(step), overallDeadline)
+            guard let packet = GoldSrcPackets.connect(challenge: challenge, cdKey: cdKey(), name: request.name) else {
+                outcome(GoldSrcProbeResult(.incomplete))
+                await record(.connect48, .failed, since: connectStart, target: endpointTarget, "invalidChallenge")
+                return finish()
+            }
+            guard let connectReply = try await checker.exchange(session, packet, until: connectDeadline,
+                                                                ignoreInfo: true) else {
+                outcome(GoldSrcProbeResult(.noReply))
+                await record(.connect48, .failed, since: connectStart, target: endpointTarget, "noReply")
+                try await rulesStep()
+                return finish()
+            }
+            let probe = GoldSrcReplies.connect(connectReply)
+            outcome(probe)
+            await record(.connect48, probe.outcome == .accepted ? .ok : .failed, since: connectStart,
+                         target: endpointTarget,
+                         probe.outcome.rawValue + (probe.message.isEmpty ? "" : ": " + probe.message))
+            try await rulesStep()
+            return finish()
+        }
+
+        if facts.serverProtocol == .unknown, request.knownProtocol != .unknown {
+            facts.serverProtocol = request.knownProtocol
+            result.serverProtocol = request.knownProtocol
+        }
+        if facts.serverProtocol == .goldsrc48 {
+            return try await goldSrcPath()
         }
 
         // 3. getchallenge (runs even without an A2S reply: some servers only answer the handshake)
@@ -423,8 +580,14 @@ struct ConnectionDiagnoser: Sendable {
             await record(.getChallenge, .ok, since: challengeStart, target: endpointTarget, "challenge")
         }
 
-        // 4. connect 49
+        // 4. connect 49 — §75.4: only for a proven Source 49 server; an unknown protocol gets no CID and no connect 49.
         try Task.checkCancellation()
+        guard facts.serverProtocol == .source49 else {
+            facts.connect = .noCID
+            await record(.connect49, .skipped, since: nil, target: endpointTarget, "protocolUnknown")
+            try await rulesStep()
+            return finish()
+        }
         guard let rawID = request.rawID else {
             facts.connect = .noCID
             await record(.connect49, .skipped, since: nil, target: endpointTarget, "noCID")
@@ -437,12 +600,52 @@ struct ConnectionDiagnoser: Sendable {
             return finish()
         }
         await progress(.started(.connect49))
-        let cid = CIDCalculator.cid(rawID: rawID, address: address)
-        result.cid = cid
         let connectStart = now()
         let connectDeadline = min(connectStart.addingTimeInterval(step), overallDeadline)
+        // §75.3: the CID-less capability probe first; a GoldSrc 48 server ("older protocol ( 48 )") never receives or
+        // gets a real CID computed.
+        let capability = BanPackets.capabilityProbe(challenge: challenge, qport: qport(), name: request.name)
+        let capabilityReply = try await checker.exchange(session, capability, until: connectDeadline, ignoreInfo: true)
+        switch BanReplies.capability(capabilityReply) {
+        case .goldSrc(let text):
+            facts.connect = .notApplicable
+            facts.serverProtocol = .goldsrc48
+            result.serverProtocol = .goldsrc48
+            result.cid = nil
+            await record(.connect49, .failed, since: connectStart, target: endpointTarget,
+                         "capability: " + BanReplies.printable(text))
+            try await rulesStep()
+            return finish()
+        case .banned(let text):
+            // Refused before any CID: a general/IP ban (never a CID ban).
+            facts.connect = .capabilityBanned
+            await record(.connect49, .failed, since: connectStart, target: endpointTarget,
+                         "banned: capability: " + BanReplies.printable(text))
+            try await rulesStep()
+            return finish()
+        case .unverified(let text):
+            facts.connect = text == "noReply" ? .noReply : .unrecognized
+            result.cidCheckIncomplete = true
+            await record(.connect49, .failed, since: connectStart, target: endpointTarget,
+                         text == "noReply" ? "noReply" : "capabilityUnrecognized: " + BanReplies.printable(text))
+            try await rulesStep()
+            return finish()
+        case .proceed:
+            break
+        }
+        // The real CID only after an explicit accept and only while the overall budget lasts.
+        guard now() < overallDeadline else {
+            facts.connect = .noReply
+            facts.totalTimedOut = true
+            result.cidCheckIncomplete = true
+            await record(.connect49, .failed, since: connectStart, target: endpointTarget, "totalTimeout")
+            return finish()
+        }
+        let cid = CIDCalculator.cid(rawID: rawID, address: address)
+        result.cid = cid
+        let cidDeadline = min(now().addingTimeInterval(step), overallDeadline)
         let packet = BanPackets.connect(challenge: challenge, cid: cid, qport: qport(), name: request.name)
-        guard let connectReply = try await checker.exchange(session, packet, until: connectDeadline, ignoreInfo: true) else {
+        guard let connectReply = try await checker.exchange(session, packet, until: cidDeadline, ignoreInfo: true) else {
             facts.connect = .noReply
             await record(.connect49, .failed, since: connectStart, target: endpointTarget, "noReply")
             try await rulesStep()
@@ -457,7 +660,11 @@ struct ConnectionDiagnoser: Sendable {
             await record(.connect49, .failed, since: connectStart, target: endpointTarget,
                          "banned: " + BanReplies.printable(text))
         case .notApplicable(let text):
+            // §75.13 "older protocol 48": the server is GoldSrc 48 — no CID, no protocol mismatch, no ban claim.
             facts.connect = .notApplicable
+            facts.serverProtocol = .goldsrc48
+            result.serverProtocol = .goldsrc48
+            result.cid = nil
             await record(.connect49, .failed, since: connectStart, target: endpointTarget,
                          "protocol: " + BanReplies.printable(text))
         case .unrecognized(let text):
@@ -493,13 +700,17 @@ struct ConnectionDiagnoser: Sendable {
         }
     }
 
-    static func infoDetail(_ info: ServerInfo?) -> String {
+    static func infoDetail(_ info: ServerInfo?, trailingBytes: Int = 0) -> String {
         guard let info else { return "" }
         var parts: [String] = []
+        // §75.1 the decided protocol (`goldsrc48` / `source49`); `unknown` is left out (older detail format).
+        if info.serverProtocol != .unknown { parts.append(info.serverProtocol.rawValue) }
         if let name = info.name { parts.append(name) }
         if let map = info.map { parts.append(map) }
         if let players = info.players { parts.append(info.maxPlayers.map { "\(players)/\($0)" } ?? "\(players)") }
         if let ping = info.pingMillis { parts.append("\(ping) ms") }
+        // §75.2: unexpected bytes after a complete GoldSrc reply keep `goldsrc48`; they are only reported here.
+        if trailingBytes > 0 { parts.append("trailingBytes=\(trailingBytes)") }
         return parts.joined(separator: " · ")
     }
 }
@@ -538,10 +749,38 @@ struct ConnectionDiagnosis: Sendable, Equatable {
 
     var steps: [DiagnosisStep] { probe.steps }
     var probeVerdict: DiagnosisVerdict { probe.verdict }
-    /// The single verdict shown (§64.2, §64.3).
-    var verdict: DiagnosisVerdict { recordedVerdict ?? DiagnosisClassifier.final(probe: probe.verdict, log: engineLog) }
+    /// §75.13 the engine log of the last GoldSrc connection to this server (GoldSrc 48 path only).
+    var goldSrcLog: GoldSrcLogEvidence? = nil
+    /// §75.13 `engine.log` exists but could not be read (shown/logged; never silently treated as "no evidence").
+    var goldSrcLogError: String? = nil
+
+    /// The single verdict shown (§64.2, §64.3); §75.13 a ban in the GoldSrc engine log decides an unverified probe.
+    var verdict: DiagnosisVerdict {
+        if let recordedVerdict { return recordedVerdict }
+        // An A2S time-out (unknown protocol) does not hide the engine's own ban evidence for this server either.
+        if goldSrcLog?.outcome == .banned,
+           probe.verdict == .legacyVerificationUnavailable || probe.serverProtocol == .unknown { return .goldSrcBanned }
+        return DiagnosisClassifier.final(probe: probe.verdict, log: engineLog)
+    }
     /// The verdict came from the engine log, not from the probe.
     var verdictFromLog: Bool { verdict != probe.verdict }
+
+    /// §75.1 protocol decided by this run's A2S_INFO step.
+    var serverProtocol: ServerProtocol { probe.serverProtocol }
+    /// §75.6 the GoldSrc legacy probe result (only on the GoldSrc path).
+    var goldSrc: GoldSrcProbeResult? { verdict.isGoldSrc ? probe.goldSrc : nil }
+    /// §75.13 `banned` of the JSON: `true` for a ban; on the GoldSrc path without a ban `nil` (never "not banned").
+    var bannedValue: Bool? {
+        if verdict.isBan { return true }
+        return verdict.isGoldSrc || serverProtocol == .goldsrc48 || probe.cidCheckIncomplete ? nil : false
+    }
+    /// §75.13 the server's ban/refusal text: the engine log's reason, else the probe's message (GoldSrc only).
+    var serverMessage: String? {
+        guard verdict.isGoldSrc else { return nil }
+        if let reason = goldSrcLog?.reason, !reason.isEmpty { return reason }
+        guard let message = probe.goldSrc?.message, !message.isEmpty else { return nil }
+        return message
+    }
 
     /// §66.4 the run could not reach any network: the socket could not be opened or DNS had no network.
     var networkUnavailable: Bool {
@@ -553,7 +792,10 @@ struct ConnectionDiagnosis: Sendable, Equatable {
 
     /// History line (§64.1): `new` = verdict, `old` = probe verdict when the engine log overrode it, `note` = steps.
     var historyEntry: HistoryEntry {
-        let summary = steps.map { "\($0.step.rawValue)=\($0.status.rawValue)" }.joined(separator: " ")
+        var summary = steps.map { "\($0.step.rawValue)=\($0.status.rawValue)" }.joined(separator: " ")
+        // §75.6 the GoldSrc outcome is kept with the steps (the report rebuilds it from the line).
+        if let outcome = goldSrc?.outcome { summary += " goldsrc=\(outcome.rawValue)" }
+        if verdict.isGoldSrc, let log = goldSrcLog { summary += " goldsrcLog=\(log.outcome.rawValue)" }
         return HistoryEntry(ts: startedAt, kind: .diagnose, serverID: serverID, host: "\(host):\(port)",
                             old: verdictFromLog ? probe.verdict.rawValue : nil, new: verdict.rawValue, note: summary,
                             durationMs: durationMs)
@@ -622,6 +864,8 @@ enum DiagnosisReport {
         lines.append("- \(L10n.text(.diagnoseReportServer)): \(diagnosis.label.isEmpty ? server : "\(cell(diagnosis.label)) (\(server))")")
         if let cid {
             lines.append("- \(L10n.text(.serversColumnCID)): `\(masked ? maskCID(cid) : cid)`")
+        } else if diagnosis.verdict.isGoldSrc {
+            lines.append("- \(L10n.text(.serversColumnCID)): \(L10n.text(.serversGoldsrcCidNotUsed))")
         }
         if let ip {
             lines.append("- \(L10n.text(.networkPublicIP)): `\(masked ? maskIP(ip) : ip)`")
@@ -639,6 +883,11 @@ enum DiagnosisReport {
         lines.append(diagnosis.verdict.sentence)
         lines.append("")
         lines.append(diagnosis.verdict.advice)
+        if diagnosis.verdict.isGoldSrc {
+            lines.append("")
+            lines.append(contentsOf: GoldSrcDiagnosisText(diagnosis: diagnosis, goldSrc: diagnosis.goldSrc).lines
+                .map { "- " + clean($0) })
+        }
         if diagnosis.passwordProtected, diagnosis.verdict != .passwordProtected {
             lines.append("")
             lines.append(L10n.text(.diagnosePasswordNote))
@@ -710,5 +959,79 @@ enum DiagnosisReport {
         let formatter = ISO8601DateFormatter()
         formatter.timeZone = timeZone
         return formatter.string(from: date)
+    }
+}
+
+// MARK: - §75.7 / §75.8 GoldSrc texts
+
+/// The texts of the GoldSrc 48 card, the report and the CLI: protocol, "CID not used", the verdict (a ban only with
+/// a ban text from the probe or the engine log; never "no ban"), the probe's own answer and its limit, the engine log
+/// evidence, the server message, the administrator request for a ban/refusal (the app never claims to lift a ban)
+/// and the `gs` join path.
+struct GoldSrcDiagnosisText: Sendable, Equatable {
+    let protocolLine: String
+    let cidLine: String
+    /// The verdict sentence: "The server banned this connection." or "The GoldSrc ban status could not be verified."
+    let outcome: String
+    /// The null-ticket probe's own answer (when it ran) and its limit.
+    let probe: String?
+    let probeLimit: String?
+    /// The engine log evidence of the last GoldSrc connection (or that there is none).
+    let engineLog: String
+    let banScope: String?
+    let serverMessage: String?
+    let adminTitle: String?
+    let adminText: String?
+    /// Text for the administrator: server name, IP:port, server message.
+    let request: String?
+    let join: String
+
+    init(diagnosis: ConnectionDiagnosis, goldSrc: GoldSrcProbeResult?) {
+        let banned = diagnosis.verdict == .goldSrcBanned
+        protocolLine = L10n.format(.diagnosisGoldsrcProtocol, L10n.text(.serversGoldsrcProtocolGoldSrc))
+        cidLine = L10n.text(.serversGoldsrcCidNotUsed)
+        outcome = banned ? L10n.text(.diagnosisGoldsrcBanned) : L10n.text(.diagnosisGoldsrcUnavailableVerdict)
+        if let goldSrc, goldSrc.outcome != .notConfirmed || !banned {
+            probe = goldSrc.sentence
+        } else {
+            probe = nil
+        }
+        probeLimit = banned && diagnosis.goldSrcLog == nil ? nil : L10n.text(.diagnosisGoldsrcProbeLimit)
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        if let log = diagnosis.goldSrcLog {
+            let date = formatter.string(from: log.sessionStart)
+            engineLog = L10n.format(log.outcome == .banned ? .diagnosisGoldsrcLogBanned : .diagnosisGoldsrcLogDisconnected,
+                                    log.reason, date)
+        } else {
+            engineLog = L10n.text(.diagnosisGoldsrcLogNone)
+        }
+        banScope = banned ? L10n.text(.diagnosisGoldsrcBanScope) : nil
+        let message = diagnosis.serverMessage
+        // A probe rejection already names its reason in `probe`.
+        serverMessage = diagnosis.goldSrcLog != nil || goldSrc?.outcome == .banned
+            ? message.map { L10n.format(.diagnosisGoldsrcServerMessage, $0) } : nil
+        let refused = banned || goldSrc?.outcome == .rejected || diagnosis.goldSrcLog != nil
+        if refused {
+            adminTitle = L10n.text(.diagnosisGoldsrcAdminTitle)
+            adminText = L10n.text(.diagnosisGoldsrcAdminText)
+            let name = diagnosis.probe.info?.name ?? (diagnosis.label.isEmpty ? diagnosis.host : diagnosis.label)
+            request = L10n.format(.diagnosisGoldsrcRequest, name,
+                                  ServerAddressText.hostPort(host: diagnosis.host, port: diagnosis.port),
+                                  message ?? L10n.text(.diagnosisGoldsrcNoMessage))
+        } else {
+            adminTitle = nil
+            adminText = nil
+            request = nil
+        }
+        let address = ServerAddressText.hostPort(host: diagnosis.probe.address ?? diagnosis.host, port: diagnosis.port)
+        join = L10n.format(.diagnosisGoldsrcJoin, "+connect \(address) gs")
+    }
+
+    /// Reading order (report lines, VoiceOver value).
+    var lines: [String] {
+        [protocolLine, cidLine, outcome] + [probe, probeLimit].compactMap { $0 } + [engineLog]
+            + [banScope, serverMessage, adminTitle, adminText].compactMap { $0 } + [join]
     }
 }

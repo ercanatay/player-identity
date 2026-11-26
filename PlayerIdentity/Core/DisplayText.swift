@@ -116,7 +116,7 @@ enum GameLaunchText {
         case .appNotFound: return L10n.text(.gameErrorAppNotFound)
         case .invalidHost, .noAddress: return L10n.text(.gameErrorInvalidHost)
         case .invalidPort: return L10n.text(.serverProblemPortInvalid)
-        case .invalidGamedir: return L10n.text(.gameErrorGamedir)
+        case .invalidGamedir, .noDataRoot: return L10n.text(.gameErrorGamedir)
         case .resolutionFailed: return L10n.text(.gameErrorResolution)
         case .cancelled: return L10n.text(.actionCancel)
         case .launchFailed(let status): return L10n.format(.gameErrorLaunch, String(status))

@@ -59,8 +59,9 @@ final class BanCheckTests: XCTestCase {
         let result = try await checker(transport, clock: clock).check(request())
         XCTAssertEqual(result.status, .cidOk)
         XCTAssertEqual(result.status.label, "Engel yok")
-        XCTAssertEqual(transport.sentCount, 3)
-        let connect = String(decoding: transport.sentPackets[2].dropFirst(4), as: UTF8.self)
+        XCTAssertEqual(transport.sentCount, 4)   // §75.3: CID-less capability probe, then the real CID
+        XCTAssertTrue(String(decoding: transport.sentPackets[2], as: UTF8.self).contains("uuid=" + BanPackets.capabilityCID))
+        let connect = String(decoding: transport.sentPackets[3].dropFirst(4), as: UTF8.self)
         XCTAssertEqual(connect,
                        "connect 49 305419896 \"prot=cidtest; uuid=\(cid); qport=777; ext=0; d=1\" \"name=Oyuncu\"\n")
         XCTAssertEqual(Array(transport.sentPackets[2].prefix(4)), [0xFF, 0xFF, 0xFF, 0xFF])
@@ -93,14 +94,15 @@ final class BanCheckTests: XCTestCase {
     }
 
     // 5. unsupported protocol → cidNotApplicable
-    func testUnsupportedProtocolIsCIDNotApplicable() async throws {
+    /// §75.13: an "older/unsupported protocol" answer means a GoldSrc 48 server: unverified, never "no block".
+    func testUnsupportedProtocolIsGoldSrcUnverified() async throws {
         let clock = TestClock()
         let transport = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
             connect: FakeReply(bytes: FakeServer.oobText("errormsg\nUnsupported protocol 49\n"))))
         let result = try await checker(transport, clock: clock).check(request())
-        XCTAssertEqual(result.status, .cidNotApplicable)
-        XCTAssertEqual(result.status.label, "Engel yok")
-        XCTAssertEqual(result.status.level, .green)
+        XCTAssertEqual(result.status, .goldSrcUnverified)
+        XCTAssertNotEqual(result.status.label, "Engel yok")
+        XCTAssertEqual(result.status.level, .orange)
         XCTAssertEqual(BanReplies.classifyConnect(FakeServer.oobText("lWrong protocol version")),
                        .notApplicable("lWrong protocol version"))
     }
@@ -148,7 +150,7 @@ final class BanCheckTests: XCTestCase {
         let clock = TestClock()
         let start = clock.now
         let transport = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: FakeServer.oob(0x49), delay: 3.99),
+            info: FakeReply(bytes: FakeServer.sourceInfo, delay: 3.99),
             challenge: FakeReply(bytes: FakeServer.oob(0x41, FakeServer.challengeBytes), delay: 3.99),
             connect: nil))
         let result = try await checker(transport, clock: clock).check(request())
@@ -209,7 +211,9 @@ final class BanCheckTests: XCTestCase {
                        ServerEntry(label: "v6", host: "2001:db8::1")]
         let requests = BanCheckRunner.requests(servers: servers, rawID: 0, name: "N")
         XCTAssertEqual(requests.map(\.host), ["5.161.189.195", "2001:db8::1"])
-        XCTAssertEqual(requests.first?.cid, "5282a6daf7a33fe08469e453086de93c")
-        XCTAssertNil(BanCheckRunner.requests(servers: servers, rawID: nil, name: "N").first?.cid)
+        // §75.3: the CID is derived only in the check (for a proven Source 49 server), from the raw identity.
+        XCTAssertNil(requests.first?.cid)
+        XCTAssertEqual(requests.first?.sourceCID, "5282a6daf7a33fe08469e453086de93c")
+        XCTAssertNil(BanCheckRunner.requests(servers: servers, rawID: nil, name: "N").first?.sourceCID)
     }
 }

@@ -71,6 +71,15 @@ Kart **Desteklenmiyor** dediğinde (motorda gösterge yok, kimlik sıfır veya e
 
 macOS ad-hoc imzalı motorun ilk açılışını engellerse: Sistem Ayarları → Gizlilik ve Güvenlik → "Yine de Aç" (yalnız bu uygulama için); uygulama Gatekeeper'ı asla aşmaz (temiz hesapta davranış ölçülmedi). Intel Mac'lerde yalnız sürüm sayfası sunulur. Ayarlar → Veri → Motor yedekleri yedekleri listeler (en yeni 3 tutulur); eskileri yalnız onayla silinir. CLI: `playeridentityctl engine status`, `engine install-compatible [--yes]`, `engine backups [delete --confirm <kod>]`.
 
+### GoldSrc 48 sunucuları (2.26)
+Uygulama GoldSrc protokol 48 sunucularını (HLDS/ReHLDS, ör. POLIGON RPG) Source/Xash protokol 49 sunucularından A2S_INFO yanıtıyla ayırır:
+
+- **Protokol:** GoldSrc protokol baytlı eski `0x6D` yanıtı veya protokol baytı 48 olan `0x49` yanıtı `goldsrc48` (ikisi birden gelirse eski yanıt tutulur); protokol baytı 49 olan `0x49` yanıtı `source49`; boş, kesik, tanınmayan veya tutarsız yanıt `unknown` (tahmin yapılmaz). Alanı olmayan eski kayıtlar `unknown` okunur. CID testi (connect 49) yalnız `source49` sunuculara yapılır; `goldsrc48` ve `unknown` asla CID almaz.
+- **CID:** `goldsrc48` sunucuda CID hesaplanmaz, gösterilmez, kopyalanmaz: sunucu satırı **Yok** der ("CID bu sunucuda kullanılmıyor"), menü çubuğunda kopyalanacak CID yoktur ve o sunucunun eski kayıtlı CID'si, GoldSrc yanıtını alan bir sonraki başarılı yenilemede silinir (başarısız yenileme hiçbir şey silmez). `source49` mevcut CID'yi korur; `unknown` mevcut davranışı izler.
+- **Oyuna gir:** `goldsrc48` motoru `open --env XASH3D_BASEDIR=<veri kökü> … -dev 1 -log +connect <host>:<port> gs` ile açar (motor konsolunu `<veri kökü>/engine.log`a yazar); `source49` ve `unknown` `+connect <host>:<port>` ile. En güncel A2S sonucu karar verir; sonraki başarısız sorgu bilinen GoldSrc sonucunu bozmaz.
+- **Ban durumu:** GoldSrc 48 sunucusu asla "Engel yok" gösterilmez. Otomatik denetim (connect 49 yok, CID yok) **GoldSrc: doğrulanamadı** verir. Oyundan çıktıktan sonra Yenile, `engine.log` içindeki son GoldSrc bağlantı bloğunu (salt okunur) okur: yalnız bu sunucunun adresine ait, son 24 saatteki ve bu oturumdaki son "Oyuna gir"den eski olmayan blok sayılır. "Server issued disconnect. Reason: You have been banned from this server." satırı **Sunucu banı** gösterir; başka sunucunun veya eski blok yok sayılır.
+- **Teşhis:** `goldsrc48` sunucuya gerçek CID asla gönderilmez (Source 49 görünen sunucuya önce sıfır yer tutucu CID'li, CID'siz bir yetenek denemesi gider; "older protocol ( 48 )" yanıtı orada bitirir); GoldSrc challenge'ından sonra tek GoldSrc connect 48 denemesi gönderilir (boş ticket, rastgele CD anahtarı, yalnız oyuncu adı; kimlik ve CID yok) — **yalnız teşhisi siz başlattığınızda** (Teşhis düğmesi, menü çubuğu veya `playeridentityctl diagnose … --confirm`); otomatik veya periyodik değil. Hükümler: **ban** (denemenin yanıtında veya motor günlüğünde ban metni) ya da **ban durumu doğrulanamadı** (sessizlik, ping, başka nedenli ret veya kabul edilen boş ticket denemesi asla "ban yok" demek değildir). Kart "CID bu sunucuda kullanılmıyor", denemenin yanıtı ve sınırı, motor günlüğü kanıtı, sunucu yöneticisine başvuru metni ve `gs` ile giriş yolunu gösterir. Uygulama banın hesap, SteamID veya IP banı olduğunu söylemez ve banı kaldırdığını iddia etmez.
+
 ### CID
 Sunucunun gördüğü değer ham kimlik değildir; her sunucu için özel olarak türetilir:
 
@@ -226,7 +235,9 @@ Uygulama, her sunucu için yenileme başına bir UDP yoklama dizisi çalıştır
 | `cidBanned` | connect 49'a gelen ve bir banı belirten `errormsg` / `disconnect` / `0x39` yanıtı | 🔴 CID ban |
 | `rangeBanned` | IP değişikliğinden sonra aynı `/16` (IPv6 `/48`) hâlâ IP banlı | 🔴 IP aralık banı |
 | `unverified` | Sunucu istemciyi ban benzeri bir yanıtla reddetti ancak tür bilinmiyor (eklenti/SQL banı olası) | ⚪ Ban türü doğrulanmadı, ham yanıt gösteriliyor |
-| `notApplicable` | GoldSrc protokol 48 sunucusu modern connect paketini reddediyor ("unsupported protocol") — CID test edilemez | ⚪ CID denetimi uygulanamaz (IP tamamsa CID engeli yok sayılır) |
+| `notApplicable` | Protokolü bilinmeyen sunucu modern connect paketini reddediyor ("older protocol") — CID test edilemez | ⚪ CID denetimi uygulanamaz (IP tamamsa CID engeli yok sayılır) |
+| `goldSrcUnverified` | GoldSrc 48 sunucusu (2.26): connect 49 ve CID yok; boş ticket'lı denetim "ban yok"u kanıtlayamaz | 🟠 GoldSrc: doğrulanamadı |
+| `goldSrcBanned` | GoldSrc 48 sunucusu: ona yapılan son GoldSrc bağlantısının motor günlüğü sunucunun yasakladığını söylüyor | 🔴 Sunucu banı |
 | `error` / ulaşılamıyor | 4 saniyede A2S yanıtı yok | ⚪ Ulaşılamıyor (genel durumda turuncu, kritik değil) |
 | `error` / DNS | Alan adı çözümlenemiyor | Satır geçersiz host olarak gösterilir; genel durum etkilenmez |
 | `unknown` | Yanıt eksik veya tanınmıyor | ⚪ Belirlenemedi |
@@ -654,7 +665,8 @@ Bir sunucu bağlantıyı reddettiğinde motor genellikle işe yarar bir şey sö
 | DNS | ana makine adı bir adrese çözülür |
 | A2S_INFO | sunucu UDP'de yanıt verir; harita, oyuncu ve ping bildirir |
 | getchallenge | sunucu IP'yi kabul eder / IP banlıdır |
-| connect 49 | CID kabul edilir ya da banlıdır (GoldSrc 48 sunucuları bu adımı atlar) |
+| connect 49 | CID kabul edilir ya da banlıdır (GoldSrc 48 sunucularına hiç gönderilmez) |
+| GoldSrc connect 48 | Yalnız GoldSrc 48 sunucularında ve yalnız sizin başlattığınız teşhiste: sunucu GoldSrc bağlantısını kabul eder, yasaklar veya reddeder (mesajıyla) |
 
 - **Teşhisler:** sunucu çevrimdışı, DNS hatası, zaman aşımı, protokol uyuşmazlığı, IP banı, CID banı, aralık banı, doğrulanmamış CID, VPN çakışması, kontroller kapalı; "ban yok" yalnızca 2–4. adımlar başarılıysa bildirilir.
 - **Motor günlüğü kanıtı:** `qconsole.log` (veya `console.log`; 512 KB / 200 satır) sonu bilinen motor hatalarıyla eşleştirilir; doğrudan bir motor ban mesajı prob teşhisinin yerine geçebilir. Dosyalar yalnızca okunur, asla yazılmaz.
@@ -845,7 +857,7 @@ shasum -a 256 -c SHA256SUMS.txt
 
 ## Limitler ve bilinen davranışlar
 - **macOS paylaşımlı kimlik:** Tüm macOS istemcileri aynı ham kimliği (sıfır) türetir, bu nedenle belirli bir sunucu için CID Mac'ler arasında aynıdır.
-- **GoldSrc protokol 48:** Bu tür sunucular bir CID'yi asla görmez; CID testi *uygulanamaz* durumdadır ve yalnızca IP denetimi sayılır.
+- **GoldSrc protokol 48:** Bu tür sunucular bir CID'yi asla görmez. Ban durumu, gerçek bir `gs` bağlantısının (Oyuna gir) motor günlüğü sunucunun yanıtını gösterene kadar *doğrulanamadı* kalır; uygulamanın boş ticket'lı denemesi asla "ban yok"u kanıtlayamaz.
 - **İSS ve aralık banları:** Bir IP yenilemesi `/16` aralık banına, statik bir IP'ye, CGNAT'a veya korunan bir PPPoE oturumuna karşı yardımcı olamaz. Ban süresi ve ban sistemi (motor/eklenti/SQL) uzaktan okunamaz.
 - **Sunucu yanıt vermiyor:** Sonuç *ulaşılamıyor* veya *bilinmiyor* olur — asla "temiz" veya "banlı" tahmini yapılmaz.
 - **VPN:** Denetimler her zaman çıkış IP'sini kullanır; bir VPN etkinken sonuç VPN çıkışına aittir.

@@ -27,6 +27,8 @@ enum ErrorLogArea: String, Codable, Sendable, CaseIterable {
     /// §74: "Install Compatible Engine" failed, was rolled back, was cancelled or left items behind (failure code,
     /// stage and masked CID only; never a raw identity or a full CID).
     case engineInstall
+    /// §75.3: the legacy CID of a GoldSrc 48 server could not be removed from the saved record.
+    case serverProtocol
 }
 
 struct ErrorLogEntry: Codable, Sendable, Equatable {

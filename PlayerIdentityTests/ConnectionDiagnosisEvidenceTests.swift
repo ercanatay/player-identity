@@ -42,7 +42,7 @@ final class ConnectionDiagnosisEvidenceTests: XCTestCase {
             // CID ban found by the probe, engine log with evidence lines.
             let (cidModel, cidID, cidEnv) = try await makeModel(language, udp: { clock in
                 FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-                    info: FakeReply(bytes: A2SFixture.goldSrc(name: Array("Zombie TR".utf8), map: "zm_dust", players: 9, max: 26), delay: 0.042),
+                    info: FakeReply(bytes: A2SFixture.xash(name: Array("Zombie TR".utf8), map: "zm_dust", players: 9, max: 26), delay: 0.042),
                     challenge: FakeReply(bytes: FakeServer.oob(0x41, FakeServer.challengeBytes), delay: 0.038),
                     connect: FakeReply(bytes: FakeServer.oobText("9Disconnect: You are banned from this server (CID)"), delay: 0.04)))
             }, log: "Connecting to \(server):27015...\nBad challenge.\nYou have been banned\n")

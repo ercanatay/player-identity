@@ -25,7 +25,7 @@ final class SuggestionTests: XCTestCase {
     ]
 
     func testEveryCodeHasNonEmptySuggestion() {
-        XCTAssertEqual(MessageCode.allCases.count, 20)
+        XCTAssertEqual(MessageCode.allCases.count, 22)   // + §75.13 goldSrcBanUnverified, goldSrcBanned
         for code in MessageCode.allCases {
             XCTAssertFalse(code.suggestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "\(code)")
             XCTAssertNotEqual(code.suggestion, code.text, "\(code) önerisi mesajın tekrarı olmamalı")
@@ -41,7 +41,7 @@ final class SuggestionTests: XCTestCase {
 
     func testCodesOutsideSpecTableAreOnlyDerivedOnes() {
         let outside = Set(MessageCode.allCases).subtracting(Self.table.keys)
-        XCTAssertEqual(outside, [.lanIPMissing, .nameEmpty, .modelEmpty])
+        XCTAssertEqual(outside, [.lanIPMissing, .nameEmpty, .modelEmpty, .goldSrcBanUnverified, .goldSrcBanned])
     }
 
     func testSecondaryLineStartsWithArrow() {

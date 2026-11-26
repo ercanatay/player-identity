@@ -29,7 +29,7 @@ final class DiagnosisFollowUpEvidenceTests: XCTestCase {
             L10n.setting = language
             let env = try TestAppEnvironment()
             let udp = FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(
-                info: FakeReply(bytes: A2SFixture.goldSrc(name: Array("Zombie TR".utf8), map: "zm_dust", players: 9, max: 26), delay: 0.04),
+                info: FakeReply(bytes: A2SFixture.xash(name: Array("Zombie TR".utf8), map: "zm_dust", players: 9, max: 26), delay: 0.04),
                 challenge: FakeReply(bytes: FakeServer.oobText("9You are banned from this server"), delay: 0.03)))
             let model = env.makeModel(udp: udp)
             model.appLanguage = language

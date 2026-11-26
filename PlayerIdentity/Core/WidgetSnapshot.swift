@@ -49,7 +49,7 @@ struct WidgetSnapshot: Codable, Sendable, Equatable {
         /// Same groups as `BanStatus.level`: banned → red, no block → green, unknown/unreachable → orange.
         var banLevel: WidgetStatus {
             switch ban {
-            case "ipBanned", "cidBanned": return .red
+            case "ipBanned", "cidBanned", "goldSrcBanned": return .red
             case "cidOk", "cidNotApplicable": return .green
             case nil: return .unknown
             default: return .orange
@@ -63,6 +63,8 @@ struct WidgetSnapshot: Codable, Sendable, Equatable {
             case "cidBanned": return .banStatusCIDBanned
             case "cidOk", "cidNotApplicable": return .banStatusNoBlock
             case "unreachable": return .banStatusUnreachable
+            case "goldSrcUnverified": return .banStatusGoldSrcUnverified
+            case "goldSrcBanned": return .banStatusGoldSrcBanned
             case nil: return .topbarNotChecked
             default: return .banStatusUnknown
             }

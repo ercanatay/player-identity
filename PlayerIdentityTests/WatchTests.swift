@@ -108,7 +108,7 @@ final class WatchTests: XCTestCase {
         FakeUDPTransport(clock: clock) { endpoint, packet in
             let state = status()
             if state.offline { return [] }
-            let info = FakeReply(bytes: A2SFixture.goldSrc(map: state.map))
+            let info = FakeReply(bytes: A2SFixture.xash(map: state.map))
             let challenge = state.banned ? FakeReply(bytes: FakeServer.oob(0x6C, Array("You are banned".utf8)))
                                          : FakeReply(bytes: FakeServer.oob(0x41, FakeServer.challengeBytes))
             return FakeServer.scripted(info: info, challenge: challenge)(endpoint, packet)

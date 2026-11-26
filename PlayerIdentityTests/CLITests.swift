@@ -160,7 +160,7 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(result.exitCode, 0)
         let object = try json(result)
         XCTAssertEqual(Set(object.keys), ["schemaVersion", "command", "host", "port", "address", "cid", "status", "banned",
-                                          "detail", "checkedAt", "server"])
+                                          "detail", "checkedAt", "server", "protocol", "cidApplicable"])
         XCTAssertEqual(object["status"] as? String, "cidOk")
         XCTAssertEqual(object["banned"] as? Bool, false)
         XCTAssertEqual(object["cid"] as? String, Self.fixtureCID)   // from the identity file
@@ -205,7 +205,7 @@ final class CLITests: XCTestCase {
     private var metricsFile: URL { AppPaths(home: home).metricsFile }
 
     private func a2sTransport() -> FakeUDPTransport {
-        FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc())))
+        FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: A2SFixture.xash())))
     }
 
     func testBanWritesAMetricsSampleOnceAndNoMetricsTurnsItOff() async throws {
@@ -270,7 +270,7 @@ final class CLITests: XCTestCase {
         let servers = try XCTUnwrap(object["servers"] as? [[String: Any]])
         XCTAssertEqual(servers.count, 2)
         XCTAssertEqual(Set(servers[0].keys), ["id", "label", "host", "port", "cid", "group", "favorite", "order",
-                                              "lastCheckedAt", "ban", "appeal"])
+                                              "lastCheckedAt", "ban", "appeal", "protocol", "cidApplicable"])
         XCTAssertEqual((servers[0]["ban"] as? [String: Any])?["status"] as? String, "cidOk")
         XCTAssertEqual(servers[0]["group"] as? String, "Europe")
         XCTAssertTrue(servers[1]["ban"] is NSNull)       // old row without the new fields

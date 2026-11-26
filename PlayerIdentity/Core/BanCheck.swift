@@ -15,6 +15,10 @@ enum BanStatus: String, Codable, Sendable, CaseIterable {
     case cidUnknown
     case unreachable
     case unknown
+    /// §75.13 GoldSrc 48 server: the app's null-ticket checks cannot verify a ban (never "no block").
+    case goldSrcUnverified
+    /// §75.13 GoldSrc 48 server: the engine log of the last GoldSrc connection says the server banned it.
+    case goldSrcBanned
 
     /// §13.3 display text.
     var label: String {
@@ -24,15 +28,17 @@ enum BanStatus: String, Codable, Sendable, CaseIterable {
         case .cidOk, .cidNotApplicable: return L10n.text(.banStatusNoBlock)
         case .unreachable: return L10n.text(.banStatusUnreachable)
         case .unknown, .cidUnknown, .ipOk: return L10n.text(.banStatusUnknown)
+        case .goldSrcUnverified: return L10n.text(.banStatusGoldSrcUnverified)
+        case .goldSrcBanned: return L10n.text(.banStatusGoldSrcBanned)
         }
     }
 
     /// Effect on the overall status (§13.3): ban → red, unreachable/unknown → orange, no block → green.
     var level: StatusLevel {
         switch self {
-        case .ipBanned, .cidBanned: return .red
+        case .ipBanned, .cidBanned, .goldSrcBanned: return .red
         case .cidOk, .cidNotApplicable: return .green
-        case .unreachable, .unknown, .cidUnknown, .ipOk: return .orange
+        case .unreachable, .unknown, .cidUnknown, .ipOk, .goldSrcUnverified: return .orange
         }
     }
 
@@ -53,6 +59,8 @@ enum BanStatus: String, Codable, Sendable, CaseIterable {
         case .unreachable: return .unreachable
         case .unknown, .cidUnknown, .ipOk: return .banUnknown
         case .cidNotApplicable: return .cidNotApplicable
+        case .goldSrcUnverified: return .goldSrcBanUnverified
+        case .goldSrcBanned: return .goldSrcBanned
         case .cidOk: return nil
         }
     }
@@ -102,6 +110,15 @@ enum BanPackets {
     /// `FF FF FF FF` + `getchallenge` + `\n`
     static func getChallenge() -> [UInt8] {
         header + Array("getchallenge\n".utf8)
+    }
+
+    /// §75.3 (v5.4.5) placeholder CID of the protocol capability probe: never a real CID, never derived from the identity.
+    static let capabilityCID = String(repeating: "0", count: 32)
+
+    /// §75.3 the CID-less capability probe: connect 49 with the all-zero placeholder CID. Its only purpose is the
+    /// server's protocol answer ("older protocol ( 48 )" → GoldSrc 48), before any real CID is sent.
+    static func capabilityProbe(challenge: UInt32, qport: UInt16, name: String) -> [UInt8] {
+        connect(challenge: challenge, cid: capabilityCID, qport: qport, name: name)
     }
 
     /// `FF FF FF FF` + `connect 49 <challenge> "<protinfo>" "<userinfo>"` + `\n`
@@ -177,6 +194,28 @@ enum BanReplies {
         return .unrecognized(body)
     }
 
+    /// §75.3 (v5.4.6) what the CID-less capability probe allows — one rule for the automatic check and the diagnosis.
+    enum Capability: Equatable {
+        /// "older/unsupported protocol": GoldSrc 48; the real CID is never sent.
+        case goldSrc(String)
+        /// A ban text to the placeholder CID: a general/IP refusal (no CID was involved); no second packet.
+        case banned(String)
+        /// An explicit accept (`B` / `client_connect`): only now may the real CID be sent.
+        case proceed
+        /// Anything else (or no reply): undecided; no second packet, never "not banned".
+        case unverified(String)
+    }
+
+    static func capability(_ reply: [UInt8]?) -> Capability {
+        guard let reply else { return .unverified("noReply") }
+        switch classifyConnect(reply) {
+        case .ok: return .proceed
+        case .notApplicable(let text): return .goldSrc(text)
+        case .banned(let text): return .banned(text)
+        case .unrecognized(let text): return .unverified(text)
+        }
+    }
+
     static func classifyConnect(_ reply: [UInt8]) -> Connect {
         guard isOutOfBand(reply) else { return .unrecognized("") }
         let text = text(reply)
@@ -205,10 +244,18 @@ struct BanCheckRequest: Sendable, Equatable {
     let host: String
     let port: Int
     let endpoint: UDPEndpoint
-    /// The row's CID; if absent, step (c) is skipped.
+    /// An explicit CID (`playeridentityctl ban --cid`); used only when this check's A2S reply is `source49`.
     let cid: String?
     /// Display name from the profile.
     let name: String
+    /// §75.3 raw identity the CID is derived from — only after this check's A2S reply proved `source49` (never for an
+    /// unknown or GoldSrc 48 server).
+    var rawID: UInt64? = nil
+    /// §75.4 the server's last decided protocol (saved row / this session), used when this A2S reply decides nothing.
+    var knownProtocol: ServerProtocol = .unknown
+
+    /// The CID step (c) would send for a `source49` server.
+    var sourceCID: String? { cid ?? rawID.map { CIDCalculator.cid(rawID: $0, address: endpoint.address) } }
 }
 
 /// One check triple per server; no retries. 4 s per step, 12 s in total.
@@ -252,20 +299,19 @@ struct BanChecker: Sendable {
         // (a) A2S_INFO; its reply also yields the server info (§21), no extra query.
         let infoDeadline = min(start.addingTimeInterval(step), overallDeadline)
         var infoSentAt = now()
-        guard var infoReply = try await exchange(session, BanPackets.info(), until: infoDeadline, ignoreInfo: false) else {
+        guard var infoReply = try await exchangeInfo(session, BanPackets.info(), until: infoDeadline) else {
             return result(.unreachable, [.unreachable])
         }
-        var infoReceivedAt = now()
-        if case .challenge(let challenge) = BanReplies.classifyInfo(infoReply) {
+        var infoReceivedAt = infoReply.receivedAt
+        if case .challenge(let challenge) = BanReplies.classifyInfo(infoReply.bytes) {
             // The same packet is re-sent once with the challenge (a protocol step, not a retry).
             infoSentAt = now()
-            if let reply = try await exchange(session, BanPackets.info(challenge: challenge), until: infoDeadline,
-                                              ignoreInfo: false) {
+            if let reply = try await exchangeInfo(session, BanPackets.info(challenge: challenge), until: infoDeadline) {
                 infoReply = reply
-                infoReceivedAt = now()
+                infoReceivedAt = reply.receivedAt
             }
         }
-        if var parsed = ServerInfoParser.parse(infoReply) {
+        if var parsed = ServerInfoParser.parse(infoReply.bytes) {
             parsed.pingMillis = max(0, Int((infoReceivedAt.timeIntervalSince(infoSentAt) * 1000).rounded()))
             info = parsed
         }
@@ -283,19 +329,87 @@ struct BanChecker: Sendable {
         case .challenge(let value): challenge = value
         }
 
+        // §75.3/§75.5: a GoldSrc 48 server never gets a CID or the modern connect 49 packet; the legacy probe runs
+        // only on a user request (diagnosis), never in this automatic check.
+        // §75.13: such a check can never prove "no ban" (the ban comes after the connection), so the result is
+        // `goldSrcUnverified`, never a green "no block"; the engine log may turn it into `goldSrcBanned`.
+        var serverProtocol = info?.serverProtocol ?? .unknown
+        if serverProtocol == .unknown { serverProtocol = request.knownProtocol }
+        if serverProtocol == .goldsrc48 {
+            return result(.goldSrcUnverified, [.ipOk, .goldSrcUnverified], ServerProtocol.goldsrc48.rawValue)
+        }
+        // §75.4: connect 49 (and the CID in it) only for a proven Source 49 server; `unknown` never gets it.
+        guard serverProtocol == .source49 else { return result(.ipOk, [.ipOk]) }
+
         // (c) connect handshake (only if a challenge was received and a CID exists)
-        guard let cid = request.cid else { return result(.ipOk, [.ipOk]) }
+        guard let cid = request.sourceCID else { return result(.ipOk, [.ipOk]) }
         let connectDeadline = min(now().addingTimeInterval(step), overallDeadline)
+        // §75.3: first the CID-less capability probe — a GoldSrc 48 server answers "older protocol ( 48 )" and never
+        // receives the real CID; only a server that does not say so gets the real CID in a second packet.
+        let capability = BanPackets.capabilityProbe(challenge: challenge, qport: qport(), name: request.name)
+        let capabilityReply = try await exchange(session, capability, until: connectDeadline, ignoreInfo: true)
+        switch BanReplies.capability(capabilityReply) {
+        case .goldSrc(let text):
+            var decided = info ?? ServerInfo()
+            decided.serverProtocol = .goldsrc48
+            info = decided
+            return result(.goldSrcUnverified, [.ipOk, .goldSrcUnverified], text)
+        case .banned(let text):
+            // Refused before any CID: a general/IP ban, not a CID ban.
+            return result(.ipBanned, [.ipBanned], text)
+        case .unverified(let text):
+            return result(.cidUnknown, [.ipOk, .cidUnknown], text == "noReply" ? "" : text)
+        case .proceed:
+            break
+        }
+        // The real CID only after an explicit accept and only while the overall budget lasts.
+        guard now() < overallDeadline else { return result(.cidUnknown, [.ipOk, .cidUnknown]) }
+        let cidDeadline = min(now().addingTimeInterval(step), overallDeadline)
         let packet = BanPackets.connect(challenge: challenge, cid: cid, qport: qport(), name: request.name)
-        guard let connectReply = try await exchange(session, packet, until: connectDeadline, ignoreInfo: true) else {
+        guard let connectReply = try await exchange(session, packet, until: cidDeadline, ignoreInfo: true) else {
             return result(.cidUnknown, [.ipOk, .cidUnknown])
         }
         switch BanReplies.classifyConnect(connectReply) {
         case .ok: return result(.cidOk, [.ipOk, .cidOk])   // stop immediately: no further packets
         case .banned(let text): return result(.cidBanned, [.ipOk, .cidBanned], text)
-        case .notApplicable(let text): return result(.cidNotApplicable, [.ipOk, .cidNotApplicable], text)
+        // §75.13: "older protocol 48" means a GoldSrc 48 server: its effective protocol becomes `goldsrc48` (CID not
+        // applicable, Join Game uses `gs`) and the result is unverified, never a green "no block".
+        case .notApplicable(let text):
+            var decided = info ?? ServerInfo()
+            decided.serverProtocol = .goldsrc48
+            info = decided
+            return result(.goldSrcUnverified, [.ipOk, .goldSrcUnverified], text)
         case .unrecognized(let text): return result(.cidUnknown, [.ipOk, .cidUnknown], text)
         }
+    }
+
+    /// §75.2 how long a Source-layout reply of a GoldSrc 48 server waits for the same server's legacy `0x6D` reply.
+    static let legacyReplyWindow: TimeInterval = 0.3
+
+    /// A2S_INFO exchange that prefers the legacy reply: when the first reply is a Source-layout (`0x49`) reply of a
+    /// GoldSrc 48 server, a `0x6D` reply arriving within a short window (≤ 0.3 s, never past `deadline`) replaces it.
+    func exchangeInfo(_ session: any UDPSession, _ packet: [UInt8],
+                      until deadline: Date) async throws -> (bytes: [UInt8], receivedAt: Date)? {
+        guard let first = try await exchange(session, packet, until: deadline, ignoreInfo: false) else { return nil }
+        let receivedAt = now()
+        guard BanReplies.type(first) == ServerInfoParser.sourceType,
+              ServerInfoParser.parse(first)?.serverProtocol == .goldsrc48 else { return (first, receivedAt) }
+        let windowEnd = min(receivedAt.addingTimeInterval(Self.legacyReplyWindow), deadline)
+        while true {
+            let remaining = windowEnd.timeIntervalSince(now())
+            guard remaining > 0 else { break }
+            let next: [UInt8]?
+            do {
+                next = try await session.receive(timeout: remaining)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                break
+            }
+            guard let next else { break }
+            if BanReplies.type(next) == ServerInfoParser.goldSrcType { return (next, receivedAt) }
+        }
+        return (first, receivedAt)
     }
 
     /// Sends the packet once and waits for the first matching reply until the deadline. Send error = no reply.
@@ -360,7 +474,8 @@ enum BanCheckRunner {
     /// Builds requests from rows; invalid, unresolved or failed host, local machine or invalid port → no check.
     /// Hostnames use their resolved address from `resolutions` (§20).
     static func requests(servers: [ServerEntry], rawID: UInt64?, name: String,
-                         resolutions: [String: HostResolution] = [:]) -> [BanCheckRequest] {
+                         resolutions: [String: HostResolution] = [:],
+                         knownProtocols: [UUID: ServerProtocol] = [:]) -> [BanCheckRequest] {
         servers.compactMap { entry in
             guard let address = HostAddressing.address(for: entry.host, in: resolutions), address != .localMachine,
                   HostValidator.isValidPort(entry.port) else { return nil }
@@ -368,8 +483,10 @@ enum BanCheckRunner {
                                    host: entry.host,
                                    port: entry.port,
                                    endpoint: UDPEndpoint(address: address, port: UInt16(entry.port)),
-                                   cid: rawID.map { CIDCalculator.cid(rawID: $0, address: address) },
-                                   name: name)
+                                   // §75.3: no CID is computed here; the check derives it only when its own A2S
+                                   // reply (or the known protocol) proves Source 49 — never for GoldSrc 48/unknown.
+                                   cid: nil, name: name, rawID: rawID,
+                                   knownProtocol: knownProtocols[entry.id] ?? StatusEvaluator.protocolOf(entry))
         }
     }
 }

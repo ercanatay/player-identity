@@ -105,7 +105,8 @@ enum CLICommand: Sendable, Equatable {
     case serversRemove(target: String, yes: Bool, json: Bool)
     case diagnostics(out: String?, json: Bool)
     // §67.1 diagnosis commands (CLIDiagnose.swift).
-    case diagnose(target: String, timeout: TimeInterval, json: Bool, failOnBan: Bool)
+    /// `confirm` = §75.10 AC-75.R1 `--confirm`: send the GoldSrc 48 legacy probe (a `goldsrc48` server only).
+    case diagnose(target: String, timeout: TimeInterval, json: Bool, failOnBan: Bool, confirm: Bool = false)
     case trend(target: String, window: DiagnosisTrendWindow, json: Bool)
     case report(target: String, window: DiagnosisTrendWindow, unmasked: Bool, out: String?)
     // §73.7 macOS unique identity health (CLIMacIdentity.swift).
@@ -146,6 +147,13 @@ enum CLIParser {
             if let equals = argument.firstIndex(of: "=") {
                 name = String(argument[..<equals])
                 inlineValue = String(argument[argument.index(after: equals)...])
+            }
+            // §75.10: `diagnose … --confirm` is a flag (it takes no value); elsewhere `--confirm <code>` keeps its value.
+            if name == "--confirm", positionals.first == "diagnose" {
+                guard inlineValue == nil else { return .failure(CLIUsageError(message: "--confirm takes no value for diagnose")) }
+                guard !flags.contains("--confirm") else { return .failure(CLIUsageError(message: "--confirm given twice")) }
+                flags.insert("--confirm")
+                continue
             }
             switch name {
             case "--json", "--version", "--help", "-h", "--no-metrics", "--check", "--install", "--yes", "--watch",
@@ -379,6 +387,9 @@ enum CLIParser {
     private static func parseDiagnosis(_ command: String, _ rest: [String], options: [String: String], flags: Set<String>,
                                        json: Bool) -> Result<CLICommand, CLIUsageError> {
         if command == "diagnose", flags.contains("--macos-identity") {
+            if flags.contains("--confirm") {
+                return .failure(CLIUsageError(message: "--confirm is not valid with --macos-identity"))
+            }
             if let name = options.keys.first {
                 return .failure(CLIUsageError(message: "\(name) is not valid for diagnose --macos-identity"))
             }
@@ -416,7 +427,8 @@ enum CLIParser {
                 }
                 timeout = value
             }
-            return .success(.diagnose(target: target, timeout: timeout, json: json, failOnBan: flags.contains("--fail-on-ban")))
+            return .success(.diagnose(target: target, timeout: timeout, json: json, failOnBan: flags.contains("--fail-on-ban"),
+                                      confirm: flags.contains("--confirm")))
         case "trend":
             return .success(.trend(target: target, window: window, json: json))
         default:
@@ -507,11 +519,14 @@ enum CLIRunner {
       servers remove <host:port|index> [--yes] [--json]      remove a server from the saved record
       diagnostics [--out <path>] [--json]                    redacted diagnostics ZIP; default
                                                              ~/Documents/PlayerIdentity-diagnostics-<time>.zip
-      diagnose <host:port|index> [--timeout 5] [--json] [--fail-on-ban]
+      diagnose <host:port|index> [--timeout 5] [--json] [--fail-on-ban] [--confirm]
                                                              connection diagnosis (DNS, A2S_INFO,
                                                              getchallenge, connect 49, engine log);
                                                              --timeout per step (total 4x); adds a
-                                                             line to history.jsonl
+                                                             line to history.jsonl; on a GoldSrc 48
+                                                             server the CID is not used and the
+                                                             GoldSrc connect 48 probe is sent only
+                                                             with --confirm
       diagnose --macos-identity [--json]                     macOS hardware identity health: static
                                                              hardware-identity indicators of the engine,
                                                              is the raw identity zero (read-only;
@@ -597,8 +612,9 @@ enum CLIRunner {
             return serversRemove(target: target, yes: yes, json: json, context: context)
         case .diagnostics(let out, let json):
             return diagnostics(out: out, json: json, context: context)
-        case .diagnose(let target, let timeout, let json, let failOnBan):
-            return await diagnose(target: target, timeout: timeout, json: json, failOnBan: failOnBan, context: context)
+        case .diagnose(let target, let timeout, let json, let failOnBan, let confirm):
+            return await diagnose(target: target, timeout: timeout, json: json, failOnBan: failOnBan, confirm: confirm,
+                                  context: context)
         case .trend(let target, let window, let json):
             return await trend(target: target, window: window, json: json, context: context)
         case .report(let target, let window, let unmasked, let out):
@@ -647,10 +663,17 @@ enum CLIRunner {
         case .failure(let error): return resolutionFailure(error, host: host, command: "ban", json: json)
         }
         let snapshot = SnapshotStore(fileURL: context.snapshotURL).load().snapshot
-        let usedCID = cid ?? localRawID(context: context).map { CIDCalculator.cid(rawID: $0, address: address) }
         let name = snapshot.map(\.displayName).flatMap { $0.isEmpty ? nil : $0 } ?? "player"
-        let request = BanCheckRequest(serverID: UUID(), host: host, port: port,
-                                      endpoint: UDPEndpoint(address: address, port: UInt16(port)), cid: usedCID, name: name)
+        // §75.3: the saved server's decided protocol; a known GoldSrc 48 server never gets a CID computed.
+        let normalized = HostValidator.normalized(host)
+        let knownProtocol = snapshot?.servers.first { HostValidator.normalized($0.host) == normalized && $0.port == port }
+            .map(StatusEvaluator.protocolOf) ?? .unknown
+        var request = BanCheckRequest(serverID: UUID(), host: host, port: port,
+                                      endpoint: UDPEndpoint(address: address, port: UInt16(port)),
+                                      cid: knownProtocol == .goldsrc48 ? nil : cid, name: name)
+        request.knownProtocol = knownProtocol
+        // The raw identity is only read here; the CID is derived in the check only if its A2S reply proves Source 49.
+        if cid == nil { request.rawID = localRawID(context: context) }
         let checker = BanChecker(transport: context.udpTransport, now: context.now, stepTimeout: timeout)
         let check: BanCheck
         do {
@@ -659,14 +682,27 @@ enum CLIRunner {
             return failure("cancelled", "ban check cancelled", command: "ban", json: json, code: CLIExit.network)
         }
         if recordMetrics { recordSample(check, host: host, port: port, snapshot: snapshot, context: context) }
-        let banned = check.status == .ipBanned || check.status == .cidBanned
+        let banned = check.status == .ipBanned || check.status == .cidBanned || check.status == .goldSrcBanned
         let exitCode = banned ? CLIExit.banned : check.status == .unreachable ? CLIExit.network : CLIExit.ok
         let target = endpointText(address: address, host: host, port: port)
+        // §75.3: the CID exists only for a proven Source 49 server (the one step (c) sent); otherwise `null`.
+        var serverProtocol = check.info?.serverProtocol ?? .unknown
+        if serverProtocol == .unknown { serverProtocol = StatusEvaluator.protocolOf(ServerEntry(label: "", host: host,
+                                                                                                banCheck: check)) }
+        if serverProtocol == .unknown { serverProtocol = knownProtocol }
+        // Printed only when the real-CID packet was answered (the capability probe never carries it).
+        let usedCID = serverProtocol == .source49 && [.cidOk, .cidBanned].contains(check.status) ? request.sourceCID : nil
         if json {
             var object: [String: Any] = [
                 "schemaVersion": CLIContext.jsonSchemaVersion, "command": "ban", "host": host, "port": port,
                 "address": address.text ?? host, "cid": usedCID ?? NSNull(), "status": check.status.rawValue,
-                "banned": banned, "detail": check.detail, "checkedAt": iso(check.checkedAt),
+                "protocol": serverProtocol.rawValue,
+                "cidApplicable": serverProtocol.cidApplicable.map { $0 as Any } ?? NSNull(),
+                // §75.13: a GoldSrc 48 server (decided now or known) can never read as "not banned" (`null`).
+                // §75.3 (v5.4.6): an undecided CID check (`cidUnknown`) is not "not banned" either.
+                "banned": (serverProtocol == .goldsrc48 || check.status == .cidUnknown) && !banned ? NSNull() : banned as Any,
+                "detail": check.detail,
+                "checkedAt": iso(check.checkedAt),
                 "server": NSNull(),
             ]
             if let info = check.info, !info.isEmpty {
@@ -677,7 +713,10 @@ enum CLIRunner {
             return CLIResult(exitCode: exitCode, stdout: CLIJSON.string(object), stderr: "")
         }
         var lines = ["\(target) \(check.status.rawValue)", "detail: \(check.detail)"]
-        if usedCID == nil { lines.append("cid: none (IP check only)") }
+        if usedCID == nil {
+            lines.append(serverProtocol == .goldsrc48 ? "cid: none (GoldSrc 48 server: the CID is not used)"
+                                                      : "cid: none (IP check only)")
+        }
         if let info = check.info, !info.isEmpty {
             var parts = [info.name, info.map].compactMap { $0 }
             if let players = info.players { parts.append("\(players)/\(info.maxPlayers.map(String.init) ?? "?")") }
@@ -711,22 +750,31 @@ enum CLIRunner {
             return failure("snapshotUnsupported", "the saved record has schema \(version), this tool reads 1",
                            command: "status", json: json)
         }
-        let bannedCount = snapshot.servers.filter { $0.banCheck?.status == .ipBanned || $0.banCheck?.status == .cidBanned }.count
+        let bannedCount = snapshot.servers.filter {
+            [.ipBanned, .cidBanned, .goldSrcBanned].contains($0.banCheck?.status)
+        }.count
         let exitCode = bannedCount > 0 ? CLIExit.banned : CLIExit.ok
         if json {
             let servers: [[String: Any]] = snapshot.servers.map { entry in
                 var ban: Any = NSNull()
                 if let check = entry.banCheck {
                     ban = ["status": check.status.rawValue, "checkedAt": iso(check.checkedAt), "detail": check.detail,
-                           "banned": check.status == .ipBanned || check.status == .cidBanned] as [String: Any]
+                           "banned": StatusEvaluator.protocolOf(entry) == .goldsrc48 && check.status != .goldSrcBanned
+                               ? NSNull() : [.ipBanned, .cidBanned, .goldSrcBanned].contains(check.status) as Any]
+                        as [String: Any]
                 }
                 var appeal: Any = NSNull()
                 if let value = entry.appeal {
                     appeal = ["status": value.status.rawValue, "channel": value.channel, "sentAt": iso(value.sentAt),
                               "followUpAt": value.followUpAt.map(iso) ?? NSNull()] as [String: Any]
                 }
+                // §75.3: a GoldSrc 48 server has no CID (an old saved legacy CID is not printed).
+                let serverProtocol = StatusEvaluator.protocolOf(entry)
+                let cid: Any = serverProtocol == .goldsrc48 ? NSNull() : entry.cid
                 return ["id": entry.id.uuidString, "label": entry.label, "host": entry.host, "port": entry.port,
-                        "cid": entry.cid, "group": entry.group ?? NSNull(), "favorite": entry.favorite, "order": entry.order,
+                        "cid": cid, "protocol": serverProtocol.rawValue,
+                        "cidApplicable": serverProtocol.cidApplicable.map { $0 as Any } ?? NSNull(),
+                        "group": entry.group ?? NSNull(), "favorite": entry.favorite, "order": entry.order,
                         "lastCheckedAt": entry.lastCheckedAt.map(iso) ?? NSNull(), "ban": ban, "appeal": appeal]
             }
             let object: [String: Any] = [

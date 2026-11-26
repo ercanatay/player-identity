@@ -196,7 +196,7 @@ final class HostAddressingTests: XCTestCase {
         XCTAssertEqual(requests.count, 1)
         XCTAssertEqual(requests.first?.host, "game.example")
         XCTAssertEqual(requests.first?.endpoint, UDPEndpoint(address: TestAddresses.v4("51.68.190.91"), port: 27016))
-        XCTAssertEqual(requests.first?.cid, "d9de0eb4419608a8423241430581e91c")
+        XCTAssertEqual(requests.first?.sourceCID, "d9de0eb4419608a8423241430581e91c")
     }
 
     func testSnapshotStoresCIDOfResolvedAddress() {
@@ -263,7 +263,8 @@ final class AppModelHostnameTests: XCTestCase {
         XCTAssertEqual(model.rowStatus(id)?.currentCID, "d9de0eb4419608a8423241430581e91c")
         XCTAssertEqual(model.rowStatus(id)?.resolvedIP, "51.68.190.91")
         XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)
-        let connect = try XCTUnwrap(udp.sentPackets.first(where: FakeServer.isConnect))
+        // §75.3: the CID-less capability probe comes first; the real CID is in the second connect.
+        let connect = try XCTUnwrap(udp.sentPackets.last(where: FakeServer.isConnect))
         XCTAssertTrue(String(decoding: connect, as: UTF8.self).contains("uuid=d9de0eb4419608a8423241430581e91c"))
 
         clock.advance(60)

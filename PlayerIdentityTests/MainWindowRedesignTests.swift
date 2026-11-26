@@ -125,7 +125,7 @@ final class MainWindowRedesignTests: XCTestCase {
             if endpoint.address == TestAddresses.v4("192.0.2.30") {
                 return FakeServer.scripted(challenge: FakeReply(bytes: FakeServer.oob(0x6C, Array("You are banned".utf8))))(endpoint, packet)
             }
-            return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))(endpoint, packet)
+            return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.xash(), delay: 0.031))(endpoint, packet)
         }
         let model = env.makeModel(udp: udp)
         model.addServer(ServerDraft(label: "Healthy", host: "192.0.2.10"))

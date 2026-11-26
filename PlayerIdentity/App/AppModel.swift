@@ -284,6 +284,10 @@ final class AppModel {
         let id = UUID()
         let serverID: UUID
         let label: String
+        /// §75.4 the address the user is asked about; the confirmation rebuilds the plan for it with the protocol
+        /// known at that moment (a protocol learned while the question was open is used).
+        var host: String = ""
+        var port: Int = ServerEntry.defaultPort
         let plan: GameLaunchPlan
     }
     /// The game is running: "a new connection closes the current game" confirmation.
@@ -407,6 +411,12 @@ final class AppModel {
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private let banScheduler = BanCheckScheduler()
+    /// §75.4 newest decided A2S protocol per server (refresh, recheck, diagnosis); never saved.
+    @ObservationIgnored private(set) var protocolMemory = ServerProtocolMemory()
+    /// §75.13 last "Join Game" (gs) per server in this session: an older engine log block is stale.
+    @ObservationIgnored private(set) var goldSrcJoins: [UUID: Date] = [:]
+    /// §75.13 last successful resolution per hostname (a later DNS failure must not hide the engine log evidence).
+    @ObservationIgnored private var lastResolvedAddresses: [String: String] = [:]
     /// §20: hostname resolutions keyed by normalized hostname (5-minute cache behind it).
     private(set) var hostResolutions: [String: HostResolution] = [:]
     @ObservationIgnored private let hostCache: HostResolutionCache
@@ -553,11 +563,19 @@ final class AppModel {
             let resolved = await hostCache.resolveAll(servers.map(\.host))
             guard current == generation else { return }
             hostResolutions.merge(resolved) { _, new in new }
+            for (name, resolution) in resolved { if let text = resolution.address?.text { lastResolvedAddresses[name] = text } }
+
+            // §75.4 the saved rows' decided protocols seed this session's memory (they survive a restart).
+            for entry in servers {
+                protocolMemory.record(StatusEvaluator.protocolOf(entry), for: entry.id, host: entry.host, port: entry.port,
+                                      at: entry.banCheck?.checkedAt ?? .distantPast)
+            }
 
             // §13 ban check: in parallel with the other network steps; cancelled together with the refresh.
             let banRequests = banCheckEnabled
                 ? BanCheckRunner.requests(servers: servers, rawID: try? profile.identity.get().rawID,
-                                          name: profile.config.name, resolutions: hostResolutions)
+                                          name: profile.config.name, resolutions: hostResolutions,
+                                          knownProtocols: knownProtocols())
                 : []
             let checker = BanChecker(transport: deps.udpTransport, now: deps.now)
             let scheduler = banScheduler
@@ -583,20 +601,76 @@ final class AppModel {
             guard current == generation else { return }
             publicIP = ip
 
-            let bans = await banResults
+            var bans = await banResults
             guard current == generation else { return }
+            let now = deps.now()
+
+            // §75.4 a server known as GoldSrc 48 keeps that protocol when this check decided none (time-out, damaged
+            // reply): its result carries it, so the CID stays N/A and Join Game keeps `gs` (also after a restart).
+            for request in banRequests {
+                guard var fresh = bans[request.serverID], (fresh.info?.serverProtocol ?? .unknown) == .unknown,
+                      launchProtocol(for: request.serverID) == .goldsrc48 else { continue }
+                var info = fresh.info ?? ServerInfo()
+                info.serverProtocol = .goldsrc48
+                fresh.info = info
+                bans[request.serverID] = fresh
+            }
+
+            // §75.13 the engine log is read once and judged per server, independent of the network results: a ban of
+            // this server's last GoldSrc block applies even when A2S timed out, the server was just added or no
+            // check ran; a proven ban is kept until a newer engine session or a fresh Source 49 result replaces it.
+            let fileSystem = deps.fileSystem
+            let root = dataRoot
+            let read = await Task.detached { GoldSrcEngineLog.read(dataRoot: root, fileSystem: fileSystem) }.value
+            guard current == generation else { return }
+            if case .unreadable(let reason) = read { logError(.serverProtocol, "engineLog: " + reason) }
+            var logChecks: [UUID: BanCheck] = [:]
+            for entry in servers {
+                let fresh = bans[entry.id]
+                // A fresh Source 49 result wins over any older GoldSrc evidence.
+                if fresh?.info?.serverProtocol == .source49 { continue }
+                let evidence = read.text.flatMap {
+                    GoldSrcEngineLog.evidence(
+                        in: $0, addresses: goldSrcLogAddresses(entry),
+                        now: now, notBefore: goldSrcJoins[entry.id], redactor: Redactor(home: deps.paths.home))
+                }
+                if let evidence, evidence.outcome == .banned {
+                    var info = fresh?.info ?? entry.banCheck?.info ?? ServerInfo()
+                    info.serverProtocol = .goldsrc48   // the engine connected with the GoldSrc 48 protocol
+                    logChecks[entry.id] = BanCheck(status: .goldSrcBanned, checkedAt: now,
+                                                   detail: "ipOk → goldSrcBanned: " + evidence.reason, info: info)
+                    continue
+                }
+                guard let previous = entry.banCheck, previous.status == .goldSrcBanned else { continue }
+                let newerSession = evidence.map { $0.sessionStart > previous.checkedAt } ?? false
+                if !newerSession { logChecks[entry.id] = previous }
+            }
+            for (id, check) in logChecks where banRequests.contains(where: { $0.serverID == id }) { bans[id] = check }
+
             var samples: [MetricSample] = []
+            var goldSrcIDs: Set<UUID> = []
             for request in banRequests {
                 guard let check = bans[request.serverID],
                       let index = servers.firstIndex(where: { $0.id == request.serverID }),
                       servers[index].host == request.host, servers[index].port == request.port else { continue }
                 servers[index].banCheck = check
+                noteProtocol(check, for: servers[index])
+                if check.info?.serverProtocol == .goldsrc48 { goldSrcIDs.insert(request.serverID) }
                 samples.append(MetricSample(check: check, serverID: request.serverID, host: request.host))
             }
+            // Servers without a check this time (no request, throttled, checks off): the engine log still decides.
+            for (id, check) in logChecks where !banRequests.contains(where: { $0.serverID == id }) {
+                guard let index = servers.firstIndex(where: { $0.id == id }) else { continue }
+                servers[index].banCheck = check
+                noteProtocol(check, for: servers[index])
+                goldSrcIDs.insert(id)
+            }
+            // §75.3/§75.4: the GoldSrc decision (protocol + ban result) and the removal of the legacy CID are written
+            // to the saved record together (only on this successful GoldSrc result; a failed refresh removes nothing).
+            persistGoldSrcDecisions(goldSrcIDs)
             recordMetrics(samples)
             evaluateWatch(banRequests.compactMap { request in bans[request.serverID].map { (request.serverID, $0) } })
 
-            let now = deps.now()
             lastChecked = now
             for index in servers.indices { servers[index].lastCheckedAt = now }
         }
@@ -619,7 +693,8 @@ final class AppModel {
                                    lanIPs: lanAddresses.map(\.display),
                                    publicIP: publicIP,
                                    servers: servers,
-                                   resolutions: hostResolutions)
+                                   resolutions: hostResolutions,
+                                   knownProtocols: knownProtocols())
         report = StatusEvaluator.evaluate(current: current, snapshot: snapshotState)
     }
 
@@ -639,6 +714,7 @@ final class AppModel {
             await previous?.value
             let resolution = await cache.resolve(name)
             hostResolutions[name] = resolution
+            if let text = resolution.address?.text { lastResolvedAddresses[name] = text }
             reevaluate()
         }
     }
@@ -1264,14 +1340,20 @@ final class AppModel {
         let launcher = gameLauncher
         let gamedir = selectedGamedir
         let known = hostResolutions
+        // §75.4: the newest A2S result decides `gs` (GoldSrc 48); `unknown` launches like `source49`.
+        let serverProtocol = launchProtocol(for: id)
+        let root = dataRoot
         let task = Task {
             defer { joinTask = nil }
             do {
-                let plan = try await launcher.plan(host: entry.host, port: entry.port, gamedir: gamedir, known: known)
+                let plan = try await launcher.plan(host: entry.host, port: entry.port, gamedir: gamedir, known: known,
+                                                   serverProtocol: serverProtocol, dataRoot: root)
                 if plan.gameRunning {
-                    pendingJoin = JoinRequest(serverID: id, label: entry.label, plan: plan)
+                    pendingJoin = JoinRequest(serverID: id, label: entry.label, host: entry.host, port: entry.port,
+                                              plan: plan)
                 } else {
                     try await launcher.launch(plan) { true }
+                    noteGoldSrcJoin(plan, for: id)
                 }
             } catch let error as GameLaunchError {
                 joinError = error
@@ -1288,10 +1370,23 @@ final class AppModel {
     func confirmJoin() -> Task<Void, Never>? {
         guard let request = pendingJoin else { return nil }
         pendingJoin = nil
+        // §75.4: the server must still be the one asked about; the plan is rebuilt with the protocol known now.
+        guard let entry = servers.first(where: { $0.id == request.serverID }), entry.host == request.host,
+              entry.port == request.port else {
+            joinError = .cancelled
+            return nil
+        }
         let launcher = gameLauncher
+        let gamedir = selectedGamedir
+        let known = hostResolutions
+        let serverProtocol = launchProtocol(for: entry.id)
+        let root = dataRoot
         return Task {
             do {
-                try await launcher.launch(request.plan) { true }
+                let plan = try await launcher.plan(host: entry.host, port: entry.port, gamedir: gamedir, known: known,
+                                                   serverProtocol: serverProtocol, dataRoot: root)
+                try await launcher.launch(plan) { true }
+                noteGoldSrcJoin(plan, for: request.serverID)
             } catch let error as GameLaunchError {
                 joinError = error
             } catch {
@@ -1313,7 +1408,7 @@ final class AppModel {
 
     /// CID copied for a row: the current one, else the CID saved with the row.
     func menuBarCID(for id: UUID) -> String? {
-        guard let entry = servers.first(where: { $0.id == id }) else { return nil }
+        guard let entry = servers.first(where: { $0.id == id }), !isCIDNotApplicable(id) else { return nil }
         let cid = rowStatus(id)?.currentCID ?? entry.cid
         return cid.isEmpty ? nil : cid
     }
@@ -1437,7 +1532,8 @@ final class AppModel {
     /// Card content for a row; labels and date in the user's language.
     func shareCardContent(for id: UUID, icon: CGImage?) -> ShareCardContent? {
         guard let entry = servers.first(where: { $0.id == id }) else { return nil }
-        let cid = rowStatus(id)?.currentCID ?? entry.cid
+        // §75.3: a GoldSrc 48 server has no CID ("N/A" instead of an old saved CID).
+        let cid = isCIDNotApplicable(id) ? L10n.text(.serversGoldsrcCidNA) : rowStatus(id)?.currentCID ?? entry.cid
         let host = ServerAddress.parse(entry.host).flatMap { address -> String? in
             if case .ipv6 = address { return "[\(entry.host)]" }
             return nil
@@ -1862,6 +1958,7 @@ final class AppModel {
            let index = servers.firstIndex(where: { $0.id == serverID }),
            servers[index].host == request.host, servers[index].port == request.port {
             servers[index].banCheck = check
+            noteProtocol(check, for: servers[index])
             fixedSinceSave = true
         }
         reevaluate()
@@ -1894,6 +1991,7 @@ final class AppModel {
             guard let check, let index = servers.firstIndex(where: { $0.id == id }),
                   servers[index].host == request.host, servers[index].port == request.port else { return }
             servers[index].banCheck = check
+            noteProtocol(check, for: servers[index])
             fixedSinceSave = true
             reevaluate()
             fixSession?.note = L10n.format(.fixRecheckResult, check.status.label, TimeText.format(check.checkedAt))
@@ -1907,7 +2005,9 @@ final class AppModel {
     func appealText(for id: UUID, check override: BanCheck? = nil) -> String? {
         guard let entry = servers.first(where: { $0.id == id }), let check = override ?? entry.banCheck else { return nil }
         let rawID = try? identity?.get().rawID
-        let cid = rawID.flatMap { raw in address(for: entry).map { CIDCalculator.cid(rawID: raw, address: $0) } }
+        // §75.3: no CID is computed for a GoldSrc 48 server.
+        let cid = isCIDNotApplicable(id) ? L10n.text(.serversGoldsrcCidNotUsed)
+            : rawID.flatMap { raw in address(for: entry).map { CIDCalculator.cid(rawID: raw, address: $0) } }
             ?? L10n.text(.appealUnknown)
         var rangeBan: RangeBanInfo?
         if case .finished(.rangeBanned(let old, let new, let cidr), _)? = fixSession?.phase, fixSession?.id == id {
@@ -1961,7 +2061,16 @@ final class AppModel {
         let diagnoser: ConnectionDiagnoser
         /// §68.1 / §68.2: the details' diagnosis also asks A2S_RULES and the ban record (once per run).
         var queryRules = false
+        /// §75.10 AC-75.R1: the GoldSrc legacy probe is sent only for a diagnosis the user started (button, menu bar,
+        /// server browser); never for Shortcuts/automation.
+        var legacyProbeConfirmed = false
         var banLookup: BanRecordLookup? = nil
+        /// §75.13 the last "Join Game" (gs) of the server in this session.
+        var goldSrcJoin: Date? = nil
+        /// §75.4 the last decided A2S protocol of the server.
+        var knownProtocol: ServerProtocol = .unknown
+        /// §75.13 IPs known for the server (last resolution, saved A2S address string) for the engine log match.
+        var knownAddresses: [String?] = []
 
         /// Probe + engine log; throws `CancellationError` when cancelled.
         func run(progress: @escaping @Sendable (DiagnosisProgress) async -> Void = { _ in }) async throws -> ConnectionDiagnosis {
@@ -1972,7 +2081,9 @@ final class AppModel {
             let vpnActive = await Task.detached { reporter.report().isVPNActive }.value
             let request = ConnectionDiagnosisRequest(host: entry.host, port: entry.port, rawID: rawID, name: name,
                                                      checksEnabled: checksEnabled, vpnActive: vpnActive,
-                                                     knownRange: knownRange, queryRules: queryRules)
+                                                     knownRange: knownRange, queryRules: queryRules,
+                                                     legacyProbeConfirmed: legacyProbeConfirmed,
+                                                     knownProtocol: knownProtocol)
             let lookup = banLookup
             async let recordOutcome: BanRecordOutcome? = lookup?.run()
             let probe = try await diagnoser.run(request, progress: progress)
@@ -1980,12 +2091,28 @@ final class AppModel {
             let log = await Task.detached {
                 EngineLogReader.read(dataRoot: root, gamedir: gamedir, fileSystem: fileSystem, redactor: redactor)
             }.value
+            // §75.13 GoldSrc 48: the engine log of the last GoldSrc connection to this server.
+            var goldSrcLog: GoldSrcLogEvidence?
+            var goldSrcLogError: String?
+            if probe.serverProtocol != .source49 {
+                let read = await Task.detached { GoldSrcEngineLog.read(dataRoot: root, fileSystem: fileSystem) }.value
+                if case .unreadable(let reason) = read { goldSrcLogError = reason }
+                goldSrcLog = read.text.flatMap {
+                    GoldSrcEngineLog.evidence(in: $0, addresses: GoldSrcEngineLog.addresses(
+                                                host: entry.host, port: entry.port, resolved: probe.address,
+                                                known: knownAddresses + [probe.info?.reportedAddress]),
+                                              now: diagnoser.now(), notBefore: goldSrcJoin, redactor: redactor)
+                }
+            }
             let banRecord = await recordOutcome
             try Task.checkCancellation()
             let durationMs = max(0, Int((diagnoser.now().timeIntervalSince(started) * 1000).rounded()))
-            return ConnectionDiagnosis(serverID: entry.id, label: entry.label, host: entry.host, port: entry.port,
-                                       startedAt: started, probe: probe, engineLog: log, publicIP: publicIP,
-                                       durationMs: durationMs, banRecord: banRecord)
+            var diagnosis = ConnectionDiagnosis(serverID: entry.id, label: entry.label, host: entry.host, port: entry.port,
+                                                startedAt: started, probe: probe, engineLog: log, publicIP: publicIP,
+                                                durationMs: durationMs, banRecord: banRecord)
+            diagnosis.goldSrcLog = goldSrcLog
+            diagnosis.goldSrcLogError = goldSrcLogError
+            return diagnosis
         }
     }
 
@@ -1999,7 +2126,9 @@ final class AppModel {
                             started: deps.now(), publicIP: publicIP,
                             historyStore: HistoryStore(fileURL: deps.paths.historyFile),
                             diagnoser: ConnectionDiagnoser(transport: deps.udpTransport, resolver: deps.resolver,
-                                                           now: deps.now))
+                                                           now: deps.now),
+                            goldSrcJoin: goldSrcJoins[id], knownProtocol: launchProtocol(for: id),
+                            knownAddresses: knownAddresses(entry))
     }
 
     /// §64.1: DNS → A2S_INFO → getchallenge → connect 49 → verdict, plus the read-only engine log (§64.3). The server
@@ -2008,6 +2137,7 @@ final class AppModel {
     func startDiagnosis(for id: UUID) -> Task<Void, Never>? {
         guard var job = diagnosisJob(for: id) else { return nil }
         job.queryRules = true
+        job.legacyProbeConfirmed = true
         switch banRecordLookup(for: id) {
         case .success(let lookup)?:
             job.banLookup = lookup
@@ -2031,6 +2161,7 @@ final class AppModel {
                 diagnosisSession?.current = nil
                 diagnosisSession?.isRunning = false
                 lastDiagnoses[id] = diagnosis
+                noteProtocol(diagnosis, for: id)
                 if let outcome = diagnosis.banRecord { finishBanRecord(outcome, for: id) }
                 let line = diagnosis.historyEntry
                 recordHistory { recorder in
@@ -2071,7 +2202,8 @@ final class AppModel {
     /// notification (notification switches, quiet hours and the server's §56 override apply).
     @discardableResult
     func startMenuBarDiagnosis(for id: UUID) -> Task<Void, Never>? {
-        guard canDiagnoseFromMenuBar(id), let job = diagnosisJob(for: id) else { return nil }
+        guard canDiagnoseFromMenuBar(id), var job = diagnosisJob(for: id) else { return nil }
+        job.legacyProbeConfirmed = true
         menuBarDiagnoses[id] = .running
         let task = Task {
             defer { menuBarDiagnosisTasks[id] = nil }
@@ -2079,6 +2211,7 @@ final class AppModel {
                 let diagnosis = try await job.run()
                 menuBarDiagnoses[id] = .finished(diagnosis.verdict, durationMs: diagnosis.durationMs ?? 0)
                 lastDiagnoses[id] = diagnosis
+                noteProtocol(diagnosis, for: id)
                 let line = diagnosis.historyEntry
                 // §66.2: a range ban carries the "Copy Unban Message" action.
                 let content = MenuBarDiagnosisText.notification(verdict: diagnosis.verdict, server: job.entry,
@@ -2427,6 +2560,7 @@ final class AppModel {
         guard let job = diagnosisJob(for: id) else { throw IntentFailure.serverNotFound(id.uuidString) }
         let diagnosis = try await job.run()
         lastDiagnoses[id] = diagnosis
+        noteProtocol(diagnosis, for: id)
         let line = diagnosis.historyEntry
         recordHistory { recorder in
             await recorder.record(line)
@@ -3666,6 +3800,99 @@ final class AppModel {
     var errorLog: ErrorLog { deps.errorLog }
 
     /// Records an error for the diagnostics package only; nothing is shown to the user.
+    // MARK: §75 GoldSrc 48
+
+    /// §75.3 the row is a GoldSrc 48 server: no CID is computed, shown or copied.
+    func isCIDNotApplicable(_ id: UUID) -> Bool {
+        // §75.3: the protocol memory first (a known GoldSrc server never shows a saved CID, whatever its address).
+        if launchProtocol(for: id) == .goldsrc48 { return true }
+        if let status = rowStatus(id) { return status.cidNotApplicable }
+        return servers.first { $0.id == id }?.banCheck?.info?.serverProtocol == .goldsrc48
+    }
+
+    /// §75.13 IPs the app knows for a row besides the current resolution: the last successful resolution of its
+    /// hostname and the address string of its saved A2S reply (both IP literals only).
+    private func knownAddresses(_ entry: ServerEntry) -> [String?] {
+        // Only while the row has no current address (DNS loss): a resolved row is matched by its current address.
+        guard address(for: entry) == nil else { return [] }
+        let name = HostValidator.classify(entry.host).flatMap { kind -> String? in
+            if case .hostname(let name) = kind { return name }
+            return nil
+        }
+        return [name.flatMap { lastResolvedAddresses[$0] }, entry.banCheck?.info?.reportedAddress]
+    }
+
+    /// §75.13 every `host:port` form the engine log may name for this row.
+    private func goldSrcLogAddresses(_ entry: ServerEntry) -> Set<String> {
+        GoldSrcEngineLog.addresses(host: entry.host, port: entry.port, resolved: address(for: entry)?.text,
+                                   known: knownAddresses(entry))
+    }
+
+    /// §75.4 decided protocols of all rows (for the status evaluation and the ban check requests).
+    func knownProtocols() -> [UUID: ServerProtocol] {
+        Dictionary(servers.compactMap { entry in
+            let decided = protocolMemory.launchProtocol(for: entry)
+            return decided == .unknown ? nil : (entry.id, decided)
+        }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// §75.4 protocol "Join Game" uses for the row.
+    func launchProtocol(for id: UUID) -> ServerProtocol {
+        guard let entry = servers.first(where: { $0.id == id }) else { return .unknown }
+        return protocolMemory.launchProtocol(for: entry)
+    }
+
+    /// §75.13 remembers a GoldSrc launch (the engine log blocks before it are stale for this server).
+    private func noteGoldSrcJoin(_ plan: GameLaunchPlan, for id: UUID) {
+        guard plan.command.serverProtocol == .goldsrc48 else { return }
+        goldSrcJoins[id] = deps.now()
+    }
+
+    private func noteProtocol(_ check: BanCheck, for entry: ServerEntry) {
+        guard let serverProtocol = check.info?.serverProtocol else { return }
+        protocolMemory.record(serverProtocol, for: entry.id, host: entry.host, port: entry.port, at: check.checkedAt)
+    }
+
+    private func noteProtocol(_ diagnosis: ConnectionDiagnosis, for id: UUID) {
+        if let error = diagnosis.goldSrcLogError { logError(.serverProtocol, "engineLog: " + error) }
+        guard let entry = servers.first(where: { $0.id == id }), entry.host == diagnosis.host,
+              entry.port == diagnosis.port else { return }
+        protocolMemory.record(diagnosis.serverProtocol, for: id, host: entry.host, port: entry.port,
+                              at: diagnosis.startedAt)
+    }
+
+    /// §75.3/§75.4: rows decided as GoldSrc 48 by this refresh (A2S reply or engine log) lose their legacy CID, and
+    /// their GoldSrc result (protocol + ban status) is written into the saved record in the same atomic write
+    /// (bookkeeping, not an unsaved change; the rest of the record is unchanged). A write error is logged.
+    private func persistGoldSrcDecisions(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for index in servers.indices where ids.contains(servers[index].id) && !servers[index].cid.isEmpty {
+            servers[index].cid = ""
+        }
+        guard var saved = snapshotState.snapshot else { return }
+        var changed = false
+        for index in saved.servers.indices where ids.contains(saved.servers[index].id) {
+            guard let current = servers.first(where: { $0.id == saved.servers[index].id }),
+                  current.host == saved.servers[index].host, current.port == saved.servers[index].port else { continue }
+            if !saved.servers[index].cid.isEmpty {
+                saved.servers[index].cid = ""
+                changed = true
+            }
+            if saved.servers[index].banCheck != current.banCheck {
+                saved.servers[index].banCheck = current.banCheck
+                changed = true
+            }
+        }
+        guard changed else { return }
+        do {
+            try deps.snapshotStore.save(saved)
+        } catch {
+            logError(.serverProtocol, "goldSrcRecord: \(error.localizedDescription)")
+            return
+        }
+        snapshotState = .loaded(saved)
+    }
+
     func logError(_ area: ErrorLogArea, _ message: String) {
         deps.errorLog.record(area, message, at: deps.now())
     }

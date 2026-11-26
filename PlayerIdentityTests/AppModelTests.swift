@@ -397,7 +397,7 @@ final class AppModelTests: XCTestCase {
         model.addServer(ServerDraft(label: "A", host: "5.161.189.195"))
         await model.refresh().value
         let afterFirst = udp.sentCount
-        XCTAssertEqual(afterFirst, 3)
+        XCTAssertEqual(afterFirst, 4)   // info, getchallenge, capability probe, connect (§75.3)
         let firstCheck = model.servers.first?.banCheck
 
         clock.advance(5)

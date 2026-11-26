@@ -44,12 +44,12 @@ final class CLIDiagnoseTests: XCTestCase {
 
     /// Healthy server with a full A2S answer → `noBan`.
     private func cleanServer() -> FakeUDPTransport {
-        FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc())))
+        FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: A2SFixture.xash())))
     }
 
     private func cidBannedServer() -> FakeUDPTransport {
         FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: A2SFixture.goldSrc()),
+            info: FakeReply(bytes: A2SFixture.xash()),
             connect: FakeReply(bytes: FakeServer.oobText("errormsg\nYou are banned (CID)\n"))))
     }
 

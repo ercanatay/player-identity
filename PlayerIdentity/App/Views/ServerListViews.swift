@@ -752,7 +752,16 @@ struct ServerRowView: View {
     /// CID 8…8 (click to copy); orange when it differs from the record, "—" without an address.
     @ViewBuilder
     private var cidCell: some View {
-        if let cid = status?.currentCID {
+        if status?.cidNotApplicable == true {
+            // §75.3 GoldSrc 48: no CID on this server (never the old saved legacy CID).
+            Text(verbatim: L10n.text(.serversGoldsrcCidNA))
+                .font(TypeScale.mono)
+                .foregroundStyle(Palette.text2)
+                .lineLimit(1)
+                .help(L10n.text(.serversGoldsrcCidNotUsed))
+                .accessibilityLabel(L10n.text(.serversColumnCID) + " " + L10n.text(.serversGoldsrcCidNotUsed))
+                .accessibilityIdentifier("serverCIDNotApplicable")
+        } else if let cid = status?.currentCID {
             let changed = status?.message == .serverCIDChanged
             Button {
                 actions.copy(cid)
@@ -966,7 +975,7 @@ struct BanCellContent: Equatable {
         }
         let lastCheck = L10n.format(.topbarLastCheck, TimeText.format(check.checkedAt))
         switch check.status {
-        case .ipBanned, .cidBanned:
+        case .ipBanned, .cidBanned, .goldSrcBanned:
             return BanCellContent(symbol: "xmark.octagon.fill", iconColor: Palette.red, textColor: Palette.redText,
                                   title: L10n.text(.banMatrixCellBanned), detail: check.status.label, help: tooltip(check))
         case .cidOk, .cidNotApplicable:
@@ -975,7 +984,7 @@ struct BanCellContent: Equatable {
         case .unreachable:
             return BanCellContent(symbol: "exclamationmark.circle", iconColor: Palette.orange, textColor: Palette.text,
                                   title: check.status.label, detail: lastCheck, help: tooltip(check))
-        case .unknown, .cidUnknown, .ipOk:
+        case .unknown, .cidUnknown, .ipOk, .goldSrcUnverified:
             var detail = lastCheck
             if case .rejectedUnknownType(let raw) = BanClassification.classify(check) {
                 // §17.9.2: server rejected, type unknown → the raw reply is shown.

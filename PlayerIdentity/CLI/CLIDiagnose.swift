@@ -156,7 +156,7 @@ extension CLIRunner {
 
     // MARK: diagnose
 
-    static func diagnose(target text: String, timeout: TimeInterval, json: Bool, failOnBan: Bool,
+    static func diagnose(target text: String, timeout: TimeInterval, json: Bool, failOnBan: Bool, confirm: Bool = false,
                          context: CLIContext) async -> CLIResult {
         let target: CLIServerTarget
         let snapshot: Snapshot?
@@ -167,9 +167,13 @@ extension CLIRunner {
         let historyStore = HistoryStore(fileURL: context.historyURL)
         let knownRange = BanMatrix.rangeBans(from: historyStore.load())[target.serverID]
         let name = snapshot.map(\.displayName).flatMap { $0.isEmpty ? nil : $0 } ?? "player"
-        let request = ConnectionDiagnosisRequest(host: target.host, port: target.port, rawID: localRawID(context: context),
+        var request = ConnectionDiagnosisRequest(host: target.host, port: target.port, rawID: localRawID(context: context),
                                                  name: name, checksEnabled: true, vpnActive: context.vpnActive(),
                                                  knownRange: knownRange)
+        // §75.10 AC-75.R1: the GoldSrc 48 legacy probe only with `--confirm`.
+        request.legacyProbeConfirmed = confirm
+        // §75.4 a saved server's last decided protocol (its saved A2S result).
+        request.knownProtocol = snapshot?.servers.first { $0.id == target.serverID }.map(StatusEvaluator.protocolOf) ?? .unknown
         let diagnoser = ConnectionDiagnoser(transport: context.udpTransport, resolver: context.resolver, now: context.now,
                                             stepTimeout: timeout,
                                             totalTimeout: timeout * Double(DiagnosisStepKind.probeSteps.count))
@@ -185,15 +189,34 @@ extension CLIRunner {
                                        redactor: Redactor(home: context.paths.home))
         let durationMs = max(0, Int((context.now().timeIntervalSince(started) * 1000).rounded()))
         let publicIP = snapshot.flatMap { $0.network.publicIP.isEmpty ? nil : $0.network.publicIP }
-        let diagnosis = ConnectionDiagnosis(serverID: target.serverID, label: target.label, host: target.host,
+        var diagnosis = ConnectionDiagnosis(serverID: target.serverID, label: target.label, host: target.host,
                                             port: target.port, startedAt: started, probe: probe, engineLog: log,
                                             publicIP: publicIP, durationMs: durationMs)
+        // §75.13 the engine log of the last GoldSrc connection to this server (read-only), also when this run's A2S
+        // query decided nothing.
+        var logWarning = ""
+        if probe.serverProtocol != .source49 {
+            switch GoldSrcEngineLog.read(dataRoot: folder.root, fileSystem: context.fileSystem) {
+            case .data(let text):
+                diagnosis.goldSrcLog = GoldSrcEngineLog.evidence(
+                    in: text, addresses: GoldSrcEngineLog.addresses(
+                        host: target.host, port: target.port, resolved: probe.address,
+                        known: [probe.info?.reportedAddress,
+                                snapshot?.servers.first { $0.id == target.serverID }?.banCheck?.info?.reportedAddress]),
+                    now: context.now(), redactor: Redactor(home: context.paths.home))
+            case .unreadable(let reason):
+                diagnosis.goldSrcLogError = reason
+                logWarning = "playeridentityctl: warning: the engine log could not be read (\(reason))\n"
+            case .missing:
+                break
+            }
+        }
         // §64.1: the result is written to the history only (the record is not changed).
-        var stderr = ""
+        var stderr = logWarning
         do {
             try historyStore.append([diagnosis.historyEntry])
         } catch {
-            stderr = "playeridentityctl: warning: the history line could not be written (\(error.localizedDescription))\n"
+            stderr += "playeridentityctl: warning: the history line could not be written (\(error.localizedDescription))\n"
         }
         let verdict = diagnosis.verdict
         let exitCode = diagnosis.networkUnavailable ? CLIExit.network
@@ -209,12 +232,28 @@ extension CLIRunner {
 
     static func diagnoseJSON(_ diagnosis: ConnectionDiagnosis, target: CLIServerTarget) -> [String: Any] {
         let log = diagnosis.engineLog
+        let goldSrc = diagnosis.serverProtocol == .goldsrc48
         return [
             "schemaVersion": CLIContext.jsonSchemaVersion, "command": "diagnose", "server": serverJSON(target),
             "verdict": diagnosis.verdict.rawValue, "probeVerdict": diagnosis.probeVerdict.rawValue,
-            "verdictFromLog": diagnosis.verdictFromLog, "banned": diagnosis.verdict.isBan,
+            // §75.13: GoldSrc 48 without a ban text → `null` (never `false`).
+            "verdictFromLog": diagnosis.verdictFromLog, "banned": diagnosis.bannedValue.map { $0 as Any } ?? NSNull(),
             "sentence": diagnosis.verdict.sentence, "advice": diagnosis.verdict.advice,
-            "address": diagnosis.probe.address ?? NSNull(), "cid": diagnosis.probe.cid ?? NSNull(),
+            "address": diagnosis.probe.address ?? NSNull(),
+            // §75.9: a GoldSrc 48 server never has a CID (`null`, `cidApplicable: false`); `unknown` decides nothing.
+            "cid": goldSrc ? NSNull() : diagnosis.probe.cid ?? NSNull(),
+            "protocol": diagnosis.serverProtocol.rawValue, "goldSrc": goldSrc,
+            "cidApplicable": diagnosis.serverProtocol.cidApplicable.map { $0 as Any } ?? NSNull(),
+            "goldSrcProbe": diagnosis.goldSrc?.outcome.rawValue ?? NSNull(),
+            "message": diagnosis.goldSrc.map { probe -> Any in probe.message.isEmpty ? NSNull() : probe.message } ?? NSNull(),
+            "serverMessage": diagnosis.serverMessage ?? NSNull(),
+            "goldSrcEvidence": diagnosis.verdict == .goldSrcBanned
+                ? (diagnosis.goldSrcLog?.outcome == .banned ? "engineLog" : "probe") as Any : NSNull(),
+            "goldSrcEngineLog": diagnosis.goldSrcLog.map { log -> Any in
+                ["outcome": log.outcome.rawValue, "reason": log.reason, "address": log.address,
+                 "sessionStart": iso(log.sessionStart)] as [String: Any]
+            } ?? NSNull(),
+            "uniqueness_verified": false,
             "startedAt": iso(diagnosis.startedAt), "durationMs": diagnosis.durationMs ?? NSNull(),
             "networkUnavailable": diagnosis.networkUnavailable,
             "steps": diagnosis.steps.map { step in
@@ -240,6 +279,27 @@ extension CLIRunner {
         ]
         if diagnosis.verdictFromLog {
             lines.append("          (decided by the engine log; the probe found \(diagnosis.probeVerdict.rawValue))")
+        }
+        lines.append("protocol: \(diagnosis.serverProtocol.rawValue)")
+        if verdict.isGoldSrc {
+            // §75.9: no CID, no ticket, no identity; the server message is cleaned and cut.
+            let goldSrc = diagnosis.goldSrc
+            let text = GoldSrcDiagnosisText(diagnosis: diagnosis, goldSrc: goldSrc)
+            lines.append("cid:      none (\(text.cidLine))")
+            lines.append("goldsrc:  \(text.outcome)")
+            if let probe = text.probe { lines.append("probe:    \(goldSrc?.outcome.rawValue ?? "-") - \(probe)") }
+            if let limit = text.probeLimit { lines.append("          \(limit)") }
+            lines.append("log:      \(text.engineLog)")
+            if let scope = text.banScope { lines.append("          \(scope)") }
+            if let message = text.serverMessage { lines.append("          \(message)") }
+            if let request = text.request {
+                lines.append("request:  \(text.adminTitle ?? "") - \(text.adminText ?? "")")
+                lines.append(contentsOf: request.split(separator: "\n").map { "          " + $0 })
+            }
+            lines.append("join:     \(text.join)")
+            if goldSrc?.outcome == .notConfirmed {
+                lines.append("          run again with --confirm to send the GoldSrc connect 48 probe")
+            }
         }
         lines.append("steps:")
         let width = DiagnosisStepKind.allCases.map(\.rawValue.count).max() ?? 0
@@ -373,7 +433,18 @@ extension ConnectionDiagnosis {
             return DiagnosisStep(step: kind, status: status, durationMs: DiagnosisStep.unknownDuration,
                                  target: kind == .dns ? target.host : stepTarget, detail: "")
         }
-        let probe = ConnectionProbeResult(steps: steps, facts: DiagnosisFacts(), verdict: probeVerdict, cid: cid)
+        var probe = ConnectionProbeResult(steps: steps, facts: DiagnosisFacts(), verdict: probeVerdict, cid: cid)
+        // §75.6 the GoldSrc outcome written with the steps (`goldsrc=<outcome>`); the server message is not kept.
+        if verdict.isGoldSrc {
+            probe.cid = nil
+            probe.serverProtocol = .goldsrc48
+            let outcome = (entry.note ?? "").split(separator: " ").lazy
+                .compactMap { pair -> GoldSrcProbeOutcome? in
+                    guard pair.hasPrefix("goldsrc=") else { return nil }
+                    return GoldSrcProbeOutcome(rawValue: String(pair.dropFirst("goldsrc=".count)))
+                }.first
+            probe.goldSrc = outcome.map { GoldSrcProbeResult($0) }
+        }
         self.init(serverID: target.serverID, label: target.label, host: target.host, port: target.port,
                   startedAt: entry.ts, probe: probe, engineLog: engineLog, publicIP: publicIP,
                   durationMs: entry.durationMs, recordedVerdict: verdict)

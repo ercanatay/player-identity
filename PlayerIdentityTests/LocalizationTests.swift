@@ -308,6 +308,12 @@ enum LiteralScanner {
         // §64.3 engine log lines matched verbatim (engine text, never shown as UI copy on their own).
         "Server is not responding", "Bad challenge", "NET_SendPacket ERROR", "Connection reset", "Invalid CD key",
         "Your IP is banned", "You have been banned", "Couldn't connect",
+        // §75.6 GoldSrc challenge request (protocol string).
+        "getchallenge steam",
+        // §75.13 engine log lines of a GoldSrc connection (engine text, matched verbatim).
+        "Trying to connect with GoldSrc", "Server issued disconnect", "Game started at", "Connecting to",
+        "Server message", "yyyy '['HH:mm.ss']'",
+        "Spooling demo header", "you have been banned", "you are banned", "you're banned", "banned from this server",
     ]
     private static let uiAPI = try! NSRegularExpression(pattern:
         #"(\b(Text|Button|Label|Toggle|TextField|SecureField|LabeledContent|Picker|Menu|Window|Section|GroupBox|Link|Card|FieldRow|ServerFormSheet)\(\s*((title|confirmTitle):\s*)?|\.(help|accessibilityLabel|accessibilityHint|accessibilityValue|alert|navigationTitle|setAccessibilityLabel)\(\s*|\b(messageText|informativeText|prompt|message|title)\s*=\s*|withTitle:\s*|confirmTitle:\s*)$"#)

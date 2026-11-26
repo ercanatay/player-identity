@@ -58,9 +58,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.25.0
+## What's new in v2.26.0
 
-- **Install Compatible Engine**: when the macOS hardware identity card says *Not supported*, the app can install the official Xash3D-FWGS build (`continuous`) over the engine after a confirmation: SHA-256 check, full backup, atomic swap and rollback. **The CID may change** with the new engine; a server ban or account record may not match the new identity. The engine is never opened on its own, Gatekeeper is never bypassed (System Settings → Privacy & Security → "Open Anyway" if macOS asks) and Intel Macs keep the release page only. Settings → Data → Engine backups keeps the newest 3 backups. CLI: `playeridentityctl engine status | install-compatible | backups`.
+- **GoldSrc 48 servers**: the A2S_INFO reply tells GoldSrc protocol 48 servers (legacy `0x6D` reply, or a `0x49` reply with protocol byte 48) from Source/Xash protocol 49 servers. On a GoldSrc 48 server the CID is not used: the row says **N/A**, an old saved CID is removed by the next successful refresh, **Join game** starts the engine through `open --env XASH3D_BASEDIR=<data root> … -dev 1 -log +connect <host>:<port> gs` (so it writes `<data root>/engine.log`), and the real CID is never sent to it — a server claiming Source 49 first gets a CID-less capability probe (all-zero placeholder), and only a server that does not answer "older protocol ( 48 )" gets the real CID. The ban status is never shown as "no block": it stays **GoldSrc: unverified** until the engine log of your last GoldSrc connection to that server shows the server's answer — "You have been banned from this server." makes it **Server ban**. The diagnosis sends one null-ticket GoldSrc connect 48 probe only when you start it (Diagnose button, menu bar, `playeridentityctl diagnose … --confirm`); its silence or refusal is a verification limit, never "no ban". The app never claims an account, SteamID or IP ban.
 
 Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -132,7 +132,7 @@ Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 | **Ban matrix** | One table of every server × ban type, CSV/copy export |
 | **Name/model** | Dropdowns, effective-source detection, override removal, diff preview, atomic writes |
 | **Models** | Catalogue and thumbnails from the game folder **and** downloaded (`valve_downloads`) models |
-| **Game** | One-click “Join game” with `+connect`; “Fix” and ban helpers |
+| **Game** | One-click “Join game” with `+connect` (`+connect … gs` on GoldSrc 48 servers); “Fix” and ban helpers |
 | **Sharing** | 1200×630 PNG card with the CID and a QR code |
 | **Updates** | Signed, checksum-verified in-app updates with rollback; version history and downgrade with data backup |
 | **i18n** | 26 languages, switchable at runtime (System + 26 native names) |
@@ -466,7 +466,9 @@ therefore both selectable and previewed. A note reminds you that some servers fo
 ### Join game
 
 Select a server and press **Join game**: the app runs
-`open -a /Applications/Xash3D-FWGS.app --args -game <gamedir> +connect <host>:<port>`.
+`open -a /Applications/Xash3D-FWGS.app --args -game <gamedir> +connect <host>:<port>`; when the server's newest
+A2S_INFO reply is GoldSrc 48: `open --env XASH3D_BASEDIR=<data root> -a … --args -game <gamedir> -dev 1 -log +connect
+<host>:<port> gs` (the engine writes `<data root>/engine.log`, read after the game to show the server's answer).
 If the game is already running, a confirmation warns that the current session will be replaced. If Xash3D is
 not installed, the action is hidden.
 

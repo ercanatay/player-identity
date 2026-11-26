@@ -106,13 +106,42 @@ enum FakeServer {
     static func isGetChallenge(_ p: [UInt8]) -> Bool { p.starts(with: header + Array("getchallenge".utf8)) }
     static func isConnect(_ p: [UInt8]) -> Bool { p.starts(with: header + Array("connect ".utf8)) }
 
+    /// A complete Source/Xash A2S_INFO reply with protocol byte 49 (§75.2 `source49`): the server gets connect 49.
+    static let sourceInfo: [UInt8] = header + [0x49, 49] + Array("Test Server".utf8) + [0] + Array("crossfire".utf8) + [0]
+        + Array("valve".utf8) + [0] + Array("Half-Life".utf8) + [0] + [0x46, 0x00, 5, 32, 0, 0x64, 0x6C, 0x00, 0x00]
+
+    /// §75.3 the answer to the CID-less capability probe (connect 49 with the placeholder CID).
+    enum Capability {
+        /// Like a real server: a protocol refusal ("older protocol") or silence is the same as for any connect;
+        /// otherwise the placeholder is accepted (`B`) and `connect` answers the real-CID packet.
+        case derived
+        case reply(FakeReply?)
+    }
+
+    static func isCapabilityProbe(_ p: [UInt8]) -> Bool {
+        isConnect(p) && String(decoding: p, as: UTF8.self).contains("uuid=" + BanPackets.capabilityCID)
+    }
+
     /// Reply script per step; `nil` = silence.
-    static func scripted(info: FakeReply? = FakeReply(bytes: oob(0x49, [0x30])),
+    static func scripted(info: FakeReply? = FakeReply(bytes: sourceInfo),
                          challenge: FakeReply? = FakeReply(bytes: oob(0x41, challengeBytes)),
-                         connect: FakeReply? = FakeReply(bytes: oob(0x42))) -> FakeUDPTransport.Responder {
-        { _, packet in
+                         connect: FakeReply? = FakeReply(bytes: oob(0x42)),
+                         capability: Capability = .derived) -> FakeUDPTransport.Responder {
+        let capabilityReply: FakeReply?
+        switch capability {
+        case .reply(let reply):
+            capabilityReply = reply
+        case .derived:
+            if let connect, case .notApplicable = BanReplies.classifyConnect(connect.bytes) {
+                capabilityReply = connect
+            } else {
+                capabilityReply = connect.map { FakeReply(bytes: oob(0x42), delay: $0.delay) }
+            }
+        }
+        return { _, packet in
             if isInfo(packet) { return info.map { [$0] } ?? [] }
             if isGetChallenge(packet) { return challenge.map { [$0] } ?? [] }
+            if isCapabilityProbe(packet) { return capabilityReply.map { [$0] } ?? [] }
             if isConnect(packet) { return connect.map { [$0] } ?? [] }
             return []
         }

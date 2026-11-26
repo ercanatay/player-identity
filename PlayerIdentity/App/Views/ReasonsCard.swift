@@ -183,7 +183,7 @@ struct ReasonRow: View {
         .frame(minHeight: Metrics.reasonRow)
     }
 
-    private var isBan: Bool { reason.code == .ipBanned || reason.code == .cidBanned }
+    private var isBan: Bool { reason.code == .ipBanned || reason.code == .cidBanned || reason.code == .goldSrcBanned }
 
     private var severity: String {
         if isBan { return L10n.text(.severityBan) }

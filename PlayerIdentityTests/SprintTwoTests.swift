@@ -293,7 +293,7 @@ final class ServerQueryTests: XCTestCase {
                                                     queryRules: false)
         XCTAssertEqual(plain.verdict, .noBan)
         XCTAssertEqual(plain.steps.map(\.step), DiagnosisStepKind.probeSteps)
-        XCTAssertEqual(transport.sentCount, 3)
+        XCTAssertEqual(transport.sentCount, 4)   // §75.3 capability probe + real CID
     }
 
     func testClassifierPasswordOverridesOnlyNonBanVerdicts() {

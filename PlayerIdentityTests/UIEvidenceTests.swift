@@ -70,7 +70,7 @@ final class UIEvidenceTests: XCTestCase {
         let env = try TestAppEnvironment()
         let clock = env.clock
         let udp = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.042)))
+            info: FakeReply(bytes: A2SFixture.xash(), delay: 0.042)))
         let resolver = FakeAddressResolver(["play.example.test": .success([TestAddresses.v4("198.51.100.23")]),
                                             "down.example.test": .failure(.network)])
         let api = HTTPScript(defaultBody: #"{"tag_name":"v1.1.0","html_url":"https://github.com/ercanatay/player-identity/releases/tag/v1.1.0"}"#)
@@ -274,7 +274,7 @@ final class UIEvidenceTests: XCTestCase {
             if endpoint.address == TestAddresses.v4("192.0.2.30") {
                 return FakeServer.scripted(challenge: FakeReply(bytes: FakeServer.oob(0x6C, Array("You are banned".utf8))))(endpoint, packet)
             }
-            return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))(endpoint, packet)
+            return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.xash(), delay: 0.031))(endpoint, packet)
         }
         let item = FakeLoginItem()
         item.registersAs = .requiresApproval
@@ -347,7 +347,7 @@ final class UIEvidenceTests: XCTestCase {
             case TestAddresses.v4("192.0.2.40"):
                 return FakeServer.scripted(connect: FakeReply(bytes: FakeServer.oobText("errormsg\nKicked by plugin\n")))(endpoint, packet)
             default:
-                return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))(endpoint, packet)
+                return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.xash(), delay: 0.031))(endpoint, packet)
             }
         }
         let records: [InterfaceRecord] = [
@@ -427,7 +427,7 @@ final class UIEvidenceTests: XCTestCase {
     func testRenderWatchScreens() async throws {
         let env = try TestAppEnvironment()
         let model = env.makeModel(udp: FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.031))))
+            info: FakeReply(bytes: A2SFixture.xash(), delay: 0.031))))
         model.addServer(ServerDraft(label: "Demo RPG", host: "192.0.2.10", favorite: true))
         model.addServer(ServerDraft(label: "Zombie TR", host: "192.0.2.30"))
         model.addServer(ServerDraft(label: "Surf EU", host: "192.0.2.50"))

@@ -490,7 +490,9 @@ enum BanClassification: Sendable, Equatable {
             let raw = serverText(check.detail)
             let lower = raw.lowercased()
             return lower.hasPrefix("errormsg") || lower.hasPrefix("disconnect") ? .rejectedUnknownType(raw: raw) : .unknown
-        case .ipOk, .cidOk, .cidNotApplicable, .unknown: return .unknown
+        case .ipOk, .cidOk, .cidNotApplicable, .unknown, .goldSrcUnverified: return .unknown
+        // §75.13 the server banned the GoldSrc connection; the kind (account, SteamID, IP) is unknown.
+        case .goldSrcBanned: return .rejectedUnknownType(raw: serverText(check.detail))
         }
     }
 

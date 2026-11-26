@@ -223,7 +223,7 @@ final class ServerNotificationThresholdTests: XCTestCase {
         FakeUDPTransport(clock: clock) { endpoint, packet in
             let state = server.read()
             if state.offline { return [] }
-            let info = FakeReply(bytes: A2SFixture.goldSrc(map: state.map))   // 9 players
+            let info = FakeReply(bytes: A2SFixture.xash(map: state.map))   // 9 players
             let challenge = state.banned ? FakeReply(bytes: FakeServer.oob(0x6C, Array("You are banned".utf8)))
                                          : FakeReply(bytes: FakeServer.oob(0x41, FakeServer.challengeBytes))
             return FakeServer.scripted(info: info, challenge: challenge)(endpoint, packet)

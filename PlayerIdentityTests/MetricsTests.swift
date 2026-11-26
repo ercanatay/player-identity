@@ -138,7 +138,7 @@ final class MetricsTests: XCTestCase {
     func testRefreshRecordsASampleForTheCheck() async throws {
         let env = try TestAppEnvironment()
         let healthy = FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.03)))
+            info: FakeReply(bytes: A2SFixture.xash(), delay: 0.03)))
         let model = env.makeModel(udp: healthy)
         model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
         await model.refresh().value

@@ -123,7 +123,7 @@ final class SecondaryWindowsEvidenceTests: XCTestCase {
             case TestAddresses.v4("192.0.2.40"):
                 return FakeServer.scripted(connect: FakeReply(bytes: FakeServer.oobText("errormsg\nKicked by plugin\n")))(endpoint, packet)
             default:
-                return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.038))(endpoint, packet)
+                return FakeServer.scripted(info: FakeReply(bytes: A2SFixture.xash(), delay: 0.038))(endpoint, packet)
             }
         }
         let model = env.makeModel(udp: udp)

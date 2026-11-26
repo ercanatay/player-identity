@@ -38,13 +38,13 @@ enum WatchTransitions {
     /// "Yeniden çevrimiçi" is reported only after an outage of at least 10 minutes.
     static let onlineThreshold: TimeInterval = 10 * 60
 
-    static func isBanned(_ status: BanStatus?) -> Bool { status == .ipBanned || status == .cidBanned }
+    static func isBanned(_ status: BanStatus?) -> Bool { status == .ipBanned || status == .cidBanned || status == .goldSrcBanned }
 
     /// `nil` for undetermined results (they do not move the baseline).
     static func determined(_ status: BanStatus) -> BanStatus? {
         switch status {
-        case .ipBanned, .cidBanned, .ipOk, .cidOk, .cidNotApplicable: return status
-        case .unknown, .cidUnknown, .unreachable: return nil
+        case .ipBanned, .cidBanned, .ipOk, .cidOk, .cidNotApplicable, .goldSrcBanned: return status
+        case .unknown, .cidUnknown, .unreachable, .goldSrcUnverified: return nil
         }
     }
 

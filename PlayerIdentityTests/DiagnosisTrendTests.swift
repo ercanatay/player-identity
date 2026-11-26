@@ -182,7 +182,7 @@ final class DiagnosisTrendTests: XCTestCase {
         let env = try TestAppEnvironment()
         let notifier = FakeNotifier(status: .authorized)
         let udp = FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: FakeServer.oob(0x49, [0x30]), delay: 0.4),
+            info: FakeReply(bytes: FakeServer.sourceInfo, delay: 0.4),
             challenge: FakeReply(bytes: FakeServer.oob(0x41, FakeServer.challengeBytes), delay: 0.4),
             connect: FakeReply(bytes: FakeServer.oobText("9Disconnect: You are banned from this server (CID)"), delay: 0.4)))
         let model = env.makeModel(udp: udp, notifier: notifier)
@@ -210,9 +210,9 @@ final class DiagnosisTrendTests: XCTestCase {
         await task?.value
         await model.waitForHistory()
 
-        XCTAssertEqual(model.menuBarDiagnoses[id], .finished(.cidBanned, durationMs: 1200))
+        XCTAssertEqual(model.menuBarDiagnoses[id], .finished(.cidBanned, durationMs: 1600))   // + the capability probe
         guard case .servers(let done)? = model.menuBarQuickItems.last else { return XCTFail("no server submenu") }
-        XCTAssertEqual(done[0].items.last, .diagnosisLine("CID ban · 1,2 sn"))
+        XCTAssertEqual(done[0].items.last, .diagnosisLine("CID ban · 1,6 sn"))
         XCTAssertEqual(model.servers, before, "the server entry is not changed")
         XCTAssertNil(model.diagnosis(for: id), "the details' diagnosis is untouched")
         let lines = env.historyStore.load().filter { $0.kind == .diagnose }
@@ -223,7 +223,7 @@ final class DiagnosisTrendTests: XCTestCase {
         XCTAssertEqual(notifier.posts.first?.title, "Teşhis: ban bulundu")
         XCTAssertEqual(notifier.posts.first?.category, .ban)
         XCTAssertTrue(notifier.posts.first?.body.contains("Zombie TR") == true)
-        XCTAssertEqual(udp.sentCount - sentBefore, 3)
+        XCTAssertEqual(udp.sentCount - sentBefore, 4)
 
         // A second run notifies once more (one notification per run, not per step).
         env.clock.advance(60)
@@ -241,7 +241,7 @@ final class DiagnosisTrendTests: XCTestCase {
         let entry = ServerEntry(label: "A", host: server, port: 27015)
         for verdict in DiagnosisVerdict.allCases {
             let content = MenuBarDiagnosisText.notification(verdict: verdict, server: entry, at: t0)
-            XCTAssertEqual(content != nil, [.ipBanned, .cidBanned, .rangeBanned].contains(verdict), verdict.rawValue)
+            XCTAssertEqual(content != nil, [.ipBanned, .cidBanned, .rangeBanned, .goldSrcBanned].contains(verdict), verdict.rawValue)
             XCTAssertEqual(content?.category ?? .ban, .ban)
         }
         var withOverride = entry

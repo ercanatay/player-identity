@@ -49,6 +49,11 @@ struct ConnectionDiagnosisSection: View {
             if let session {
                 if let result = session.result {
                     verdictCard(result)
+                    // §75.8 GoldSrc 48 card: CID not used, the legacy probe outcome, the administrator request.
+                    if result.verdict.isGoldSrc {
+                        GoldSrcDiagnosisCard(text: GoldSrcDiagnosisText(diagnosis: result, goldSrc: result.goldSrc),
+                                             verdict: result.verdict)
+                    }
                     // §68.3 VPN reality card (ban verdict + VPN egress only).
                     if let guidance = VPNGuidance(result) {
                         VPNGuidanceCard(guidance: guidance)
@@ -214,10 +219,14 @@ struct ConnectionDiagnosisSection: View {
         .accessibilityIdentifier("diagnoseStep-\(kind.rawValue)")
     }
 
-    /// The four probe steps, plus §68.1 `rules` once it started.
+    /// The four probe steps (§75.5: `connect48` instead of `connect49` on a GoldSrc 48 server), plus §68.1 `rules`
+    /// once it started.
     static func visibleSteps(_ session: AppModel.DiagnosisSession) -> [DiagnosisStepKind] {
         let rules = session.current == .rules || session.steps.contains { $0.step == .rules }
-        return DiagnosisStepKind.probeSteps + (rules ? [.rules] : [])
+        let sentConnect49 = session.current == .connect49 || session.steps.contains { $0.step == .connect49 }
+        let goldSrc = session.current == .connect48 || session.steps.contains { $0.step == .connect48 }
+            || (session.result?.serverProtocol == .goldsrc48 && !sentConnect49)
+        return DiagnosisStepKind.probeSteps(for: goldSrc ? .goldsrc48 : .unknown) + (rules ? [.rules] : [])
     }
 
     /// ✅ / ❌ / ⏭ (§64.4).
@@ -453,5 +462,65 @@ private struct FlowCounts: View {
                 .padding(.vertical, 2)
                 .background(Capsule().fill(item.verdict.level.tint))
         }
+    }
+}
+
+// MARK: - §75.8 GoldSrc 48 card
+
+/// "CID is not used on this server", the legacy probe outcome (a ban is never called an account or SteamID ban), the
+/// server message, the administrator request (copyable) and the `gs` join path. One VoiceOver element.
+struct GoldSrcDiagnosisCard: View {
+    let text: GoldSrcDiagnosisText
+    let verdict: DiagnosisVerdict
+
+    @State private var copied = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: verdict.symbolName)
+                .font(.title3)
+                .foregroundStyle(verdict.level.color)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(text.protocolLine).font(.caption.weight(.semibold)).foregroundStyle(Palette.text2)
+                Text(text.cidLine).font(.callout.weight(.semibold)).foregroundStyle(Palette.text)
+                Text(text.outcome).font(.callout.weight(.semibold)).foregroundStyle(verdict.level.textColor)
+                if let probe = text.probe {
+                    Text(probe).font(.callout).foregroundStyle(Palette.text)
+                }
+                if let limit = text.probeLimit {
+                    Text(limit).font(.caption).foregroundStyle(Palette.text2)
+                }
+                Text(text.engineLog).font(.caption).foregroundStyle(Palette.text2).textSelection(.enabled)
+                if let banScope = text.banScope {
+                    Text(banScope).font(.caption).foregroundStyle(Palette.text2)
+                }
+                if let message = text.serverMessage {
+                    Text(message).font(.caption.monospaced()).foregroundStyle(Palette.text2).textSelection(.enabled)
+                }
+                if let title = text.adminTitle, let adminText = text.adminText {
+                    Text(title).font(.callout.weight(.semibold)).padding(.top, 2)
+                    Text(adminText).font(.caption).foregroundStyle(Palette.text2)
+                }
+                if let request = text.request {
+                    Text(request).font(.caption.monospaced()).textSelection(.enabled)
+                    Button(L10n.text(copied ? .actionCopied : .diagnosisGoldsrcCopyRequest)) {
+                        Pasteboard.copy(request)
+                        copied = true
+                    }
+                    .accessibilityIdentifier("goldSrcCopyRequest")
+                }
+                Text(text.join).font(.caption).foregroundStyle(Palette.text2)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.inner).fill(verdict.level.tint))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(text.protocolLine)
+        .accessibilityValue(text.lines.dropFirst().joined(separator: " "))
+        .accessibilityIdentifier("goldSrcCard")
     }
 }

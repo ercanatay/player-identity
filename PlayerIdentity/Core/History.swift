@@ -239,7 +239,7 @@ enum HistoryTransitions {
         for server in observation.servers {
             let previous = state.bans[server.id]
             switch server.ban {
-            case .ipBanned?, .cidBanned?:
+            case .ipBanned?, .cidBanned?, .goldSrcBanned?:
                 let status = server.ban?.rawValue
                 if status != previous {
                     result.append(HistoryEntry(ts: ts, kind: .banAppeared, serverID: server.id, host: server.host,
@@ -250,7 +250,7 @@ enum HistoryTransitions {
                     result.append(HistoryEntry(ts: ts, kind: .banLifted, serverID: server.id, host: server.host,
                                                old: previous, new: server.ban?.rawValue))
                 }
-            case .unreachable?, .unknown?, .cidUnknown?, nil:
+            case .unreachable?, .unknown?, .cidUnknown?, .goldSrcUnverified?, nil:
                 break   // undetermined: neither appeared nor lifted
             }
         }

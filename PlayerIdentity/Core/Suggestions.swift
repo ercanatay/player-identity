@@ -13,6 +13,8 @@ extension MessageCode {
         case .unreachable: return .suggestionUnreachable
         case .banUnknown: return .suggestionBanUnknown
         case .cidNotApplicable: return .suggestionCIDNotApplicable
+        case .goldSrcBanUnverified: return .suggestionGoldSrcBanUnverified
+        case .goldSrcBanned: return .suggestionGoldSrcBanned
         case .identityMissing: return .suggestionIdentityMissing
         case .identityInvalid: return .suggestionIdentityInvalid
         case .publicIPFailed: return .suggestionPublicIPFailed

@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 5.3 · Tarih: 2026-11-21 · Durum: uygulanacak (v5.0 → v5.1: §73 macOS donanım kimliği sağlığı; v5.1 → v5.2: §73 bağımsız inceleme düzeltmeleri — kimlik özelliği spec v2.25.0; v5.2 → v5.3: §74 uyumlu motoru kur — uygulama 2.25.0 build 53, özellik spec'i E0–E21)
+Sürüm: 5.4.6 · Tarih: 2026-11-26 · Durum: uygulanacak (v5.0 → v5.1: §73 macOS donanım kimliği sağlığı; v5.1 → v5.2: §73 bağımsız inceleme düzeltmeleri — kimlik özelliği spec v2.25.0; v5.2 → v5.3: §74 uyumlu motoru kur — uygulama 2.25.0 build 53, özellik spec'i E0–E21; v5.3 → v5.4: §75 GoldSrc 48 desteği — uygulama 2.26.0 build 54; v5.4 → v5.4.1: §75 yakalanmış paketlerle düzeltme, §75.12; v5.4.1 → v5.4.2: §75.13 null-ticket doğrulama sınırı ve motor günlüğü kanıtı, R1 yeniden tanımlandı; v5.4.2 → v5.4.3: §75.14 bağımsız inceleme düzeltmeleri; v5.4.3 → v5.4.4: §75.15 son inceleme düzeltmeleri; v5.4.4 → v5.4.5: §75.16 CID'siz yetenek denemesi, DNS kaybında günlük eşleşmesi; v5.4.5 → v5.4.6: §75.17 ikinci paket kuralı)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -1773,3 +1773,165 @@ Bu bölüm, ayrı davranış spec'inin (E0–E21) uygulama tarafı özetidir. Ç
 - Birim testleri sahte kurucu/indirici kullanır; gerçek ağ, gerçek `/Applications`, gerçek oyun verisi ve gerçek kimlik dosyası yazılmaz.
 - Resmi asset uçtan uca testi (`scripts/test-engine-installer-e2e.sh`, T-E-GE7) sürüm kapısıdır; elle veya zamanlanmış iş akışıyla çalışır, her push'ta çalışmaz.
 - Sınırlar: Gatekeeper davranışı temiz hesapta ölçülmedi; Intel kurulum kapalı; `continuous` ön sürümdür ve içerik değişebilir; aynı Mac için aynı kimlik garantisi ve rotasyon iddiası yoktur.
+
+---
+
+## 75. GoldSrc 48 desteği (v5.4, uygulama 2.26.0 build 54)
+
+Amaç: GoldSrc protokol-48 sunucuları (ör. POLIGON RPG 51.68.190.91:27015) doğru tanınsın; bu sunucularda CID "uygulanamaz" gösterilsin; "Oyuna gir" `gs` ile başlasın; ban teşhisi gerçekçi olsun. Kullanıcı bu sunucuda `connect … gs` ile "You have been banned from this server." alıyor; modern connect49 ise "older protocol 48" veriyor. CID bu sunucuya gönderilmez. Kapsam: yalnız protokol tespiti, CID görünürlüğü, başlatma argümanı ve teşhis. Motor kurulumu (§74), kimlik (§73) ve tekillik iddiası değişmez.
+
+Kaynak notu: A2S yanıt başlığı ve legacy probe paketi (75.2, 75.6) upstream ile doğrulanmış kabul edilir (bkz. her madde). **AC-75.G1 ve AC-75.P1 yakalanmış gerçek paketlerle (fixture) ve sabit bayt vektörüyle de geçmelidir**; uyuşmazlıkta spec ve parser birlikte güncellenir.
+
+### 75.1 Protokol modeli
+- `ServerInfo` protokol değeri üç durumdan birindedir: `unknown`, `source49`, `goldsrc48`.
+- `source49`: Source/Xash A2S_INFO yanıtı, protokol baytı 49; alanlar: ad, harita, klasör (folder), oyun.
+- `goldsrc48`: GoldSrc legacy A2S_INFO yanıtı, protokol baytı 48. Source yerleşimiyle yanlış ayrıştırılmaz (harita ve klasör yer değiştirmez).
+- `unknown`: yanıt boş, kesik, tanınmayan veya iki yerleşimle de tutarsız.
+- Source adres alanı (GoldSrc'de yok sayılan adres dizgisi) modelde korunur ama başlatmada kullanılmaz.
+- Eski kayıt uyumluluğu: protokol alanı olmayan eski `ServerInfo` kayıtları `unknown` olarak okunur; kayıt silinmez, ilk yeniden sorguda güncellenir.
+
+### 75.2 A2S_INFO ayrıştırıcısı
+- Yanıt başlığı (5 bayt, `FF FF FF FF` ardından tip baytı):
+  - `0x6D` (`m`) = GoldSrc legacy yanıt; alanlar aşağıdaki legacy yerleşimle okunur.
+  - `0x49` (`I`) = Source A2S_INFO yanıtı; bir sonraki bayt protokol (49) ve Source alanları (ad, harita, klasör, oyun) gelir.
+  - Diğer tip baytı: yanıt `unknown`/hata olarak reddedilir (fail); legacy veya source olarak yorumlanmaz.
+- Legacy yerleşim (`0x6D` sonrası, sırayla): adres dizgisi (yok sayılır), ad, harita, gamedir, açıklama, mevcut oyuncu sayısı (numcl), azami oyuncu (maxcl), protokol baytı, sunucu tipi, işletim sistemi, parola bayrağı, mod bayrağı; mod bayrağı 1 ise mod alanları (url, indirme url, boş bayt, sürüm (4 bayt), boyut (4 bayt), mod tipi, dll bayrağı); ardından VAC baytı ve bot sayısı. **(v5.4.1 düzeltme, §75.12)** Yakalanmış gerçek yanıtta sürüm dizgisi yoktur ve protokol baytı **47**'dir (HLDS/ReHLDS legacy yanıtı 47 bildirir; ağ protokolü 48): legacy yanıtta protokol baytı 47 veya 48 → `goldsrc48`; başka değer `unknown`.
+- Tüm dizgiler sonlandırıcı baytla biter; sonlandırıcı yoksa veya veri biterse `malformed`.
+- Yinelenen alan veya fazla bayt: yinelenen alan `malformed`; sondaki beklenmeyen bayt yanlış pozitif üretmez (yanıt `goldsrc48` kalır, uyarı günlüğe yazılır).
+- Source49 yerleşimi bu değişiklikten sonra da aynen ayrıştırılır (regresyon).
+- Zaman aşımı, kesik paket ve bozuk protokol baytı `unknown`; ağ hatası teşhis adımında "A2S_INFO başarısız" olarak raporlanır.
+
+### 75.3 CID görünürlüğü
+- `goldsrc48`: CID hiç hesaplanmaz ve gösterilmez; durum `notApplicable`; `cid = nil`; UI "CID bu sunucuda kullanılmıyor" der; CLI ve JSON'da `cid = null`, `cidApplicable = false`.
+- Eski profilde legacy dönemden kalan CID kaydı varsa, bir sonraki başarılı refresh (A2S yanıtı `goldsrc48` olarak alınmış) bu kaydı temizler; temizleme yalnız o refresh'te yapılır, başarısız refresh kaydı silmez.
+- `source49`: §73 CID hesabı (mevcut davranış) aynen korunur; bu bölüm onu değiştirmez.
+- `unknown` protokolde CID kararı verilmez; "belirlenemedi" gösterilir, yerel CID de gösterilmez.
+- `uniqueness_verified = false` her durumda korunur.
+- Profilde eski legacy CID kaydı varsa, bir sonraki başarılı refresh onu temizler (yukarıdaki kural); eski kayıt okunurken hata vermez.
+
+### 75.4 Oyuna gir (başlatma)
+- `source49`: `+connect <host:port>` (değişmez).
+- `goldsrc48`: `+connect <host:port> gs`. Anahtar `legacy` değildir. **(v5.4.2)** Motor konsolunu `engine.log`a yazsın diye argümanlar sabit `-dev 1 -log` içerir: `-game <g> -dev 1 -log +connect <host:port> gs` (§75.13).
+- `unknown`: varsayılan `source49`; ancak son başarılı A2S sonucu `goldsrc48` ise o kullanılır.
+- Başlatma, en güncel A2S sonucuyla yapılır; eski önbellek protokolü yeniden sorgu olmadan geçersiz kılmaz.
+- Başlatma argümanları yalnız protokol kararından türetilir; kullanıcı girdisi argüman olarak eklenmez.
+- Oyuna gir, sunucu başlatmasında legacy probe göndermez; probe yalnızca §75.5/75.6'daki teşhis eylemiyle çalışır.
+
+### 75.5 Teşhis adımları
+Sıra: DNS → A2S_INFO (protokol tespiti) → challenge → bağlantı denemesi (`goldsrc48`: legacy connect48 probe; `source49`: modern connect49) → sunucu mesajı → sonuç.
+- `goldsrc48` için modern connect49 probe'u **hiç gönderilmez** ve "protocolMismatch" üretilmez. **(v5.4.5)** Kural: GoldSrc 48 sunucuya **hiçbir gerçek CID gönderilmez**. A2S'i Source 49 gösteren sunucuya önce CID'siz yetenek denemesi (sıfır yer tutucu CID'li connect 49) gidebilir; bu, "connect49 hiç gönderilmez" ifadesinin tek istisnasıdır (§75.16).
+- `source49` için legacy probe gönderilmez.
+
+### 75.6 Legacy probe (GoldSrc 48)
+- Doğrulama durumu: aşağıdaki paket yapısı **upstream current master `engine/client/cl_main.c` `CL_SendGoldSrcConnectPacket` ile doğrulandı** (kullanıcı bildirimi, 2026-11-26; bu oturumda upstream kaynağı yeniden okunmadı). Upstream `cl_ticket_generator null` yolunun davranışına eşdeğerdir.
+- Paket alanları (sırayla):
+  1. Out-of-band başlık: `FF FF FF FF`.
+  2. ~~Mesaj adı: `GoldSrcConnect`.~~ **(v5.4.1 düzeltme, §75.12)** `GoldSrcConnect` motorun iç tampon adıdır; pakette **gönderilmez** (motorun yakalanmış paketinde başlıktan hemen sonra `connect` gelir).
+  3. Gövde dizgisi: `connect 48 <challenge> "<protinfo>" "<userinfo>"` + sonda newline. Upstream son sıfır baytı yeniden yazar (trailing null): newline'dan hemen sonra ticket başlar. `<protinfo>` ve `<userinfo>` Xash bilgi dizgisi biçimindedir: `\prot\3\unique\-1\raw\steam\cdkey\<32 hex>` ve `\name\<ad>`.
+  4. `<challenge>`: `getchallenge` yanıtından (GoldSrc yanıtı metindir: `A00000000 <challenge> <auth> …`; istek motorunki gibi `FF FF FF FF getchallenge steam\n`).
+  5. `<protinfo>`: `prot=3`, `unique=-1`, `raw=steam`, `cdkey=<32 hex>` (cdkey her denemede rastgele; motor da her bağlantıda yeni değer gönderir; kimlikten türetilmez).
+  6. `<userinfo>`: en az `name=<oyuncu adı>`; Xash userinfo dizgisi formatı kullanılır.
+  7. Ardından upstream `cl_ticket_generator null` yolu gibi **512 adet sıfır bayt** ticket.
+- Bayt vektörü birim testinde sabitlenir (AC-75.P1). Ticket sıfırdır; **gerçek hesap/SteamID doğrulaması değildir.** Probe oyuncu oturumu açmaz.
+- Probe bir oyuncu oturumu açmaz; ticket ve SteamID gerçek hesap doğrulaması değildir.
+- Sonuç ayrımı (**v5.4.2:** yalnız ban metni `banned` üretir; aşağıdaki diğer sonuçların hiçbiri "ban yok" değildir, karar `legacyVerificationUnavailable`'dır, §75.13):
+  - Sunucu bağlantıyı reddeder ve gerekçe içerir: "Sunucu bu bağlantıyı yasakladı (ban)." Mesaj "hesap" veya "SteamID banı" türünü iddia etmez; yalnız "sunucu bağlantıyı reddetti/yasakladı" der.
+  - Sunucu probe'u reddeder ama ban metni yoksa: "GoldSrc bağlantısı reddedildi; neden: <sunucu mesajı>".
+  - Yanıt yok / zaman aşımı: "GoldSrc bağlantısı yanıt vermedi" (ban iddiası yok).
+  - Challenge alınır ama bağlantı tamamlanmazsa: "bağlantı tamamlanmadı" (ban iddiası yok).
+- Sunucu mesajı en fazla 200 karakter gösterilir; kontrol karakterleri temizlenir.
+
+### 75.7 Teşhis kararı (verdict)
+- `banned`, `connectionRejected`, `protocolMismatch`: yalnız `source49` yolunda üretilir.
+- ~~`goldSrc48`~~ **(v5.4.2)** GoldSrc yolunda iki karar vardır: `banned` (probe yanıtında veya motor günlüğünde ban metni) ve `legacyVerificationUnavailable` (diğer her durum). Gerekçe: `goldsrc48` tespit edildi, CID uygulanamaz, sunucu mesajı (varsa), kanıt kaynağı (`probe` / `engineLog`).
+- IP ban / CID uygulanabilirliği: GoldSrc'de CID uygulanamaz olduğu için "CID ile ban" iddiası yapılmaz; ban metni "bağlantı/IP yasağı olabilir" çerçevesiyle ve server yöneticisine başvuru önerisiyle sunulur.
+- Legacy ban mesajı: kullanıcıya yönetici başvurusu (sunucu adı, IP:port, sunucu mesajı) önerilir; uygulama ban kaldırma iddiasında bulunmaz.
+
+### 75.8 Arayüz
+- GoldSrc kartı: "CID bu sunucuda kullanılmıyor" metni; yerel CID alanı gizlenir (boş değil, tamamen yok).
+- "Oyuna gir" düğmesi `gs` ile başlatılır; düğme metni ve açıklaması değişmez.
+- Teşhis ekranında verdict için yukarıdaki metinler ve yönetici başvuru adımı gösterilir.
+- Yeni metinler `diagnosis.goldsrc.*` ve `servers.goldsrc.*` anahtarlarıyla 26 dilde bulunur; çevrilmemiş dillerde İngilizce yer tutucu kabul edilir (§63).
+
+### 75.9 CLI ve JSON
+- `playeridentityctl diagnose --json` GoldSrc sunucu için alanlar: `protocol` ("goldsrc48"), `cid` (null), `cidApplicable` (false), `goldSrc` (true), `verdict`, `message`, `uniqueness_verified` (false), `schemaVersion` (mevcut sürüm).
+- Kimlik, tam CID, seri numarası, ticket içeriği ve parola alanları çıktıda **yoktur**; sunucu mesajı kısaltılmış ve temizlenmiştir.
+- Source49 için `cid`, `cidApplicable = true` mevcut kurallarla dolar.
+- Çıkış kodları değişmez; GoldSrc ban verdict'i kullanım hatası değil, teşhis sonucudur (mevcut teşhis çıkış kuralı uygulanır).
+
+### 75.10 Kabul kriterleri ve testler
+- **AC-75.G1** Yakalanmış legacy A2S fixture'ı `goldsrc48` olarak ayrıştırılır; ad, harita, gamedir, protokol 48 doğru (T-75-1).
+- **AC-75.G2** Source49 fixture'ı mevcut sonucu korur (regresyon) (T-75-2).
+- **AC-75.G3** Parola/mod/bot alanları olan legacy yanıt doğru ayrıştırılır; mod bayrağı 1 iken mod alanları atlanır (T-75-3).
+- **AC-75.C1** Kesik, sonlandırıcısız, yinelenen alanlı yanıt `malformed`/`unknown`; çökme yok (T-75-4).
+- **AC-75.C2** GoldSrc48 → cid=nil, status=notApplicable; hesaplanan yerel CID gösterilmez (T-75-5).
+- **AC-75.C3** Source49 → mevcut CID davranışı değişmez (T-75-6).
+- **AC-75.C4** Eski legacy CID kaydı yeni yenilemede temizlenir; eski profil dosyası açılır (T-75-7).
+- **AC-75.L1** `goldsrc48` → `+connect host:port gs`; `source49` → `+connect host:port`; unknown → source49 (T-75-8).
+- **AC-75.L2** Başlatma en güncel A2S sonucunu kullanır (T-75-9).
+- **AC-75.P1** Legacy probe bayt vektörü sabit (başlık, `GoldSrcConnect`, `connect 48 <challenge> "<protinfo>" "<userinfo>"\n`, 512 sıfır ticket); protinfo ve userinfo alanları yukarıdaki sırada (T-75-10).
+- **AC-75.P2** Legacy probe çalışırken modern connect49 hiç gönderilmez; source49'da legacy probe gönderilmez (T-75-11).
+- **AC-75.P3** Sunucu ban mesajı → "sunucu bağlantıyı yasakladı"; hesap/SteamID banı iddiası yok (T-75-12).
+- **AC-75.P4** Sunucu probe reddi (ban metni yok) → "GoldSrc bağlantısı reddedildi; neden: …" (T-75-13).
+- **AC-75.P5** Yanıt yok / zaman aşımı → ban iddiası yok; teşhis "yanıt vermedi" (T-75-14).
+- **AC-75.P6** Ban yok ve bağlantı başarılı → "banned" üretilmez; **(v5.4.2)** "ban yok"/"engel yok" da üretilmez: karar `legacyVerificationUnavailable`, JSON `banned: null` (T-75-15).
+- **AC-75.S1** Gizlilik: UI/CLI/JSON/günlükte tam CID, ticket, parola, seri numarası yok (T-75-16).
+- **AC-75.U1** GoldSrc kartında "CID bu sunucuda kullanılmıyor"; 26 dil anahtar eşitliği (T-75-17).
+- **AC-75.J1** `diagnose --json` GoldSrc alanları (cid=null, cidApplicable=false, goldSrc=true) (T-75-18).
+- **AC-75.R1 (yayın kapısı)** Yalıtılmış motorda `connect <host>:27015 gs` denemesi ile teşhis aynı verdict'i üretir (ban ise ban). **(v5.4.2)** Ölçüt: (a) motor konsolunda "Trying to connect with GoldSrc 48 protocol" ve sunucunun yanıtı; (b) uygulamanın yalnız-probe teşhisi "ban yok" demez (`banned` `null` veya `true`); (c) motorun konsol günlüğüyle yapılan teşhis motorun yanıtına ulaşır (ban → `banned`). Hedef: POLIGON RPG 51.68.190.91:27015. Kullanıcı bu oturumda gerçek POLIGON probe'unu açıkça istedi; bu kapı için onay verilmiş sayılır. Yine de legacy probe **yalnız kullanıcı isteğiyle** çalışır: teşhis düğmesi/komutu veya CLI'da `--confirm` bayrağı. Otomatik, periyodik veya arka plan gönderimi **yoktur**. Kanıt repo dışında kaydedilir.
+- **AC-75.R2 (yayın kapısı)** Tam paket testi, CLI smoke ve 26 dil anahtar kontrolü geçer; yerel build numarası 54, pazarlama sürümü 2.26.0.
+- **AC-75.R3** Changelog, `docs/spec.md` ve `FEATURES.md`/`FEATURES.tr.md` bu sürümle eşitlenir; eski sürüm notları değişmez.
+
+### 75.11 Sınırlar
+- Legacy probe bir teşhis aracıdır; sunucunun ban nedenini ya da oyuncuya özgü bir yasağı doğrulamaz.
+- GoldSrc sunucuları CID göndermez; "kimlik ile ban" yolu bu sürümde yoktur.
+- Sunucu mesajı sunucu tarafından değişebilir; metin eşleştirmesi yerine mesajın ham (kısaltılmış) hâli gösterilir.
+- Null ticket probe (512 sıfır bayt) sunucunun gerçek hesap/SteamID davranışını birebir kanıtlamaz; sunucu yalnızca "bağlantıyı yasakladı" gibi bir sonuç döndürür, ban türünü (hesap, SteamID, IP) uygulama belirleyemez ve iddia etmez.
+- Protokol 48 yanıt yapısı, sunucu yazılımına göre (ReHLDS, HLDS, Xash) küçük farklar gösterebilir; bilinmeyen alanlar `unknown` olur, sahte tespit yapılmaz.
+
+### 75.12 Yakalanmış paketler ve yayın kapısı kanıtı (v5.4.1, 2026-11-26)
+- **A2S (AC-75.G1):** 51.68.190.91:27015 tek `TSource Engine Query`'ye iki yanıt verir: `0x6D` legacy (86 bayt; adres `51.68.190.91:27015`, harita, `valve`, `Half-Life`, numcl, maxcl, protokol **47**, `d`, `l`, parola 0, mod 0, VAC 1, bot 0) ve Source yerleşimli `0x49` (protokol baytı **48**). `0x49`+48 `unknown` kalır (GoldSrc veya eski Xash olabilir); karar `0x6D` yanıtından çıkar. Fixture'lar testlerde bayt bayt sabittir.
+- **Paket (AC-75.P1):** kurulu motorun kendi `connect 127.0.0.1:<port> gs` denemesi yerel dinleyiciyle yakalandı: `FF FF FF FF getchallenge steam\n`, ardından `FF FF FF FF connect 48 <challenge> "\prot\3\unique\-1\raw\steam\cdkey\<32 hex>" "<userinfo>"\n` + ticket. `cl_ticket_generator null` ile ticket tam **512 sıfır bayt**; varsayılan üreteçte (`revemu2013`) ticket sıfır değildir. Pakette `GoldSrcConnect` yoktur. Uygulamanın paketi baş kısım ve 512 sıfır kuyrukla yakalanmış paketle eşleşir; userinfo yalnız `\name\<ad>`'dır.
+- **Yayın kapısı (AC-75.R1), 2026-11-26:** `scripts/verify-goldsrc-connection.sh --confirm` (APFS klon, sandbox, geçici HOME; gerçek motor/oyun verisi/kimlik dosyaları önce = sonra). Motor (gerçek kimliğin klonu, varsayılan ticket): "Trying to connect with GoldSrc 48 protocol" → "Spooling demo header." → "Server issued disconnect. Reason: You have been banned from this server." Uygulamanın probe'u (boş ticket): `goldsrc48`, sunucu reddi "Sorry, no-steam p48 clients are not allowed on this server" → `rejected`. **Kapı GEÇMEDİ** (motor `banned`, probe `rejected`). Neden: (a) sunucu boş ticket'ı Steam'siz istemci diye reddeder; (b) bu sunucuda ban, bağlantı kabul edildikten sonra oturum içinde verilir; oyuncu oturumu açmayan bir probe bunu göremez. Kapının geçmesi için spec kararı gerekir (ör. R1'in boş ticket probe'u için "aynı verdict" yerine "sunucu yanıtı gösterilir" ölçütüyle değiştirilmesi); bu sürüm ban iddiası üretmez.
+- **Uygulama notu (2.26.0, karar bekliyor):** §75.3'teki "`unknown` → CID belirlenemedi, yerel CID gösterilmez" kuralı uygulanmadı; `unknown` (yanıt yok, eski kayıt, `0x49`+48, protokol 17 gibi) mevcut davranışı (source49 varsayılanı: CID hesaplanır/gösterilir, teşhiste connect 49) korur — §75.4 başlatma varsayılanıyla aynı. Gerekçe: kural uygulanırsa ban denetimi kapalı veya sunucu yanıt vermeyen her satırda CID kaybolur. Teşhis JSON'unda `unknown` için `cidApplicable: null` verilir.
+- Motorun konsolu yalnız `-dev 2 -log` ile yazılır; pty üzerinden stdout yakalaması bu sürümde satırı göstermedi (0), konsol günlüğü (`engine.log`) gösterdi (1). Kanıt repo dışında: `$TMPDIR/opencode/pi-goldsrc-gate.*/evidence` (`summary.json`, `engine-excerpt.txt`, `probe.json`); ham kimlik ve ticket kaydedilmez.
+
+### 75.13 Null-ticket doğrulama sınırı ve motor günlüğü kanıtı (v5.4.2, 2026-11-26)
+- **Canlı bulgu:** geçerli RevEmu ticket'lı yalıtılmış motor (`connect 51.68.190.91:27015 gs`) "Spooling demo header." sonrasında "Server issued disconnect. Reason: You have been banned from this server." aldı; ban bağlantı kurulduktan sonra oturum içinde gelir. Uygulamanın null-ticket probe'u aynı sunucudan yalnız ping/challenge (`FF FF FF FF A …`) veya "Sorry, no-steam p48 clients are not allowed on this server" aldı. Bu yüzden probe'un sessizliği, ping'i, ban metni olmayan reddi veya kabulü **asla "ban yok" değildir**.
+- **Karar:** GoldSrc yolunda `banned` yalnız ban metniyle (probe yanıtı veya motor günlüğü); aksi `legacyVerificationUnavailable` ("GoldSrc ban durumu doğrulanamadı — sunucuya “Oyuna gir” (gs) ile bağlanıp çıkın, sonra Yenile; uygulama motor günlüğünü okur"). CLI JSON: `banned` `true`/`null` (GoldSrc'de asla `false`), `verdict` `banned`/`legacyVerificationUnavailable`, `cid: null`, `cidApplicable: false`, `serverMessage`, `goldSrcEvidence` (`engineLog`/`probe`). Source49 `banned: false` davranışı değişmez.
+- **Otomatik denetim (yenileme):** GoldSrc 48 sunucuya connect 49 gönderilmez; sonuç `goldSrcUnverified` (turuncu, "GoldSrc: doğrulanamadı"); asla yeşil "Engel yok" değildir. Motor günlüğü ban kanıtı varsa `goldSrcBanned` (kırmızı, "Sunucu banı" / "Sunucu bağlantıyı yasakladı (motor günlüğü).").
+- **Motor günlüğü:** `<veri kökü>/engine.log` (motor `-dev 1 -log` ile açıldığında konsolu yazar; "Oyuna gir" GoldSrc 48'de bunu ekler), salt okunur, son 512 KB. Yalnız **son** "Trying to connect with GoldSrc 48 protocol" bloğu sayılır: bloğun adresi ("Connecting to <adres>…" / "server <adres>") bu sunucunun `host:port`'u veya çözümlenmiş `IP:port`'u olmalı; oturum başlığı ("Game started at …") son 24 saat içinde ve bu oturumdaki son "Oyuna gir"den eski olmamalı; blokta sunucu yanıtı ("Server issued disconnect. Reason: …" veya "Server message" + sonraki satır) olmalı. Başka sunucunun bloğu, eski blok, tarihsiz veya yanıtsız blok kanıt değildir (`unknown`). Gerekçe temizlenir (kontrol karakteri yok, IP maskeli, ≤200 karakter); "ban" içeren gerekçe = ban.
+- **Bilinen protokol:** bir teşhisin A2S sorgusu yanıtsız kalırsa ve sunucu son başarılı A2S sonucuna göre `goldsrc48` ise GoldSrc yolu korunur (connect 49 gönderilmez).
+- **Yayın kapısı sonucu (2026-11-26):** `scripts/verify-goldsrc-connection.sh --confirm` **PASS** — motor: "Server issued disconnect. Reason: You have been banned from this server."; yalnız probe: `legacyVerificationUnavailable`, `banned: null`; motor günlüğüyle: `banned`, `banned: true`, `goldSrcEvidence: engineLog`; gerçek motor/oyun verisi/kimlik dosyaları önce = sonra. (Aynı gün §75.12'deki eski ölçütle yapılan koşu "probe = motor" karşılaştırmasında geçmemişti.)
+
+### 75.14 Bağımsız inceleme düzeltmeleri (v5.4.3, 2026-11-26)
+- **Join Game günlük yolu:** `open` uygulamayı `/` çalışma klasörüyle başlatır; motor `engine.log`u çalışma klasörüne yazdığı için günlük kaybolurdu. GoldSrc 48 başlatması: `/usr/bin/open --env XASH3D_BASEDIR=<veri kökü> -a <motor> --args -game <g> -dev 1 -log +connect <ip:port> gs` (kabuk yok; izin listesi yalnız bu kesin biçimi ve mutlak, `..` içermeyen yolu kabul eder; veri kökü yoksa başlatma kurulmaz). `XASH3D_BASEDIR` verildiğinde motor `engine.log`u veri köküne yazar (yerelde ölçüldü). Uygulama `<veri kökü>/engine.log`u okur.
+- **Protokol:** `0x49` + protokol baytı 48 de `goldsrc48`'dir (§75.1/§75.2'deki "`unknown`" kuralının yerine). Aynı sorguya `0x6D` ve `0x49`/48 gelirse en çok 0,3 sn beklenip `0x6D` tercih edilir. CID ve connect 49 **yalnız `source49`** (bu denetimin A2S'i veya bilinen protokol) için; `unknown` (§75.4'teki source49 varsayılanının yerine) hiçbir otomatik denetimde, teşhiste veya CLI `ban`da CID/connect 49 almaz. "older protocol 48" connect yanıtı `goldSrcUnverified`'dır.
+- **Motor günlüğü kanıtı A2S'ten bağımsız:** yenileme ve teşhis (A2S zaman aşımı veya `unknown` olsa da) uygun blok (adres, 24 saat, son Join Game'den yeni) banını uygular. Kanıtlanmış ban, daha yeni bir motor oturumu (`connected`/başka gerekçe) veya `source49` kanıtı gelmedikçe unknown/unreachable/doğrulanamadı sonucuyla silinmez; silinirse `goldSrcUnverified` olur. Günlük okuma durumu `missing` / `unreadable(hata)` / `data`; okunamayan günlük hata günlüğüne (`serverProtocol`) yazılır.
+- **Ban ifadesi:** tek sınıflandırıcı (probe, motor günlüğü, UI, CLI): "you have been banned (from this server)", "you are banned", "banned from this server" veya olumsuzlanmamış tek başına "banned"; "bandwidth", "unbanned", "not banned", "no longer banned" ban değildir.
+- **CLI `ban --json`:** `cid` yalnız `source49`'da; GoldSrc 48 ve `unknown`'da `null`; `protocol`, `cidApplicable` eklenir; kayıtlı GoldSrc 48 sunucu için CID hiç hesaplanmaz.
+- **Onaysız teşhis:** GoldSrc yolunda onay yoksa hiçbir legacy paket (ne `getchallenge steam` ne connect 48) gönderilmez.
+- **Satır/menü çubuğu:** protokol kararı adres çözümlemesinden önce verilir; bilinen GoldSrc 48 + çözülemeyen adres → CID yok, `cidNotApplicable`, `invalidHost` mesajı korunur; menü çubuğu önce protokol belleğine bakar.
+- **Bekleyen Join onayı:** sunucu kimliği/adres/port tutulur; onay anında plan güncel protokolle yeniden kurulur; adres değiştiyse hiçbir şey başlatılmaz.
+- **Yayın kapısı (üretim yolu):** `scripts/verify-goldsrc-connection.sh --confirm` uygulamanın kendi kodunu (`scripts/goldsrc-gate/main.swift` + Core) çalıştırır: A2S protokol kararı → GameLauncher planı → izin listeli `open` → kurulu motor (veri kökü APFS klonu). Doğrudan `-dev 2` motor çalıştırması kapı sayılmaz. 2026-11-26 sonucu **PASS**: argv ve motor süreç argümanları/ortamı doğru, `<klon>/engine.log` var (`/engine.log` yok), "Trying to connect with GoldSrc 48 protocol" ve "You have been banned from this server." okundu; yalnız probe `legacyVerificationUnavailable`/`banned: null`/`cid: null`; günlükle `banned`/`banned: true`; gerçek motor, oyun verisi ve kimlik dosyaları değişmedi.
+
+### 75.15 Son inceleme düzeltmeleri (v5.4.4, 2026-11-26)
+- **Etkin protokol:** connect 49'a "older protocol ( 48 )" (veya "unsupported protocol") yanıtı sunucunun etkin protokolünü `goldsrc48` yapar: denetim sonucu `goldSrcUnverified` ve `info.serverProtocol = goldsrc48` (kaydedilir; CID uygulanamaz; Join Game `gs`); teşhiste `serverProtocol = goldsrc48`, `cid = nil`, karar `legacyVerificationUnavailable` (`protocolMismatch` değil); CLI JSON `protocol: goldsrc48`, `cid: null`, `cidApplicable: false`, `goldSrc: true`, `banned: null`. Gerçek yanıt (2026-11-26) test fixture'ıdır.
+- **Taze Source 49 önceliği:** yenilemede sunucunun taze A2S sonucu `source49` ise eski GoldSrc motor günlüğü kanıtı uygulanmaz ve kanıtlanmış GoldSrc banı korunmaz; taze Source 49 sonucu geçerlidir.
+- **Ban ifadesi:** ifade kısayolu yoktur; yalnız tek başına "banned" kelimesi, kendinden önceki üç kelimede olumsuzluk (not, never, no longer, un-, isn't …) yoksa bandır. "not/never/no longer banned from this server", "unbanned from this server", "you were unbanned", "bandwidth limit exceeded" ban değildir.
+- **Günlük önce, ağdan bağımsız:** motor günlüğü her yenilemede bir kez okunur ve her sunucuya (ban denetimi isteği olmasa da, sunucu yeni eklenmiş olsa da, A2S zaman aşımında da) adres/oturum/tazelik kurallarıyla uygulanır; günlük banı sunucuyu `goldsrc48` olarak işaretler.
+- **Bilinen GoldSrc + ağ/DNS hatası:** bilinen protokol (kayıt/oturum belleği; kaydın GoldSrc sonucundan türetilir) teşhis başında geçerlidir; A2S zaman aşımı veya DNS hatası `banned: false` üretmez (`null`), CID `null`. CLI `status` protokolü kaydın GoldSrc sonucundan türetir.
+- **Kalıcılık:** GoldSrc kararı veren yenileme (A2S, connect yanıtı veya günlük) protokolü ve sonucu, eski CID'nin silinmesiyle aynı atomik kayıt yazımında kaydeder. Yeniden başlatma + A2S zaman aşımı sonrasında sunucu GoldSrc kalır (CID yok, `gs`, günlük okunur); karar vermeyen taze sonuca bilinen GoldSrc protokolü taşınır.
+
+### 75.16 CID'siz yetenek denemesi ve DNS kaybında günlük eşleşmesi (v5.4.5, 2026-11-26)
+- **Gerçek CID sızıntısı yok:** A2S yanıtı `0x49`/49 olsa da gerçek CID'yi içeren connect 49 tek başına gönderilmez. Challenge'dan sonra önce **CID'siz yetenek denemesi** gider: `uuid` alanı sabit, sıfır yer tutucu (`00000000000000000000000000000000`; kimlikten türetilmez). Yanıt "older protocol ( 48 )" (veya "unsupported protocol") ise sunucu `goldsrc48`'dir; gerçek CID hiç gönderilmez (teşhiste hesaplanmaz da), sonuç `goldSrcUnverified` / `legacyVerificationUnavailable`, `cid = null`. Yanıt yoksa gerçek CID de gönderilmez (`cidUnknown`). Ancak yanıt GoldSrc değilse gerçek CID ban denetimi ikinci pakette, mevcut kurallarla yapılır (otomatik denetim ve kullanıcının başlattığı teşhis; onaysız legacy `getchallenge steam`/connect 48 yine yok).
+- **İzin:** "GoldSrc'ye hiçbir gerçek CID gönderilmez" kuralı mutlaktır; "connect 49 hiç gönderilmez" ifadeleri yalnız bilinen/kanıtlanmış GoldSrc 48 ve `unknown` için geçerlidir. Source 49 görünen sunucuya CID'siz yetenek denemesi açıkça izinlidir.
+- **DNS kaybında günlük eşleşmesi:** satırın güncel adresi yokken (DNS hatası) motor günlüğü adres adaylarına son başarılı çözümleme ve kayıtlı A2S yanıtının adres dizgisi (`info.reportedAddress`) eklenir; yalnız IP değişmezi alınır (ana makine adı, yol veya başka metin değil), satırın portuyla. Adresi çözülen satır yalnız güncel adresiyle eşleşir.
+
+### 75.17 Yetenek denemesinden sonra gerçek CID kuralı (v5.4.6, 2026-11-26)
+Otomatik denetim ve teşhis aynı sınıflandırıcıyı kullanır. Gerçek CID'li ikinci paket **yalnız** yetenek yanıtı açıkça kabul (`B` / `client_connect`) ise **ve** genel süre bütçesi bitmemişse gönderilir (ikinci gönderimden önce açık süre denetimi):
+- "older/unsupported protocol" → `goldsrc48`, ikinci paket yok.
+- Ban metni → ikinci paket yok; genel/IP ban sonucu (`ipBanned`; teşhiste `ipBanned`/`rangeBanned`), asla CID banı değil.
+- Tanınmayan yanıt veya yanıt yok → ikinci paket yok; `cidUnknown` (teşhiste CID doğrulanamadı), `banned` `null` — asla `false`.
+- Kabul ama süre bitti → ikinci paket yok; `cidUnknown`, `banned: null`.
+CLI `ban --json` `cid` alanını yalnız gerçek CID'li paket yanıtlandığında (`cidOk`/`cidBanned`) yazar.

@@ -30,7 +30,7 @@ final class SprintOneEvidenceTests: XCTestCase {
             let env = try TestAppEnvironment()
             let apps = FakeAppLauncher()
             let model = env.makeModel(udp: FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(
-                info: FakeReply(bytes: A2SFixture.goldSrc(name: Array("Zombie TR".utf8), map: "zm_dust", players: 9, max: 26)),
+                info: FakeReply(bytes: A2SFixture.xash(name: Array("Zombie TR".utf8), map: "zm_dust", players: 9, max: 26)),
                 connect: FakeReply(bytes: FakeServer.oobText("errormsg\nYou are banned (CID)\n"))))) { deps in
                 deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: [self.app]), homeDirectory: env.home)
                 deps.appLauncher = apps

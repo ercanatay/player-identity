@@ -5,12 +5,17 @@ import XCTest
 final class ServerInfoParserTests: XCTestCase {
     func testGoldSrcReply() {
         let info = ServerInfoParser.parse(A2SFixture.goldSrc())
-        XCTAssertEqual(info, ServerInfo(name: "POLIGON RPG", map: "rpg_city", players: 9, maxPlayers: 26))
+        // §75.2: this synthetic reply ends before VAC/bots → readable fields kept, protocol `unknown`.
+        XCTAssertEqual(info, ServerInfo(name: "POLIGON RPG", map: "rpg_city", players: 9, maxPlayers: 26,
+                                        protocolVersion: 47, folder: "valve", game: "Half-Life",
+                                        reportedAddress: "51.68.190.91:27015"))
     }
 
     func testSourceReply() {
         let info = ServerInfoParser.parse(A2SFixture.source())
-        XCTAssertEqual(info, ServerInfo(name: "Source Server", map: "de_dust2", players: 12, maxPlayers: 32))
+        // §75.2: protocol byte 17 is not 49 → fields kept, protocol `unknown`.
+        XCTAssertEqual(info, ServerInfo(name: "Source Server", map: "de_dust2", players: 12, maxPlayers: 32,
+                                        protocolVersion: 17, folder: "cstrike", game: "Counter-Strike"))
     }
 
     func testMissingFieldsAreNilWithoutCrash() {
@@ -18,10 +23,11 @@ final class ServerInfoParserTests: XCTestCase {
         // Cut right after the map string: folder/game/players/max are missing.
         let mapEnd = full.indices.filter { full[$0] == 0 }[2]
         let truncated = Array(full[...mapEnd])
-        XCTAssertEqual(ServerInfoParser.parse(truncated), ServerInfo(name: "POLIGON RPG", map: "rpg_city"))
+        XCTAssertEqual(ServerInfoParser.parse(truncated), ServerInfo(name: "POLIGON RPG", map: "rpg_city",
+                                                                     reportedAddress: "51.68.190.91:27015"))
         // Unterminated name: nothing after it can be read.
         let unterminated = A2SFixture.header + [0x49, 17] + Array("half".utf8)
-        XCTAssertEqual(ServerInfoParser.parse(unterminated), ServerInfo())
+        XCTAssertEqual(ServerInfoParser.parse(unterminated), ServerInfo(protocolVersion: 17))
         // Type byte only.
         XCTAssertEqual(ServerInfoParser.parse(A2SFixture.header + [0x6D]), ServerInfo())
         // Max players missing (reply ends after players).
@@ -88,13 +94,20 @@ final class BanCheckServerInfoTests: XCTestCase {
     func testInfoAndPingFromStepAWithoutExtraQuery() async throws {
         let clock = TestClock()
         let transport = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: A2SFixture.goldSrc(), delay: 0.042)))
+            info: FakeReply(bytes: A2SFixture.xash(), delay: 0.042)))
         let checker = BanChecker(transport: transport, now: { clock.now })
         let result = try await checker.check(request())
         XCTAssertEqual(result.status, .cidOk)
-        XCTAssertEqual(result.info, ServerInfo(name: "POLIGON RPG", map: "rpg_city", players: 9, maxPlayers: 26, pingMillis: 42))
+        XCTAssertEqual(result.info, ServerInfo(name: "POLIGON RPG", map: "rpg_city", players: 9, maxPlayers: 26, pingMillis: 42,
+                                               serverProtocol: .source49, protocolVersion: 49, folder: "valve",
+                                               game: "Half-Life"))
         XCTAssertEqual(infoPackets(transport).count, 1)
-        XCTAssertEqual(transport.sentCount, 3)   // info, getchallenge, connect — unchanged
+        XCTAssertEqual(transport.sentCount, 4)   // info, getchallenge, capability probe, connect (§75.3)
+        // §75.4: the truncated legacy reply decides no protocol → no connect 49.
+        let legacy = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: A2SFixture.goldSrc())))
+        let legacyResult = try await BanChecker(transport: legacy, now: { clock.now }).check(request())
+        XCTAssertEqual(legacyResult.status, .ipOk)
+        XCTAssertEqual(legacy.sentCount, 2)
     }
 
     func testChallengeFlowIsKeptAndInfoComesFromSecondReply() async throws {
@@ -126,7 +139,7 @@ final class BanCheckServerInfoTests: XCTestCase {
         }
         let result = try await BanChecker(transport: transport, now: { clock.now }).check(request())
         XCTAssertNil(result.info)
-        XCTAssertEqual(result.status, .cidOk)
+        XCTAssertEqual(result.status, .ipOk)   // §75.4: no A2S reply → no connect 49
     }
 
     func testUnreachableHasNoInfoAndMinimalReplyHasPingOnly() async throws {
@@ -137,6 +150,8 @@ final class BanCheckServerInfoTests: XCTestCase {
         XCTAssertNil(unreachable.info)
 
         let minimal = try await BanChecker(transport: FakeServer.healthy(clock: clock), now: { clock.now }).check(request())
-        XCTAssertEqual(minimal.info, ServerInfo(pingMillis: 0))
+        XCTAssertEqual(minimal.info, ServerInfo(name: "Test Server", map: "crossfire", players: 5, maxPlayers: 32, pingMillis: 0,
+                                                serverProtocol: .source49, protocolVersion: 49, folder: "valve",
+                                                game: "Half-Life"))
     }
 }

@@ -75,6 +75,8 @@ enum BanMatrix {
         case .cidNotApplicable?: cells = (.clear, .notApplicable)
         case .cidUnknown?: cells = (.clear, .unknown)
         case .unknown?: cells = (.unknown, .unknown)
+        // §75.13 GoldSrc 48: no CID; the ban kind of the engine log evidence is unknown ("type unverified").
+        case .goldSrcUnverified?, .goldSrcBanned?: cells = (.unknown, .notApplicable)
         }
         var unverified = false
         if let check, case .rejectedUnknownType = BanClassification.classify(check) { unverified = true }

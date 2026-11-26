@@ -51,6 +51,9 @@ enum MessageCode: String, Sendable, CaseIterable {
     case unreachable
     case banUnknown
     case cidNotApplicable
+    // §75.13
+    case goldSrcBanUnverified
+    case goldSrcBanned
 
     var text: String { L10n.text(textKey) }
 
@@ -76,6 +79,8 @@ enum MessageCode: String, Sendable, CaseIterable {
         case .unreachable: return .errorUnreachable
         case .banUnknown: return .errorBanUnknown
         case .cidNotApplicable: return .errorCIDNotApplicable
+        case .goldSrcBanUnverified: return .errorGoldSrcBanUnverified
+        case .goldSrcBanned: return .errorGoldSrcBanned
         }
     }
 }
@@ -100,6 +105,11 @@ struct ServerRowStatus: Sendable, Equatable {
     var resolvedIP: String? = nil
     /// §20: why the host has no usable address (invalid, not found, network error, pending).
     var resolutionFailure: HostResolutionFailure? = nil
+    /// §75.1 protocol of the row's last A2S_INFO reply (`unknown` without one).
+    var serverProtocol: ServerProtocol = .unknown
+
+    /// §75.3: on a GoldSrc 48 server no CID is computed or shown (the row says "N/A").
+    var cidNotApplicable: Bool { serverProtocol == .goldsrc48 }
 
     /// Row icon: the worst of the CID/host status and the ban status (§7.4, §13.3).
     var displayLevel: StatusLevel {
@@ -136,6 +146,8 @@ struct CurrentState: Sendable, Equatable {
     var servers: [ServerEntry]
     /// §20: hostname resolutions keyed by normalized hostname.
     var resolutions: [String: HostResolution] = [:]
+    /// §75.4 the decided protocol per server known to the app (newest A2S result; this session's memory included).
+    var knownProtocols: [UUID: ServerProtocol] = [:]
 }
 
 /// §7 status matrix. Pure function; no network or file access.
@@ -181,7 +193,10 @@ enum StatusEvaluator {
         if current.lanIPs.isEmpty { add(.orange, .lanIPMissing) }
         if let saved, current.lanIPs.sorted() != saved.network.lanIPs.sorted() { add(.orange, .lanIPChanged) }
 
-        let rows = current.servers.map { serverRow($0, rawID: rawID, saved: saved, resolutions: current.resolutions) }
+        let rows = current.servers.map {
+            serverRow($0, rawID: rawID, saved: saved, resolutions: current.resolutions,
+                      knownProtocol: current.knownProtocols[$0.id])
+        }
         if rows.contains(where: { $0.message == .serverCIDChanged }) { add(.orange, .serverCIDChanged) }
 
         // §13.3 ban results: ban → red; unreachable/unknown → orange (each code once).
@@ -194,22 +209,41 @@ enum StatusEvaluator {
         return StatusReport(overall: overall, reasons: reasons, servers: rows)
     }
 
+    /// §75.1 the protocol a row's saved check decided (`goldSrc*` results imply GoldSrc 48).
+    static func protocolOf(_ entry: ServerEntry) -> ServerProtocol {
+        if let decided = entry.banCheck?.info?.serverProtocol, decided != .unknown { return decided }
+        switch entry.banCheck?.status {
+        case .goldSrcBanned?, .goldSrcUnverified?: return .goldsrc48
+        default: return .unknown
+        }
+    }
+
     /// §7.4 row status: invalid host → red (does not affect the overall status), CID differs from record/saved CID empty → orange, equal → green.
     /// §20: a hostname uses its resolved address; an unresolvable (or not yet resolved) hostname is `invalidHost`.
     static func serverRow(_ entry: ServerEntry, rawID: UInt64?, saved: Snapshot?,
-                          resolutions: [String: HostResolution] = [:]) -> ServerRowStatus {
+                          resolutions: [String: HostResolution] = [:],
+                          knownProtocol: ServerProtocol? = nil) -> ServerRowStatus {
+        // §75.3: the protocol decision comes first (before the address), so a known GoldSrc 48 server never shows a
+        // CID — not even an old saved one while its host does not resolve.
+        let serverProtocol = knownProtocol.flatMap { $0 == .unknown ? nil : $0 } ?? protocolOf(entry)
         guard let address = HostAddressing.address(for: entry.host, in: resolutions) else {
             return ServerRowStatus(id: entry.id, level: .red, currentCID: nil, message: .invalidHost, ban: nil,
-                                   resolutionFailure: HostAddressing.failure(for: entry.host, in: resolutions))
+                                   resolutionFailure: HostAddressing.failure(for: entry.host, in: resolutions),
+                                   serverProtocol: serverProtocol)
         }
         let resolvedIP = ServerAddress.parse(entry.host) == nil ? address.text : nil
+        // §75.3: GoldSrc 48 → no CID, no CID comparison (an old saved CID of the row is ignored).
+        if serverProtocol == .goldsrc48 {
+            return ServerRowStatus(id: entry.id, level: .green, currentCID: nil, message: nil, ban: entry.banCheck,
+                                   resolvedIP: resolvedIP, serverProtocol: .goldsrc48)
+        }
         let currentCID = rawID.map { CIDCalculator.cid(rawID: $0, address: address) }
         let savedCID = saved?.servers.first(where: { $0.id == entry.id })?.cid ?? ""
         if let currentCID, !savedCID.isEmpty, currentCID == savedCID {
             return ServerRowStatus(id: entry.id, level: .green, currentCID: currentCID, message: nil, ban: entry.banCheck,
-                                   resolvedIP: resolvedIP)
+                                   resolvedIP: resolvedIP, serverProtocol: serverProtocol)
         }
         return ServerRowStatus(id: entry.id, level: .orange, currentCID: currentCID, message: .serverCIDChanged,
-                               ban: entry.banCheck, resolvedIP: resolvedIP)
+                               ban: entry.banCheck, resolvedIP: resolvedIP, serverProtocol: serverProtocol)
     }
 }

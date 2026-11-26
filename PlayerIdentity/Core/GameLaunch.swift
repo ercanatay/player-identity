@@ -17,20 +17,56 @@ enum GameLaunchError: Error, Sendable, Equatable {
     case cancelled
     /// `open` could not be started or returned a non-zero status.
     case launchFailed(status: Int32)
+    /// §75.13 a GoldSrc 48 launch needs the data root (`XASH3D_BASEDIR`, where `engine.log` is written).
+    case noDataRoot
 }
 
-/// `/usr/bin/open -a <Xash3D.app> --args -game <gamedir> +connect <ip>:<port>`.
+/// `/usr/bin/open -a <Xash3D.app> --args -game <gamedir> +connect <ip>:<port>` (`source49` / `unknown`);
+/// a GoldSrc 48 server: `/usr/bin/open --env XASH3D_BASEDIR=<data root> -a <Xash3D.app> --args -game <gamedir> -dev 1
+/// -log +connect <ip>:<port> gs` (§75.4: the argument is `gs`, not `legacy`; §75.13: `-dev 1 -log` make the engine
+/// write its console to `engine.log`, and `XASH3D_BASEDIR` puts that file in the data root the app reads — `open`
+/// starts apps with the working directory `/`, where the engine would otherwise try to write it). No shell: every
+/// element is one argument.
 struct GameLaunchCommand: Sendable, Equatable {
     static let openPath = "/usr/bin/open"
     static let defaultGamedir = "valve"
+    /// §75.4 the engine's GoldSrc protocol argument of `connect`.
+    static let goldSrcArgument = "gs"
+    /// §75.13 console to `engine.log` (developer level 1 + log file).
+    static let goldSrcLogArguments = ["-dev", "1", "-log"]
+    /// §75.13 `open --env` name of the engine's data root.
+    static let baseDirVariable = "XASH3D_BASEDIR"
 
     let app: URL
     let gamedir: String
     /// `1.2.3.4:27015` or `[2001:db8::1]:27015`.
     let connect: String
+    /// §75.4 the protocol decision (only this changes the arguments; no user text is added).
+    var serverProtocol: ServerProtocol = .unknown
+    /// §75.13 the data root (`XASH3D_BASEDIR` of a GoldSrc launch; `engine.log` is written there).
+    var dataRoot: URL?
 
+    init(app: URL, gamedir: String, connect: String, serverProtocol: ServerProtocol = .unknown, dataRoot: URL? = nil) {
+        self.app = app
+        self.gamedir = gamedir
+        self.connect = connect
+        self.serverProtocol = serverProtocol
+        self.dataRoot = dataRoot
+    }
+
+    /// A GoldSrc launch needs a data root; without one the command is not built (`GameLaunchError.noDataRoot`).
     var argv: [String] {
-        [Self.openPath, "-a", app.path, "--args", "-game", gamedir, "+connect", connect]
+        guard serverProtocol == .goldsrc48, let dataRoot else {
+            return [Self.openPath, "-a", app.path, "--args", "-game", gamedir, "+connect", connect]
+        }
+        return [Self.openPath, "--env", Self.baseDirVariable + "=" + dataRoot.standardizedFileURL.path, "-a", app.path,
+                "--args", "-game", gamedir] + Self.goldSrcLogArguments + ["+connect", connect, Self.goldSrcArgument]
+    }
+
+    /// Where the engine writes its console log for this launch (GoldSrc only).
+    var engineLogURL: URL? {
+        guard serverProtocol == .goldsrc48, let dataRoot else { return nil }
+        return GoldSrcEngineLog.url(dataRoot: dataRoot.standardizedFileURL)
     }
 
     /// `+connect` argument; IPv6 in brackets so the port stays unambiguous.
@@ -53,10 +89,27 @@ struct GameLaunchCommand: Sendable, Equatable {
 
 /// The only argv the launcher may run (no shell, fixed shape).
 enum GameLaunchAllowlist {
+    /// Two exact shapes: `open -a <app> --args -game <dir> +connect <ip:port>` and (§75.13 GoldSrc 48)
+    /// `open --env XASH3D_BASEDIR=<absolute data root> -a <app> --args -game <dir> -dev 1 -log +connect <ip:port> gs`.
     static func isAllowed(_ argv: [String]) -> Bool {
-        guard argv.count == 8, argv[0] == GameLaunchCommand.openPath, argv[1] == "-a", argv[3] == "--args",
-              argv[4] == "-game", argv[6] == "+connect" else { return false }
-        return isAppPath(argv[2]) && isGamedir(argv[5]) && isConnect(argv[7])
+        guard argv.first == GameLaunchCommand.openPath else { return false }
+        if argv.count == 8 {
+            return argv[1] == "-a" && isAppPath(argv[2]) && argv[3] == "--args" && argv[4] == "-game" && isGamedir(argv[5])
+                && argv[6] == "+connect" && isConnect(argv[7])
+        }
+        guard argv.count == 14, argv[1] == "--env", isBaseDir(argv[2]), argv[3] == "-a", isAppPath(argv[4]),
+              argv[5] == "--args", argv[6] == "-game", isGamedir(argv[7]) else { return false }
+        return Array(argv[8..<11]) == GameLaunchCommand.goldSrcLogArguments && argv[11] == "+connect" && isConnect(argv[12])
+            && argv[13] == GameLaunchCommand.goldSrcArgument
+    }
+
+    /// `XASH3D_BASEDIR=<absolute path>`: no newline/NUL, no `..` component, not the root.
+    static func isBaseDir(_ text: String) -> Bool {
+        let prefix = GameLaunchCommand.baseDirVariable + "="
+        guard text.hasPrefix(prefix) else { return false }
+        let path = String(text.dropFirst(prefix.count))
+        return path.hasPrefix("/") && path.count > 1 && !path.contains("\n") && !path.contains("\0")
+            && !path.split(separator: "/").contains("..")
     }
 
     static func isAppPath(_ path: String) -> Bool {
@@ -144,7 +197,10 @@ struct GameLauncher: Sendable {
 
     /// Builds the command: app path, gamedir, and the IP to connect to (a hostname is resolved; IPv4 preferred).
     /// `known` = an address already resolved by the refresh (§20), used instead of a new lookup.
-    func plan(host: String, port: Int, gamedir: String?, known: [String: HostResolution] = [:]) async throws -> GameLaunchPlan {
+    /// `serverProtocol` = §75.4 the latest A2S protocol of the server (`unknown` launches like `source49`).
+    func plan(host: String, port: Int, gamedir: String?, known: [String: HostResolution] = [:],
+              serverProtocol: ServerProtocol = .unknown, dataRoot: URL? = nil) async throws -> GameLaunchPlan {
+        if serverProtocol == .goldsrc48, dataRoot == nil { throw GameLaunchError.noDataRoot }
         guard let app = locator.locate() else { throw GameLaunchError.appNotFound }
         guard HostValidator.isValidPort(port) else { throw GameLaunchError.invalidPort }
         guard let directory = GameLaunchCommand.gamedirArgument(gamedir) else { throw GameLaunchError.invalidGamedir }
@@ -175,7 +231,8 @@ struct GameLauncher: Sendable {
         guard let connect = GameLaunchCommand.connectArgument(address: address, port: port) else {
             throw GameLaunchError.noAddress
         }
-        return GameLaunchPlan(command: GameLaunchCommand(app: app, gamedir: directory, connect: connect),
+        return GameLaunchPlan(command: GameLaunchCommand(app: app, gamedir: directory, connect: connect,
+                                                         serverProtocol: serverProtocol, dataRoot: dataRoot),
                               gameRunning: detector.isGameRunning())
     }
 
@@ -189,5 +246,40 @@ struct GameLauncher: Sendable {
             throw GameLaunchError.launchFailed(status: -1)
         }
         guard output.status == 0 else { throw GameLaunchError.launchFailed(status: output.status) }
+    }
+}
+
+// MARK: - §75.4 protocol of the latest A2S result
+
+/// The protocol "Join Game" uses: the newest A2S result that decided a protocol (`source49` / `goldsrc48`). A newer
+/// `unknown` result (time-out, damaged reply) never overrides it; a server whose host or port changed starts over.
+/// Without any decided result the launch follows the `source49` default.
+struct ServerProtocolMemory: Sendable, Equatable {
+    struct Observation: Sendable, Equatable {
+        let serverProtocol: ServerProtocol
+        let at: Date
+        let host: String
+        let port: Int
+    }
+
+    private(set) var observations: [UUID: Observation] = [:]
+
+    /// Records a result; `unknown` and results older than the kept one are ignored.
+    mutating func record(_ serverProtocol: ServerProtocol, for id: UUID, host: String, port: Int, at date: Date) {
+        guard serverProtocol != .unknown else { return }
+        if let kept = observations[id], kept.host == host, kept.port == port, kept.at > date { return }
+        observations[id] = Observation(serverProtocol: serverProtocol, at: date, host: host, port: port)
+    }
+
+    /// The newest decided protocol of the row: this memory or the row's saved A2S result (`banCheck.info`).
+    func launchProtocol(for entry: ServerEntry) -> ServerProtocol {
+        var candidates: [(ServerProtocol, Date)] = []
+        if let kept = observations[entry.id], kept.host == entry.host, kept.port == entry.port {
+            candidates.append((kept.serverProtocol, kept.at))
+        }
+        if let check = entry.banCheck, case let saved = StatusEvaluator.protocolOf(entry), saved != .unknown {
+            candidates.append((saved, check.checkedAt))
+        }
+        return candidates.max { $0.1 < $1.1 }?.0 ?? .unknown
     }
 }

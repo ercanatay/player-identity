@@ -69,6 +69,15 @@ When the card says **Not supported** (no engine indicators, identity zero or mis
 
 If macOS blocks the first launch of the ad-hoc signed engine: System Settings → Privacy & Security → "Open Anyway" (for this app only); the app never bypasses Gatekeeper (behaviour on a clean account not measured). Intel Macs keep the release page only. Settings → Data → Engine backups lists the backups (newest 3 kept); older ones are deleted only after a confirmation. CLI: `playeridentityctl engine status`, `engine install-compatible [--yes]`, `engine backups [delete --confirm <code>]`.
 
+### GoldSrc 48 servers (2.26)
+The app tells GoldSrc protocol 48 servers (HLDS/ReHLDS, e.g. POLIGON RPG) from Source/Xash protocol 49 servers by their A2S_INFO reply:
+
+- **Protocol:** a legacy `0x6D` reply with the GoldSrc protocol byte, or a `0x49` reply with protocol byte 48, is `goldsrc48` (when both arrive, the legacy reply is kept); a `0x49` reply with protocol byte 49 is `source49`; an empty, truncated, unrecognised or inconsistent reply is `unknown` (never a guess). Older records without the field read as `unknown`. Only `source49` servers get the CID test (connect 49); `goldsrc48` and `unknown` never get a CID.
+- **CID:** on a `goldsrc48` server no CID is computed, shown or copied: the server row says **N/A** ("CID is not used on this server"), the menu bar has no CID to copy and an old saved CID of that server is removed by the next successful refresh that gets the GoldSrc reply (a failed refresh removes nothing). `source49` keeps the existing CID; `unknown` follows the existing behaviour.
+- **Join game:** `goldsrc48` starts the engine with `open --env XASH3D_BASEDIR=<data root> … -dev 1 -log +connect <host>:<port> gs` (the engine writes its console to `<data root>/engine.log`); `source49` and `unknown` with `+connect <host>:<port>`. The newest A2S result decides; a later failed query does not undo a known GoldSrc result.
+- **Ban status:** a GoldSrc 48 server is never shown as "No block". The automatic check (no connect 49, no CID) gives **GoldSrc: unverified**. After you leave the game, Refresh reads the last GoldSrc connect block of `engine.log` (read-only): only a block for this server's address, from the last 24 hours and not older than this session's last Join Game counts. "Server issued disconnect. Reason: You have been banned from this server." makes the row **Server ban**; another server's or an older block is ignored.
+- **Diagnosis:** a GoldSrc 48 server never receives the real CID (a server claiming Source 49 first gets a CID-less capability probe with the all-zero placeholder CID; "older protocol ( 48 )" ends it there); after the GoldSrc challenge the app sends one GoldSrc connect 48 probe (null ticket, random CD key, only your player name; no identity, no CID) — **only when you start the diagnosis** (the Diagnose button, the menu bar or `playeridentityctl diagnose … --confirm`), never automatically or periodically. Verdicts: **banned** (a ban text in the probe's answer or in the engine log) or **ban status could not be verified** (silence, a ping, a refusal for another reason or an accepted null-ticket probe never mean "no ban"). The card shows "CID is not used on this server", the probe's answer and its limit, the engine log evidence, a request text for the server administrator and the `gs` join path. The app never says whether a ban is an account, SteamID or IP ban and never claims to lift it.
+
 ### The CID
 The value a server sees is not the raw identity. It is derived per server:
 
@@ -214,7 +223,7 @@ For every server the app runs one UDP probe sequence per refresh and reuses the 
 ### The sequence
 1. **A2S_INFO** — `FF FF FF FF` + `TSource Engine Query` + `00`. A `0x6D` (GoldSrc) or `0x49` (Source) reply means the server is alive; `0x41` is a challenge that the app answers once. The reply also yields name, map, players/max and ping (round-trip time). No answer within 4 s → *unreachable*; the later steps are skipped.
 2. **getchallenge** — `FF FF FF FF` + `getchallenge` + `\n`. A reply body containing `banned` (case-insensitive) → **IP banned**. A `0x41` challenge → IP OK, and the challenge value is kept for step 3. No/unknown reply → *unknown*.
-3. **connect 49** (only if a challenge was received) — a modern-protocol connect packet carrying the CID as `uuid` (`prot=cidtest; uuid=<cid>; …`). The check stops immediately after the handshake answer.
+3. **connect 49** (only if a challenge was received) — a modern-protocol connect packet carrying the CID as `uuid` (`prot=cidtest; uuid=<cid>; …`). The check stops immediately after the handshake answer. A server whose A2S_INFO reply is GoldSrc 48 gets neither this packet nor a CID; its result is *GoldSrc: unverified* until the engine log shows the server's answer (2.26).
 
 ### Result matrix
 | Result | Meaning | Shown as |
@@ -224,7 +233,9 @@ For every server the app runs one UDP probe sequence per refresh and reuses the 
 | `cidBanned` | `errormsg` / `disconnect` / `0x39` reply to connect 49 mentioning a ban | 🔴 CID ban |
 | `rangeBanned` | After an IP change the same `/16` (IPv6 `/48`) is still IP-banned | 🔴 IP range ban |
 | `unverified` | Server rejected the client with a ban-like answer but the type is unknown (plugin/SQL ban possible) | ⚪ Ban type unverified, raw reply shown |
-| `notApplicable` | GoldSrc protocol 48 server rejects the modern connect ("unsupported protocol") — CID cannot be tested | ⚪ CID check not applicable (counts as no CID block when IP is OK) |
+| `notApplicable` | A server of unknown protocol rejects the modern connect ("older protocol") — CID cannot be tested | ⚪ CID check not applicable (counts as no CID block when IP is OK) |
+| `goldSrcUnverified` | GoldSrc 48 server (2.26): no connect 49, no CID; a null-ticket check cannot prove "no ban" | 🟠 GoldSrc: unverified |
+| `goldSrcBanned` | GoldSrc 48 server: the engine log of the last GoldSrc connection to it says the server banned it | 🔴 Server ban |
 | `error` / unreachable | No A2S answer in 4 s | ⚪ Unreachable (orange overall, not critical) |
 | `error` / DNS | Hostname does not resolve | Row shown as invalid host; overall status unaffected |
 | `unknown` | Reply missing or unrecognised | ⚪ Undetermined |
@@ -663,7 +674,8 @@ When a server refuses a connection, the engine usually says nothing useful. **Di
 | DNS | the host name resolves to an address |
 | A2S_INFO | the server answers on UDP and reports map, players and ping |
 | getchallenge | the server accepts the IP / the IP is banned |
-| connect 49 | the CID is accepted or banned (GoldSrc 48 servers skip this step) |
+| connect 49 | the CID is accepted or banned (GoldSrc 48 servers never get it) |
+| GoldSrc connect 48 | GoldSrc 48 servers only, and only for a diagnosis you start: the server accepts, bans or rejects the GoldSrc connection (with its message) |
 
 - **Verdicts:** server offline, DNS failure, timeout, protocol mismatch, IP ban, CID ban, range ban, unverified CID, VPN conflict, checks disabled; "no ban" is only reported when steps 2–4 succeeded.
 - **Engine log evidence:** the tail of `qconsole.log` (or `console.log`, 512 KB / 200 lines) is matched against known engine errors; a direct engine ban message can override the probe verdict. Files are only read, never written.
@@ -843,7 +855,7 @@ shasum -a 256 -c SHA256SUMS.txt
 
 ## Limits and known behaviour
 - **macOS shared identity:** all macOS clients derive the same raw identity (zero), so the CID for a given server is identical across Macs.
-- **GoldSrc protocol 48:** such servers never see a CID; the CID test is *not applicable* and only the IP check counts.
+- **GoldSrc protocol 48:** such servers never see a CID. Their ban status is *unverified* until the engine log of a real `gs` connection (Join Game) shows the server's answer; the app's null-ticket probe can never prove "no ban".
 - **ISP and range bans:** an IP renewal cannot help against a `/16` range ban, a static IP, CGNAT or a kept PPPoE session. Ban duration and the ban system (engine/plugin/SQL) are not readable remotely.
 - **Server does not answer:** the result is *unreachable* or *unknown* — never a guess of "clear" or "banned".
 - **VPN:** checks always use the egress IP; with a VPN active the result belongs to the VPN exit.
