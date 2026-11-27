@@ -312,7 +312,7 @@ enum LiteralScanner {
         "getchallenge steam",
         // §75.13 engine log lines of a GoldSrc connection (engine text, matched verbatim).
         "Trying to connect with GoldSrc", "Server issued disconnect", "Game started at", "Connecting to",
-        "Server message", "Connection accepted", "Connected to ", "timed out", "failed after", "no response",
+        "Server message", "Steam Broker.app", "Connection accepted", "Connected to ", "timed out", "failed after", "no response",
         "connection failed", "yyyy '['HH:mm.ss']'",
         "Spooling demo header", "you have been banned", "you are banned", "you're banned", "banned from this server",
     ]

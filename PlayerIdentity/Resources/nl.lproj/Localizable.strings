@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Met Steam-identiteit";
 "steam.join.recommended" = "Aanbevolen";
 "steam.join.settings" = "Steam-brokerinstellingen…";
-"steam.join.disabledHint" = "Stel eerst het Steam-brokerpad in via Instellingen › Verbindingspaden.";
+"steam.join.disabledHint" = "Kies het Steam-brokerpad in Instellingen › Verbindingspaden";
 "steam.consent.title" = "Verbinden met je Steam-identiteit?";
 "steam.consent.message" = "Verbinden met je Steam-identiteit meldt de identiteit (SteamID) van je echte Steam-account aan deze server. De serverbeheerder kan deze identiteit koppelen aan je Steam-account. De naam die in het spel wordt getoond, verandert niet.";
 "steam.consent.confirm" = "Bevestigen en verbinden";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Het bestand is niet uitvoerbaar.";
 "steam.path.empty" = "Geen pad ingesteld.";
 "steam.settings.argument" = "Wanneer je de broker vanuit hier start, krijgt deze één argument mee: host:poort van de instellingen hierboven (bijvoorbeeld %@). Het moet dit argument accepteren.";
+"steam.join.steamAuthStart" = "Met Steam-identiteit (broker starten)";
+"steam.settings.useFound" = "Gevonden broker gebruiken";
+"steam.settings.useFoundTitle" = "Deze broker gebruiken?";
+"steam.settings.useFoundMessage" = "Het onderstaande pad wordt opgeslagen als Steam-brokerpad:\n%@";
+"steam.settings.notFound" = "Er is geen broker gevonden op de gebruikelijke locaties.";
+"steam.settings.foundOther" = "Er is een andere broker gevonden: %@. Het pad dat je hebt ingesteld, blijft behouden.";
+"steam.error.settingsHint" = "Controleer het brokerpad in Instellingen › Verbindingspaden.";

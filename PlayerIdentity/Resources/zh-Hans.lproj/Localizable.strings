@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "使用 Steam 身份";
 "steam.join.recommended" = "推荐";
 "steam.join.settings" = "Steam 代理设置…";
-"steam.join.disabledHint" = "请先在“设置 › 连接路径”中设置 Steam 代理路径。";
+"steam.join.disabledHint" = "在 设置 › 连接路径 中选择 Steam 代理路径";
 "steam.consent.title" = "使用您的 Steam 身份连接？";
 "steam.consent.message" = "使用 Steam 身份连接会向此服务器报告您真实 Steam 账户的身份（SteamID）。服务器管理员可以将该身份与您的 Steam 账户关联。游戏中显示的名称不会改变。";
 "steam.consent.confirm" = "确认并连接";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "该文件不可执行。";
 "steam.path.empty" = "未设置路径。";
 "steam.settings.argument" = "从此处启动时，代理仅接收一个参数：下方设置中的 host:port（例如 %@）。它必须接受该参数。";
+"steam.join.steamAuthStart" = "使用 Steam 身份（启动代理）";
+"steam.settings.useFound" = "使用已找到的代理";
+"steam.settings.useFoundTitle" = "使用此代理？";
+"steam.settings.useFoundMessage" = "以下路径将被保存为 Steam 代理路径：\n%@";
+"steam.settings.notFound" = "在常见位置中未找到代理。";
+"steam.settings.foundOther" = "找到了另一个代理：%@。您设置的路径将保留。";
+"steam.error.settingsHint" = "请在 设置 › 连接路径 中检查代理路径。";

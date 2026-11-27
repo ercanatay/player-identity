@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Steam şəxsiyyəti ilə";
 "steam.join.recommended" = "Tövsiyə olunur";
 "steam.join.settings" = "Steam broker parametrləri…";
-"steam.join.disabledHint" = "Əvvəlcə Parametrlər › Bağlantı yolları bölməsində Steam broker yolunu təyin edin.";
+"steam.join.disabledHint" = "Steam brokeri yolunu Parametrlər › Bağlantı yolları bölməsində seçin";
 "steam.consent.title" = "Steam şəxsiyyətinizlə qoşulursunuz?";
 "steam.consent.message" = "Steam şəxsiyyətinizlə qoşulduqda, real Steam hesabınızın şəxsiyyəti (SteamID) bu serverə bildirilir. Server administratoru bu şəxsiyyəti Steam hesabınızla əlaqələndirə bilər. Oyunda göstərilən ad dəyişmir.";
 "steam.consent.confirm" = "Təsdiqlə və qoşul";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Fayl icra edilə bilən deyil.";
 "steam.path.empty" = "Yol təyin edilməyib.";
 "steam.settings.argument" = "Buradan başladıldıqda broker bir arqument alır: aşağıdakı parametrlərin host:port (məsələn, %@) hissəsi. Bu arqumenti qəbul etməlidir.";
+"steam.join.steamAuthStart" = "Steam identifikasiyası ilə (brokeri başlat)";
+"steam.settings.useFound" = "Tapılmış brokerdən istifadə et";
+"steam.settings.useFoundTitle" = "Bu brokerdən istifadə edilsin?";
+"steam.settings.useFoundMessage" = "Aşağıdakı yol Steam brokeri yolu kimi saxlanılacaq:\n%@";
+"steam.settings.notFound" = "Adi yerlərdə heç bir broker tapılmadı.";
+"steam.settings.foundOther" = "Başqa bir broker tapıldı: %@. Təyin etdiyiniz yol saxlanılır.";
+"steam.error.settingsHint" = "Parametrlər › Bağlantı yolları bölməsində broker yolunu yoxlayın.";

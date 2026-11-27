@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Με ταυτότητα Steam";
 "steam.join.recommended" = "Συνιστάται";
 "steam.join.settings" = "Ρυθμίσεις μεσολαβητή Steam…";
-"steam.join.disabledHint" = "Ορίστε πρώτα τη διαδρομή του μεσολαβητή Steam στις Ρυθμίσεις › Διαδρομές σύνδεσης.";
+"steam.join.disabledHint" = "Επιλέξτε τη διαδρομή broker Steam στις Ρυθμίσεις › Διαδρομές σύνδεσης";
 "steam.consent.title" = "Να συνδεθείτε με την ταυτότητα Steam σας;";
 "steam.consent.message" = "Η σύνδεση με την ταυτότητα Steam αποστέλλει την ταυτότητα (SteamID) του πραγματικού σας λογαριασμού Steam σε αυτόν τον διακομιστή. Ο διαχειριστής του διακομιστή μπορεί να συνδέσει αυτή την ταυτότητα με τον λογαριασμό σας Steam. Το όνομα που εμφανίζεται στο παιχνίδι δεν αλλάζει.";
 "steam.consent.confirm" = "Επιβεβαίωση και σύνδεση";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Το αρχείο δεν είναι εκτελέσιμο.";
 "steam.path.empty" = "Δεν έχει οριστεί διαδρομή.";
 "steam.settings.argument" = "Όταν ξεκινά από εδώ, ο μεσολαβητής λαμβάνει ένα όρισμα: host:port από τις παρακάτω ρυθμίσεις (για παράδειγμα %@). Πρέπει να δέχεται αυτό το όρισμα.";
+"steam.join.steamAuthStart" = "Με ταυτότητα Steam (έναρξη broker)";
+"steam.settings.useFound" = "Χρήση του broker που βρέθηκε";
+"steam.settings.useFoundTitle" = "Χρήση αυτού του broker;";
+"steam.settings.useFoundMessage" = "Η παρακάτω διαδρομή θα αποθηκευτεί ως η διαδρομή broker Steam:\n%@";
+"steam.settings.notFound" = "Δεν βρέθηκε broker στις συνηθισμένες θέσεις.";
+"steam.settings.foundOther" = "Βρέθηκε άλλος broker: %@. Η διαδρομή που ορίσατε διατηρείται.";
+"steam.error.settingsHint" = "Ελέγξτε τη διαδρομή broker στις Ρυθμίσεις › Διαδρομές σύνδεσης.";

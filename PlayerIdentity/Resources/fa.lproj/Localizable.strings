@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "با هویت Steam";
 "steam.join.recommended" = "پیشنهادی";
 "steam.join.settings" = "تنظیمات واسطِ Steam…";
-"steam.join.disabledHint" = "ابتدا مسیر واسطِ Steam را در تنظیمات › مسیرهای اتصال تعیین کنید.";
+"steam.join.disabledHint" = "مسیر بروکر Steam را در تنظیمات › مسیرهای اتصال انتخاب کنید";
 "steam.consent.title" = "با هویت Steam خود متصل شوید؟";
 "steam.consent.message" = "اتصال با هویت Steam، شناسه‌ی (SteamID) حساب واقعی Steam شما را به این سرور گزارش می‌کند. مدیر سرور می‌تواند این هویت را به حساب Steam شما پیوند دهد. نامی که در بازی نمایش داده می‌شود تغییر نمی‌کند.";
 "steam.consent.confirm" = "تأیید و اتصال";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "فایل قابل اجرا نیست.";
 "steam.path.empty" = "مسیری تعیین نشده است.";
 "steam.settings.argument" = "هنگام شروع از این بخش، واسط یک آرگومان دریافت می‌کند: host:port تنظیمات زیر (برای مثال %@). واسط باید این آرگومان را بپذیرد.";
+"steam.join.steamAuthStart" = "با هویت Steam (شروع broker)";
+"steam.settings.useFound" = "استفاده از Broker یافت‌شده";
+"steam.settings.useFoundTitle" = "از این broker استفاده شود؟";
+"steam.settings.useFoundMessage" = "مسیر زیر به‌عنوان مسیر Steam broker ذخیره خواهد شد:\n%@";
+"steam.settings.notFound" = "در مکان‌های معمول هیچ broker یافت نشد.";
+"steam.settings.foundOther" = "broker دیگری یافت شد: %@. مسیری که تنظیم کرده‌اید حفظ می‌شود.";
+"steam.error.settingsHint" = "مسیر بروکر Steam را در تنظیمات › مسیرهای اتصال بررسی کنید.";

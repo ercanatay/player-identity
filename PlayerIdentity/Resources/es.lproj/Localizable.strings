@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Con identidad de Steam";
 "steam.join.recommended" = "Recomendado";
 "steam.join.settings" = "Ajustes del broker de Steam…";
-"steam.join.disabledHint" = "Primero define la ruta del broker de Steam en Ajustes › Rutas de conexión.";
+"steam.join.disabledHint" = "Elija la ruta del broker de Steam en Ajustes › Rutas de conexión";
 "steam.consent.title" = "¿Conectar con tu identidad de Steam?";
 "steam.consent.message" = "Al conectarte con tu identidad de Steam, este servidor recibe la identidad (SteamID) de tu cuenta real de Steam. El administrador del servidor puede vincular esta identidad a tu cuenta de Steam. El nombre que se muestra en el juego no cambia.";
 "steam.consent.confirm" = "Confirmar y conectar";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "El archivo no es ejecutable.";
 "steam.path.empty" = "No hay ninguna ruta definida.";
 "steam.settings.argument" = "Cuando se inicia desde aquí, el broker recibe un único argumento: host:port de los ajustes siguientes (por ejemplo %@). Debe aceptar ese argumento.";
+"steam.join.steamAuthStart" = "Con identidad de Steam (iniciar broker)";
+"steam.settings.useFound" = "Usar broker encontrado";
+"steam.settings.useFoundTitle" = "¿Usar este broker?";
+"steam.settings.useFoundMessage" = "La ruta de abajo se guardará como la ruta del broker de Steam:\n%@";
+"steam.settings.notFound" = "No se encontró ningún broker en las ubicaciones habituales.";
+"steam.settings.foundOther" = "Se encontró otro broker: %@. Se mantiene la ruta que configuró.";
+"steam.error.settingsHint" = "Revise la ruta del broker en Ajustes › Rutas de conexión.";

@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Steam 신원 사용";
 "steam.join.recommended" = "권장";
 "steam.join.settings" = "Steam 브로커 설정…";
-"steam.join.disabledHint" = "먼저 연결 경로(Connection Paths)에서 Steam 브로커 경로를 설정하세요.";
+"steam.join.disabledHint" = "설정 › 연결 경로에서 Steam 브로커 경로를 선택하세요";
 "steam.consent.title" = "Steam 신원으로 연결할까요?";
 "steam.consent.message" = "Steam 신원으로 연결하면 실제 Steam 계정의 신원(SteamID)이 이 서버에 전달됩니다. 서버 관리자는 이 신원을 Steam 계정과 연결할 수 있습니다. 게임에 표시되는 이름은 변경되지 않습니다.";
 "steam.consent.confirm" = "확인 후 연결";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "파일을 실행할 수 없습니다.";
 "steam.path.empty" = "경로가 설정되지 않았습니다.";
 "steam.settings.argument" = "여기서 시작하면 브로커는 인수 하나를 받습니다. 아래 설정의 host:port 값(예: %@)입니다. 이 인수를 받아들여야 합니다.";
+"steam.join.steamAuthStart" = "Steam ID 사용(브로커 시작)";
+"steam.settings.useFound" = "찾은 브로커 사용";
+"steam.settings.useFoundTitle" = "이 브로커를 사용하시겠습니까?";
+"steam.settings.useFoundMessage" = "아래 경로가 Steam 브로커 경로로 저장됩니다:\n%@";
+"steam.settings.notFound" = "일반적인 위치에서 브로커를 찾을 수 없습니다.";
+"steam.settings.foundOther" = "다른 브로커를 찾았습니다: %@. 설정한 경로는 그대로 유지됩니다.";
+"steam.error.settingsHint" = "설정 › 연결 경로에서 브로커 경로를 확인하십시오.";

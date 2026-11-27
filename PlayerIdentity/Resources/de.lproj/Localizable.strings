@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Mit Steam-Identität";
 "steam.join.recommended" = "Empfohlen";
 "steam.join.settings" = "Steam-Broker-Einstellungen…";
-"steam.join.disabledHint" = "Lege zuerst den Steam-Broker-Pfad unter Einstellungen › Verbindungspfade fest.";
+"steam.join.disabledHint" = "Wählen Sie den Steam-Broker-Pfad unter Einstellungen › Verbindungspfade";
 "steam.consent.title" = "Mit deiner Steam-Identität verbinden?";
 "steam.consent.message" = "Beim Verbinden mit deiner Steam-Identität übermittelt du die Identität (SteamID) deines echten Steam-Kontos an diesen Server. Der Serveradministrator kann diese Identität deinem Steam-Konto zuordnen. Der Name, der im Spiel angezeigt wird, ändert sich nicht.";
 "steam.consent.confirm" = "Bestätigen und verbinden";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Die Datei ist nicht ausführbar.";
 "steam.path.empty" = "Kein Pfad festgelegt.";
 "steam.settings.argument" = "Beim Start von hier erhält der Broker ein Argument: host:port der unten stehenden Einstellungen (zum Beispiel %@). Er muss dieses Argument akzeptieren.";
+"steam.join.steamAuthStart" = "Mit Steam-Identität (Broker starten)";
+"steam.settings.useFound" = "Gefundenen Broker verwenden";
+"steam.settings.useFoundTitle" = "Diesen Broker verwenden?";
+"steam.settings.useFoundMessage" = "Der unten stehende Pfad wird als Steam-Broker-Pfad gespeichert:\n%@";
+"steam.settings.notFound" = "An den üblichen Orten wurde kein Broker gefunden.";
+"steam.settings.foundOther" = "Ein anderer Broker wurde gefunden: %@. Der von Ihnen festgelegte Pfad bleibt erhalten.";
+"steam.error.settingsHint" = "Prüfen Sie den Broker-Pfad unter Einstellungen › Verbindungspfade.";

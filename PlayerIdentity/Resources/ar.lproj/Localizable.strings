@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "بهوية Steam";
 "steam.join.recommended" = "موصى به";
 "steam.join.settings" = "إعدادات وسيط Steam…";
-"steam.join.disabledHint" = "عيّن مسار وسيط Steam في الإعدادات › مسارات الاتصال أولاً.";
+"steam.join.disabledHint" = "اختر مسار الوسيط في Steam من الإعدادات › مسارات الاتصال";
 "steam.consent.title" = "هل تتصل بهوية Steam الخاصة بك؟";
 "steam.consent.message" = "الاتصال بهوية Steam يُبلغ هذا الخادم بهوية (SteamID) حسابك الفعلي على Steam. يمكن لمسؤول الخادم ربط هذه الهوية بحسابك على Steam. الاسم المعروض في اللعبة لن يتغير.";
 "steam.consent.confirm" = "تأكيد والاتصال";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "الملف غير قابل للتنفيذ.";
 "steam.path.empty" = "لم يُعيّن أي مسار.";
 "steam.settings.argument" = "عند التشغيل من هنا، يتلقى الوسيط وسيطاً واحداً: المضيف:المنفذ من الإعدادات أدناه (على سبيل المثال %@). يجب أن يقبل هذا الوسيط.";
+"steam.join.steamAuthStart" = "مع هوية Steam (بدء الوسيط)";
+"steam.settings.useFound" = "استخدام الوسيط الذي تم العثور عليه";
+"steam.settings.useFoundTitle" = "استخدام هذا الوسيط؟";
+"steam.settings.useFoundMessage" = "سيتم حفظ المسار أدناه كمسار وسيط Steam:\n%@";
+"steam.settings.notFound" = "لم يُعثر على أي وسيط في المواقع المعتادة.";
+"steam.settings.foundOther" = "تم العثور على وسيط آخر: %@. سيتم الاحتفاظ بالمسار الذي حددته.";
+"steam.error.settingsHint" = "تحقق من مسار الوسيط في الإعدادات › مسارات الاتصال.";

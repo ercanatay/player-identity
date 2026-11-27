@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "With Steam identity";
 "steam.join.recommended" = "Recommended";
 "steam.join.settings" = "Steam broker settings…";
-"steam.join.disabledHint" = "Set the Steam broker path in Settings › Connection Paths first.";
+"steam.join.disabledHint" = "Choose the Steam broker path in Settings › Connection Paths";
 "steam.consent.title" = "Connect with your Steam identity?";
 "steam.consent.message" = "Connecting with your Steam identity reports the identity (SteamID) of your real Steam account to this server. The server administrator can link this identity to your Steam account. The name shown in the game does not change.";
 "steam.consent.confirm" = "Confirm and Connect";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "The file is not executable.";
 "steam.path.empty" = "No path set.";
 "steam.settings.argument" = "When started from here, the broker gets one argument: host:port of the settings below (for example %@). It must accept that argument.";
+"steam.join.steamAuthStart" = "With Steam identity (start broker)";
+"steam.settings.useFound" = "Use Found Broker";
+"steam.settings.useFoundTitle" = "Use this broker?";
+"steam.settings.useFoundMessage" = "The path below will be saved as the Steam broker path:\n%@";
+"steam.settings.notFound" = "No broker was found in the usual places.";
+"steam.settings.foundOther" = "Another broker was found: %@. The path you set is kept.";
+"steam.error.settingsHint" = "Check the broker path in Settings › Connection Paths.";

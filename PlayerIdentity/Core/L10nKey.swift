@@ -1366,4 +1366,11 @@ enum L10nKey: String, CaseIterable, Sendable {
     case steamPathNotExecutable = "steam.path.notExecutable"
     case steamPathEmpty = "steam.path.empty"
     case steamSettingsArgument = "steam.settings.argument"
+    case steamJoinSteamAuthStart = "steam.join.steamAuthStart"
+    case steamSettingsUseFound = "steam.settings.useFound"
+    case steamSettingsUseFoundTitle = "steam.settings.useFoundTitle"
+    case steamSettingsUseFoundMessage = "steam.settings.useFoundMessage"
+    case steamSettingsNotFound = "steam.settings.notFound"
+    case steamSettingsFoundOther = "steam.settings.foundOther"
+    case steamErrorSettingsHint = "steam.error.settingsHint"
 }

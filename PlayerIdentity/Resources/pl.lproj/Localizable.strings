@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Z tożsamością Steam";
 "steam.join.recommended" = "Zalecane";
 "steam.join.settings" = "Ustawienia brokera Steam…";
-"steam.join.disabledHint" = "Najpierw ustaw ścieżkę brokera Steam w Ustawienia › Ścieżki połączeń.";
+"steam.join.disabledHint" = "Wybierz ścieżkę brokera Steam w Ustawienia › Ścieżki połączenia";
 "steam.consent.title" = "Połączyć się z użyciem tożsamości Steam?";
 "steam.consent.message" = "Połączenie z użyciem tożsamości Steam przekazuje identyfikator (SteamID) Twojego prawdziwego konta Steam temu serwerowi. Administrator serwera może powiązać tę tożsamość z Twoim kontem Steam. Nazwa wyświetlana w grze nie ulega zmianie.";
 "steam.consent.confirm" = "Potwierdź i połącz";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Plik nie jest wykonywalny.";
 "steam.path.empty" = "Nie ustawiono ścieżki.";
 "steam.settings.argument" = "Po uruchomieniu stąd broker otrzymuje jeden argument: host:port z poniższych ustawień (na przykład %@). Musi go akceptować.";
+"steam.join.steamAuthStart" = "Z tożsamością Steam (uruchom brokera)";
+"steam.settings.useFound" = "Użyj znalezionego brokera";
+"steam.settings.useFoundTitle" = "Użyć tego brokera?";
+"steam.settings.useFoundMessage" = "Poniższa ścieżka zostanie zapisana jako ścieżka brokera Steam:\n%@";
+"steam.settings.notFound" = "Nie znaleziono brokera w typowych lokalizacjach.";
+"steam.settings.foundOther" = "Znaleziono innego brokera: %@. Ustawiona ścieżka zostanie zachowana.";
+"steam.error.settingsHint" = "Sprawdź ścieżkę brokera w Ustawienia › Ścieżki połączenia.";

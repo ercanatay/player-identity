@@ -13,14 +13,10 @@ struct ServerRowActions {
     var join: (() -> Void)?
     /// §76.6 "Join with ▾": `nil` = Xash3D is not installed.
     var joinWith: ((JoinIdentity) -> Void)?
-    /// §76.6.4 the Steam entry is usable (a valid broker path is set); otherwise it is disabled with a hint.
-    var steamAvailable = false
-    /// §76.6 GoldSrc 48 server: the Steam entry is marked as recommended (a suggestion only).
-    var steamRecommended = false
+    /// §77.3 the Steam entry: disabled with a hint without a broker path, "(start broker)" when the broker is down.
+    var steamMenu = SteamMenuItem.make(pathUsable: false, state: .notConfigured, recommended: false)
     /// §76.6 `Steam ✓` / `Steam ✗` from the server memory.
     var steamBadge: SteamBadge?
-    /// §76.3 live broker state shown next to the Steam entry.
-    var steamStateTitle: String?
     var toggleFavorite: () -> Void = {}
     /// §42 🔔 watch switch.
     var toggleWatch: () -> Void = {}
@@ -514,10 +510,8 @@ struct ServersCard: View {
             fixActions: ServerActionList.actions(for: entry, model: model, details: presenter.details),
             join: model.isGameAppInstalled ? { model.joinGame(id) } : nil,
             joinWith: model.isGameAppInstalled ? { model.joinGame(id, identity: $0) } : nil,
-            steamAvailable: model.isSteamBrokerConfigured,
-            steamRecommended: model.recommendsSteamIdentity(id),
+            steamMenu: model.steamMenuItem(for: id),
             steamBadge: model.steamBadge(for: entry),
-            steamStateTitle: model.isSteamBrokerConfigured ? model.steamBrokerState.title : nil,
             toggleFavorite: { model.setFavorite(!entry.favorite, for: id) },
             toggleWatch: { model.setWatch(!entry.watch, for: id) },
             moveUp: model.canMoveServer(id: id, .up) ? { model.moveServer(id: id, .up) } : nil,
@@ -931,21 +925,15 @@ struct ServerRowView: View {
     private func joinWithMenu(_ joinWith: @escaping (JoinIdentity) -> Void) -> some View {
         Menu(L10n.text(.steamJoinMenu)) {
             Button(L10n.text(.steamJoinStandard)) { joinWith(.standard) }
-            Button(steamEntryTitle) { joinWith(.steamAuth) }
-                .disabled(!actions.steamAvailable)
-            if !actions.steamAvailable {
-                Text(L10n.text(.steamJoinDisabledHint))
+            Button(actions.steamMenu.title) { joinWith(.steamAuth) }
+                .disabled(!actions.steamMenu.isEnabled)
+                .help(actions.steamMenu.help ?? "")
+            if let hint = actions.steamMenu.help {
+                Text(hint)
             }
             Divider()
             Button(L10n.text(.steamJoinSettings)) { openSettings() }
         }
-    }
-
-    private var steamEntryTitle: String {
-        var parts = [L10n.text(.steamJoinSteamAuth)]
-        if actions.steamRecommended { parts.append(L10n.text(.steamJoinRecommended)) }
-        if let state = actions.steamStateTitle { parts.append(state) }
-        return parts.joined(separator: " · ")
     }
 
     /// §32: note, appeal status and follow-up reminder; each opens the details.

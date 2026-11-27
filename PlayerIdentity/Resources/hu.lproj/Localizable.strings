@@ -1330,11 +1330,11 @@
 "shareCard.banType.unknown" = "Nem állapítható meg";
 "shareCard.qr.statusOnly" = "QR: csak állapotösszesítő, CID nélkül";
 "steam.join.menu" = "Csatlakozás ezzel:";
-"steam.join.standard" = "Standard";
+"steam.join.standard" = "Normál";
 "steam.join.steamAuth" = "Steam-azonosítóval";
 "steam.join.recommended" = "Ajánlott";
 "steam.join.settings" = "Steam-közvetítő beállításai…";
-"steam.join.disabledHint" = "Először állítsa be a Steam-közvetítő elérési útját a Beállítások › Kapcsolati útvonalak menüpontban.";
+"steam.join.disabledHint" = "Válassza ki a Steam broker útvonalát a Beállítások › Kapcsolati útvonalak alatt";
 "steam.consent.title" = "Csatlakozik a Steam-azonosítójával?";
 "steam.consent.message" = "A Steam-azonosítóval történő csatlakozás során a valódi Steam-fiókja azonosítóját (SteamID) jelenti a szervernek. A szerver adminisztrátora ezt az azonosítót össze tudja kapcsolni a Steam-fiókjával. A játékban megjelenő név nem változik.";
 "steam.consent.confirm" = "Megerősítés és csatlakozás";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "A fájl nem futtatható.";
 "steam.path.empty" = "Nincs megadva útvonal.";
 "steam.settings.argument" = "Innen indítva a közvetítő egyetlen argumentumot kap: a lenti beállításokban megadott host:port értéket (például %@). Ezt az argumentumot el kell fogadnia.";
+"steam.join.steamAuthStart" = "Steam identitással (broker indítása)";
+"steam.settings.useFound" = "Talált broker használata";
+"steam.settings.useFoundTitle" = "Ezt a brokert használja?";
+"steam.settings.useFoundMessage" = "Az alábbi útvonal lesz mentve Steam broker útvonalként:\n%@";
+"steam.settings.notFound" = "A szokásos helyeken nem található broker.";
+"steam.settings.foundOther" = "Másik broker is található: %@. A beállított útvonal megmarad.";
+"steam.error.settingsHint" = "Ellenőrizze a Steam broker útvonalát a Beállítások › Kapcsolati útvonalak alatt.";

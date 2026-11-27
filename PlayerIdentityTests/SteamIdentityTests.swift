@@ -12,6 +12,7 @@ final class FakeSteamBroker: SteamBrokerEnvironment, SteamBrokerProcessControlli
     var listensAfterStart = true
     private var startedValue: [String] = []
     private var addressesValue: [String] = []
+    var executableFiles: Set<String> = []
     private var stoppedValue: [Int32] = []
     var startFails = false
 
@@ -27,6 +28,7 @@ final class FakeSteamBroker: SteamBrokerEnvironment, SteamBrokerProcessControlli
     func isPortListening(host: String, port: Int) -> Bool { listening }
     func isBrokerProcessRunning(executablePath: String) -> Bool { brokerProcessRunning }
     func isSteamClientRunning() -> Bool { steamRunning }
+    func isExecutableRegularFile(_ path: String) -> Bool { executableFiles.contains(path) }
 
     func start(executablePath: String, address: String) throws -> Int32 {
         if startFails { throw CommandError.launchFailed }
@@ -626,5 +628,150 @@ final class SteamIdentityTests: XCTestCase {
         await other.startSteamBroker().value
         other.releaseOwnedSteamBrokers()
         XCTAssertEqual(foreign.stopped, [])
+    }
+
+    // MARK: §77
+
+    func testCandidateOrderAndFiltering() {
+        let home = URL(fileURLWithPath: "/Users/test", isDirectory: true)
+        let all = SteamBrokerCandidates.paths(home: home)
+        XCTAssertEqual(all, ["/Users/test/Documents/steam-broker/steam-broker",
+                             "/Users/test/Applications/Steam Broker.app/Contents/MacOS/steam-broker",
+                             "/opt/homebrew/bin/steam-broker", "/usr/local/bin/steam-broker"])
+        let broker = FakeSteamBroker()
+        XCTAssertEqual(SteamBrokerCandidates.find(home: home, environment: broker), [])
+        broker.executableFiles = [all[3], all[1]]
+        XCTAssertEqual(SteamBrokerCandidates.find(home: home, environment: broker), [all[1], all[3]])
+        // No file system access at all: nothing found, no crash.
+        XCTAssertEqual(SteamBrokerCandidates.find(home: home, environment: UnavailableSteamBrokerEnvironment()), [])
+    }
+
+    func testRealProbeAcceptsOnlyExecutableRegularFiles() throws {
+        let temp = try TempDirectory()
+        let exe = try temp.write("bin/steam-broker", "#!/bin/sh\n")
+        let plain = try temp.write("bin/plain", "x")
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exe.path)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: plain.path)
+        let link = temp.url.appendingPathComponent("bin/link").path
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: exe.path)
+        let folder = temp.url.appendingPathComponent("bin/dir").path
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let probe = SystemSteamBrokerEnvironment()
+        XCTAssertTrue(probe.isExecutableRegularFile(exe.path))
+        XCTAssertFalse(probe.isExecutableRegularFile(plain.path))   // not executable
+        XCTAssertFalse(probe.isExecutableRegularFile(link))         // symbolic link
+        XCTAssertFalse(probe.isExecutableRegularFile(folder))       // folder
+        XCTAssertFalse(probe.isExecutableRegularFile(temp.url.appendingPathComponent("missing").path))
+    }
+
+    @MainActor
+    func testUseFoundBrokerNeedsConsentAndNeverOverwrites() throws {
+        let env = try TestAppEnvironment()
+        let broker = FakeSteamBroker()
+        let found = SteamBrokerCandidates.paths(home: env.home)[2]
+        broker.executableFiles = [found, "/usr/local/bin/steam-broker"]
+        let model = env.makeModel { deps in
+            deps.steamBrokerEnvironment = broker
+            deps.steamBrokerControl = broker
+        }
+        model.discoverSteamBroker()
+        XCTAssertEqual(model.steamDiscovery, .available(found))
+        XCTAssertFalse(model.useFoundSteamBroker(confirmed: false))        // no consent: nothing written
+        XCTAssertNil(model.steamEndpoint.executablePath)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: AppPaths(home: env.home).steamBrokerFile.path))
+        XCTAssertTrue(model.useFoundSteamBroker(confirmed: true))
+        XCTAssertEqual(model.steamEndpoint.executablePath, found)
+        // A path is set now: discovery informs only and never overwrites.
+        model.setSteamBroker(path: "/my/own/broker", port: 27420)
+        XCTAssertEqual(model.steamDiscovery, .other(found))
+        XCTAssertFalse(model.useFoundSteamBroker(confirmed: true))
+        XCTAssertEqual(model.steamEndpoint.executablePath, "/my/own/broker")
+        broker.executableFiles = []
+        model.discoverSteamBroker()
+        XCTAssertEqual(model.steamDiscovery, .none)
+    }
+
+    func testMenuEntryVariants() throws {
+        let hint = SteamMenuItem.make(pathUsable: false, state: .notConfigured, recommended: false)
+        XCTAssertFalse(hint.isEnabled)
+        XCTAssertEqual(hint.help, L10n.text(.steamJoinDisabledHint))
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
+            XCTAssertEqual(SteamMenuItem.make(pathUsable: false, state: .notConfigured, recommended: false).help,
+                           "Ayarlar › Bağlantı Yolları’ndan Steam broker yolunu seçin")
+            XCTAssertTrue(SteamMenuItem.make(pathUsable: true, state: .notRunning, recommended: false).title
+                .hasPrefix("Steam kimliğiyle (broker’ı başlat)"))
+        }
+        try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("en"))) {
+            XCTAssertEqual(SteamMenuItem.make(pathUsable: false, state: .notConfigured, recommended: false).help,
+                           "Choose the Steam broker path in Settings › Connection Paths")
+        }
+        let start = SteamMenuItem.make(pathUsable: true, state: .notRunning, recommended: true)
+        XCTAssertTrue(start.isEnabled)
+        XCTAssertTrue(start.startsBroker)
+        XCTAssertTrue(start.title.contains(L10n.text(.steamJoinSteamAuthStart)))
+        XCTAssertTrue(start.title.contains(L10n.text(.steamJoinRecommended)))
+        let running = SteamMenuItem.make(pathUsable: true, state: .listening, recommended: false)
+        XCTAssertTrue(running.isEnabled)
+        XCTAssertFalse(running.startsBroker)
+        XCTAssertTrue(running.title.hasPrefix(L10n.text(.steamJoinSteamAuth)))
+        XCTAssertFalse(running.title.contains(L10n.text(.steamJoinSteamAuthStart)))
+    }
+
+    @MainActor
+    func testModelMenuStartsTheBrokerOnlyAfterConsentAndShowsStartFailure() async throws {
+        let env = try TestAppEnvironment()
+        let runner = FakeGameLaunchRunner()
+        let broker = FakeSteamBroker()
+        let model = env.makeModel { deps in
+            deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: [Self.app]), homeDirectory: self.home)
+            deps.gameLaunchRunner = runner
+            deps.steamBrokerEnvironment = broker
+            deps.steamBrokerControl = broker
+            deps.steamSleep = { _ in }
+        }
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
+        let id = try XCTUnwrap(model.servers.first?.id)
+        XCTAssertFalse(model.steamMenuItem(for: id).isEnabled)            // no path yet
+        model.setSteamBroker(path: "/opt/broker/broker", port: 27420)
+        await model.refreshSteamBrokerState().value
+        XCTAssertTrue(model.steamMenuItem(for: id).startsBroker)         // path set, broker down
+
+        let declined = try XCTUnwrap(model.joinGame(id, identity: .steamAuth))
+        for _ in 0..<50 where model.steamPrompt == nil { await Task.yield() }
+        XCTAssertEqual(broker.started, [])                                // nothing before the consent
+        model.answerSteamPrompt(false)
+        await declined.value
+        XCTAssertEqual(broker.started, [])
+
+        let accepted = try XCTUnwrap(model.joinGame(id, identity: .steamAuth))
+        for _ in 0..<50 where model.steamPrompt == nil { await Task.yield() }
+        model.answerSteamPrompt(true)
+        await accepted.value
+        XCTAssertEqual(broker.startAddresses, ["127.0.0.1:27420"])
+        XCTAssertEqual(runner.commands.count, 1)
+        XCTAssertNil(model.joinError)
+
+        // A start failure is shown, with the pointer to the settings; the app does not crash.
+        let failing = FakeSteamBroker()
+        failing.startFails = true
+        let other = env.makeModel { deps in
+            deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: [Self.app]), homeDirectory: self.home)
+            deps.gameLaunchRunner = runner
+            deps.steamBrokerEnvironment = failing
+            deps.steamBrokerControl = failing
+            deps.steamSleep = { _ in }
+        }
+        other.setSteamBroker(path: "/opt/broker/broker", port: 27420)
+        let otherID = try XCTUnwrap(other.servers.first?.id ?? { other.addServer(ServerDraft(label: "B", host: "192.0.2.11")); return other.servers.first?.id }())
+        let task = try XCTUnwrap(other.joinGame(otherID, identity: .steamAuth))
+        for _ in 0..<50 where other.steamPrompt == nil { await Task.yield() }
+        other.answerSteamPrompt(true)
+        await task.value
+        XCTAssertEqual(other.joinError, .steamBrokerStartFailed)
+        XCTAssertEqual(runner.commands.count, 1)                          // no second launch
+        XCTAssertTrue(other.joinError?.isSteamBrokerProblem == true)
+        let text = GameLaunchText.error(.steamBrokerStartFailed)
+        XCTAssertTrue(text.contains(L10n.text(.steamErrorStart)))
+        XCTAssertTrue(text.contains(L10n.text(.steamErrorSettingsHint)))
     }
 }

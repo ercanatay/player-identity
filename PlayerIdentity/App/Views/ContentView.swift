@@ -6,6 +6,7 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var model: AppModel
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     @State private var sheet: SheetMode?
 
@@ -114,6 +115,10 @@ struct ContentView: View {
             set: { if !$0 { model.joinError = nil } }
         )) {
             Button(L10n.text(.actionOK), role: .cancel) {}
+            // §77.3 a broker problem points to the settings (nothing is swallowed).
+            if model.joinError?.isSteamBrokerProblem == true {
+                Button(L10n.text(.steamJoinSettings)) { openSettings() }
+            }
         } message: {
             Text(model.joinError.map(GameLaunchText.error) ?? "")
         }

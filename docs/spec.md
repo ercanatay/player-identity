@@ -2087,3 +2087,39 @@ Onay **her seçimde** istenir; kalıcı “her zaman onayla” seçeneği sunulm
 - Spec, kod, test ve dokümantasyon **hiçbir sunucunun adresini/portunu**, hiçbir SteamID'yi, hiçbir oyuncu adını **içermez**. Özellik herhangi bir sunucuya uygulanabilir.
 - Oyuncu adı oyunun kendi yapılandırmasından gelir; uygulama oyuncu adını **değiştirmez**.
 - Steam broker **üçüncü taraf yerel bir araçtır**; uygulama broker kodu/kitaplığı **dağıtmaz**, yalnızca kullanıcının tanımladığı ikiliyi çalıştırır. Steam'in kütüphaneleri uygulamaya/dağıtıma **dahil edilmez**.
+
+## 77. Broker bulma ve tek tıkla başlatma (v5.6, uygulama 2.27.1 build 57)
+
+### 77.1 Amaç
+§76’daki Steam yönteminin kullanılabilirliğini artırmak: kullanıcı broker ikilisini elle aramak zorunda kalmasın, menüdeki seçenek **neden pasif** olduğunu açıkça görsün ve tek tıkla başlatabilsin.
+
+### 77.2 Broker adaylarının otomatik tespiti
+- Uygulama, bilinen konumlarda broker ikilisini arar (sırayla):
+  1. `~/Documents/steam-broker/steam-broker`
+  2. `~/Applications/Steam Broker.app/Contents/MacOS/steam-broker`
+  3. `/opt/homebrew/bin/steam-broker`
+  4. `/usr/local/bin/steam-broker`
+- **Yalnızca çalıştırılabilir düzenli dosyalar** aday sayılır (sembolik bağ/klasör değil; `isExecutableFile`).
+- Ayarlar → Bağlantı Yolları’nda **“Bulunan broker’ı kullan”** düğmesi: ilk bulunan adayı yola yazar (kullanıcı onayı ile). Bulunamazsa düğme pasif ve açıklama gösterilir.
+- Yol zaten tanımlıysa otomatik tespit **yol üzerine yazmaz**; yalnız “başka bir broker bulundu” bilgisi gösterilir.
+- Tespit **salt okunur**dur; hiçbir dosya oluşturulmaz/değiştirilmez.
+
+### 77.3 Menüde net yönlendirme ve tek tıkla başlatma
+- **Yol tanımlı değilse:** “Steam kimliğiyle” pasif görünür; yardım metni **“Ayarlar › Bağlantı Yolları’ndan Steam broker yolunu seçin”** olur. Menüde ayrıca **“Steam broker ayarları…”** öğesi kalır.
+- **Yol tanımlı ama broker çalışmıyorsa:** öğe **“Steam kimliğiyle (broker’ı başlat)”** olarak görünür; seçildiğinde gizlilik onayından **sonra** broker başlatılır ve bağlantı kurulur (§76.4 akışı aynen).
+- **Broker çalışıyorsa:** öğe normal görünür (“Steam kimliğiyle”).
+- Başlatma başarısız olursa: anlaşılır hata + “Tanılama”/ayarlara yönlendirme; **sessiz yutma yok**.
+- Uygulamanın kendi başlattığı broker, oyun kapanınca ve uygulama kapanırken durdurulur (§76.3 korunur).
+
+### 77.4 Metinler
+- Yeni/değişen metinler 26 dilde lokalize edilir; TR/EN doğrudan, diğer diller çeviri hattıyla (orkestratör).
+- Metinler jeneriktir: sunucu adı, SteamID, kişisel veri içermez.
+
+### 77.5 Kabul kriterleri ve testler
+1. Aday tespiti: sıra, çalıştırılabilirlik kontrolü, sembolik bağ/klasör reddi; dosya sistemi erişimi olmayan ortamda çökmemeli.
+2. “Bulunan broker’ı kullan” yalnız onayla yazar; mevcut yolun üzerine yazmaz.
+3. Yol yokken yardım metni **birebir** “Ayarlar › Bağlantı Yolları’ndan Steam broker yolunu seçin”.
+4. Yol var + broker kapalıyken menü öğesi “(broker’ı başlat)” varyantını gösterir ve seçimde onaydan sonra başlatır.
+5. Başlatma hatası kullanıcıya gösterilir; uygulama çökmez.
+6. §76’nın tüm kuralları korunur: oyun cfg’sine yazma yok, yalnız kendi başlattığı broker’ı kapatma, her seçimde gizlilik onayı.
+7. Mevcut testler + yeni testler geçer; l10n parity ve `sync-spec.sh --check` yeşil.

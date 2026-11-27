@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "със Steam идентичност";
 "steam.join.recommended" = "Препоръчително";
 "steam.join.settings" = "Настройки на Steam посредника…";
-"steam.join.disabledHint" = "Първо задайте пътя до Steam посредника в Настройки › Пътища за връзка.";
+"steam.join.disabledHint" = "Изберете пътя на Steam брокера в Настройки › Пътища за връзка";
 "steam.consent.title" = "Да се свържа ли със своята Steam идентичност?";
 "steam.consent.message" = "Свързването със своята Steam идентичност предава на този сървър идентичността (SteamID) на вашия действителен Steam акаунт. Администраторът на сървъра може да свърже тази идентичност с вашия Steam акаунт. Името, показвано в играта, не се променя.";
 "steam.consent.confirm" = "Потвърждаване и свързване";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Файлът не е изпълним.";
 "steam.path.empty" = "Няма зададен път.";
 "steam.settings.argument" = "При стартиране оттук посредникът получава един аргумент: host:port от настройките по-долу (например %@). Той трябва да приема този аргумент.";
+"steam.join.steamAuthStart" = "Със Steam самоличност (стартиране на брокера)";
+"steam.settings.useFound" = "Използване на намерения брокер";
+"steam.settings.useFoundTitle" = "Да се използва ли този брокер?";
+"steam.settings.useFoundMessage" = "Пътят по-долу ще бъде записан като път към Steam брокера:\n%@";
+"steam.settings.notFound" = "Не е намерен брокер на обичайните места.";
+"steam.settings.foundOther" = "Намерен е друг брокер: %@. Зададеният от вас път се запазва.";
+"steam.error.settingsHint" = "Проверете пътя до Steam брокера в Настройки › Пътища за връзка.";

@@ -29,6 +29,16 @@ enum GameLaunchError: Error, Sendable, Equatable {
     case steamBrokerStartFailed
 }
 
+extension GameLaunchError {
+    /// §77.3 the broker could not be used (not configured, not listening, not started): the settings help.
+    var isSteamBrokerProblem: Bool {
+        switch self {
+        case .steamBrokerNotConfigured, .steamBrokerUnreachable, .steamBrokerStartFailed: return true
+        default: return false
+        }
+    }
+}
+
 /// `/usr/bin/open -a <Xash3D.app> --args -game <gamedir> +connect <ip>:<port>` (`source49` / `unknown`);
 /// a GoldSrc 48 server: `/usr/bin/open --env XASH3D_BASEDIR=<data root> -a <Xash3D.app> --args -game <gamedir> -dev 1
 /// -log +connect <ip>:<port> gs` (§75.4: the argument is `gs`, not `legacy`; §75.13: `-dev 1 -log` make the engine

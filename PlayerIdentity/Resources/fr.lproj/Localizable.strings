@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Avec l'identité Steam";
 "steam.join.recommended" = "Recommandé";
 "steam.join.settings" = "Paramètres du courtier Steam…";
-"steam.join.disabledHint" = "Définissez d'abord le chemin du courtier Steam dans Réglages › Chemins de connexion.";
+"steam.join.disabledHint" = "Choisissez le chemin du broker Steam dans Réglages › Chemins de connexion";
 "steam.consent.title" = "Se connecter avec votre identité Steam ?";
 "steam.consent.message" = "Se connecter avec votre identité Steam transmet à ce serveur l'identité (SteamID) de votre compte Steam réel. L'administrateur du serveur peut associer cette identité à votre compte Steam. Le nom affiché dans le jeu ne change pas.";
 "steam.consent.confirm" = "Confirmer et se connecter";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Le fichier n'est pas exécutable.";
 "steam.path.empty" = "Aucun chemin défini.";
 "steam.settings.argument" = "Lorsqu'il est lancé depuis ici, le courtier reçoit un seul argument : host:port des paramètres ci-dessous (par exemple %@). Il doit accepter cet argument.";
+"steam.join.steamAuthStart" = "Avec identité Steam (démarrer le broker)";
+"steam.settings.useFound" = "Utiliser le broker trouvé";
+"steam.settings.useFoundTitle" = "Utiliser ce broker ?";
+"steam.settings.useFoundMessage" = "Le chemin ci-dessous sera enregistré comme chemin du broker Steam :\n%@";
+"steam.settings.notFound" = "Aucun broker n'a été trouvé aux emplacements habituels.";
+"steam.settings.foundOther" = "Un autre broker a été trouvé : %@. Le chemin que vous avez défini est conservé.";
+"steam.error.settingsHint" = "Vérifiez le chemin du broker dans Réglages › Chemins de connexion.";

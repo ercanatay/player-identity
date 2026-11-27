@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.1] - 2026-11-27
+
+### Added
+- **Broker discovery** (spec §77): the usual places are checked read-only (`~/Documents/steam-broker/steam-broker`, `~/Applications/Steam Broker.app/Contents/MacOS/steam-broker`, `/opt/homebrew/bin/steam-broker`, `/usr/local/bin/steam-broker`); only executable regular files count (no symbolic links or folders). Settings › Connection Paths has **Use Found Broker**, which writes the first candidate with your confirmation and never replaces a path that is already set (it only tells you that another broker was found).
+- **Clearer Steam entry in the row menu**: without a broker path it is disabled with the help text "Choose the Steam broker path in Settings › Connection Paths"; with a path and a stopped broker it reads **With Steam identity (start broker)** and starts the broker after the privacy consent; a broker that fails to start or listen shows an error with a button to the settings.
+- 7 new localization keys (`steam.join.steamAuthStart`, `steam.settings.useFound*`, `steam.settings.notFound`, `steam.settings.foundOther`, `steam.error.settingsHint`); `steam.join.disabledHint` reworded.
+
 ## [2.27.0] - 2026-11-27
 
 ### Added

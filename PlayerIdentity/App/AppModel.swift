@@ -325,6 +325,8 @@ final class AppModel {
     private(set) var identityMemory = ServerIdentityMemory()
     /// §76.3 live state shown in Settings and the row menu.
     private(set) var steamBrokerState: SteamBrokerState = .notConfigured
+    /// §77.2 broker candidates found in the usual places (read-only discovery).
+    private(set) var steamDiscovery: SteamBrokerDiscovery = .none
     /// Result of the "check path" button.
     private(set) var steamPathCheck: SteamBrokerPathCheck?
     /// Error of the last manual broker start (Settings).
@@ -587,6 +589,7 @@ final class AppModel {
         gamedirs = profile.gamedirs
         selectedGamedir = profile.selectedGamedir
         isGameAppInstalled = deps.gameAppLocator.locate() != nil
+        refreshSteamBrokerState()
         identity = profile.identity
         // Unedited drafts follow the new effective value; the user's draft is kept.
         if nameDraft == config.name { nameDraft = profile.config.name }
@@ -1487,6 +1490,27 @@ final class AppModel {
         launchProtocol(for: id) == .goldsrc48
     }
 
+    /// §77.2 looks for a broker in the known places; never writes anything.
+    func discoverSteamBroker() {
+        let found = SteamBrokerCandidates.find(home: deps.paths.home, environment: deps.steamBrokerEnvironment)
+        steamDiscovery = SteamBrokerDiscovery.evaluate(found: found, current: steamEndpoint)
+    }
+
+    /// §77.2 "Use Found Broker": writes the found path only with the user's consent and only while no path is set.
+    @discardableResult
+    func useFoundSteamBroker(confirmed: Bool) -> Bool {
+        discoverSteamBroker()
+        guard confirmed, !steamEndpoint.isConfigured, case .available(let path) = steamDiscovery else { return false }
+        setSteamBroker(path: path, port: steamEndpoint.port)
+        return true
+    }
+
+    /// §77.3 the row menu entry for the Steam method.
+    func steamMenuItem(for id: UUID) -> SteamMenuItem {
+        SteamMenuItem.make(pathUsable: isSteamBrokerConfigured, state: steamBrokerState,
+                           recommended: recommendsSteamIdentity(id))
+    }
+
     /// §76.6.4 the Steam entry is disabled until a broker binary path is set and valid.
     var isSteamBrokerConfigured: Bool {
         steamBroker.pathCheck(steamEndpoint) == .valid
@@ -1501,6 +1525,7 @@ final class AppModel {
         endpoint.port = HostValidator.isValidPort(port) ? port : steamEndpoint.port
         steamEndpoint = endpoint
         steamPathCheck = nil
+        discoverSteamBroker()
         do {
             try SteamIdentityStore(paths: deps.paths).saveEndpoint(endpoint)
         } catch {

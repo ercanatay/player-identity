@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Với danh tính Steam";
 "steam.join.recommended" = "Được đề xuất";
 "steam.join.settings" = "Cài đặt broker Steam…";
-"steam.join.disabledHint" = "Hãy đặt đường dẫn broker Steam trong Cài đặt › Đường dẫn kết nối trước.";
+"steam.join.disabledHint" = "Chọn đường dẫn Steam broker trong Cài đặt › Đường dẫn kết nối";
 "steam.consent.title" = "Kết nối bằng danh tính Steam của bạn?";
 "steam.consent.message" = "Kết nối bằng danh tính Steam sẽ gửi danh tính (SteamID) của tài khoản Steam thật của bạn tới máy chủ này. Quản trị viên máy chủ có thể liên kết danh tính này với tài khoản Steam của bạn. Tên hiển thị trong trò chơi không thay đổi.";
 "steam.consent.confirm" = "Xác nhận và kết nối";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Tệp không thể thực thi.";
 "steam.path.empty" = "Chưa đặt đường dẫn.";
 "steam.settings.argument" = "Khi được khởi động từ đây, broker nhận một đối số: host:port của cài đặt bên dưới (ví dụ %@). Broker phải chấp nhận đối số đó.";
+"steam.join.steamAuthStart" = "Với danh tính Steam (khởi động broker)";
+"steam.settings.useFound" = "Dùng broker đã tìm thấy";
+"steam.settings.useFoundTitle" = "Dùng broker này?";
+"steam.settings.useFoundMessage" = "Đường dẫn bên dưới sẽ được lưu làm đường dẫn broker Steam:\n%@";
+"steam.settings.notFound" = "Không tìm thấy broker ở các vị trí thông thường.";
+"steam.settings.foundOther" = "Đã tìm thấy một broker khác: %@. Đường dẫn bạn đã đặt vẫn được giữ nguyên.";
+"steam.error.settingsHint" = "Hãy kiểm tra đường dẫn Steam broker trong Cài đặt › Đường dẫn kết nối.";

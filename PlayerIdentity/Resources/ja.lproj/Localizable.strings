@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Steam ID で参加";
 "steam.join.recommended" = "推奨";
 "steam.join.settings" = "Steam ブローカーの設定…";
-"steam.join.disabledHint" = "先に「設定 › 接続パス」で Steam ブローカーのパスを設定してください。";
+"steam.join.disabledHint" = "Steam ブローカーのパスを設定するには、「設定 › 接続パス」を選択してください";
 "steam.consent.title" = "Steam ID で接続しますか？";
 "steam.consent.message" = "Steam ID で接続すると、お使いの実際の Steam アカウントの識別子（SteamID）がこのサーバーに報告されます。サーバー管理者はこの識別子を Steam アカウントと紐付けることができます。ゲーム内に表示される名前は変わりません。";
 "steam.consent.confirm" = "確認して接続";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "ファイルは実行可能ではありません。";
 "steam.path.empty" = "パスが設定されていません。";
 "steam.settings.argument" = "ここから起動すると、ブローカーは引数を 1 つ受け取ります。下の設定の host:port です（例: %@）。この引数を受け付ける必要があります。";
+"steam.join.steamAuthStart" = "Steam ID を使用する（ブローカーを起動）";
+"steam.settings.useFound" = "見つかったブローカーを使用";
+"steam.settings.useFoundTitle" = "このブローカーを使用しますか？";
+"steam.settings.useFoundMessage" = "以下のパスが Steam ブローカーのパスとして保存されます:\n%@";
+"steam.settings.notFound" = "通常の場所にブローカーが見つかりませんでした。";
+"steam.settings.foundOther" = "別のブローカーが見つかりました: %@。設定したパスはそのまま保持されます。";
+"steam.error.settingsHint" = "「設定 › 接続パス」でブローカーのパスを確認してください。";

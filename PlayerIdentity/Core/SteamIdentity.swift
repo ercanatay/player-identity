@@ -246,6 +246,8 @@ protocol SteamBrokerEnvironment: Sendable {
     /// A process started from the given binary is running (matched by process name).
     func isBrokerProcessRunning(executablePath: String) -> Bool
     func isSteamClientRunning() -> Bool
+    /// §77.2 a regular, executable file (a symbolic link or folder is not); never throws, `false` when unreadable.
+    func isExecutableRegularFile(_ path: String) -> Bool
 }
 
 /// Starts and stops the broker binary the user chose. It gets exactly one argument, `<host>:<port>` (§76.3).
@@ -261,6 +263,7 @@ struct UnavailableSteamBrokerEnvironment: SteamBrokerEnvironment {
     func isPortListening(host: String, port: Int) -> Bool { false }
     func isBrokerProcessRunning(executablePath: String) -> Bool { false }
     func isSteamClientRunning() -> Bool { false }
+    func isExecutableRegularFile(_ path: String) -> Bool { false }
 }
 
 struct UnavailableSteamBrokerProcessControl: SteamBrokerProcessControlling {
@@ -321,6 +324,12 @@ struct SystemSteamBrokerEnvironment: SteamBrokerEnvironment {
         return Self.processNames().contains { $0 == name || $0 == short }
     }
 
+    func isExecutableRegularFile(_ path: String) -> Bool {
+        var info = stat()
+        guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return false }
+        return FileManager.default.isExecutableFile(atPath: path)
+    }
+
     func isSteamClientRunning() -> Bool {
         Self.processNames().contains(Self.steamClientProcessName)
     }
@@ -371,6 +380,65 @@ final class SystemSteamBrokerProcessControl: SteamBrokerProcessControlling, @unc
         lock.unlock()
         guard let process, process.isRunning else { return }
         process.terminate()
+    }
+}
+
+// MARK: - §77 broker discovery and menu entry
+
+enum SteamBrokerCandidates {
+    /// §77.2 the known places, in order.
+    static func paths(home: URL) -> [String] {
+        [home.path + "/Documents/steam-broker/steam-broker",
+         home.path + "/Applications/Steam Broker.app/Contents/MacOS/steam-broker",
+         "/opt/homebrew/bin/steam-broker",
+         "/usr/local/bin/steam-broker"]
+    }
+
+    /// The candidates that are executable regular files (read-only; nothing is created or changed).
+    static func find(home: URL, environment: any SteamBrokerEnvironment) -> [String] {
+        paths(home: home).filter { environment.isExecutableRegularFile($0) }
+    }
+}
+
+/// §77.2 what discovery means for Settings.
+enum SteamBrokerDiscovery: Sendable, Equatable {
+    /// Nothing found.
+    case none
+    /// No path is set and a broker was found: "Use Found Broker" can write it (with the user's consent).
+    case available(String)
+    /// A path is set and another broker was found: information only, the path is never overwritten.
+    case other(String)
+
+    static func evaluate(found: [String], current: SteamBrokerEndpoint) -> SteamBrokerDiscovery {
+        guard let first = found.first else { return .none }
+        if !current.isConfigured { return .available(first) }
+        if let other = found.first(where: { $0 != current.trimmedPath }) { return .other(other) }
+        return .none
+    }
+}
+
+/// §77.3 the "With Steam identity" entry of the row menu.
+struct SteamMenuItem: Sendable, Equatable {
+    var title: String
+    var isEnabled: Bool
+    /// Why the entry is disabled (shown as help text).
+    var help: String?
+    /// Selecting it starts the broker (after the consent).
+    var startsBroker: Bool
+
+    static func make(pathUsable: Bool, state: SteamBrokerState, recommended: Bool) -> SteamMenuItem {
+        var parts: [String] = []
+        guard pathUsable else {
+            parts.append(L10n.text(.steamJoinSteamAuth))
+            if recommended { parts.append(L10n.text(.steamJoinRecommended)) }
+            return SteamMenuItem(title: parts.joined(separator: " · "), isEnabled: false,
+                                 help: L10n.text(.steamJoinDisabledHint), startsBroker: false)
+        }
+        let starts = state == .notRunning
+        parts.append(L10n.text(starts ? .steamJoinSteamAuthStart : .steamJoinSteamAuth))
+        if recommended { parts.append(L10n.text(.steamJoinRecommended)) }
+        if !starts { parts.append(state.title) }
+        return SteamMenuItem(title: parts.joined(separator: " · "), isEnabled: true, help: nil, startsBroker: starts)
     }
 }
 

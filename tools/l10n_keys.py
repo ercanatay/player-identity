@@ -1454,7 +1454,7 @@ KEYS = [
     ("steamJoinSteamAuth", "steam.join.steamAuth", "Steam kimliğiyle", "With Steam identity"),
     ("steamJoinRecommended", "steam.join.recommended", "Önerilen", "Recommended"),
     ("steamJoinSettings", "steam.join.settings", "Steam broker ayarları…", "Steam broker settings…"),
-    ("steamJoinDisabledHint", "steam.join.disabledHint", "Önce Ayarlar › Bağlantı Yolları bölümünden Steam broker yolunu belirleyin.", "Set the Steam broker path in Settings › Connection Paths first."),
+    ("steamJoinDisabledHint", "steam.join.disabledHint", "Ayarlar › Bağlantı Yolları’ndan Steam broker yolunu seçin", "Choose the Steam broker path in Settings › Connection Paths"),
     ("steamConsentTitle", "steam.consent.title", "Steam kimliğiyle bağlanılsın mı?", "Connect with your Steam identity?"),
     ("steamConsentMessage", "steam.consent.message", "Steam kimliğiyle bağlantı, bu sunucuya gerçek Steam hesabınızın kimliğini (SteamID) bildirir. Sunucu yöneticisi bu kimliği Steam hesabınıza bağlayabilir. Oyunda görünen isim değişmez.", "Connecting with your Steam identity reports the identity (SteamID) of your real Steam account to this server. The server administrator can link this identity to your Steam account. The name shown in the game does not change."),
     ("steamConsentConfirm", "steam.consent.confirm", "Onayla ve bağlan", "Confirm and Connect"),
@@ -1484,6 +1484,13 @@ KEYS = [
     ("steamPathNotExecutable", "steam.path.notExecutable", "Dosya çalıştırılabilir değil.", "The file is not executable."),
     ("steamPathEmpty", "steam.path.empty", "Yol belirtilmedi.", "No path set."),
     ("steamSettingsArgument", "steam.settings.argument", "Buradan başlatıldığında broker'a tek argüman verilir: aşağıdaki ayarların host:port değeri (örn. %@). Broker bu argümanı kabul etmelidir.", "When started from here, the broker gets one argument: host:port of the settings below (for example %@). It must accept that argument."),
+    ("steamJoinSteamAuthStart", "steam.join.steamAuthStart", "Steam kimliğiyle (broker’ı başlat)", "With Steam identity (start broker)"),
+    ("steamSettingsUseFound", "steam.settings.useFound", "Bulunan broker’ı kullan", "Use Found Broker"),
+    ("steamSettingsUseFoundTitle", "steam.settings.useFoundTitle", "Bu broker kullanılsın mı?", "Use this broker?"),
+    ("steamSettingsUseFoundMessage", "steam.settings.useFoundMessage", "Aşağıdaki yol Steam broker yolu olarak kaydedilecek:\n%@", "The path below will be saved as the Steam broker path:\n%@"),
+    ("steamSettingsNotFound", "steam.settings.notFound", "Bilinen konumlarda broker bulunamadı.", "No broker was found in the usual places."),
+    ("steamSettingsFoundOther", "steam.settings.foundOther", "Başka bir broker bulundu: %@. Belirlediğiniz yol korunur.", "Another broker was found: %@. The path you set is kept."),
+    ("steamErrorSettingsHint", "steam.error.settingsHint", "Ayarlar › Bağlantı Yolları’ndaki broker yolunu kontrol edin.", "Check the broker path in Settings › Connection Paths."),
 ]
 
 # InfoPlist.strings of every language: the Turkish product name for `tr`, the English one everywhere else.

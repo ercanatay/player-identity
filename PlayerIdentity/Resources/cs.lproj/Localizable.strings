@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "S identitou Steam";
 "steam.join.recommended" = "Doporučeno";
 "steam.join.settings" = "Nastavení zprostředkovatele Steam…";
-"steam.join.disabledHint" = "Nejprve nastavte cestu ke zprostředkovateli Steam v Nastavení › Cesty připojení.";
+"steam.join.disabledHint" = "Vyberte cestu brokeru Steam v Nastavení › Cesty připojení";
 "steam.consent.title" = "Připojit se pomocí vaší identity Steam?";
 "steam.consent.message" = "Připojení pomocí vaší identity Steam odešle na tento server identitu (SteamID) vašeho skutečného účtu Steam. Správce serveru může tuto identitu propojit s vaším účtem Steam. Jméno zobrazené ve hře se nezmění.";
 "steam.consent.confirm" = "Potvrdit a připojit";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Soubor není spustitelný.";
 "steam.path.empty" = "Cesta není nastavena.";
 "steam.settings.argument" = "Při spuštění odsud dostane zprostředkovatel jeden argument: host:port z nastavení níže (například %@). Musí tento argument přijmout.";
+"steam.join.steamAuthStart" = "S identitou Steam (spustit broker)";
+"steam.settings.useFound" = "Použít nalezený broker";
+"steam.settings.useFoundTitle" = "Použít tohoto brokera?";
+"steam.settings.useFoundMessage" = "Cesta níže bude uložena jako cesta brokera Steam:\n%@";
+"steam.settings.notFound" = "Broker nebyl nalezen na obvyklých místech.";
+"steam.settings.foundOther" = "Byl nalezen jiný broker: %@. Nastavená cesta zůstane zachována.";
+"steam.error.settingsHint" = "Zkontrolujte cestu brokera v Nastavení › Cesty připojení.";

@@ -1334,7 +1334,7 @@
 "steam.join.steamAuth" = "Med Steam-identitet";
 "steam.join.recommended" = "Rekommenderas";
 "steam.join.settings" = "Steam-mäklarinställningar…";
-"steam.join.disabledHint" = "Ange sökvägen till Steam-mäklaren under Inställningar › Anslutningssökvägar först.";
+"steam.join.disabledHint" = "Välj Steam-brokervägen i Inställningar › Anslutningsvägar";
 "steam.consent.title" = "Ansluta med din Steam-identitet?";
 "steam.consent.message" = "Om du ansluter med din Steam-identitet skickas identiteten (SteamID) för ditt riktiga Steam-konto till den här servern. Serveradministratören kan koppla den identiteten till ditt Steam-konto. Namnet som visas i spelet ändras inte.";
 "steam.consent.confirm" = "Bekräfta och anslut";
@@ -1364,3 +1364,10 @@
 "steam.path.notExecutable" = "Filen är inte körbar.";
 "steam.path.empty" = "Ingen sökväg angiven.";
 "steam.settings.argument" = "När mäklaren startas härifrån får den ett argument: host:port för inställningarna nedan (till exempel %@). Den måste acceptera det argumentet.";
+"steam.join.steamAuthStart" = "Med Steam-identitet (starta broker)";
+"steam.settings.useFound" = "Använd hittad broker";
+"steam.settings.useFoundTitle" = "Använda denna broker?";
+"steam.settings.useFoundMessage" = "Sökvägen nedan sparas som Steam-brokerväg:\n%@";
+"steam.settings.notFound" = "Ingen broker hittades på de vanliga platserna.";
+"steam.settings.foundOther" = "En annan broker hittades: %@. Den väg du angav behålls.";
+"steam.error.settingsHint" = "Kontrollera brokervägen i Inställningar › Anslutningsvägar.";
