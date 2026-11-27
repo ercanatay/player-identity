@@ -2,8 +2,8 @@
 # `version` and `sha256` are updated by scripts/update-cask.sh from the release asset
 # (scripts/release.sh runs it after packaging; the release workflow commits the result).
 cask "player-identity" do
-  version "2.26.0"
-  sha256 "558e05a5335b228d81fe4f5c47190d6697f79a58be48ead7d18b6e379a24e658"
+  version "2.26.1"
+  sha256 "652ad168303749c16c0a9686bed9c3a4ab88e16a172a6ddb498d70032e4535fc"
 
   url "https://github.com/ercanatay/player-identity/releases/download/v#{version}/PlayerIdentity-#{version}-macos.zip"
   name "Cybokron Player Identity"
