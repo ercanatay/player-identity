@@ -34,6 +34,7 @@ struct GeneralSettingsView: View {
             NotificationSettingsSection(model: model)
             language
             app
+            ConnectionPathsSection(model: model)
             SettingsSection(title: L10n.text(.dataSectionTitle)) {
                 ProfilesSettingsRows(model: model)
                 SettingsDivider()

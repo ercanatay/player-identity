@@ -120,6 +120,10 @@ enum GameLaunchText {
         case .resolutionFailed: return L10n.text(.gameErrorResolution)
         case .cancelled: return L10n.text(.actionCancel)
         case .launchFailed(let status): return L10n.format(.gameErrorLaunch, String(status))
+        case .steamBrokerNotConfigured: return L10n.text(.steamJoinDisabledHint)
+        case .steamSessionRequired: return L10n.text(.steamStateSessionMissing)
+        case .steamBrokerUnreachable: return L10n.text(.steamErrorUnreachable)
+        case .steamBrokerStartFailed: return L10n.text(.steamErrorStart)
         }
     }
 }

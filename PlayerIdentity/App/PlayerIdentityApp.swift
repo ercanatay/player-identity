@@ -134,6 +134,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
         }
         let model = self.model
+        // §76.3: a broker this app started does not outlive the app.
+        model.releaseOwnedSteamBrokers()
         // §74: an engine install is never cut off: a download/extraction is cancelled (temporary files removed), a
         // backup/install is waited for until it completes or rolls back.
         if model.isEngineInstallRunning, !AppModel.isRunningTests {

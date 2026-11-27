@@ -40,6 +40,11 @@ struct AppDependencies {
     /// §29: Xash3D app detection and the `open` runner (the default never runs anything; real one in `live()`).
     var gameAppLocator = GameAppLocator()
     var gameLaunchRunner: any GameLaunchRunning = UnavailableGameLaunchRunner()
+    /// §76: Steam broker probes and process control (the defaults see and start nothing; real ones in `live()`).
+    var steamBrokerEnvironment: any SteamBrokerEnvironment = UnavailableSteamBrokerEnvironment()
+    var steamBrokerControl: any SteamBrokerProcessControlling = UnavailableSteamBrokerProcessControl()
+    /// §76: waiting helper of the broker start and the game-exit watch (tests pass a no-op).
+    var steamSleep: @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }
     /// §30: launch at login; `nil` = not available (tests inject a fake).
     var loginItem: (any LoginItemControlling)? = nil
     /// §40: opens the ban list page in the browser (the default opens nothing).
@@ -138,6 +143,8 @@ struct AppDependencies {
         deps.rconSecretStore = KeychainSecretStore(service: RconKeychain.service)
         deps.widgetReloader = WidgetCenterReloader()
         deps.fileProbe = LocalFileProbe()
+        deps.steamBrokerEnvironment = SystemSteamBrokerEnvironment()
+        deps.steamBrokerControl = SystemSteamBrokerProcessControl()
         deps.engineInstallerFactory = { EngineInstaller.live(environment: $0) }
         return deps
     }
@@ -294,6 +301,39 @@ final class AppModel {
     var pendingJoin: JoinRequest?
     var joinError: GameLaunchError?
     @ObservationIgnored private var joinTask: Task<Void, Never>?
+
+    // MARK: §76 join with a Steam identity
+    /// Questions of the Steam join flow; the flow waits for `answerSteamPrompt`.
+    enum SteamPrompt: Identifiable, Equatable {
+        /// §76.5 privacy consent (asked at every selection; no "always" option).
+        case consent(label: String)
+        /// The running game would be replaced by the new connection.
+        case replace(label: String)
+
+        var id: String {
+            switch self {
+            case .consent(let label): return "consent|" + label
+            case .replace(let label): return "replace|" + label
+            }
+        }
+    }
+    var steamPrompt: SteamPrompt?
+    @ObservationIgnored private var steamPromptContinuation: CheckedContinuation<Bool, Never>?
+    /// §76.3 broker path, port (profile data; nothing secret).
+    private(set) var steamEndpoint = SteamBrokerEndpoint()
+    /// §76.2 per-server last method / result.
+    private(set) var identityMemory = ServerIdentityMemory()
+    /// §76.3 live state shown in Settings and the row menu.
+    private(set) var steamBrokerState: SteamBrokerState = .notConfigured
+    /// Result of the "check path" button.
+    private(set) var steamPathCheck: SteamBrokerPathCheck?
+    /// Error of the last manual broker start (Settings).
+    var steamSettingsError: GameLaunchError?
+    /// §76.3.3 a broker this app started from Settings; only such a broker can be stopped from the app.
+    @ObservationIgnored private var manualBrokerSession: SteamBrokerSession?
+    /// Brokers this app started for running joins (stopped when the game closes or the app quits).
+    @ObservationIgnored private var joinBrokerSessions: [UUID: SteamBrokerSession] = [:]
+    @ObservationIgnored private var steamMonitorTasks: [UUID: Task<Void, Never>] = [:]
 
     // MARK: §31 list filter
     var serverFilter = ServerListFilter()
@@ -474,6 +514,9 @@ final class AppModel {
         recentNames = dependencies.defaults.stringArray(forKey: Self.recentNamesDefaultsKey) ?? []
         menuBarEnabled = MenuBarPreferences(defaults: dependencies.defaults).showInMenuBar
         watchState = WatchStateStore(fileURL: dependencies.paths.watchStateFile).load()
+        let steamStore = SteamIdentityStore(paths: dependencies.paths)
+        steamEndpoint = steamStore.loadEndpoint()
+        identityMemory = steamStore.loadMemory()
         appLanguage = AppLanguageSetting(defaults: dependencies.defaults)
         L10n.setting = AppLanguageSetting(defaults: dependencies.defaults)
         isGameAppInstalled = dependencies.gameAppLocator.locate() != nil
@@ -1333,6 +1376,181 @@ final class AppModel {
                      runner: deps.gameLaunchRunner)
     }
 
+    private var steamBroker: SteamBrokerManager {
+        SteamBrokerManager(environment: deps.steamBrokerEnvironment, control: deps.steamBrokerControl,
+                           sleep: deps.steamSleep)
+    }
+
+    /// §76.6 "Join with…": `standard` is the existing "Join Game"; `steamAuth` is the opt-in Steam identity flow.
+    @discardableResult
+    func joinGame(_ id: UUID, identity: JoinIdentity) -> Task<Void, Never>? {
+        identity == .standard ? joinGame(id) : joinWithSteam(id)
+    }
+
+    /// §76.4: consent → broker → launch with `+set cl_ticket_generator steam` → watch the game and the engine log.
+    @discardableResult
+    func joinWithSteam(_ id: UUID) -> Task<Void, Never>? {
+        guard let entry = servers.first(where: { $0.id == id }), joinTask == nil else { return nil }
+        let coordinator = SteamJoinCoordinator(launcher: gameLauncher, broker: steamBroker, fileSystem: deps.fileSystem,
+                                               now: deps.now, sleep: deps.steamSleep)
+        let endpoint = steamEndpoint
+        let gamedir = selectedGamedir
+        let known = hostResolutions
+        let serverProtocol = launchProtocol(for: id)
+        let root = dataRoot
+        let label = entry.label
+        let task = Task {
+            defer { joinTask = nil }
+            do {
+                let handle = try await coordinator.join(
+                    host: entry.host, port: entry.port, gamedir: gamedir, known: known, serverProtocol: serverProtocol,
+                    dataRoot: root, endpoint: endpoint,
+                    consent: { await self.askSteam(.consent(label: label)) },
+                    confirmReplace: { await self.askSteam(.replace(label: label)) })
+                noteGoldSrcJoin(handle.plan, for: id)
+                noteIdentityAttempt(.steamAuth, entry: entry)
+                watchSteamJoin(handle, coordinator: coordinator, entry: entry)
+            } catch let error as GameLaunchError {
+                if error != .cancelled { joinError = error }
+            } catch {
+                joinError = .launchFailed(status: -1)
+            }
+        }
+        joinTask = task
+        return task
+    }
+
+    private func askSteam(_ prompt: SteamPrompt) async -> Bool {
+        await withCheckedContinuation { continuation in
+            steamPromptContinuation = continuation
+            steamPrompt = prompt
+        }
+    }
+
+    /// The user's answer to the open Steam question (`false` = declined: nothing is started).
+    func answerSteamPrompt(_ accepted: Bool) {
+        let continuation = steamPromptContinuation
+        steamPromptContinuation = nil
+        steamPrompt = nil
+        continuation?.resume(returning: accepted)
+    }
+
+    /// Waits for the game to close, stops an app-started broker and remembers the server's real answer.
+    private func watchSteamJoin(_ handle: SteamJoinHandle, coordinator: SteamJoinCoordinator, entry: ServerEntry) {
+        let addresses = goldSrcLogAddresses(entry)
+        let root = dataRoot
+        steamMonitorTasks[entry.id]?.cancel()
+        if let session = handle.session, session.startedByApp { joinBrokerSessions[entry.id] = session }
+        steamMonitorTasks[entry.id] = Task {
+            let outcome = await coordinator.finish(handle, addresses: addresses, dataRoot: root)
+            joinBrokerSessions[entry.id] = nil
+            noteIdentityJoin(.steamAuth, outcome: outcome, entry: entry)
+            steamMonitorTasks[entry.id] = nil
+        }
+    }
+
+    /// §76.3 on quit: stops every broker this app started (Settings or a join); a broker the user started is never
+    /// touched. Safe to call more than once.
+    func releaseOwnedSteamBrokers() {
+        let manager = steamBroker
+        for session in joinBrokerSessions.values { manager.release(session) }
+        joinBrokerSessions = [:]
+        manager.release(manualBrokerSession)
+        manualBrokerSession = nil
+    }
+
+    private func noteIdentityAttempt(_ identity: JoinIdentity, entry: ServerEntry) {
+        identityMemory.noteAttempt(identity: identity, host: entry.host, port: entry.port, at: deps.now())
+        saveIdentityMemory()
+    }
+
+    private func noteIdentityJoin(_ identity: JoinIdentity, outcome: JoinOutcome, entry: ServerEntry) {
+        identityMemory.record(identity: identity, outcome: outcome, host: entry.host, port: entry.port, at: deps.now())
+        saveIdentityMemory()
+    }
+
+    private func saveIdentityMemory() {
+        do {
+            try SteamIdentityStore(paths: deps.paths).saveMemory(identityMemory)
+        } catch {
+            logError(.launch, "identityMemory: " + error.localizedDescription)
+        }
+    }
+
+    /// §76.6 `Steam ✓` / `Steam ✗` of the row.
+    func steamBadge(for entry: ServerEntry) -> SteamBadge? {
+        identityMemory.badge(host: entry.host, port: entry.port)
+    }
+
+    /// §76.6 the Steam entry is offered as recommended on a GoldSrc 48 server (a suggestion only).
+    func recommendsSteamIdentity(_ id: UUID) -> Bool {
+        launchProtocol(for: id) == .goldsrc48
+    }
+
+    /// §76.6.4 the Steam entry is disabled until a broker binary path is set and valid.
+    var isSteamBrokerConfigured: Bool {
+        steamBroker.pathCheck(steamEndpoint) == .valid
+    }
+
+    // MARK: §76.3 broker settings
+
+    func setSteamBroker(path: String?, port: Int) {
+        var endpoint = steamEndpoint
+        let trimmed = path?.trimmingCharacters(in: .whitespacesAndNewlines)
+        endpoint.executablePath = (trimmed ?? "").isEmpty ? nil : trimmed
+        endpoint.port = HostValidator.isValidPort(port) ? port : steamEndpoint.port
+        steamEndpoint = endpoint
+        steamPathCheck = nil
+        do {
+            try SteamIdentityStore(paths: deps.paths).saveEndpoint(endpoint)
+        } catch {
+            logError(.launch, "steamBroker: " + error.localizedDescription)
+        }
+        refreshSteamBrokerState()
+    }
+
+    func validateSteamBrokerPath() {
+        steamPathCheck = steamBroker.pathCheck(steamEndpoint)
+    }
+
+    @discardableResult
+    func refreshSteamBrokerState() -> Task<Void, Never> {
+        let manager = steamBroker
+        let endpoint = steamEndpoint
+        return Task {
+            let state = await Task.detached { manager.state(endpoint) }.value
+            steamBrokerState = state
+        }
+    }
+
+    /// "Start Broker": starts it from Settings; the app owns (and may stop) only a broker it started itself.
+    @discardableResult
+    func startSteamBroker() -> Task<Void, Never> {
+        let manager = steamBroker
+        let endpoint = steamEndpoint
+        steamSettingsError = nil
+        return Task {
+            do {
+                let session = try await manager.prepare(endpoint)
+                if session.startedByApp { manualBrokerSession = session }
+            } catch let error as GameLaunchError {
+                steamSettingsError = error
+            } catch {
+                steamSettingsError = .steamBrokerStartFailed
+            }
+            await refreshSteamBrokerState().value
+        }
+    }
+
+    var canStopSteamBroker: Bool { manualBrokerSession?.startedByApp == true }
+
+    /// "Stop Broker": never stops a broker the user started themselves.
+    func stopSteamBroker() {
+        steamBroker.release(manualBrokerSession)
+        manualBrokerSession = nil
+        refreshSteamBrokerState()
+    }
+
     /// "Join Game": builds the command; if the game is running, asks first (`pendingJoin`), otherwise opens it.
     @discardableResult
     func joinGame(_ id: UUID) -> Task<Void, Never>? {
@@ -1354,6 +1572,7 @@ final class AppModel {
                 } else {
                     try await launcher.launch(plan) { true }
                     noteGoldSrcJoin(plan, for: id)
+                    noteIdentityJoin(.standard, outcome: .unknown, entry: entry)
                 }
             } catch let error as GameLaunchError {
                 joinError = error
@@ -1387,6 +1606,7 @@ final class AppModel {
                                                    serverProtocol: serverProtocol, dataRoot: root)
                 try await launcher.launch(plan) { true }
                 noteGoldSrcJoin(plan, for: request.serverID)
+                noteIdentityJoin(.standard, outcome: .unknown, entry: entry)
             } catch let error as GameLaunchError {
                 joinError = error
             } catch {

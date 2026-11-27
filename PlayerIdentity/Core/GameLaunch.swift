@@ -19,6 +19,14 @@ enum GameLaunchError: Error, Sendable, Equatable {
     case launchFailed(status: Int32)
     /// §75.13 a GoldSrc 48 launch needs the data root (`XASH3D_BASEDIR`, where `engine.log` is written).
     case noDataRoot
+    /// §76.3 the Steam broker path is not set or not usable (Settings › Connection Paths).
+    case steamBrokerNotConfigured
+    /// §76.3 the Steam session is missing ("Steam oturumu gerekli").
+    case steamSessionRequired
+    /// §76.3 the broker is running but its port is not listening.
+    case steamBrokerUnreachable
+    /// §76.3 the broker binary could not be started.
+    case steamBrokerStartFailed
 }
 
 /// `/usr/bin/open -a <Xash3D.app> --args -game <gamedir> +connect <ip>:<port>` (`source49` / `unknown`);
@@ -36,6 +44,8 @@ struct GameLaunchCommand: Sendable, Equatable {
     static let goldSrcLogArguments = ["-dev", "1", "-log"]
     /// §75.13 `open --env` name of the engine's data root.
     static let baseDirVariable = "XASH3D_BASEDIR"
+    /// §76.4 the only argument the Steam identity method adds (launch line only; no game file is written).
+    static let steamArguments = ["+set", "cl_ticket_generator", "steam"]
 
     let app: URL
     let gamedir: String
@@ -45,8 +55,12 @@ struct GameLaunchCommand: Sendable, Equatable {
     var serverProtocol: ServerProtocol = .unknown
     /// §75.13 the data root (`XASH3D_BASEDIR` of a GoldSrc launch; `engine.log` is written there).
     var dataRoot: URL?
+    /// §76 the join identity; `.steamAuth` adds `steamArguments` before `+connect`, `.standard` changes nothing.
+    var identity: JoinIdentity = .standard
 
-    init(app: URL, gamedir: String, connect: String, serverProtocol: ServerProtocol = .unknown, dataRoot: URL? = nil) {
+    init(app: URL, gamedir: String, connect: String, serverProtocol: ServerProtocol = .unknown, dataRoot: URL? = nil,
+         identity: JoinIdentity = .standard) {
+        self.identity = identity
         self.app = app
         self.gamedir = gamedir
         self.connect = connect
@@ -56,11 +70,12 @@ struct GameLaunchCommand: Sendable, Equatable {
 
     /// A GoldSrc launch needs a data root; without one the command is not built (`GameLaunchError.noDataRoot`).
     var argv: [String] {
+        let extra = identity == .steamAuth ? Self.steamArguments : []
         guard serverProtocol == .goldsrc48, let dataRoot else {
-            return [Self.openPath, "-a", app.path, "--args", "-game", gamedir, "+connect", connect]
+            return [Self.openPath, "-a", app.path, "--args", "-game", gamedir] + extra + ["+connect", connect]
         }
         return [Self.openPath, "--env", Self.baseDirVariable + "=" + dataRoot.standardizedFileURL.path, "-a", app.path,
-                "--args", "-game", gamedir] + Self.goldSrcLogArguments + ["+connect", connect, Self.goldSrcArgument]
+                "--args", "-game", gamedir] + Self.goldSrcLogArguments + extra + ["+connect", connect, Self.goldSrcArgument]
     }
 
     /// Where the engine writes its console log for this launch (GoldSrc only).
@@ -92,6 +107,16 @@ enum GameLaunchAllowlist {
     /// Two exact shapes: `open -a <app> --args -game <dir> +connect <ip:port>` and (§75.13 GoldSrc 48)
     /// `open --env XASH3D_BASEDIR=<absolute data root> -a <app> --args -game <dir> -dev 1 -log +connect <ip:port> gs`.
     static func isAllowed(_ argv: [String]) -> Bool {
+        // §76.4 the Steam identity method adds exactly `+set cl_ticket_generator steam` right before `+connect`.
+        if let marker = argv.firstIndex(of: "+set") {
+            let extra = GameLaunchCommand.steamArguments
+            guard argv.count > marker + extra.count, Array(argv[marker..<(marker + extra.count)]) == extra,
+                  argv[marker + extra.count] == "+connect" else { return false }
+            var stripped = argv
+            stripped.removeSubrange(marker..<(marker + extra.count))
+            guard !stripped.contains("+set") else { return false }
+            return isAllowed(stripped)
+        }
         guard argv.first == GameLaunchCommand.openPath else { return false }
         if argv.count == 8 {
             return argv[1] == "-a" && isAppPath(argv[2]) && argv[3] == "--args" && argv[4] == "-game" && isGamedir(argv[5])
@@ -199,7 +224,8 @@ struct GameLauncher: Sendable {
     /// `known` = an address already resolved by the refresh (§20), used instead of a new lookup.
     /// `serverProtocol` = §75.4 the latest A2S protocol of the server (`unknown` launches like `source49`).
     func plan(host: String, port: Int, gamedir: String?, known: [String: HostResolution] = [:],
-              serverProtocol: ServerProtocol = .unknown, dataRoot: URL? = nil) async throws -> GameLaunchPlan {
+              serverProtocol: ServerProtocol = .unknown, dataRoot: URL? = nil,
+              identity: JoinIdentity = .standard) async throws -> GameLaunchPlan {
         if serverProtocol == .goldsrc48, dataRoot == nil { throw GameLaunchError.noDataRoot }
         guard let app = locator.locate() else { throw GameLaunchError.appNotFound }
         guard HostValidator.isValidPort(port) else { throw GameLaunchError.invalidPort }
@@ -232,7 +258,8 @@ struct GameLauncher: Sendable {
             throw GameLaunchError.noAddress
         }
         return GameLaunchPlan(command: GameLaunchCommand(app: app, gamedir: directory, connect: connect,
-                                                         serverProtocol: serverProtocol, dataRoot: dataRoot),
+                                                         serverProtocol: serverProtocol, dataRoot: dataRoot,
+                                                         identity: identity),
                               gameRunning: detector.isGameRunning())
     }
 

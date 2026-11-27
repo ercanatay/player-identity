@@ -58,9 +58,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.26.1
+## What's new in v2.27.0
 
-- **Share card shows the ban status and type**: next to the server, the 1200×630 card now has **STATUS** (*Banned*, *Not banned*, *Could not be verified*, *Not checked*) and **BAN TYPE** (*IP ban*, *IP range ban*, *CID ban*, *Server connection ban (type unknown)*, *Could not be determined*, or "—"), read from the row's last ban check. A GoldSrc 48 card has no CID row and its QR carries only the server, address, status and type keys and `surum=goldsrc48` — never a CID, raw ID, serial, ticket or password. Source 49 cards keep the CID row and the CID QR. Red/orange values always come with a symbol, long names wrap to two lines, and the player name and date always stay on the card.
+- **Join with a Steam identity (optional)**: right-click a server → **Join with ▾** → *Standard* or *With Steam identity*. The Steam method goes through a local Steam broker **you provide** (a third-party tool; this app ships none) and adds only `+set cl_ticket_generator steam` to the launch line — no game file is written. It is never the default, asks for your consent at every selection (it reports your real SteamID to the server) and is marked *Recommended* on GoldSrc 48 servers. **Settings › Connection Paths** sets the broker path and port and shows its live state; the server row shows **Steam ✓ / ✗** from the server's real answer in `engine.log`. CLI: `playeridentityctl join --server <host:port> [--identity standard|steam-auth]`.
 
 Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 

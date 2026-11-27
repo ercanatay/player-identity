@@ -59,6 +59,10 @@ struct CLIContext: Sendable {
     var engineInstallerFactory: EngineInstallerFactory = { EngineInstaller.live(environment: $0) }
     var engineFileOperations: any EngineFileOperating = LocalEngineFileOperations()
     var engineArchitecture: EngineArchitecture = .current()
+    /// §76.7 `join`: the game app, the allowlisted launcher and the read-only broker probes (tests pass fakes).
+    var gameAppLocator = GameAppLocator()
+    var gameLaunchRunner: any GameLaunchRunning = ProcessGameLaunchRunner()
+    var steamBrokerEnvironment: any SteamBrokerEnvironment = SystemSteamBrokerEnvironment()
 
     /// `profile.json` read by `status` (and for the identity/name defaults); `PLAYERIDENTITYCTL_SNAPSHOT` overrides it.
     var snapshotURL: URL {
@@ -116,6 +120,8 @@ enum CLICommand: Sendable, Equatable {
     case engineInstall(yes: Bool, json: Bool)
     case engineBackups(json: Bool)
     case engineBackupsDelete(confirm: String, json: Bool)
+    // §76.7 `join --server <host:port> [--identity standard|steam-auth]` (CLIJoin.swift).
+    case join(host: String, port: Int, identity: JoinIdentity, yes: Bool, json: Bool)
 }
 
 struct CLIUsageError: Error, Sendable, Equatable {
@@ -160,7 +166,8 @@ enum CLIParser {
                  "--fail-on-ban", "--unmasked", "--macos-identity":
                 guard inlineValue == nil else { return .failure(CLIUsageError(message: "\(name) takes no value")) }
                 flags.insert(name == "-h" ? "--help" : name)
-            case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group", "--days", "--confirm":
+            case "--raw-id", "--cid", "--timeout", "--app", "--out", "--label", "--group", "--days", "--confirm", "--server",
+                 "--identity":
                 guard options[name] == nil else { return .failure(CLIUsageError(message: "\(name) given twice")) }
                 if let inlineValue {
                     options[name] = inlineValue
@@ -187,9 +194,9 @@ enum CLIParser {
         if command != "update", let flag = ["--check", "--install"].first(where: flags.contains) {
             return .failure(CLIUsageError(message: "\(flag) is only valid for update"))
         }
-        if flags.contains("--yes"), !["update", "restore", "servers", "engine"].contains(command) {
-            return .failure(CLIUsageError(message: "--yes is only valid for update, restore, servers remove and "
-                                          + "engine install-compatible"))
+        if flags.contains("--yes"), !["update", "restore", "servers", "engine", "join"].contains(command) {
+            return .failure(CLIUsageError(message: "--yes is only valid for update, restore, servers remove, "
+                                          + "engine install-compatible and join"))
         }
         if flags.contains("--watch"), command != "servers" {
             return .failure(CLIUsageError(message: "--watch is only valid for servers add"))
@@ -297,6 +304,23 @@ enum CLIParser {
 
         case "engine":
             return parseEngine(rest, options: options, flags: flags, json: json)
+
+        case "join":
+            if let error = allow(["--server", "--identity"]) { return .failure(error) }
+            guard rest.isEmpty else { return .failure(CLIUsageError(message: "join takes no arguments (use --server)")) }
+            guard let text = options["--server"], let target = CLIHostPort.parse(text) else {
+                return .failure(CLIUsageError(message: options["--server"].map { "invalid --server: \($0)" }
+                                              ?? "join needs --server <host:port>"))
+            }
+            var identity = JoinIdentity.standard
+            if let name = options["--identity"] {
+                guard let parsed = JoinIdentity(cliName: name) else {
+                    return .failure(CLIUsageError(message: "--identity must be standard or steam-auth"))
+                }
+                identity = parsed
+            }
+            return .success(.join(host: target.host, port: target.port, identity: identity, yes: flags.contains("--yes"),
+                                  json: json))
 
         default:
             return .failure(CLIUsageError(message: "unknown command \(command)"))
@@ -549,6 +573,11 @@ enum CLIRunner {
                                                              engine log read now); default
                                                              ~/Documents/playeridentity-diagnose-<host>-<time>.md,
                                                              --out - prints it
+      join --server <host:port> [--identity standard|steam-auth] [--yes] [--json]
+                                                             open the game and connect; steam-auth uses a
+                                                             running local Steam broker (set its path in
+                                                             Settings), asks y/N about reporting your
+                                                             SteamID unless --yes, never starts the broker
       --version                                              print the version
 
     exit codes: 0 ok, 1 usage error, 2 network or resolution error, 3 banned
@@ -565,6 +594,7 @@ enum CLIRunner {
               without a terminal, 2 failed (nothing changed, engine running, or rollbackIncomplete: critical),
               3 cancelled, declined or rolled back, 4 not offered (not unsupported, Intel Mac)
       engine status, engine backups: 0 ok, 1 usage error, 2 read or delete error (also a partial deletion)
+      join: 0 launched, 1 usage error, broker not configured or not confirmed, 2 launch, resolution or broker error
     restore and servers remove ask y/N on a terminal; without one they need --yes.
     servers add/remove edit profile.json (a copy is kept as profile.json.appbak-<time>); a running app
     keeps its own list until it is reopened.
@@ -629,6 +659,8 @@ enum CLIRunner {
             return engineBackups(json: json, context: context)
         case .engineBackupsDelete(let code, let json):
             return engineBackupsDelete(confirm: code, json: json, context: context)
+        case .join(let host, let port, let identity, let yes, let json):
+            return await join(host: host, port: port, identity: identity, yes: yes, json: json, context: context)
         }
     }
 

@@ -99,6 +99,16 @@ struct ContentView: View {
         } message: {
             Text(L10n.format(.gameJoinConfirmMessage, model.pendingJoin?.label ?? ""))
         }
+        // §76.5 privacy consent (every selection; nothing starts before it) and the "replace the running game" question.
+        .alert(steamPromptTitle, isPresented: Binding(
+            get: { model.steamPrompt != nil },
+            set: { if !$0 { model.answerSteamPrompt(false) } }
+        )) {
+            Button(L10n.text(.actionCancel), role: .cancel) { model.answerSteamPrompt(false) }
+            Button(steamPromptAction) { model.answerSteamPrompt(true) }
+        } message: {
+            Text(steamPromptMessage)
+        }
         .alert(L10n.text(.gameErrorTitle), isPresented: Binding(
             get: { model.joinError != nil && model.joinError != .cancelled },
             set: { if !$0 { model.joinError = nil } }
@@ -142,6 +152,24 @@ struct ContentView: View {
     }
 
     /// Opens the window-level sheets and windows for the cards.
+    private var steamPromptTitle: String {
+        if case .replace? = model.steamPrompt { return L10n.text(.gameJoinConfirmTitle) }
+        return L10n.text(.steamConsentTitle)
+    }
+
+    private var steamPromptAction: String {
+        if case .replace? = model.steamPrompt { return L10n.text(.gameJoinConfirmAction) }
+        return L10n.text(.steamConsentConfirm)
+    }
+
+    private var steamPromptMessage: String {
+        switch model.steamPrompt {
+        case .replace(let label)?: return L10n.format(.gameJoinConfirmMessage, label)
+        case .consent?: return L10n.text(.steamConsentMessage)
+        case nil: return ""
+        }
+    }
+
     private var presenter: MainWindowPresenter {
         MainWindowPresenter(
             addServer: { sheet = .add },

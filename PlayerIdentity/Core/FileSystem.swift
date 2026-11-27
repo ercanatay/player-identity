@@ -121,6 +121,16 @@ struct AppPaths: Sendable, Equatable {
         snapshotFile.deletingLastPathComponent().appendingPathComponent("watch-state.json", isDirectory: false)
     }
 
+    /// §76.3: `~/Library/Application Support/tr.ercanatay.playeridentity/steam-broker.json` (broker path and port).
+    var steamBrokerFile: URL {
+        snapshotFile.deletingLastPathComponent().appendingPathComponent("steam-broker.json", isDirectory: false)
+    }
+
+    /// §76.2: `…/identity-memory.json` (per server: last join method, last result, date; nothing else).
+    var identityMemoryFile: URL {
+        snapshotFile.deletingLastPathComponent().appendingPathComponent("identity-memory.json", isDirectory: false)
+    }
+
     /// §54: `~/Library/Application Support/tr.ercanatay.playeridentity/errors.json` (persisted error log).
     var errorsFile: URL {
         snapshotFile.deletingLastPathComponent().appendingPathComponent("errors.json", isDirectory: false)

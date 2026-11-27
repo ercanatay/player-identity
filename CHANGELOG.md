@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.0] - 2026-11-27
+
+### Added
+- **Join with a Steam identity** (spec §76, optional, off by default): the server row's context menu has **Join with ▾ › Standard / With Steam identity / Steam broker settings…**. The Steam method connects through a local Steam broker the user provides (a third-party tool; the app ships no broker code and no Steam library) and adds only `+set cl_ticket_generator steam` to the launch line — no game configuration file is written and no bind is touched. The **Standard** method's launch line is unchanged. The Steam entry is disabled with a hint until a broker binary path is set, and is marked *Recommended* on GoldSrc 48 servers (the choice stays with the user).
+- **Privacy consent at every selection** (no "always" option): connecting with a Steam identity reports the SteamID of the real Steam account to the server. Nothing is started before the user confirms.
+- **Settings › Connection Paths**: broker binary path (text field + chooser), port (default 27420 on `127.0.0.1`), live state (not configured / not running / listening / unreachable / *Steam session required*), **Start Broker**, **Stop Broker**, **Check Path**. The app stops only a broker it started itself; the Steam session is estimated only from whether the Steam client process runs (no Steam ID, ticket or cookie is read or stored).
+- **Per-server memory** (`identity-memory.json`): last method, last result and date per server; the server row shows **Steam ✓** / **Steam ✗** from the real answer in `engine.log` (connected, disconnect reason, or timeout = undecided). The file holds nothing but the server key, the method, the result and the date.
+- **CLI**: `playeridentityctl join --server <host:port> [--identity standard|steam-auth] [--yes] [--json]`; the JSON has an `identity` field (`standard` / `steam_auth`). `steam-auth` fails with a clear error when no broker is configured, and never starts the broker.
+- 34 new localization keys (`steam.*`) in all 26 languages.
+
 ## [2.26.1] - 2026-11-27
 
 ### Added

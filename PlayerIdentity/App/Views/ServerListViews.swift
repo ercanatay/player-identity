@@ -11,6 +11,16 @@ struct ServerRowActions {
     var fixActions: [ServerAction] = []
     /// §29: `nil` = Xash3D is not installed (the action is hidden).
     var join: (() -> Void)?
+    /// §76.6 "Join with ▾": `nil` = Xash3D is not installed.
+    var joinWith: ((JoinIdentity) -> Void)?
+    /// §76.6.4 the Steam entry is usable (a valid broker path is set); otherwise it is disabled with a hint.
+    var steamAvailable = false
+    /// §76.6 GoldSrc 48 server: the Steam entry is marked as recommended (a suggestion only).
+    var steamRecommended = false
+    /// §76.6 `Steam ✓` / `Steam ✗` from the server memory.
+    var steamBadge: SteamBadge?
+    /// §76.3 live broker state shown next to the Steam entry.
+    var steamStateTitle: String?
     var toggleFavorite: () -> Void = {}
     /// §42 🔔 watch switch.
     var toggleWatch: () -> Void = {}
@@ -503,6 +513,11 @@ struct ServersCard: View {
             fix: model.fixKind(for: id) == nil ? nil : { model.beginFix(id) },
             fixActions: ServerActionList.actions(for: entry, model: model, details: presenter.details),
             join: model.isGameAppInstalled ? { model.joinGame(id) } : nil,
+            joinWith: model.isGameAppInstalled ? { model.joinGame(id, identity: $0) } : nil,
+            steamAvailable: model.isSteamBrokerConfigured,
+            steamRecommended: model.recommendsSteamIdentity(id),
+            steamBadge: model.steamBadge(for: entry),
+            steamStateTitle: model.isSteamBrokerConfigured ? model.steamBrokerState.title : nil,
             toggleFavorite: { model.setFavorite(!entry.favorite, for: id) },
             toggleWatch: { model.setWatch(!entry.watch, for: id) },
             moveUp: model.canMoveServer(id: id, .up) ? { model.moveServer(id: id, .up) } : nil,
@@ -609,6 +624,7 @@ struct ServerRowView: View {
 
     @State private var hovering = false
     @State private var showsFix = false
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         HStack(spacing: Metrics.Column.gap) {
@@ -886,6 +902,9 @@ struct ServerRowView: View {
     private var menuItems: some View {
         if let join = actions.join {
             Button(L10n.text(.gameJoin), action: join)
+            if let joinWith = actions.joinWith {
+                joinWithMenu(joinWith)
+            }
             Divider()
         }
         if actions.fix != nil {
@@ -907,9 +926,39 @@ struct ServerRowView: View {
         Button(L10n.text(.actionDelete), role: .destructive, action: actions.delete)
     }
 
+    /// §76.6 "Join with ▾": Standard / With Steam identity (recommended on GoldSrc 48; disabled without a broker
+    /// path, with a hint) / Steam broker settings…. Each way shows its state.
+    private func joinWithMenu(_ joinWith: @escaping (JoinIdentity) -> Void) -> some View {
+        Menu(L10n.text(.steamJoinMenu)) {
+            Button(L10n.text(.steamJoinStandard)) { joinWith(.standard) }
+            Button(steamEntryTitle) { joinWith(.steamAuth) }
+                .disabled(!actions.steamAvailable)
+            if !actions.steamAvailable {
+                Text(L10n.text(.steamJoinDisabledHint))
+            }
+            Divider()
+            Button(L10n.text(.steamJoinSettings)) { openSettings() }
+        }
+    }
+
+    private var steamEntryTitle: String {
+        var parts = [L10n.text(.steamJoinSteamAuth)]
+        if actions.steamRecommended { parts.append(L10n.text(.steamJoinRecommended)) }
+        if let state = actions.steamStateTitle { parts.append(state) }
+        return parts.joined(separator: " · ")
+    }
+
     /// §32: note, appeal status and follow-up reminder; each opens the details.
     @ViewBuilder
     private var badges: some View {
+        if let badge = actions.steamBadge {
+            Text(badge.title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(badge == .accepted ? Palette.greenText : Palette.redText)
+                .help(badge.help)
+                .accessibilityLabel(badge.title)
+                .accessibilityIdentifier("steamBadge")
+        }
         if !entry.note.isEmpty {
             Button(action: actions.details) {
                 Image(systemName: "note.text").font(.system(size: 11)).foregroundStyle(Palette.text2)

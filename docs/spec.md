@@ -2007,3 +2007,83 @@ Otomatik denetim ve teşhis aynı sınıflandırıcıyı kullanır. Gerçek CID'
 - Tanınmayan yanıt veya yanıt yok → ikinci paket yok; `cidUnknown` (teşhiste CID doğrulanamadı), `banned` `null` — asla `false`.
 - Kabul ama süre bitti → ikinci paket yok; `cidUnknown`, `banned: null`.
 CLI `ban --json` `cid` alanını yalnız gerçek CID'li paket yanıtlandığında (`cidOk`/`cidBanned`) yazar.
+
+## 76. Steam kimliğiyle bağlantı (isteğe bağlı, jenerik) — v5.5, uygulama 2.27.0 build 56
+
+### 76.1 Amaç
+Oyuncuya bir sunucuya **iki farklı kimlik yoluyla** giriş seçeneği sunmak:
+
+- **Yöntem A — Standart (varsayılan):** Mevcut davranış; oyun motorunun kendi yerel kimlik yolu. Davranış **değişmez**.
+- **Yöntem B — Steam kimliğiyle (isteğe bağlı, varsayılan KAPALI):** Gerçek Steam oturumu üzerinden kimlik doğrulama yapan **yerel bir Steam broker** aracılığıyla bağlanma.
+
+Yöntem B **yalnızca kullanıcı açıkça seçtiğinde** kullanılır. Hiçbir sunucu için varsayılan değildir; otomatik seçilmez; kullanıcı seçeneği kapatabilir.
+
+**Kapsam dışı:** Herhangi bir ödeme, abonelik veya entitlement kontrolünün atlatılması; kimlik taklidi; sahte ticket üretimi; sunucu tarafının değiştirilmesi; başka bir oyuncu adına bağlanma.
+
+### 76.2 Kavramsal model
+- `JoinIdentity`: `.standard` | `.steamAuth` (yeni tip; `standard` mevcut davranışın karşılığıdır).
+- `SteamBrokerEndpoint`: `host` (varsayılan `127.0.0.1`), `port` (varsayılan `27420`), `executablePath` (kullanıcı tarafından belirtilen broker ikilisi).
+- `SteamBrokerState`: `.notConfigured` | `.notRunning` | `.listening` | `.unreachable` | `.steamSessionMissing`.
+- `ServerIdentityMemory`: sunucu kimliği (normalize edilmiş `host:port`) → **yöntem başına ayrı sonuç**: `{ outcomes: { standard: Outcome?, steamAuth: Outcome? }, lastIdentity, lastAttemptAt }`; `Outcome` = `{ result, at }`, `result` ∈ `.success`, `.rejected`, `.unknown`.
+  - **Bir yöntemin sonucu diğerini silmez:** Standart denemesi Steam rozetini (veya tersini) **kaldırmaz**.
+  - `Steam ✓ / Steam ✗` rozeti **yalnızca `steamAuth` sonucundan** türetilir; `standard` sonucu rozeti etkilemez.
+  - **Sunucu IP/host bilgisi kod veya şablon içine gömülmez**; yalnızca kullanıcının eklediği sunucular için çalışma zamanında tutulur.
+- Broker haberleşmesi: **SBK** çerçevesi — header `SBRK` (4 bayt) + uint16 LE uzunluk + payload. Komutlar: `sb_gamedir <gamedir>`, `sb_connect <ip:port> <server_steamid> <secure 0|1> <challenge>`, `sb_disconnect <ip:port> <challenge>`, `sb_terminate`. Ticket cevabı payload'ı: `"sb_connect\n"` + int32 LE challenge + uint64 LE steamid + uint32 LE boyut + ticket baytları.
+
+### 76.3 Broker bulunabilirliği ve yönetimi
+1. Ayarlar'da kullanıcı **broker ikilisinin yolunu** tanımlar (serbest metin alanı + "Gözat" seçici). Varsayılan aday yollar denenir (kullanıcının kendi kurulum yerine göre), bulunamazsa kullanıcı yönlendirilir.
+2. Uygulama broker'ı **çalıştırmadan önce** doğrular: dosya var mı, çalıştırılabilir mi.
+3. Broker **çalışmıyorsa** kullanıcı onayıyla başlatılabilir; bu durumda oyun kapanınca **yalnızca uygulamanın başlattığı** broker kapatılır (kullanıcının kendi başlattığı broker'a dokunulmaz).
+   - Broker başlatılırken yapılandırılmış adres **tek argüman olarak** (`<host>:<port>`) geçilir; böylece özel port seçeneği gerçekten uygulanır.
+   - Uygulama **kapanırken** de kendi başlattığı broker'ı kapatır (sonlandırma temizliği); aksi hâlde broker artık açıkta kalmasın.
+4. Broker çalışıyor ama port dinlenmiyorsa durum `unreachable` olarak raporlanır.
+5. Steam oturumu yoksa (broker Steam'e bağlanamıyorsa) durum `steamSessionMissing` olur ve mesaj **“Steam oturumu gerekli”** olur; Steam kimlik bilgisi **hiçbir şekilde uygulamada saklanmaz veya okunmaz**.
+   - Steam oturumu varlığı **yalnızca Steam istemci sürecinin çalışıp çalışmadığına bakılarak** kestirilir (işaret göstergesi). Steam ID, ticket, oturum çerezleri **okunmaz, istenmez ve saklanmaz**.
+6. Broker yolu/portu **profil dosyasına** yazılabilir; gizli değer yoktur.
+
+### 76.4 Akış: "Steam kimliğiyle gir"
+1. Kullanıcı sunucu satırına **sağ tıklar** → “Şunla gir ▾” → **“Steam kimliğiyle”**.
+2. **Gizlilik onayı** gösterilir (76.5 metni). Onaylanmadan akış başlamaz.
+3. Broker hazırlanır (bulunur / başlatılır / port dinleniyor doğrulanır).
+4. Xash, standart başlatma komutuna **ek olarak** `+set cl_ticket_generator steam` argümanıyla başlatılır.
+   - Bu argüman **yalnız başlatma satırında** verilir.
+   - **Oyun yapılandırma dosyalarına (`config.cfg`, `userconfig.cfg`, `valve/*`) hiçbir şey yazılmaz.**
+   - Mevcut `g`, `b`, `n`, `m` bind'larına dokunulmaz.
+5. `engine.log` izlenir; **gerçek sunucu cevabı** okunur: başarılı bağlantı, `disconnect reason`, veya zaman aşımı.
+6. Sonuç `ServerIdentityMemory`'ye yazılır ve arayüzde gösterilir.
+7. Oyun süreci kapanınca, uygulamanın **kendi başlattığı** broker kapatılır.
+
+### 76.5 Gizlilik onay metni (jenerik)
+> “Steam kimliğiyle bağlantı, bu sunucuya **gerçek Steam hesabınızın kimliğini (SteamID)** bildirir. Sunucu yöneticisi bu kimliği Steam hesabınıza bağlayabilir. Oyunda görünen isim değişmez.”
+
+Onay **her seçimde** istenir; kalıcı “her zaman onayla” seçeneği sunulmaz.
+
+### 76.6 Arayüz
+- **Sunucu satırı sağ tık menüsü:** “Şunla gir ▾” → “Standart” · “Steam kimliğiyle” · “Steam broker ayarları…”. Her yolun yanında durum rozeti gösterilir.
+- **Sunucu satırı rozeti:** hafızadaki son sonuca göre `Steam ✓` / `Steam ✗` / (denenmediyse rozet yok).
+- **Ayarlar → Bağlantı Yolları** (yeni bölüm): broker ikilisi yolu, port, **canlı durum** (çalışıyor/dinleniyor/Steam oturumu yok), “Broker’ı başlat”, “Broker’ı durdur”, yol doğrulama butonu.
+- **GoldSrc 48 algılanan sunucularda** “Steam kimliğiyle” seçeneği **önerilen** olarak işaretlenir (p48 sunucuları çoğunlukla gerçek Steam kimliği ister); bu yalnızca bir **öneridir**, seçim kullanıcıdadır.
+- Tüm yeni metinler **26 dil** için lokalizasyon anahtarı olarak eklenir; `check-l10n-parity.sh` kapısı geçmelidir.
+
+### 76.7 CLI / JSON
+- `playeridentityctl join --server <host:port> [--identity standard|steam-auth]`.
+- JSON çıktısında `identity` alanı bulunur (`standard` / `steam_auth`).
+- `--identity steam-auth` için broker yapılandırılmamışsa açık hata döner.
+
+### 76.8 Kabul kriterleri ve testler
+1. Mevcut testlerin tamamı geçer; yeni testler eklenir.
+2. Sağ tık menüsü iki yöntemi de listeler; “Steam kimliğiyle” **yalnızca** onay sonrası başlar.
+3. Onay penceresi reddedilirse **hiçbir süreç başlatılmaz**.
+4. Broker yapılandırılmamışsa seçenek pasif görünür ve anlaşılır yönlendirme metni gösterilir.
+5. Steam oturumu yoksa hata metni **“Steam oturumu gerekli”** olur.
+6. `+set cl_ticket_generator steam` argümanı **yalnız** Steam yönteminde eklenir; standart yöntemde argv **birebir aynı** kalır (regresyon testi).
+7. Oyun yapılandırma dosyalarına **hiçbir yazma** yapılmaz (test: dosya içerikleri değişmez).
+8. Uygulamanın **kendi başlatmadığı** broker kapatılmaz; kendi başlattığı broker kapanır (test).
+9. `engine.log` kanıtı: bağlantı başarısı, disconnect reason ve zaman aşımı üç durumda da ayrıştırılır ve sunucu hafızasına doğru yazılır.
+10. Hafıza kalıcıdır (profil dosyası) ve yeniden açılışta korunur; **hafıza dosyasında sunucu adı dışında kişisel veri bulunmaz**.
+11. 26 dilde lokalizasyon eşitliği ve `sync-spec.sh --check` kapısı yeşildir.
+
+### 76.9 Sınırlar ve jeneriklik
+- Spec, kod, test ve dokümantasyon **hiçbir sunucunun adresini/portunu**, hiçbir SteamID'yi, hiçbir oyuncu adını **içermez**. Özellik herhangi bir sunucuya uygulanabilir.
+- Oyuncu adı oyunun kendi yapılandırmasından gelir; uygulama oyuncu adını **değiştirmez**.
+- Steam broker **üçüncü taraf yerel bir araçtır**; uygulama broker kodu/kitaplığı **dağıtmaz**, yalnızca kullanıcının tanımladığı ikiliyi çalıştırır. Steam'in kütüphaneleri uygulamaya/dağıtıma **dahil edilmez**.
