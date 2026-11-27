@@ -19,7 +19,7 @@ final class InterfaceV22Tests: XCTestCase {
         let env = try TestAppEnvironment()
         let notifier = FakeNotifier(status: .authorized)
         let model = env.makeModel(notifier: notifier)
-        model.addServer(ServerDraft(label: "POLIGON", host: "192.0.2.10"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         XCTAssertNil(model.saveAppeal(Appeal(sentAt: env.clock.now, channel: .discord,
                                              followUpAt: env.clock.now.addingTimeInterval(3600)), for: id))
@@ -33,7 +33,7 @@ final class InterfaceV22Tests: XCTestCase {
         try await Task.sleep(for: .milliseconds(50))
         await waitUntil { notifier.posts.count == 1 }
         await model.waitForAppealReminders()
-        XCTAssertTrue(notifier.posts[0].title.hasSuffix("POLIGON"))
+        XCTAssertTrue(notifier.posts[0].title.hasSuffix("Example"))
         XCTAssertNotNil(model.servers[0].appeal?.notifiedAt)
         XCTAssertFalse(model.hasUnsavedChanges)                           // bookkeeping, not an edit
         let saved = try XCTUnwrap(SnapshotStore(fileURL: AppPaths(home: env.home).snapshotFile).load().snapshot)

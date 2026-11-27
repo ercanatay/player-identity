@@ -4,7 +4,7 @@ import XCTest
 /// §34 `playeridentityctl`: parsing, JSON schema, exit codes, IPv6, no stdin. In-process via `CLIRunner.run`
 /// (fake UDP + resolver, temp home) and one smoke test of the bundled binary.
 final class CLITests: XCTestCase {
-    private static let fixtureCID = "d9de0eb4419608a8423241430581e91c"   // raw ID 0 + 51.68.190.91 (§4)
+    private static let fixtureCID = "668afa7c2daff879e69f6aae714ef3b4"   // raw ID 0 + 192.0.2.10 (§4)
     private var temp: TempDirectory!
     private let clock = TestClock()
 
@@ -47,9 +47,9 @@ final class CLITests: XCTestCase {
     // MARK: Parsing
 
     func testArgumentParsing() {
-        XCTAssertEqual(CLIParser.parse(["cid", "51.68.190.91"]), .success(.cid(host: "51.68.190.91", rawID: nil, json: false)))
-        XCTAssertEqual(CLIParser.parse(["--json", "cid", "--raw-id", "0x1F", "51.68.190.91"]),
-                       .success(.cid(host: "51.68.190.91", rawID: 0x1F, json: true)))
+        XCTAssertEqual(CLIParser.parse(["cid", "192.0.2.10"]), .success(.cid(host: "192.0.2.10", rawID: nil, json: false)))
+        XCTAssertEqual(CLIParser.parse(["--json", "cid", "--raw-id", "0x1F", "192.0.2.10"]),
+                       .success(.cid(host: "192.0.2.10", rawID: 0x1F, json: true)))
         XCTAssertEqual(CLIParser.parse(["cid", "Play.Example.com", "--raw-id=0000000000000000"]),
                        .success(.cid(host: "play.example.com", rawID: 0, json: false)))
         XCTAssertEqual(CLIParser.parse(["ban", "192.0.2.1:27016", "--timeout", "2.5", "--json"]),
@@ -101,7 +101,7 @@ final class CLITests: XCTestCase {
 
     func testCidJSONSchemaAndIdentityFile() async throws {
         try writeIdentity()
-        let result = await run(["cid", "51.68.190.91", "--json"])
+        let result = await run(["cid", "192.0.2.10", "--json"])
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertEqual(result.stderr, "")
         let object = try json(result)
@@ -113,12 +113,12 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(object["rawIDSource"] as? String, "identityFile")
         XCTAssertEqual(result.stdout.last, "\n")
 
-        let plain = await run(["cid", "51.68.190.91"])
+        let plain = await run(["cid", "192.0.2.10"])
         XCTAssertEqual(plain.stdout, Self.fixtureCID + "\n")
     }
 
     func testCidRawIDArgumentIPv6AndHostname() async throws {
-        let override = await run(["cid", "51.68.190.91", "--raw-id", "0", "--json"])   // no identity file needed
+        let override = await run(["cid", "192.0.2.10", "--raw-id", "0", "--json"])   // no identity file needed
         XCTAssertEqual(try json(override)["rawIDSource"] as? String, "argument")
         XCTAssertEqual(try json(override)["cid"] as? String, Self.fixtureCID)
 
@@ -127,14 +127,14 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(try json(v6)["address"] as? String, "2001:db8::1")
         XCTAssertEqual(try json(v6)["cid"] as? String, CIDCalculator.cid(rawID: 0, host: "2001:db8::1"))
 
-        let resolver = FakeAddressResolver(["play.example.com": .success([TestAddresses.v4("51.68.190.91")])])
+        let resolver = FakeAddressResolver(["play.example.com": .success([TestAddresses.v4("192.0.2.10")])])
         let named = await run(["cid", "play.example.com", "--raw-id", "0", "--json"], context(resolver: resolver))
-        XCTAssertEqual(try json(named)["address"] as? String, "51.68.190.91")
+        XCTAssertEqual(try json(named)["address"] as? String, "192.0.2.10")
         XCTAssertEqual(try json(named)["cid"] as? String, Self.fixtureCID)
     }
 
     func testCidErrorsAndExitCodes() async throws {
-        let noIdentity = await run(["cid", "51.68.190.91"])
+        let noIdentity = await run(["cid", "192.0.2.10"])
         XCTAssertEqual(noIdentity.exitCode, 2)
         XCTAssertTrue(noIdentity.stderr.contains("--raw-id"))
         XCTAssertEqual(noIdentity.stdout, "")
@@ -156,7 +156,7 @@ final class CLITests: XCTestCase {
 
     func testBanHealthyServerJSON() async throws {
         try writeIdentity()
-        let result = await run(["ban", "51.68.190.91:27015", "--json"])
+        let result = await run(["ban", "192.0.2.10:27015", "--json"])
         XCTAssertEqual(result.exitCode, 0)
         let object = try json(result)
         XCTAssertEqual(Set(object.keys), ["schemaVersion", "command", "host", "port", "address", "cid", "status", "banned",
@@ -209,23 +209,23 @@ final class CLITests: XCTestCase {
     }
 
     func testBanWritesAMetricsSampleOnceAndNoMetricsTurnsItOff() async throws {
-        let first = await run(["ban", "51.68.190.91:27015"], context(udp: a2sTransport()))
+        let first = await run(["ban", "192.0.2.10:27015"], context(udp: a2sTransport()))
         XCTAssertEqual(first.exitCode, 0)
         var samples = MetricsStore(fileURL: metricsFile).load()
         XCTAssertEqual(samples.count, 1)
-        XCTAssertEqual(samples.first?.serverID, MetricSample.stableServerID(host: "51.68.190.91", port: 27015))
+        XCTAssertEqual(samples.first?.serverID, MetricSample.stableServerID(host: "192.0.2.10", port: 27015))
         XCTAssertEqual(samples.first?.map, "rpg_city")
         XCTAssertEqual(samples.first?.online, true)
 
-        _ = await run(["ban", "51.68.190.91:27015"], context(udp: a2sTransport()))   // same second → deduped
+        _ = await run(["ban", "192.0.2.10:27015"], context(udp: a2sTransport()))   // same second → deduped
         XCTAssertEqual(MetricsStore(fileURL: metricsFile).load().count, 1)
 
         clock.advance(5)
-        _ = await run(["ban", "51.68.190.91:27015", "--no-metrics"], context(udp: a2sTransport()))
+        _ = await run(["ban", "192.0.2.10:27015", "--no-metrics"], context(udp: a2sTransport()))
         XCTAssertEqual(MetricsStore(fileURL: metricsFile).load().count, 1)
 
         clock.advance(5)
-        _ = await run(["ban", "51.68.190.91:27015", "--json"], context(udp: a2sTransport()))
+        _ = await run(["ban", "192.0.2.10:27015", "--json"], context(udp: a2sTransport()))
         samples = MetricsStore(fileURL: metricsFile).load()
         XCTAssertEqual(samples.count, 2)
     }
@@ -340,7 +340,7 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(version.status, 0)
         XCTAssertEqual(version.stdout, "playeridentityctl \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"))\n")
 
-        let cid = try execute(binary, ["cid", "51.68.190.91", "--raw-id", "0", "--json"])
+        let cid = try execute(binary, ["cid", "192.0.2.10", "--raw-id", "0", "--json"])
         XCTAssertEqual(cid.status, 0)
         XCTAssertTrue(cid.stdout.contains(#""cid" : "\#(Self.fixtureCID)""#), cid.stdout)
 

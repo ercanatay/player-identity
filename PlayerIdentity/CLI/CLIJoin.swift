@@ -25,6 +25,10 @@ extension CLIRunner {
                                + "start it first (this tool never starts it)", command: command, json: json,
                                code: CLIExit.network)
             }
+            if manager.state(endpoint) == .stale {
+                return failure("steamBrokerStale", GameLaunchText.error(.steamBrokerStale), command: command, json: json,
+                               code: CLIExit.network)
+            }
             guard yes || context.prompt.isInteractive else {
                 return failure("notConfirmed", "no terminal to confirm on; pass --yes to accept that your SteamID is "
                                + "reported to the server", command: command, json: json, code: CLIExit.usage)
@@ -79,6 +83,7 @@ extension CLIRunner {
         case .launchFailed: return ("launchFailed", CLIExit.network)
         case .steamBrokerNotConfigured: return ("steamBrokerNotConfigured", CLIExit.usage)
         case .steamSessionRequired: return ("steamSessionRequired", CLIExit.network)
+        case .steamBrokerStale: return ("steamBrokerStale", CLIExit.network)
         case .steamBrokerUnreachable, .steamBrokerStartFailed: return ("steamBrokerNotListening", CLIExit.network)
         }
     }

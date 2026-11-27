@@ -9,15 +9,15 @@ final class CIDTests: XCTestCase {
     }
 
     func testVector1_95_173_174_175() throws {
-        XCTAssertEqual(try cid("95.173.174.175"), "68f8c1fb2a23cb02409b8a3231487970")
+        XCTAssertEqual(try cid("198.51.100.1"), "38deb7f5293007bd3ab41c70a43a5cbd")
     }
 
     func testVector2_51_68_190_91() throws {
-        XCTAssertEqual(try cid("51.68.190.91"), "d9de0eb4419608a8423241430581e91c")
+        XCTAssertEqual(try cid("192.0.2.10"), "668afa7c2daff879e69f6aae714ef3b4")
     }
 
     func testVector3_5_161_189_195() throws {
-        XCTAssertEqual(try cid("5.161.189.195"), "5282a6daf7a33fe08469e453086de93c")
+        XCTAssertEqual(try cid("198.51.100.2"), "c60f3c9f783576db19d68fa956ab503d")
     }
 
     func testVector4_127_0_0_1() throws {

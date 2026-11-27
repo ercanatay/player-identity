@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "IP Anda telah berubah (normal untuk IP dinamis). Jika ini nilai yang benar, tekan Simpan.";
 "suggestion.lanIPChanged" = "Jaringan lokal telah berubah (mungkin beralih Wi-Fi/Ethernet). Jika memang diinginkan, tekan Simpan.";
 "suggestion.serverCIDChanged" = "CID server berbeda dari rekaman; sumber identitas mungkin telah berubah. Tekan Simpan setelah Segarkan.";
-"suggestion.invalidHost" = "Masukkan alamat sebagai IP:port (mis. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Masukkan alamat sebagai IP:port (mis. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Periksa koneksi jaringan (Wi-Fi/Ethernet), lalu tekan Segarkan.";
 "suggestion.nameEmpty" = "Atur nama pemain di dalam game, tutup game, dan tekan Segarkan.";
 "suggestion.modelEmpty" = "Pilih model pemain di dalam game, tutup game, dan tekan Segarkan.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Tidak ada broker yang ditemukan di lokasi umum.";
 "steam.settings.foundOther" = "Broker lain ditemukan: %@. Jalur yang Anda atur akan tetap dipertahankan.";
 "steam.error.settingsHint" = "Periksa jalur broker di Pengaturan › Jalur Koneksi.";
+"steam.join.steamAuthRestart" = "Dengan identitas Steam (mulai ulang broker)";
+"steam.state.stale" = "Broker kedaluwarsa (Steam dimulai ulang)";
+"steam.settings.stale" = "Steam dimulai ulang — mulai ulang broker";
+"steam.settings.restart" = "Mulai ulang";
+"steam.error.stale" = "Broker yang sedang berjalan dimulai sebelum Steam dan tidak dapat diganti oleh aplikasi. Hentikan broker, lalu coba lagi.";

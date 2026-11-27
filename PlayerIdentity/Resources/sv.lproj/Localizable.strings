@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "Din IP har ändrats (normalt med dynamisk IP). Om detta är rätt värde klickar du på Spara.";
 "suggestion.lanIPChanged" = "Det lokala nätverket har ändrats (möjligen byte mellan Wi-Fi/Ethernet). Om det är avsiktligt klickar du på Spara.";
 "suggestion.serverCIDChanged" = "Serverns CID skiljer sig från posten; identitetskällan kan ha ändrats. Klicka på Spara efter Uppdatera.";
-"suggestion.invalidHost" = "Ange adressen som IP:port (t.ex. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Ange adressen som IP:port (t.ex. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Kontrollera nätverksanslutningen (Wi-Fi/Ethernet) och klicka sedan på Uppdatera.";
 "suggestion.nameEmpty" = "Ange ett spelarnamn i spelet, avsluta spelet och klicka på Uppdatera.";
 "suggestion.modelEmpty" = "Välj en spelarmodell i spelet, avsluta spelet och klicka på Uppdatera.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Ingen broker hittades på de vanliga platserna.";
 "steam.settings.foundOther" = "En annan broker hittades: %@. Den väg du angav behålls.";
 "steam.error.settingsHint" = "Kontrollera brokervägen i Inställningar › Anslutningsvägar.";
+"steam.join.steamAuthRestart" = "Med Steam-identitet (starta om brokern)";
+"steam.state.stale" = "Brokern är föråldrad (Steam startades om)";
+"steam.settings.stale" = "Steam startades om – starta om brokern";
+"steam.settings.restart" = "Starta om";
+"steam.error.stale" = "Brokern som kör startades innan Steam och kan inte ersättas av appen. Stoppa den och försök igen.";

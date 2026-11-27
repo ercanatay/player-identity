@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.27.2] - 2026-11-27
+
+### Fixed
+- **The broker runs in its own folder** (spec §78): the app starts the broker with the folder of its binary as working directory, so a broker that looks for its Steam library next to itself finds it.
+- **The ticket generator is always set explicitly** (spec §78): both methods put `+set cl_ticket_generator <value>` on the launch line — `revemu2013` for Standard, `steam` for Steam — so a value the engine saved in `config.cfg` can no longer turn a Standard join into a Steam one. The app still writes nothing to the game folder.
+
+### Added
+- **A broker outdated by a Steam restart is noticed** (spec §79): a broker whose process started before the Steam client is *stale* (read-only check of the two start times; no Steam credential or ticket is read). When Steam quits, a broker the app started is stopped; one you started yourself is only marked stale.
+- The row menu then reads **With Steam identity (restart broker)**, and Settings › Connection Paths shows "Steam restarted — restart the broker" with a **Restart** button (restarts with the `<host>:<port>` argument). Nothing is started or connected until you choose it; a failure shows a clear message with a pointer to the settings.
+- 5 new localization keys (`steam.join.steamAuthRestart`, `steam.state.stale`, `steam.settings.stale`, `steam.settings.restart`, `steam.error.stale`).
+
 ## [2.27.1] - 2026-11-27
 
 ### Added
@@ -51,7 +62,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 - `playeridentityctl diagnose --json`: `protocol`, `cid` (`null` unless Source 49), `cidApplicable`, `goldSrc`, `goldSrcProbe`, `message`, `serverMessage`, `goldSrcEvidence` (`engineLog` / `probe`), `goldSrcEngineLog`, `uniqueness_verified: false`; on GoldSrc 48 `banned` is `true` or `null` (never `false`); `--fail-on-ban` exits `4` for `banned`. `ban --json` adds `protocol` and `cidApplicable` and prints `cid: null` unless the server proved Source 49 (a server saved as GoldSrc 48 never gets a CID computed); `ban --json` and `status --json` print `banned: null` for an unverified GoldSrc result.
 
 ### Release gate
-- `scripts/verify-goldsrc-connection.sh --confirm` (AC-75.R1, opt-in, user-confirmed, never in CI) checks the **production path**: an APFS clone of the game data, then the app's own code (`scripts/goldsrc-gate/main.swift` built with PlayerIdentity/Core) — the A2S check decides the protocol, GameLauncher builds the Join Game plan and the allowlisted runner launches the installed engine through `open --env XASH3D_BASEDIR=<clone> … -dev 1 -log +connect <ip:port> gs`. Asserted: the argv, the running engine's arguments and environment (not the direct `-dev 2` test), `<clone>/engine.log` (and no `/engine.log`), "Trying to connect with GoldSrc 48 protocol", the server's answer read by GoldSrcEngineLog, the null-ticket probe alone never saying "not banned", the diagnosis with the engine log reaching the engine's answer, and the real engine, game data and identity files unchanged. On 2026-11-26 against 51.68.190.91:27015 it **passed**: engine "You have been banned from this server."; probe alone `legacyVerificationUnavailable` / `banned: null` / `cid: null` (the server refused the null ticket: "Sorry, no-steam p48 clients are not allowed on this server"); with the engine log `banned` / `banned: true`.
+- `scripts/verify-goldsrc-connection.sh --confirm` (AC-75.R1, opt-in, user-confirmed, never in CI) checks the **production path**: an APFS clone of the game data, then the app's own code (`scripts/goldsrc-gate/main.swift` built with PlayerIdentity/Core) — the A2S check decides the protocol, GameLauncher builds the Join Game plan and the allowlisted runner launches the installed engine through `open --env XASH3D_BASEDIR=<clone> … -dev 1 -log +connect <ip:port> gs`. Asserted: the argv, the running engine's arguments and environment (not the direct `-dev 2` test), `<clone>/engine.log` (and no `/engine.log`), "Trying to connect with GoldSrc 48 protocol", the server's answer read by GoldSrcEngineLog, the null-ticket probe alone never saying "not banned", the diagnosis with the engine log reaching the engine's answer, and the real engine, game data and identity files unchanged. On 2026-11-26 against 192.0.2.10:27015 it **passed**: engine "You have been banned from this server."; probe alone `legacyVerificationUnavailable` / `banned: null` / `cid: null` (the server refused the null ticket: "Sorry, no-steam p48 clients are not allowed on this server"); with the engine log `banned` / `banned: true`.
 
 ### Limits
 - The probe uses a null ticket: a server that requires a Steam ticket refuses it, and a ban given after the connection is established is not visible to a probe that never opens a player session. Only the engine log of a real connection (or a ban text in the probe's answer) shows a ban.

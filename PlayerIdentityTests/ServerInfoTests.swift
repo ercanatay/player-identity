@@ -6,9 +6,9 @@ final class ServerInfoParserTests: XCTestCase {
     func testGoldSrcReply() {
         let info = ServerInfoParser.parse(A2SFixture.goldSrc())
         // §75.2: this synthetic reply ends before VAC/bots → readable fields kept, protocol `unknown`.
-        XCTAssertEqual(info, ServerInfo(name: "POLIGON RPG", map: "rpg_city", players: 9, maxPlayers: 26,
+        XCTAssertEqual(info, ServerInfo(name: "Example Server", map: "rpg_city", players: 9, maxPlayers: 26,
                                         protocolVersion: 47, folder: "valve", game: "Half-Life",
-                                        reportedAddress: "51.68.190.91:27015"))
+                                        reportedAddress: "192.0.2.10:27015"))
     }
 
     func testSourceReply() {
@@ -23,8 +23,8 @@ final class ServerInfoParserTests: XCTestCase {
         // Cut right after the map string: folder/game/players/max are missing.
         let mapEnd = full.indices.filter { full[$0] == 0 }[2]
         let truncated = Array(full[...mapEnd])
-        XCTAssertEqual(ServerInfoParser.parse(truncated), ServerInfo(name: "POLIGON RPG", map: "rpg_city",
-                                                                     reportedAddress: "51.68.190.91:27015"))
+        XCTAssertEqual(ServerInfoParser.parse(truncated), ServerInfo(name: "Example Server", map: "rpg_city",
+                                                                     reportedAddress: "192.0.2.10:27015"))
         // Unterminated name: nothing after it can be read.
         let unterminated = A2SFixture.header + [0x49, 17] + Array("half".utf8)
         XCTAssertEqual(ServerInfoParser.parse(unterminated), ServerInfo(protocolVersion: 17))
@@ -81,10 +81,10 @@ final class ServerInfoParserTests: XCTestCase {
 }
 
 final class BanCheckServerInfoTests: XCTestCase {
-    private let endpoint = UDPEndpoint(address: TestAddresses.v4("51.68.190.91"), port: 27015)
+    private let endpoint = UDPEndpoint(address: TestAddresses.v4("192.0.2.10"), port: 27015)
 
-    private func request(cid: String? = "d9de0eb4419608a8423241430581e91c") -> BanCheckRequest {
-        BanCheckRequest(serverID: UUID(), host: "51.68.190.91", port: 27015, endpoint: endpoint, cid: cid, name: "N")
+    private func request(cid: String? = "668afa7c2daff879e69f6aae714ef3b4") -> BanCheckRequest {
+        BanCheckRequest(serverID: UUID(), host: "192.0.2.10", port: 27015, endpoint: endpoint, cid: cid, name: "N")
     }
 
     private func infoPackets(_ transport: FakeUDPTransport) -> [[UInt8]] {
@@ -98,7 +98,7 @@ final class BanCheckServerInfoTests: XCTestCase {
         let checker = BanChecker(transport: transport, now: { clock.now })
         let result = try await checker.check(request())
         XCTAssertEqual(result.status, .cidOk)
-        XCTAssertEqual(result.info, ServerInfo(name: "POLIGON RPG", map: "rpg_city", players: 9, maxPlayers: 26, pingMillis: 42,
+        XCTAssertEqual(result.info, ServerInfo(name: "Example Server", map: "rpg_city", players: 9, maxPlayers: 26, pingMillis: 42,
                                                serverProtocol: .source49, protocolVersion: 49, folder: "valve",
                                                game: "Half-Life"))
         XCTAssertEqual(infoPackets(transport).count, 1)

@@ -76,9 +76,9 @@ final class MetricsTests: XCTestCase {
     }
 
     func testStableServerIDForCLIChecks() {
-        let id = MetricSample.stableServerID(host: "51.68.190.91", port: 27015)
-        XCTAssertEqual(id, MetricSample.stableServerID(host: "51.68.190.91", port: 27015))
-        XCTAssertNotEqual(id, MetricSample.stableServerID(host: "51.68.190.91", port: 27016))
+        let id = MetricSample.stableServerID(host: "192.0.2.10", port: 27015)
+        XCTAssertEqual(id, MetricSample.stableServerID(host: "192.0.2.10", port: 27015))
+        XCTAssertNotEqual(id, MetricSample.stableServerID(host: "192.0.2.10", port: 27016))
         XCTAssertEqual(id.uuidString[id.uuidString.index(id.uuidString.startIndex, offsetBy: 14)], "3")   // version 3
     }
 

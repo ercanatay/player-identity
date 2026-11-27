@@ -15,7 +15,7 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(redactor.text("/Users/alice/.config/.xash_id"), "~/.config/.xash_id")
         // Not IPs: dates, times, UUIDs, CIDs, raw IDs, versions, host names.
         for kept in ["2026-11-09T10:00:00Z", "10:33:20", "1E390D91-9114-454E-A9B3-4AB1833ACD48",
-                     "d9de0eb4419608a8423241430581e91c", "0000000000000000", "2.1.0", "play.example.com", "ab:cd"] {
+                     "668afa7c2daff879e69f6aae714ef3b4", "0000000000000000", "2.1.0", "play.example.com", "ab:cd"] {
             XCTAssertEqual(redactor.text(kept), kept)
         }
     }
@@ -48,7 +48,7 @@ final class DiagnosticsTests: XCTestCase {
                                 displayName: "Player", model: "gordon", rawID: "0000000000000000",
                                 identitySource: home.appendingPathComponent(".config/.xash_id").path,
                                 network: NetworkInfo(publicIP: "198.51.100.7", lanIPs: ["en0 · 192.0.2.10"], checkedAt: Self.t0),
-                                servers: [ServerEntry(label: "EU", host: "203.0.113.20", cid: "d9de0eb4419608a8423241430581e91c",
+                                servers: [ServerEntry(label: "EU", host: "203.0.113.20", cid: "668afa7c2daff879e69f6aae714ef3b4",
                                                       banCheck: BanCheck(status: .ipBanned, checkedAt: Self.t0,
                                                                          detail: "ipBanned: you (198.51.100.7) are banned")),
                                           ServerEntry(label: "Name", host: "play.example.com")])
@@ -89,7 +89,7 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(redacted.contains("198.51.x.x"))
         XCTAssertTrue(redacted.contains("203.0.x.x"))
         XCTAssertTrue(redacted.contains("play.example.com"))
-        XCTAssertTrue(redacted.contains("d9de0eb4419608a8423241430581e91c"))
+        XCTAssertTrue(redacted.contains("668afa7c2daff879e69f6aae714ef3b4"))
         XCTAssertTrue(redacted.contains("~/.config/.xash_id"))
         XCTAssertEqual(SnapshotStore.decode(Data(redacted.utf8)).snapshot?.servers.count, 2)   // still a readable record
 

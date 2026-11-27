@@ -17,7 +17,7 @@
 #
 # Network: the target server only. Evidence: a temporary folder (never the repository).
 # Usage:  scripts/verify-goldsrc-connection.sh --confirm [host:port]
-# Env:    PI_GS_TARGET (default 51.68.190.91:27015), PI_GS_DATA (default ~/Library/Application Support/Xash3D FWGS),
+# Env:    PI_GS_TARGET (default 192.0.2.10:27015), PI_GS_DATA (default ~/Library/Application Support/Xash3D FWGS),
 #         PI_GS_GAMEDIR (default valve), PI_GS_WAIT (seconds, default 40), PI_GS_CTL (a playeridentityctl inside an app
 #         bundle; default: built into the work folder), PI_GS_WORK, PI_GS_KEEP=1 (keep the clone).
 # Exit:   0 PASS, 1 FAIL, 4 NOT CONFIGURED (not confirmed, engine/data missing, engine running, no APFS clone).
@@ -26,7 +26,7 @@ cd "$(dirname "$0")/.."
 REPO="$(pwd)"
 
 CONFIRMED="${PI_GS_CONFIRM:-}"
-TARGET="${PI_GS_TARGET:-51.68.190.91:27015}"
+TARGET="${PI_GS_TARGET:-192.0.2.10:27015}"
 for arg in "$@"; do
     case "$arg" in
         --confirm) CONFIRMED=yes ;;

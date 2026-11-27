@@ -130,7 +130,7 @@ final class SilentFailureTests: XCTestCase {
 
     private func modelWithDueAppeal(_ env: TestAppEnvironment, notifier: FakeNotifier) async throws -> (AppModel, UUID) {
         let model = env.makeModel(notifier: notifier)
-        model.addServer(ServerDraft(label: "POLIGON", host: "192.0.2.10"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         XCTAssertNil(model.saveAppeal(Appeal(sentAt: env.clock.now, channel: .discord,
                                              followUpAt: env.clock.now.addingTimeInterval(3600)), for: id))

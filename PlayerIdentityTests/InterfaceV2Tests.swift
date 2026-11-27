@@ -27,18 +27,18 @@ final class InterfaceV2Tests: XCTestCase {
         XCTAssertNil(model.pendingJoin)
         XCTAssertNil(model.joinError)
         XCTAssertEqual(runner.commands, [["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve",
-                                          "+connect", "192.0.2.10:27016"]])
+                                          "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27016"]])
     }
 
     func testJoinGameAsksWhenTheGameIsRunningAndCancelRunsNothing() async throws {
         let env = try TestAppEnvironment()
         let runner = FakeGameLaunchRunner()
         let model = env.makeModel(game: FakeGameDetector(running: true)) { self.installGame(&$0, runner: runner) }
-        model.addServer(ServerDraft(label: "POLIGON", host: "192.0.2.10"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
 
         await model.joinGame(id)?.value
-        XCTAssertEqual(model.pendingJoin?.label, "POLIGON")
+        XCTAssertEqual(model.pendingJoin?.label, "Example")
         XCTAssertEqual(runner.commands, [])
         model.cancelJoin()
         XCTAssertNil(model.pendingJoin)
@@ -239,14 +239,14 @@ final class InterfaceV2Tests: XCTestCase {
     func testShareCardContentCopyAndFileName() async throws {
         let env = try TestAppEnvironment()
         let model = env.makeModel()
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         model.addServer(ServerDraft(label: "V6", host: "2001:db8::1", portText: "27016"))
         await model.refresh().value
         let id = try XCTUnwrap(model.servers.first?.id)
         try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
             let content = try XCTUnwrap(model.shareCardContent(for: id, icon: nil))
-            XCTAssertEqual(content.cid, "d9de0eb4419608a8423241430581e91c")
-            XCTAssertEqual(content.hostPort, "51.68.190.91:27015")
+            XCTAssertEqual(content.cid, "668afa7c2daff879e69f6aae714ef3b4")
+            XCTAssertEqual(content.hostPort, "192.0.2.10:27015")
             XCTAssertEqual(content.playerName, "N")
             XCTAssertEqual(content.labels.server, "Sunucu")
             XCTAssertEqual(content.labels.title, "Cybokron Oyuncu Kimlik Kartı")

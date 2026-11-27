@@ -21,7 +21,7 @@ final class SuggestionTests: XCTestCase {
         .publicIPChanged: "IP'niz değişmiş (dinamik IP'de normal). Doğru değer buysa Kaydet'e basın.",
         .lanIPChanged: "Yerel ağ değişmiş (Wi-Fi/Ethernet geçişi olabilir). Bilinçliyse Kaydet'e basın.",
         .serverCIDChanged: "Sunucu CID'si kayıttan farklı; kimlik kaynağı değişmiş olabilir. Yenile'den sonra Kaydet'e basın.",
-        .invalidHost: "Adresi IP:port biçiminde girin (örn. 51.68.190.91:27015).",
+        .invalidHost: "Adresi IP:port biçiminde girin (örn. 192.0.2.10:27015).",
     ]
 
     func testEveryCodeHasNonEmptySuggestion() {
@@ -65,7 +65,7 @@ final class SuggestionTests: XCTestCase {
 
     func testPopoverTextFromEvaluatedReport() throws {
         // Text is produced from the reasons of the evaluated report, without changing the status logic.
-        let server = ServerEntry(label: "B", host: "51.68.190.91",
+        let server = ServerEntry(label: "B", host: "192.0.2.10",
                                  banCheck: BanCheck(status: .ipBanned, checkedAt: Date(timeIntervalSince1970: 0), detail: ""))
         let current = CurrentState(identity: .failure(.missing), displayName: "A", model: "m",
                                    lanIPs: ["en0 · 10.0.0.2"], publicIP: "203.0.113.7", servers: [server])

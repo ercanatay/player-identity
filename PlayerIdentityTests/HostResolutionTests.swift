@@ -33,7 +33,7 @@ final class HostValidatorTests: XCTestCase {
     }
 
     func testClassify() {
-        XCTAssertEqual(HostValidator.classify(" 51.68.190.91 "), .address(TestAddresses.v4("51.68.190.91")))
+        XCTAssertEqual(HostValidator.classify(" 192.0.2.10 "), .address(TestAddresses.v4("192.0.2.10")))
         XCTAssertEqual(HostValidator.classify("2001:db8::1"), .address(TestAddresses.v6("2001:db8::1")))
         XCTAssertEqual(HostValidator.classify(" Play.Example.com. "), .hostname("play.example.com"))
         XCTAssertNil(HostValidator.classify("not a host"))
@@ -56,8 +56,8 @@ final class HostValidatorTests: XCTestCase {
 }
 
 final class HostResolutionCacheTests: XCTestCase {
-    private let v4 = TestAddresses.v4("51.68.190.91")
-    private let v4b = TestAddresses.v4("5.161.189.195")
+    private let v4 = TestAddresses.v4("192.0.2.10")
+    private let v4b = TestAddresses.v4("198.51.100.2")
     private let v6 = TestAddresses.v6("2001:db8::1")
 
     func testPreferenceFirstIPv4ElseFirstIPv6() {
@@ -129,9 +129,9 @@ final class HostResolutionCacheTests: XCTestCase {
     func testLiteralsAndInvalidNamesNeverReachTheResolver() async {
         let resolver = FakeAddressResolver()
         let cache = HostResolutionCache(resolver: resolver, now: { Date() })
-        let literal = await cache.resolve("51.68.190.91")
+        let literal = await cache.resolve("192.0.2.10")
         let invalid = await cache.resolve("bad host")
-        let all = await cache.resolveAll(["51.68.190.91", "bad host", "a.example", "A.example."])
+        let all = await cache.resolveAll(["192.0.2.10", "bad host", "a.example", "A.example."])
         XCTAssertEqual(literal, .resolved(v4))
         XCTAssertEqual(invalid, .failed(.invalidHostname))
         XCTAssertEqual(Array(all.keys), ["a.example"])
@@ -154,18 +154,18 @@ final class HostResolutionCacheTests: XCTestCase {
 /// §20: CID, row status, ban requests and snapshot use the resolved address.
 final class HostAddressingTests: XCTestCase {
     private let resolved: [String: HostResolution] = [
-        "game.example": .resolved(TestAddresses.v4("51.68.190.91")),
+        "game.example": .resolved(TestAddresses.v4("192.0.2.10")),
         "nx.example": .failed(.notFound),
         "down.example": .failed(.network),
     ]
 
     func testRowUsesResolvedAddressForCID() {
-        let entry = ServerEntry(label: "G", host: "Game.Example", cid: "d9de0eb4419608a8423241430581e91c")
+        let entry = ServerEntry(label: "G", host: "Game.Example", cid: "668afa7c2daff879e69f6aae714ef3b4")
         let row = StatusEvaluator.serverRow(entry, rawID: 0, saved: nil, resolutions: resolved)
-        XCTAssertEqual(row.currentCID, "d9de0eb4419608a8423241430581e91c")
-        XCTAssertEqual(row.resolvedIP, "51.68.190.91")
+        XCTAssertEqual(row.currentCID, "668afa7c2daff879e69f6aae714ef3b4")
+        XCTAssertEqual(row.resolvedIP, "192.0.2.10")
         XCTAssertNil(row.resolutionFailure)
-        XCTAssertNil(StatusEvaluator.serverRow(ServerEntry(label: "IP", host: "51.68.190.91"), rawID: 0, saved: nil).resolvedIP)
+        XCTAssertNil(StatusEvaluator.serverRow(ServerEntry(label: "IP", host: "192.0.2.10"), rawID: 0, saved: nil).resolvedIP)
     }
 
     func testUnresolvableHostIsInvalidHostAndKeepsOverallStatus() {
@@ -195,8 +195,8 @@ final class HostAddressingTests: XCTestCase {
         let requests = BanCheckRunner.requests(servers: servers, rawID: 0, name: "N", resolutions: resolved)
         XCTAssertEqual(requests.count, 1)
         XCTAssertEqual(requests.first?.host, "game.example")
-        XCTAssertEqual(requests.first?.endpoint, UDPEndpoint(address: TestAddresses.v4("51.68.190.91"), port: 27016))
-        XCTAssertEqual(requests.first?.sourceCID, "d9de0eb4419608a8423241430581e91c")
+        XCTAssertEqual(requests.first?.endpoint, UDPEndpoint(address: TestAddresses.v4("192.0.2.10"), port: 27016))
+        XCTAssertEqual(requests.first?.sourceCID, "668afa7c2daff879e69f6aae714ef3b4")
     }
 
     func testSnapshotStoresCIDOfResolvedAddress() {
@@ -208,7 +208,7 @@ final class HostAddressingTests: XCTestCase {
                                             servers: [ServerEntry(label: "g", host: "game.example", lastCheckedAt: Date()),
                                                       ServerEntry(label: "nx", host: "nx.example", lastCheckedAt: Date())],
                                             resolutions: resolved)
-        XCTAssertEqual(snapshot.servers.map(\.cid), ["d9de0eb4419608a8423241430581e91c", ""])
+        XCTAssertEqual(snapshot.servers.map(\.cid), ["668afa7c2daff879e69f6aae714ef3b4", ""])
         XCTAssertEqual(snapshot.servers.first?.host, "game.example")   // the host text is kept, not the IP
     }
 }
@@ -252,7 +252,7 @@ final class AppModelHostnameTests: XCTestCase {
 
     func testRefreshResolvesOnceAndChecksTheResolvedIP() async throws {
         let clock = TestClock()
-        let resolver = FakeAddressResolver(["game.example": .success([TestAddresses.v6("2001:db8::1"), TestAddresses.v4("51.68.190.91")])])
+        let resolver = FakeAddressResolver(["game.example": .success([TestAddresses.v6("2001:db8::1"), TestAddresses.v4("192.0.2.10")])])
         let udp = FakeServer.healthy(clock: clock)
         let model = makeModel(resolver: resolver, udp: udp, clock: clock)
         model.addServer(ServerDraft(label: "G", host: "game.example"))
@@ -260,12 +260,12 @@ final class AppModelHostnameTests: XCTestCase {
         let id = try XCTUnwrap(model.servers.first?.id)
 
         await model.refresh().value
-        XCTAssertEqual(model.rowStatus(id)?.currentCID, "d9de0eb4419608a8423241430581e91c")
-        XCTAssertEqual(model.rowStatus(id)?.resolvedIP, "51.68.190.91")
+        XCTAssertEqual(model.rowStatus(id)?.currentCID, "668afa7c2daff879e69f6aae714ef3b4")
+        XCTAssertEqual(model.rowStatus(id)?.resolvedIP, "192.0.2.10")
         XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)
         // §75.3: the CID-less capability probe comes first; the real CID is in the second connect.
         let connect = try XCTUnwrap(udp.sentPackets.last(where: FakeServer.isConnect))
-        XCTAssertTrue(String(decoding: connect, as: UTF8.self).contains("uuid=d9de0eb4419608a8423241430581e91c"))
+        XCTAssertTrue(String(decoding: connect, as: UTF8.self).contains("uuid=668afa7c2daff879e69f6aae714ef3b4"))
 
         clock.advance(60)
         await model.refresh().value

@@ -3,7 +3,7 @@ import XCTest
 
 /// §40 ban list URL template: validation, placeholder filling + percent-encoding, opening through a protocol.
 final class BanListTests: XCTestCase {
-    private let values = BanListValues(cid: "d9de0eb4419608a8423241430581e91c", ip: "2001:db8::1", host: "play.example.com",
+    private let values = BanListValues(cid: "668afa7c2daff879e69f6aae714ef3b4", ip: "2001:db8::1", host: "play.example.com",
                                        port: 27015)
 
     func testValidation() {
@@ -23,7 +23,7 @@ final class BanListTests: XCTestCase {
     func testFillingAndEncoding() throws {
         let url = try BanListTemplate.url("https://panel.example.com/bans?q={cid}&ip={ip}&h={host}:{port}", values: values).get()
         XCTAssertEqual(url.absoluteString,
-                       "https://panel.example.com/bans?q=d9de0eb4419608a8423241430581e91c&ip=2001%3Adb8%3A%3A1&h=play.example.com:27015")
+                       "https://panel.example.com/bans?q=668afa7c2daff879e69f6aae714ef3b4&ip=2001%3Adb8%3A%3A1&h=play.example.com:27015")
         let tricky = BanListValues(cid: nil, ip: "192.0.2.1", host: "a b&c=d/e?#", port: 1)
         XCTAssertEqual(try BanListTemplate.url("https://x.example/{host}", values: tricky).get().absoluteString,
                        "https://x.example/a%20b%26c%3Dd%2Fe%3F%23")
@@ -41,7 +41,7 @@ final class BanListTests: XCTestCase {
         let env = try TestAppEnvironment()
         let opener = RecordingURLOpener()
         let model = env.makeModel { $0.urlOpener = opener }
-        model.addServer(ServerDraft(label: "A", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         XCTAssertEqual(model.openBanList(for: id), .empty)                       // no template yet
         XCTAssertEqual(model.setBanListURL("http://x.example/{cid}", for: id), .notHTTPS)
@@ -53,7 +53,7 @@ final class BanListTests: XCTestCase {
         await model.refresh().value
         XCTAssertNil(model.openBanList(for: id))
         XCTAssertEqual(opener.opened.map(\.absoluteString),
-                       ["https://panel.example.com/bans?q=d9de0eb4419608a8423241430581e91c&ip=51.68.190.91"])
+                       ["https://panel.example.com/bans?q=668afa7c2daff879e69f6aae714ef3b4&ip=192.0.2.10"])
 
         model.save()
         let saved = try XCTUnwrap(SnapshotStore(fileURL: AppPaths(home: env.home).snapshotFile).load().snapshot)
@@ -111,20 +111,20 @@ final class BanListTests: XCTestCase {
 
     func testPresetFillingEncodesOnlyWhatNeedsIt() throws {
         let generic = try XCTUnwrap(BanListPreset.preset(id: "generic-cid"))
-        let row = BanListValues(cid: "d9de0eb4419608a8423241430581e91c", ip: "51.68.190.91", host: "oyun sunucusu.example",
+        let row = BanListValues(cid: "668afa7c2daff879e69f6aae714ef3b4", ip: "192.0.2.10", host: "oyun sunucusu.example",
                                 port: 27015)
         XCTAssertEqual(try BanListTemplate.url(generic.template, values: row).get().absoluteString,
-                       "https://bans.example.com/search?cid=d9de0eb4419608a8423241430581e91c&server=oyun%20sunucusu.example:27015")
+                       "https://bans.example.com/search?cid=668afa7c2daff879e69f6aae714ef3b4&server=oyun%20sunucusu.example:27015")
         let byIP = try XCTUnwrap(BanListPreset.preset(id: "generic-ip"))
         XCTAssertEqual(try BanListTemplate.url(byIP.template, values: row).get().absoluteString,
-                       "https://bans.example.com/search?ip=51.68.190.91&server=oyun%20sunucusu.example:27015")
+                       "https://bans.example.com/search?ip=192.0.2.10&server=oyun%20sunucusu.example:27015")
     }
 
     @MainActor
     func testTemplateIsPerServerAndCanBeAppliedToAll() throws {
         let env = try TestAppEnvironment()
         let model = env.makeModel()
-        model.addServer(ServerDraft(label: "A", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
         model.addServer(ServerDraft(label: "B", host: "51.68.190.92"))
         model.addServer(ServerDraft(label: "C", host: "51.68.190.93"))
         let ids = model.servers.map(\.id)
@@ -157,7 +157,7 @@ final class BanListTests: XCTestCase {
         let env = try TestAppEnvironment()
         let custom = "https://panel.example.com/bans?q={cid}&ip={ip}"
         let first = env.makeModel()
-        first.addServer(ServerDraft(label: "A", host: "51.68.190.91"))
+        first.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
         let id = try XCTUnwrap(first.servers.first?.id)
         XCTAssertNil(first.setBanListURL(custom, for: id))
         first.save()

@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "Vaše IP se změnila (běžné u dynamické IP). Pokud je tato hodnota správná, stiskněte Uložit.";
 "suggestion.lanIPChanged" = "Místní síť se změnila (pravděpodobně přepnutí Wi-Fi/Ethernet). Pokud to byl záměr, stiskněte Uložit.";
 "suggestion.serverCIDChanged" = "CID serveru se liší od záznamu; zdroj identity se mohl změnit. Po stisknutí Obnovit stiskněte Uložit.";
-"suggestion.invalidHost" = "Zadejte adresu ve tvaru IP:port (např. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Zadejte adresu ve tvaru IP:port (např. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Zkontrolujte síťové připojení (Wi-Fi/Ethernet) a poté stiskněte Obnovit.";
 "suggestion.nameEmpty" = "Nastavte jméno hráče ve hře, ukončete hru a stiskněte Obnovit.";
 "suggestion.modelEmpty" = "Vyberte model hráče ve hře, ukončete hru a stiskněte Obnovit.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Broker nebyl nalezen na obvyklých místech.";
 "steam.settings.foundOther" = "Byl nalezen jiný broker: %@. Nastavená cesta zůstane zachována.";
 "steam.error.settingsHint" = "Zkontrolujte cestu brokera v Nastavení › Cesty připojení.";
+"steam.join.steamAuthRestart" = "S identitou Steam (restartujte broker)";
+"steam.state.stale" = "Broker je zastaralý (Steam byl restartován)";
+"steam.settings.stale" = "Steam byl restartován – restartujte broker";
+"steam.settings.restart" = "Restartovat";
+"steam.error.stale" = "Spuštěný broker byl spuštěn před Steamem a aplikace ho nemůže nahradit. Zastavte ho a zkuste to znovu.";

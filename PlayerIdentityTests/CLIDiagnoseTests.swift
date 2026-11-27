@@ -5,7 +5,7 @@ import XCTest
 /// (0 / 4 / 1 / 2 / 3), the history line, the engine log, index targets and the Markdown report. In-process with a
 /// fake UDP transport and resolver (no network) and a temporary home.
 final class CLIDiagnoseTests: XCTestCase {
-    private static let fixtureCID = "d9de0eb4419608a8423241430581e91c"   // raw ID 0 + 51.68.190.91 (§4)
+    private static let fixtureCID = "668afa7c2daff879e69f6aae714ef3b4"   // raw ID 0 + 192.0.2.10 (§4)
     private static let savedID = UUID(uuidString: "1E390D91-9114-454E-A9B3-4AB1833ACD48")!   // "Example EU" of the fixture
     private var temp: TempDirectory!
     private let clock = TestClock()
@@ -67,7 +67,7 @@ final class CLIDiagnoseTests: XCTestCase {
     private func diagnoseLine(_ id: UUID, _ verdict: DiagnosisVerdict, daysAgo: Double, old: DiagnosisVerdict? = nil,
                               ms: Int? = 900) -> HistoryEntry {
         HistoryEntry(ts: clock.now.addingTimeInterval(-daysAgo * day), kind: .diagnose, serverID: id,
-                     host: "51.68.190.91:27015", old: old?.rawValue, new: verdict.rawValue,
+                     host: "192.0.2.10:27015", old: old?.rawValue, new: verdict.rawValue,
                      note: "dns=ok a2sInfo=ok getChallenge=ok connect49=failed", durationMs: ms)
     }
 
@@ -117,9 +117,9 @@ final class CLIDiagnoseTests: XCTestCase {
 
     func testDiagnoseTextJSONAndHistoryLine() async throws {
         try writeIdentity()
-        let text = await run(["diagnose", "51.68.190.91:27015"], context(udp: cleanServer()))
+        let text = await run(["diagnose", "192.0.2.10:27015"], context(udp: cleanServer()))
         XCTAssertEqual(text.exitCode, 0, text.stderr)
-        XCTAssertTrue(text.stdout.hasPrefix("server:   51.68.190.91:27015\nverdict:  noBan"), text.stdout)
+        XCTAssertTrue(text.stdout.hasPrefix("server:   192.0.2.10:27015\nverdict:  noBan"), text.stdout)
         for step in ["dns", "a2sInfo", "getChallenge", "connect49"] {
             XCTAssertTrue(text.stdout.contains("  \(step)"), step)
         }
@@ -130,11 +130,11 @@ final class CLIDiagnoseTests: XCTestCase {
         XCTAssertEqual(lines.count, 1)
         XCTAssertEqual(lines.first?.kind, .diagnose)
         XCTAssertEqual(lines.first?.new, "noBan")
-        XCTAssertEqual(lines.first?.serverID, MetricSample.stableServerID(host: "51.68.190.91", port: 27015))
+        XCTAssertEqual(lines.first?.serverID, MetricSample.stableServerID(host: "192.0.2.10", port: 27015))
         XCTAssertEqual(lines.first?.note, "dns=ok a2sInfo=ok getChallenge=ok connect49=ok")
 
         clock.advance(60)
-        let result = await run(["diagnose", "51.68.190.91", "--json"], context(udp: cleanServer()))
+        let result = await run(["diagnose", "192.0.2.10", "--json"], context(udp: cleanServer()))
         let object = try json(result)
         XCTAssertEqual(object["schemaVersion"] as? Int, 1)
         XCTAssertEqual(object["command"] as? String, "diagnose")
@@ -142,7 +142,7 @@ final class CLIDiagnoseTests: XCTestCase {
         XCTAssertEqual(object["banned"] as? Bool, false)
         XCTAssertEqual(object["cid"] as? String, Self.fixtureCID)
         let server = try XCTUnwrap(object["server"] as? [String: Any])
-        XCTAssertEqual(server["host"] as? String, "51.68.190.91")
+        XCTAssertEqual(server["host"] as? String, "192.0.2.10")
         XCTAssertEqual(server["port"] as? Int, 27015)
         XCTAssertTrue(server["index"] is NSNull)
         let steps = try XCTUnwrap(object["steps"] as? [[String: Any]])
@@ -155,11 +155,11 @@ final class CLIDiagnoseTests: XCTestCase {
     func testDiagnoseExitCodes() async throws {
         try writeIdentity()
         // A ban verdict is a successful diagnosis: 0, or 4 with --fail-on-ban.
-        let ban = await run(["diagnose", "51.68.190.91", "--json"], context(udp: cidBannedServer()))
+        let ban = await run(["diagnose", "192.0.2.10", "--json"], context(udp: cidBannedServer()))
         XCTAssertEqual(ban.exitCode, 0)
         XCTAssertEqual(try json(ban)["verdict"] as? String, "cidBanned")
         XCTAssertEqual(try json(ban)["banned"] as? Bool, true)
-        let failing = await run(["diagnose", "51.68.190.91", "--fail-on-ban"], context(udp: cidBannedServer()))
+        let failing = await run(["diagnose", "192.0.2.10", "--fail-on-ban"], context(udp: cidBannedServer()))
         XCTAssertEqual(failing.exitCode, 4)
         XCTAssertTrue(failing.stdout.contains("verdict:  cidBanned"))
 
@@ -169,7 +169,7 @@ final class CLIDiagnoseTests: XCTestCase {
         XCTAssertEqual(ip.exitCode, 4)
         XCTAssertEqual(try json(ip)["verdict"] as? String, "ipBanned")
 
-        let clean = await run(["diagnose", "51.68.190.91", "--fail-on-ban"], context(udp: cleanServer()))
+        let clean = await run(["diagnose", "192.0.2.10", "--fail-on-ban"], context(udp: cleanServer()))
         XCTAssertEqual(clean.exitCode, 0, "no ban → 0 even with --fail-on-ban")
 
         // An unknown host is a verdict (dnsFailure), not an error; no network at all is 2.
@@ -236,7 +236,7 @@ final class CLIDiagnoseTests: XCTestCase {
     // MARK: trend
 
     func testTrendWithoutDataIsAnEmptySuccess() async throws {
-        let result = await run(["trend", "51.68.190.91", "--json"])
+        let result = await run(["trend", "192.0.2.10", "--json"])
         XCTAssertEqual(result.exitCode, 0)
         let object = try json(result)
         XCTAssertEqual(object["schemaVersion"] as? Int, 1)
@@ -246,7 +246,7 @@ final class CLIDiagnoseTests: XCTestCase {
         XCTAssertEqual((object["counts"] as? [String: Any])?.count, 0)
         XCTAssertEqual((object["strip"] as? [String])?.count, 0)
         XCTAssertTrue(object["lastRun"] is NSNull)
-        let text = await run(["trend", "51.68.190.91"])
+        let text = await run(["trend", "192.0.2.10"])
         XCTAssertEqual(text.exitCode, 0)
         XCTAssertTrue(text.stdout.contains("no diagnosis for this server yet"), text.stdout)
 
@@ -255,7 +255,7 @@ final class CLIDiagnoseTests: XCTestCase {
     }
 
     func testTrendCountsWindowsAndStrip() async throws {
-        let id = MetricSample.stableServerID(host: "51.68.190.91", port: 27015)
+        let id = MetricSample.stableServerID(host: "192.0.2.10", port: 27015)
         try HistoryStore(fileURL: historyFile).append([
             diagnoseLine(id, .noBan, daysAgo: 20),
             diagnoseLine(id, .cidBanned, daysAgo: 3),
@@ -264,17 +264,17 @@ final class CLIDiagnoseTests: XCTestCase {
             diagnoseLine(UUID(), .ipBanned, daysAgo: 1),   // another server
             HistoryEntry(ts: clock.now, kind: .refresh, serverID: id),
         ])
-        let week = try json(await run(["trend", "51.68.190.91:27015", "--json"]))
+        let week = try json(await run(["trend", "192.0.2.10:27015", "--json"]))
         XCTAssertEqual(week["runs"] as? Int, 3)
         XCTAssertEqual(week["totalRuns"] as? Int, 4)
         XCTAssertEqual(week["counts"] as? [String: Int], ["cidBanned": 2, "timeout": 1])
         XCTAssertEqual(week["strip"] as? [String], ["cidBanned", "timeout", "cidBanned"])
-        let all = try json(await run(["trend", "51.68.190.91", "--days", "all", "--json"]))
+        let all = try json(await run(["trend", "192.0.2.10", "--days", "all", "--json"]))
         XCTAssertEqual(all["runs"] as? Int, 4)
         XCTAssertEqual(all["days"] as? String, "all")
         XCTAssertEqual((all["strip"] as? [String])?.first, "noBan", "oldest first")
 
-        let text = await run(["trend", "51.68.190.91", "--days", "30"])
+        let text = await run(["trend", "192.0.2.10", "--days", "30"])
         XCTAssertEqual(text.exitCode, 0)
         XCTAssertTrue(text.stdout.contains("period:   last 30 days"))
         XCTAssertTrue(text.stdout.contains("runs:     4"))
@@ -282,8 +282,8 @@ final class CLIDiagnoseTests: XCTestCase {
 
         // A diagnosis made by the CLI shows up in its trend.
         try writeIdentity()
-        _ = await run(["diagnose", "51.68.190.91"], context(udp: cidBannedServer()))
-        let after = try json(await run(["trend", "51.68.190.91", "--json"]))
+        _ = await run(["diagnose", "192.0.2.10"], context(udp: cidBannedServer()))
+        let after = try json(await run(["trend", "192.0.2.10", "--json"]))
         XCTAssertEqual(after["runs"] as? Int, 4)
         XCTAssertEqual((after["strip"] as? [String])?.last, "cidBanned")
     }
@@ -291,51 +291,51 @@ final class CLIDiagnoseTests: XCTestCase {
     // MARK: report
 
     func testReportNeedsADiagnosis() async throws {
-        let result = await run(["report", "51.68.190.91", "--out", "-"])
+        let result = await run(["report", "192.0.2.10", "--out", "-"])
         XCTAssertEqual(result.exitCode, 3)
-        XCTAssertTrue(result.stderr.contains("no diagnosis of 51.68.190.91:27015"), result.stderr)
+        XCTAssertTrue(result.stderr.contains("no diagnosis of 192.0.2.10:27015"), result.stderr)
     }
 
     func testReportMarkdownMaskingAndOutput() async throws {
         try writeIdentity()
-        let id = MetricSample.stableServerID(host: "51.68.190.91", port: 27015)
+        let id = MetricSample.stableServerID(host: "192.0.2.10", port: 27015)
         try HistoryStore(fileURL: historyFile).append([diagnoseLine(id, .noBan, daysAgo: 2, ms: 700)])
-        _ = await run(["diagnose", "51.68.190.91"], context(udp: cidBannedServer()))
+        _ = await run(["diagnose", "192.0.2.10"], context(udp: cidBannedServer()))
 
-        let masked = await run(["report", "51.68.190.91", "--out", "-"])
+        let masked = await run(["report", "192.0.2.10", "--out", "-"])
         XCTAssertEqual(masked.exitCode, 0, masked.stderr)
         let report = masked.stdout
-        XCTAssertTrue(report.hasPrefix("# Connection diagnosis — 51.68.190.91:27015\n"), report)
+        XCTAssertTrue(report.hasPrefix("# Connection diagnosis — 192.0.2.10:27015\n"), report)
         XCTAssertTrue(report.contains(": Cybokron Player Identity 2.17.1"), "English app texts")
         XCTAssertTrue(report.contains("`cidBanned`"))
         XCTAssertTrue(report.contains("CID and IP are masked."))
-        XCTAssertTrue(report.contains("`d9de0eb4…e91c`"), report)
+        XCTAssertTrue(report.contains("`668afa7c…f3b4`"), report)
         XCTAssertFalse(report.contains(Self.fixtureCID))
         XCTAssertTrue(report.contains("| `connect49` | failed | — |"), "durations are not kept in the history line")
         XCTAssertTrue(report.contains("## History (last 10 runs)"))
         XCTAssertTrue(report.contains("`noBan`"), "the earlier run is in the history table")
         XCTAssertTrue(report.contains("No engine log found."))
 
-        let unmasked = await run(["report", "51.68.190.91", "--unmasked", "--out", "-"])
+        let unmasked = await run(["report", "192.0.2.10", "--unmasked", "--out", "-"])
         XCTAssertTrue(unmasked.stdout.contains(Self.fixtureCID))
         XCTAssertFalse(unmasked.stdout.contains("CID and IP are masked."))
 
         // Default target: ~/Documents/playeridentity-diagnose-<host>-<time>.md; never overwritten.
         try FileManager.default.createDirectory(at: home.appendingPathComponent("Documents"), withIntermediateDirectories: true)
-        let saved = await run(["report", "51.68.190.91"])
+        let saved = await run(["report", "192.0.2.10"])
         XCTAssertEqual(saved.exitCode, 0, saved.stderr)
         let path = try XCTUnwrap(saved.stdout.split(separator: "\n").first?.replacingOccurrences(of: "report: ", with: ""))
-        XCTAssertTrue(path.hasPrefix(home.appendingPathComponent("Documents").path + "/playeridentity-diagnose-51.68.190.91-"), path)
+        XCTAssertTrue(path.hasPrefix(home.appendingPathComponent("Documents").path + "/playeridentity-diagnose-192.0.2.10-"), path)
         XCTAssertEqual(try String(contentsOfFile: path, encoding: .utf8), report)
-        let again = await run(["report", "51.68.190.91"])
+        let again = await run(["report", "192.0.2.10"])
         XCTAssertEqual(again.exitCode, 1, "an existing file is never overwritten")
 
         let folder = temp.url.appendingPathComponent("out", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let inFolder = await run(["report", "51.68.190.91", "--days", "all", "--out", folder.path])
+        let inFolder = await run(["report", "192.0.2.10", "--days", "all", "--out", folder.path])
         XCTAssertEqual(inFolder.exitCode, 0)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.path).count, 1)
-        let noFolder = await run(["report", "51.68.190.91", "--out", temp.url.appendingPathComponent("nope/r.md").path])
+        let noFolder = await run(["report", "192.0.2.10", "--out", temp.url.appendingPathComponent("nope/r.md").path])
         XCTAssertEqual(noFolder.exitCode, 2)
     }
 

@@ -7,7 +7,7 @@ import XCTest
 
 /// §33.1 share card DURUM / BAN TİPİ: mapping, CID rule, QR payload, layout and pixels (T-33-1 … T-33-13).
 final class ShareCardBanTests: XCTestCase {
-    static let cid = "d9de0eb4419608a8423241430581e91c"
+    static let cid = "668afa7c2daff879e69f6aae714ef3b4"
     static let rawIDHex = "10331C2DCE4C91DB"
 
     private func inTurkish<T>(_ body: () throws -> T) throws -> T {
@@ -91,18 +91,18 @@ final class ShareCardBanTests: XCTestCase {
     // MARK: QR (§33.1.4)
 
     func testGoldSrcPayload() {
-        let payload = ShareCardQR.goldSrcPayload(serverName: "POLIGON\nRPG", hostPort: "51.68.190.91:27015",
+        let payload = ShareCardQR.goldSrcPayload(serverName: "Example\nServer", hostPort: "192.0.2.10:27015",
                                                  status: .banned, banType: .goldSrc)
-        XCTAssertEqual(payload, "sunucu=POLIGON RPG\nadres=51.68.190.91:27015\ndurum=banned\nban=goldSrc\nsurum=goldsrc48")
+        XCTAssertEqual(payload, "sunucu=Example Server\nadres=192.0.2.10:27015\ndurum=banned\nban=goldSrc\nsurum=goldsrc48")
         let keys = payload.split(separator: "\n").map { String($0.split(separator: "=").first ?? "") }
         XCTAssertEqual(keys, ["sunucu", "adres", "durum", "ban", "surum"])
     }
 
     // MARK: Layout and pixels (§33.1.5)
 
-    static func goldSrcContent(name: String = "POLIGON RPG", type: ShareCardBanType = .goldSrc,
+    static func goldSrcContent(name: String = "Example Server", type: ShareCardBanType = .goldSrc,
                                status: ShareCardStatus = .banned) -> ShareCardContent {
-        ShareCardContent(serverName: name, hostPort: "51.68.190.91:27015", cid: "", playerName: "TestOyuncu",
+        ShareCardContent(serverName: name, hostPort: "192.0.2.10:27015", cid: "", playerName: "TestOyuncu",
                          dateText: "27 Kas 2026 13:45",
                          labels: ShareCardLabels(title: "Cybokron Oyuncu Kimlik Kartı", server: "Sunucu", cid: "CID",
                                                  player: "Oyuncu", date: "Tarih", status: "DURUM", banType: "BAN TİPİ",
@@ -110,12 +110,12 @@ final class ShareCardBanTests: XCTestCase {
                          statusText: status == .banned ? "Ban var" : "Doğrulanamadı",
                          banTypeText: type == .goldSrc ? "Sunucu bağlantı banı (tür belirsiz)" : "Belirlenemedi",
                          status: status, banType: type, showsCID: false,
-                         qrPayload: ShareCardQR.goldSrcPayload(serverName: name, hostPort: "51.68.190.91:27015",
+                         qrPayload: ShareCardQR.goldSrcPayload(serverName: name, hostPort: "192.0.2.10:27015",
                                                                status: status, banType: type))
     }
 
-    static func source49Content(name: String = "POLIGON RPG", typeText: String = "CID banı") -> ShareCardContent {
-        ShareCardContent(serverName: name, hostPort: "51.68.190.91:27015", cid: cid, playerName: "TestOyuncu",
+    static func source49Content(name: String = "Example Server", typeText: String = "CID banı") -> ShareCardContent {
+        ShareCardContent(serverName: name, hostPort: "192.0.2.10:27015", cid: cid, playerName: "TestOyuncu",
                          dateText: "27 Kas 2026 13:45",
                          labels: ShareCardLabels(title: "Cybokron Oyuncu Kimlik Kartı", server: "Sunucu", cid: "CID",
                                                  player: "Oyuncu", date: "Tarih", status: "DURUM", banType: "BAN TİPİ"),
@@ -357,8 +357,8 @@ final class ShareCardBanModelTests: XCTestCase {
         return env.makeModel()
     }
 
-    private func entry(_ status: BanStatus?, goldSrc: Bool = false, label: String = "POLIGON RPG") -> ServerEntry {
-        var entry = ServerEntry(label: label, host: "51.68.190.91", cid: Self.cid)
+    private func entry(_ status: BanStatus?, goldSrc: Bool = false, label: String = "Example Server") -> ServerEntry {
+        var entry = ServerEntry(label: label, host: "192.0.2.10", cid: Self.cid)
         if let status {
             entry.banCheck = BanCheck(status: status, checkedAt: Date(timeIntervalSince1970: 1_800_000_000), detail: "",
                                       info: goldSrc ? ServerInfo(name: label, serverProtocol: .goldsrc48) : nil)
@@ -384,7 +384,7 @@ final class ShareCardBanModelTests: XCTestCase {
         XCTAssertFalse(card.showsCID)
         XCTAssertEqual(card.cid, "")
         let payload = try XCTUnwrap(card.qrPayload)
-        XCTAssertEqual(payload, "sunucu=POLIGON RPG\nadres=51.68.190.91:27015\ndurum=banned\nban=goldSrc\nsurum=goldsrc48")
+        XCTAssertEqual(payload, "sunucu=Example Server\nadres=192.0.2.10:27015\ndurum=banned\nban=goldSrc\nsurum=goldsrc48")
         for secret in [Self.cid, ShareCardBanTests.rawIDHex, ShareCardBanTests.rawIDHex.lowercased(), "/Users", "ticket",
                        "password"] {
             XCTAssertFalse(payload.contains(secret), secret)
@@ -598,9 +598,9 @@ enum ShareCardEvidence {
     static let longName = "Demo RPG | An intentionally very long demo server name 2026 with extra words for wrapping tests"
 
     static let cases: [Case] = [
-        Case(name: "goldsrc-banned", status: .goldSrcBanned, goldSrc: true, range: false, label: "POLIGON RPG"),
+        Case(name: "goldsrc-banned", status: .goldSrcBanned, goldSrc: true, range: false, label: "Example Server"),
         Case(name: "goldsrc-banned-long", status: .goldSrcBanned, goldSrc: true, range: false, label: longName),
-        Case(name: "goldsrc-unverified", status: .goldSrcUnverified, goldSrc: true, range: false, label: "POLIGON RPG"),
+        Case(name: "goldsrc-unverified", status: .goldSrcUnverified, goldSrc: true, range: false, label: "Example Server"),
         Case(name: "goldsrc-longest", status: .goldSrcBanned, goldSrc: true, range: false, label: longName, longest: true),
         Case(name: "source49-cid-banned", status: .cidBanned, goldSrc: false, range: false, label: "Demo Source49"),
         Case(name: "source49-cid-banned-long", status: .cidBanned, goldSrc: false, range: false, label: longName),

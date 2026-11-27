@@ -45,8 +45,8 @@ final class DataMigrationTests: XCTestCase {
                  rawID: "0000000000000000",
                  identitySource: "/fixture/.config/.xash_id",
                  network: NetworkInfo(publicIP: "203.0.113.7", lanIPs: ["en0 · 192.0.2.10"], checkedAt: nil),
-                 servers: [ServerEntry(id: legacyServerID, label: "Legacy server", host: "51.68.190.91", port: 27015,
-                                       cid: "d9de0eb4419608a8423241430581e91c")])
+                 servers: [ServerEntry(id: legacyServerID, label: "Legacy server", host: "192.0.2.10", port: 27015,
+                                       cid: "668afa7c2daff879e69f6aae714ef3b4")])
     }
 
     @discardableResult

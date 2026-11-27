@@ -141,7 +141,7 @@ final class AppModelTests: XCTestCase {
         try writeGame(idFile: "0123456789ABCDEF")
         let script = HTTPScript(defaultBody: json("203.0.113.7"))
         let model = makeModel(script: script)
-        model.addServer(ServerDraft(label: "Test", host: "95.173.174.175"))
+        model.addServer(ServerDraft(label: "Test", host: "198.51.100.1"))
         XCTAssertTrue(model.hasUnsavedChanges)
         await model.refresh().value
         model.save()
@@ -153,7 +153,7 @@ final class AppModelTests: XCTestCase {
 
         // Close and reopen: values are loaded; green if they match the record.
         let reopened = makeModel(script: script)
-        XCTAssertEqual(reopened.servers.map(\.host), ["95.173.174.175"])
+        XCTAssertEqual(reopened.servers.map(\.host), ["198.51.100.1"])
         XCTAssertEqual(reopened.selectedGamedir, "valve")
         XCTAssertFalse(reopened.hasUnsavedChanges)
         await reopened.refresh().value
@@ -331,8 +331,8 @@ final class AppModelTests: XCTestCase {
         defaults.set(false, forKey: AppModel.banCheckDefaultsKey)
         let udp = FakeServer.healthy()
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
-        model.addServer(ServerDraft(label: "A", host: "51.68.190.91"))
-        model.addServer(ServerDraft(label: "B", host: "5.161.189.195"))
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
+        model.addServer(ServerDraft(label: "B", host: "198.51.100.2"))
         await model.refresh().value
         XCTAssertEqual(udp.sentCount, 0)
         XCTAssertEqual(udp.sessionCount, 0)
@@ -344,7 +344,7 @@ final class AppModelTests: XCTestCase {
         let udp = FakeUDPTransport(responder: FakeServer.scripted(
             challenge: FakeReply(bytes: FakeServer.oobText("lYou are banned from this server\n"))))
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
-        model.addServer(ServerDraft(label: "Ban", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Ban", host: "192.0.2.10"))
         await model.refresh().value
         let id = try XCTUnwrap(model.servers.first?.id)
         XCTAssertEqual(model.servers.first?.banCheck?.status, .ipBanned)
@@ -364,7 +364,7 @@ final class AppModelTests: XCTestCase {
         try writeGame(idFile: "0123456789ABCDEF")
         let udp = FakeServer.healthy()
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
-        model.addServer(ServerDraft(label: "Ok", host: "5.161.189.195"))
+        model.addServer(ServerDraft(label: "Ok", host: "198.51.100.2"))
         await model.refresh().value
         model.save()
         XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)
@@ -373,7 +373,7 @@ final class AppModelTests: XCTestCase {
         // The uuid in the connect packet is the row's CID, name is the profile name.
         let connect = String(decoding: try XCTUnwrap(udp.sentPackets.last).dropFirst(4), as: UTF8.self)
         let rawID = try XCTUnwrap(try model.identity?.get().rawID)
-        XCTAssertTrue(connect.contains("uuid=\(CIDCalculator.cid(rawID: rawID, host: "5.161.189.195")!);"))
+        XCTAssertTrue(connect.contains("uuid=\(CIDCalculator.cid(rawID: rawID, host: "198.51.100.2")!);"))
         XCTAssertTrue(connect.hasSuffix("\"name=Oyuncu\"\n"))
     }
 
@@ -381,7 +381,7 @@ final class AppModelTests: XCTestCase {
         try writeGame(idFile: "0123456789ABCDEF")
         let udp = FakeUDPTransport { _, _ in [] }
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp)
-        model.addServer(ServerDraft(label: "Kapalı", host: "5.161.189.195"))
+        model.addServer(ServerDraft(label: "Kapalı", host: "198.51.100.2"))
         await model.refresh().value
         model.save()
         XCTAssertEqual(model.servers.first?.banCheck?.status, .unreachable)
@@ -394,7 +394,7 @@ final class AppModelTests: XCTestCase {
         let clock = TestClock()
         let udp = FakeServer.healthy(clock: clock)
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp, clock: clock)
-        model.addServer(ServerDraft(label: "A", host: "5.161.189.195"))
+        model.addServer(ServerDraft(label: "A", host: "198.51.100.2"))
         await model.refresh().value
         let afterFirst = udp.sentCount
         XCTAssertEqual(afterFirst, 4)   // info, getchallenge, capability probe, connect (§75.3)
@@ -413,13 +413,13 @@ final class AppModelTests: XCTestCase {
     func testEditingHostClearsBanResult() async throws {
         try writeGame()
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")))
-        model.addServer(ServerDraft(label: "A", host: "5.161.189.195"))
+        model.addServer(ServerDraft(label: "A", host: "198.51.100.2"))
         await model.refresh().value
         let id = try XCTUnwrap(model.servers.first?.id)
         XCTAssertNotNil(model.servers.first?.banCheck)
-        model.updateServer(id: id, with: ServerDraft(label: "A2", host: "5.161.189.195"))
+        model.updateServer(id: id, with: ServerDraft(label: "A2", host: "198.51.100.2"))
         XCTAssertNotNil(model.servers.first?.banCheck)          // only the label changed
-        model.updateServer(id: id, with: ServerDraft(label: "A2", host: "51.68.190.91"))
+        model.updateServer(id: id, with: ServerDraft(label: "A2", host: "192.0.2.10"))
         XCTAssertNil(model.servers.first?.banCheck)
     }
 
@@ -562,7 +562,7 @@ final class AppModelTests: XCTestCase {
         let runner = FakeCommandRunner()
         let script = HTTPScript(bodies: [1: json("1.1.1.1"), 2: json("1.1.1.1")], defaultBody: json("2.2.2.2"))
         let model = makeModel(script: script, udp: switchableIPBanServer(banSwitch, clock: clock), clock: clock, runner: runner)
-        model.addServer(ServerDraft(label: "POLIGON RPG", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example Server", host: "192.0.2.10"))
         await model.refresh().value
         model.save()
         let id = try XCTUnwrap(model.servers.first?.id)
@@ -606,7 +606,7 @@ final class AppModelTests: XCTestCase {
         let udp = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
             connect: FakeReply(bytes: FakeServer.oobText("errormsg\nYou are banned (CID)\n"))))
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")), udp: udp, clock: clock, runner: runner)
-        model.addServer(ServerDraft(label: "CID Sunucu", host: "5.161.189.195"))
+        model.addServer(ServerDraft(label: "CID Sunucu", host: "198.51.100.2"))
         await model.refresh().value
         let id = try XCTUnwrap(model.servers.first?.id)
         XCTAssertEqual(model.fixKind(for: id), .cidBan)
@@ -616,11 +616,11 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(model.startIPFix())                     // no IP renewal in the CID flow
         let appeal = try XCTUnwrap(model.appealText(for: id))
         let rawID = try XCTUnwrap(try model.identity?.get().rawID)
-        XCTAssertTrue(appeal.contains(CIDCalculator.cid(rawID: rawID, host: "5.161.189.195")!))
+        XCTAssertTrue(appeal.contains(CIDCalculator.cid(rawID: rawID, host: "198.51.100.2")!))
         XCTAssertTrue(appeal.contains("Kontrol türü: engine CID (connect 49)"))
         XCTAssertTrue(appeal.contains("203.0.113.7"))
         XCTAssertEqual(model.serverPageURL(for: id)?.absoluteString,
-                       "https://www.gametracker.com/server_info/5.161.189.195:27015/")
+                       "https://www.gametracker.com/server_info/198.51.100.2:27015/")
 
         // Recheck: 10 s throttle, then ban check only (no network command).
         let packetsBefore = udp.sentCount
@@ -637,7 +637,7 @@ final class AppModelTests: XCTestCase {
     func testFixNotOfferedForOtherStatuses() async throws {
         try writeGame()
         let model = makeModel(script: HTTPScript(defaultBody: json("203.0.113.7")))
-        model.addServer(ServerDraft(label: "Ok", host: "5.161.189.195"))
+        model.addServer(ServerDraft(label: "Ok", host: "198.51.100.2"))
         await model.refresh().value
         let id = try XCTUnwrap(model.servers.first?.id)
         XCTAssertEqual(model.servers.first?.banCheck?.status, .cidOk)

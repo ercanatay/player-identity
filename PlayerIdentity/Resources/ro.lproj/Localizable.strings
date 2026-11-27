@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "IP-ul dumneavoastră s-a schimbat (normal în cazul unui IP dinamic). Dacă aceasta este valoarea corectă, apăsați Salvează.";
 "suggestion.lanIPChanged" = "Rețeaua locală s-a schimbat (posibil o comutare Wi-Fi/Ethernet). Dacă este intenționat, apăsați Salvează.";
 "suggestion.serverCIDChanged" = "CID-ul serverului diferă de cel din înregistrare; sursa identității s-ar putea să se fi schimbat. Apăsați Salvează după Reîmprospătează.";
-"suggestion.invalidHost" = "Introduceți adresa sub forma IP:port (de exemplu 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Introduceți adresa sub forma IP:port (de exemplu 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Verificați conexiunea la rețea (Wi-Fi/Ethernet), apoi apăsați Reîmprospătează.";
 "suggestion.nameEmpty" = "Setați un nume de jucător în joc, închideți jocul și apăsați Reîmprospătează.";
 "suggestion.modelEmpty" = "Alegeți un model de jucător în joc, închideți jocul și apăsați Reîmprospătează.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Nu a fost găsit niciun broker în locațiile obișnuite.";
 "steam.settings.foundOther" = "A fost găsit un alt broker: %@. Calea setată de dvs. este păstrată.";
 "steam.error.settingsHint" = "Verificați calea broker-ului în Setări › Căi de conectare.";
+"steam.join.steamAuthRestart" = "Cu identitate Steam (repornește brokerul)";
+"steam.state.stale" = "Brokerul este învechit (Steam a fost repornit)";
+"steam.settings.stale" = "Steam a fost repornit — repornește brokerul";
+"steam.settings.restart" = "Repornește";
+"steam.error.stale" = "Brokerul în execuție a fost pornit înainte de Steam și nu poate fi înlocuit de aplicație. Oprește-l, apoi încearcă din nou.";

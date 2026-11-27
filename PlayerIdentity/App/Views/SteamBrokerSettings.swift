@@ -29,6 +29,15 @@ struct ConnectionPathsSection: View {
                     .accessibilityIdentifier("steamBrokerState")
             }
             SettingsDivider()
+            if model.steamBrokerState == .stale {
+                HStack(spacing: Space.s2) {
+                    SettingsMessage(text: L10n.text(.steamSettingsStale), isError: true)
+                    Spacer()
+                    Button(L10n.text(.steamSettingsRestart)) { commit(); model.restartSteamBroker() }
+                        .accessibilityIdentifier("steamBrokerRestart")
+                }
+                .padding(.vertical, Space.s2)
+            }
             HStack(spacing: Space.s2) {
                 Button(L10n.text(.steamSettingsStart)) { commit(); model.startSteamBroker() }
                     .disabled(!model.isSteamBrokerConfigured)

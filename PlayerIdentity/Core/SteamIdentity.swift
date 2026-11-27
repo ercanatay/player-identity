@@ -57,6 +57,8 @@ enum SteamBrokerState: String, Sendable, Equatable {
     case listening
     case unreachable
     case steamSessionMissing
+    /// §79 the broker started before the Steam client: its Steam session is outdated.
+    case stale
 
     var title: String {
         switch self {
@@ -65,6 +67,7 @@ enum SteamBrokerState: String, Sendable, Equatable {
         case .listening: return L10n.text(.steamStateListening)
         case .unreachable: return L10n.text(.steamStateUnreachable)
         case .steamSessionMissing: return L10n.text(.steamStateSessionMissing)
+        case .stale: return L10n.text(.steamStateStale)
         }
     }
 
@@ -246,13 +249,18 @@ protocol SteamBrokerEnvironment: Sendable {
     /// A process started from the given binary is running (matched by process name).
     func isBrokerProcessRunning(executablePath: String) -> Bool
     func isSteamClientRunning() -> Bool
+    /// §79 start time of the Steam client process (`nil` = not running / unknown). Read-only.
+    func steamClientStartTime() -> Date?
+    /// §79 start time of the newest process of the broker binary (`nil` = not running / unknown). Read-only.
+    func brokerProcessStartTime(executablePath: String) -> Date?
     /// §77.2 a regular, executable file (a symbolic link or folder is not); never throws, `false` when unreadable.
     func isExecutableRegularFile(_ path: String) -> Bool
 }
 
 /// Starts and stops the broker binary the user chose. It gets exactly one argument, `<host>:<port>` (§76.3).
 protocol SteamBrokerProcessControlling: Sendable {
-    func start(executablePath: String, address: String) throws -> Int32
+    /// `workingDirectory`: the folder of the broker binary (§78.3; the broker finds its library next to itself).
+    func start(executablePath: String, address: String, workingDirectory: String) throws -> Int32
     func stop(pid: Int32)
 }
 
@@ -263,12 +271,16 @@ struct UnavailableSteamBrokerEnvironment: SteamBrokerEnvironment {
     func isPortListening(host: String, port: Int) -> Bool { false }
     func isBrokerProcessRunning(executablePath: String) -> Bool { false }
     func isSteamClientRunning() -> Bool { false }
+    func steamClientStartTime() -> Date? { nil }
+    func brokerProcessStartTime(executablePath: String) -> Date? { nil }
     func isExecutableRegularFile(_ path: String) -> Bool { false }
 }
 
 struct UnavailableSteamBrokerProcessControl: SteamBrokerProcessControlling {
     init() {}
-    func start(executablePath: String, address: String) throws -> Int32 { throw CommandError.launchFailed }
+    func start(executablePath: String, address: String, workingDirectory: String) throws -> Int32 {
+        throw CommandError.launchFailed
+    }
     func stop(pid: Int32) {}
 }
 
@@ -334,6 +346,38 @@ struct SystemSteamBrokerEnvironment: SteamBrokerEnvironment {
         Self.processNames().contains(Self.steamClientProcessName)
     }
 
+    func steamClientStartTime() -> Date? {
+        Self.processes().filter { $0.name == Self.steamClientProcessName }.compactMap(\.start).max()
+    }
+
+    func brokerProcessStartTime(executablePath: String) -> Date? {
+        let name = ((executablePath as NSString).expandingTildeInPath as NSString).lastPathComponent
+        let short = String(name.prefix(15))
+        return Self.processes().filter { $0.name == name || $0.name == short }.compactMap(\.start).max()
+    }
+
+    private static func processes() -> [(name: String, start: Date?)] {
+        let estimate = proc_listallpids(nil, 0)
+        guard estimate > 0 else { return [] }
+        var pids = [pid_t](repeating: 0, count: Int(estimate) + 64)
+        let count = pids.withUnsafeMutableBufferPointer { buffer in
+            proc_listallpids(buffer.baseAddress, Int32(buffer.count * MemoryLayout<pid_t>.size))
+        }
+        guard count > 0 else { return [] }
+        var name = [CChar](repeating: 0, count: 256)
+        var result: [(name: String, start: Date?)] = []
+        for pid in pids.prefix(Int(count)) where pid > 0 {
+            guard proc_name(pid, &name, UInt32(name.count)) > 0 else { continue }
+            var info = proc_bsdinfo()
+            let size = proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size))
+            let start = size == Int32(MemoryLayout<proc_bsdinfo>.size)
+                ? Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+                : nil
+            result.append((String(decoding: name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self), start))
+        }
+        return result
+    }
+
     private static func processNames() -> [String] {
         let estimate = proc_listallpids(nil, 0)
         guard estimate > 0 else { return [] }
@@ -360,10 +404,11 @@ final class SystemSteamBrokerProcessControl: SteamBrokerProcessControlling, @unc
 
     init() {}
 
-    func start(executablePath: String, address: String) throws -> Int32 {
+    func start(executablePath: String, address: String, workingDirectory: String) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: (executablePath as NSString).expandingTildeInPath)
         process.arguments = [address]
+        process.currentDirectoryURL = URL(fileURLWithPath: workingDirectory, isDirectory: true)
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -434,8 +479,10 @@ struct SteamMenuItem: Sendable, Equatable {
             return SteamMenuItem(title: parts.joined(separator: " · "), isEnabled: false,
                                  help: L10n.text(.steamJoinDisabledHint), startsBroker: false)
         }
-        let starts = state == .notRunning
-        parts.append(L10n.text(starts ? .steamJoinSteamAuthStart : .steamJoinSteamAuth))
+        // §79: a stale broker (Steam restarted) is offered as a restart; §77: a stopped one as a start.
+        let starts = state == .notRunning || state == .stale
+        parts.append(L10n.text(state == .stale ? .steamJoinSteamAuthRestart
+                               : state == .notRunning ? .steamJoinSteamAuthStart : .steamJoinSteamAuth))
         if recommended { parts.append(L10n.text(.steamJoinRecommended)) }
         if !starts { parts.append(state.title) }
         return SteamMenuItem(title: parts.joined(separator: " · "), isEnabled: true, help: nil, startsBroker: starts)
@@ -454,6 +501,8 @@ struct SteamBrokerManager: Sendable {
     /// Wait after starting the broker until its port listens.
     static let startWait: TimeInterval = 8
     static let startPoll: TimeInterval = 0.25
+    /// Wait for a stopped (stale) broker to free its port.
+    static let stopWait: TimeInterval = 4
 
     let environment: any SteamBrokerEnvironment
     let control: any SteamBrokerProcessControlling
@@ -467,36 +516,66 @@ struct SteamBrokerManager: Sendable {
         self.sleep = sleep
     }
 
+    /// §78.3 the broker's working directory is the folder of its binary.
+    static func workingDirectory(forBinary path: String) -> String {
+        ((path as NSString).expandingTildeInPath as NSString).deletingLastPathComponent
+    }
+
     func pathCheck(_ endpoint: SteamBrokerEndpoint) -> SteamBrokerPathCheck {
         guard let path = endpoint.trimmedPath else { return .empty }
         return environment.pathCheck(path)
     }
 
+    /// §79.2 the broker is stale when its process started before the Steam client's. Without both start times the
+    /// `markedStale` hint (a Steam quit was seen while the app ran) decides.
+    static func isStale(brokerStart: Date?, steamStart: Date?, markedStale: Bool) -> Bool {
+        guard let brokerStart, let steamStart else { return markedStale }
+        return brokerStart < steamStart
+    }
+
     /// §76.3: not configured (no usable path) / listening / Steam session missing (no Steam client process) /
-    /// broker process without a listening port (`unreachable`) / not running.
-    func state(_ endpoint: SteamBrokerEndpoint) -> SteamBrokerState {
+    /// broker process without a listening port (`unreachable`) / not running; §79: `stale` for a listening broker
+    /// that predates the Steam client. Read-only.
+    func state(_ endpoint: SteamBrokerEndpoint, markedStale: Bool = false) -> SteamBrokerState {
         guard let path = endpoint.trimmedPath, environment.pathCheck(path) == .valid else { return .notConfigured }
         if environment.isPortListening(host: endpoint.host, port: endpoint.port) {
-            return environment.isSteamClientRunning() ? .listening : .steamSessionMissing
+            guard environment.isSteamClientRunning() else { return .steamSessionMissing }
+            let stale = Self.isStale(brokerStart: environment.brokerProcessStartTime(executablePath: path),
+                                     steamStart: environment.steamClientStartTime(), markedStale: markedStale)
+            return stale ? .stale : .listening
         }
         return environment.isBrokerProcessRunning(executablePath: path) ? .unreachable : .notRunning
     }
 
     /// Makes the broker ready for a join: Steam session present, broker found / started, port listening. A broker
     /// that already listens is the user's own and is never stopped by `release`.
-    func prepare(_ endpoint: SteamBrokerEndpoint) async throws -> SteamBrokerSession {
+    /// §79: a stale broker the app started itself (`owned`) is stopped and started again; a stale broker the user
+    /// started is never touched (`steamBrokerStale`).
+    func prepare(_ endpoint: SteamBrokerEndpoint, owned: SteamBrokerSession? = nil,
+                 markedStale: Bool = false) async throws -> SteamBrokerSession {
         guard let path = endpoint.trimmedPath, environment.pathCheck(path) == .valid else {
             throw GameLaunchError.steamBrokerNotConfigured
         }
         guard environment.isSteamClientRunning() else { throw GameLaunchError.steamSessionRequired }
         if environment.isPortListening(host: endpoint.host, port: endpoint.port) {
-            return SteamBrokerSession(startedByApp: false, pid: nil)
+            guard state(endpoint, markedStale: markedStale) == .stale else {
+                return SteamBrokerSession(startedByApp: false, pid: nil)
+            }
+            guard let owned, owned.startedByApp, let oldPID = owned.pid else { throw GameLaunchError.steamBrokerStale }
+            control.stop(pid: oldPID)
+            var waited: TimeInterval = 0
+            while environment.isPortListening(host: endpoint.host, port: endpoint.port), waited <= Self.stopWait {
+                await sleep(Self.startPoll)
+                waited += Self.startPoll
+            }
+            if environment.isPortListening(host: endpoint.host, port: endpoint.port) { throw GameLaunchError.steamBrokerStale }
         }
         if environment.isBrokerProcessRunning(executablePath: path) { throw GameLaunchError.steamBrokerUnreachable }
         guard let address = endpoint.addressArgument else { throw GameLaunchError.steamBrokerStartFailed }
         let pid: Int32
         do {
-            pid = try control.start(executablePath: path, address: address)
+            pid = try control.start(executablePath: path, address: address,
+                                    workingDirectory: Self.workingDirectory(forBinary: path))
         } catch {
             throw GameLaunchError.steamBrokerStartFailed
         }
@@ -614,11 +693,12 @@ struct SteamJoinCoordinator: Sendable {
     var appearWait: TimeInterval = 30
 
     func join(host: String, port: Int, gamedir: String?, known: [String: HostResolution], serverProtocol: ServerProtocol,
-              dataRoot: URL?, endpoint: SteamBrokerEndpoint,
+              dataRoot: URL?, endpoint: SteamBrokerEndpoint, owned: SteamBrokerSession? = nil,
+              markedStale: Bool = false,
               consent: @Sendable () async -> Bool,
               confirmReplace: @Sendable () async -> Bool) async throws -> SteamJoinHandle {
         guard await consent() else { throw GameLaunchError.cancelled }
-        let session = try await broker.prepare(endpoint)
+        let session = try await broker.prepare(endpoint, owned: owned, markedStale: markedStale)
         do {
             let plan = try await launcher.plan(host: host, port: port, gamedir: gamedir, known: known,
                                                serverProtocol: serverProtocol, dataRoot: dataRoot, identity: .steamAuth)

@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "Η IP σας άλλαξε (φυσιολογικό με δυναμική IP). Εάν αυτή είναι η σωστή τιμή, πατήστε Αποθήκευση.";
 "suggestion.lanIPChanged" = "Το τοπικό δίκτυο άλλαξε (πιθανώς εναλλαγή Wi-Fi/Ethernet). Εάν είναι επιθυμητό, πατήστε Αποθήκευση.";
 "suggestion.serverCIDChanged" = "Το server CID διαφέρει από την εγγραφή· η πηγή ταυτότητας μπορεί να έχει αλλάξει. Πατήστε Αποθήκευση μετά την Ανανέωση.";
-"suggestion.invalidHost" = "Εισαγάγετε τη διεύθυνση ως IP:port (π.χ. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Εισαγάγετε τη διεύθυνση ως IP:port (π.χ. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Ελέγξτε τη σύνδεση δικτύου (Wi-Fi/Ethernet) και μετά πατήστε Ανανέωση.";
 "suggestion.nameEmpty" = "Ορίστε ένα όνομα παίκτη στο παιχνίδι, τερματίστε το παιχνίδι και πατήστε Ανανέωση.";
 "suggestion.modelEmpty" = "Επιλέξτε ένα μοντέλο παίκτη στο παιχνίδι, τερματίστε το παιχνίδι και πατήστε Ανανέωση.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Δεν βρέθηκε broker στις συνηθισμένες θέσεις.";
 "steam.settings.foundOther" = "Βρέθηκε άλλος broker: %@. Η διαδρομή που ορίσατε διατηρείται.";
 "steam.error.settingsHint" = "Ελέγξτε τη διαδρομή broker στις Ρυθμίσεις › Διαδρομές σύνδεσης.";
+"steam.join.steamAuthRestart" = "Με ταυτότητα Steam (επανεκκινήστε τον broker)";
+"steam.state.stale" = "Ο broker είναι παλιός (το Steam επανεκκινήθηκε)";
+"steam.settings.stale" = "Το Steam επανεκκινήθηκε — επανεκκινήστε τον broker";
+"steam.settings.restart" = "Επανεκκίνηση";
+"steam.error.stale" = "Ο broker που εκτελείται ξεκίνησε πριν από το Steam και δεν μπορεί να αντικατασταθεί από την εφαρμογή. Σταματήστε τον και δοκιμάστε ξανά.";

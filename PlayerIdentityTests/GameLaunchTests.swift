@@ -40,7 +40,7 @@ final class GameLaunchTests: XCTestCase {
     func testIPv4Command() async throws {
         let plan = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve")
         XCTAssertEqual(plan.command.argv, ["/usr/bin/open", "-a", Self.systemApp, "--args", "-game", "valve",
-                                           "+connect", "192.0.2.10:27015"])
+                                           "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015"])
         XCTAssertFalse(plan.gameRunning)
         XCTAssertTrue(GameLaunchAllowlist.isAllowed(plan.command.argv))
     }
@@ -132,10 +132,10 @@ final class GameLaunchTests: XCTestCase {
     }
 
     func testAllowlistRejectsOtherCommands() async {
-        let good = ["/usr/bin/open", "-a", "/Applications/Xash3D-FWGS.app", "--args", "-game", "valve", "+connect", "192.0.2.1:27015"]
+        let good = ["/usr/bin/open", "-a", "/Applications/Xash3D-FWGS.app", "--args", "-game", "valve", "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.1:27015"]
         XCTAssertTrue(GameLaunchAllowlist.isAllowed(good))
         var injected = good
-        injected[7] = "192.0.2.1:27015;quit"
+        injected[10] = "192.0.2.1:27015;quit"
         XCTAssertFalse(GameLaunchAllowlist.isAllowed(injected))
         injected = good
         injected[5] = "-console"

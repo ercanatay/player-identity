@@ -225,8 +225,8 @@ final class BanFixSafetyTests: XCTestCase {
     }
 
     func testGameTrackerLink() {
-        XCTAssertEqual(GameTrackerLink.url(host: "51.68.190.91", port: 27015)?.absoluteString,
-                       "https://www.gametracker.com/server_info/51.68.190.91:27015/")
+        XCTAssertEqual(GameTrackerLink.url(host: "192.0.2.10", port: 27015)?.absoluteString,
+                       "https://www.gametracker.com/server_info/192.0.2.10:27015/")
         XCTAssertNil(GameTrackerLink.url(host: "evil.com/x", port: 27015))
     }
 }
@@ -236,8 +236,8 @@ final class AppealTextTests: XCTestCase {
     private let checkedAt = Date(timeIntervalSince1970: 1_793_000_000)   // 2026-10-26T07:33:20Z
 
     private func input(_ check: BanCheck) -> AppealInput {
-        AppealInput(serverLabel: "POLIGON RPG", host: "51.68.190.91", port: 27015, checkedAt: checkedAt,
-                    playerName: "TestOyuncu", cid: "d9de0eb4419608a8423241430581e91c",
+        AppealInput(serverLabel: "Example Server", host: "192.0.2.10", port: 27015, checkedAt: checkedAt,
+                    playerName: "TestOyuncu", cid: "668afa7c2daff879e69f6aae714ef3b4",
                     publicIP: "198.51.100.10", gamedir: "valve", check: check)
     }
 
@@ -246,10 +246,10 @@ final class AppealTextTests: XCTestCase {
                              detail: "ipBanned: You have been banned from this server.")
         let text = AppealText.make(input(check), timeZone: TimeZone(identifier: "Europe/Istanbul")!)
         let utc = ISO8601DateFormatter().string(from: checkedAt)
-        for field in ["POLIGON RPG", "51.68.190.91:27015",                       // server name + host:port
+        for field in ["Example Server", "192.0.2.10:27015",                       // server name + host:port
                       "(yerel)", "\(utc) (UTC)",                                // local time + UTC
                       "TestOyuncu",                                   // player name
-                      "d9de0eb4419608a8423241430581e91c",                       // CID (32 hex)
+                      "668afa7c2daff879e69f6aae714ef3b4",                       // CID (32 hex)
                       "198.51.100.10",                                         // egress IP
                       "gamedir valve", "Xash3D FWGS",                           // gamedir/client
                       "ipBanned: You have been banned from this server.",       // raw reply
@@ -357,8 +357,8 @@ final class RangeBanTests: XCTestCase {
 
     func testAppealContainsRangeLine() {
         let checkedAt = Date(timeIntervalSince1970: 1_793_000_000)
-        let base = AppealInput(serverLabel: "S", host: "51.68.190.91", port: 27015, checkedAt: checkedAt,
-                               playerName: "P", cid: "d9de0eb4419608a8423241430581e91c", publicIP: "198.51.100.12",
+        let base = AppealInput(serverLabel: "S", host: "192.0.2.10", port: 27015, checkedAt: checkedAt,
+                               playerName: "P", cid: "668afa7c2daff879e69f6aae714ef3b4", publicIP: "198.51.100.12",
                                gamedir: "valve", check: check(.ipBanned))
         XCTAssertFalse(AppealText.make(base).contains("Muhtemel aralık banı"))
         var ranged = base

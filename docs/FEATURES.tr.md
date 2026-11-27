@@ -72,7 +72,7 @@ Kart **Desteklenmiyor** dediğinde (motorda gösterge yok, kimlik sıfır veya e
 macOS ad-hoc imzalı motorun ilk açılışını engellerse: Sistem Ayarları → Gizlilik ve Güvenlik → "Yine de Aç" (yalnız bu uygulama için); uygulama Gatekeeper'ı asla aşmaz (temiz hesapta davranış ölçülmedi). Intel Mac'lerde yalnız sürüm sayfası sunulur. Ayarlar → Veri → Motor yedekleri yedekleri listeler (en yeni 3 tutulur); eskileri yalnız onayla silinir. CLI: `playeridentityctl engine status`, `engine install-compatible [--yes]`, `engine backups [delete --confirm <kod>]`.
 
 ### GoldSrc 48 sunucuları (2.26)
-Uygulama GoldSrc protokol 48 sunucularını (HLDS/ReHLDS, ör. POLIGON RPG) Source/Xash protokol 49 sunucularından A2S_INFO yanıtıyla ayırır:
+Uygulama GoldSrc protokol 48 sunucularını (HLDS/ReHLDS, ör. Example Server) Source/Xash protokol 49 sunucularından A2S_INFO yanıtıyla ayırır:
 
 - **Protokol:** GoldSrc protokol baytlı eski `0x6D` yanıtı veya protokol baytı 48 olan `0x49` yanıtı `goldsrc48` (ikisi birden gelirse eski yanıt tutulur); protokol baytı 49 olan `0x49` yanıtı `source49`; boş, kesik, tanınmayan veya tutarsız yanıt `unknown` (tahmin yapılmaz). Alanı olmayan eski kayıtlar `unknown` okunur. CID testi (connect 49) yalnız `source49` sunuculara yapılır; `goldsrc48` ve `unknown` asla CID almaz.
 - **CID:** `goldsrc48` sunucuda CID hesaplanmaz, gösterilmez, kopyalanmaz: sunucu satırı **Yok** der ("CID bu sunucuda kullanılmıyor"), menü çubuğunda kopyalanacak CID yoktur ve o sunucunun eski kayıtlı CID'si, GoldSrc yanıtını alan bir sonraki başarılı yenilemede silinir (başarısız yenileme hiçbir şey silmez). `source49` mevcut CID'yi korur; `unknown` mevcut davranışı izler.

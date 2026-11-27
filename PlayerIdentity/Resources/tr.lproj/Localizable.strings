@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "IP'niz değişmiş (dinamik IP'de normal). Doğru değer buysa Kaydet'e basın.";
 "suggestion.lanIPChanged" = "Yerel ağ değişmiş (Wi-Fi/Ethernet geçişi olabilir). Bilinçliyse Kaydet'e basın.";
 "suggestion.serverCIDChanged" = "Sunucu CID'si kayıttan farklı; kimlik kaynağı değişmiş olabilir. Yenile'den sonra Kaydet'e basın.";
-"suggestion.invalidHost" = "Adresi IP:port biçiminde girin (örn. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Adresi IP:port biçiminde girin (örn. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Ağ bağlantısını (Wi-Fi/Ethernet) kontrol edin, sonra Yenile'ye basın.";
 "suggestion.nameEmpty" = "Oyunda bir oyuncu adı belirleyin, oyunu kapatıp Yenile'ye basın.";
 "suggestion.modelEmpty" = "Oyunda bir oyuncu modeli seçin, oyunu kapatıp Yenile'ye basın.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Bilinen konumlarda broker bulunamadı.";
 "steam.settings.foundOther" = "Başka bir broker bulundu: %@. Belirlediğiniz yol korunur.";
 "steam.error.settingsHint" = "Ayarlar › Bağlantı Yolları’ndaki broker yolunu kontrol edin.";
+"steam.join.steamAuthRestart" = "Steam kimliğiyle (broker’ı yeniden başlat)";
+"steam.state.stale" = "Broker eski (Steam yeniden başladı)";
+"steam.settings.stale" = "Steam yeniden başladı — broker’ı yeniden başlatın";
+"steam.settings.restart" = "Yeniden başlat";
+"steam.error.stale" = "Çalışan broker Steam’den önce başlatılmış ve uygulama onu değiştiremez. Durdurup yeniden deneyin.";

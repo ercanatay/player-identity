@@ -45,6 +45,8 @@ struct AppDependencies {
     var steamBrokerControl: any SteamBrokerProcessControlling = UnavailableSteamBrokerProcessControl()
     /// §76: waiting helper of the broker start and the game-exit watch (tests pass a no-op).
     var steamSleep: @Sendable (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }
+    /// §79: watch the Steam client's quit / launch (NSWorkspace); off in tests (they call the handlers).
+    var observesSteamLifecycle = false
     /// §30: launch at login; `nil` = not available (tests inject a fake).
     var loginItem: (any LoginItemControlling)? = nil
     /// §40: opens the ban list page in the browser (the default opens nothing).
@@ -145,6 +147,7 @@ struct AppDependencies {
         deps.fileProbe = LocalFileProbe()
         deps.steamBrokerEnvironment = SystemSteamBrokerEnvironment()
         deps.steamBrokerControl = SystemSteamBrokerProcessControl()
+        deps.observesSteamLifecycle = true
         deps.engineInstallerFactory = { EngineInstaller.live(environment: $0) }
         return deps
     }
@@ -333,6 +336,9 @@ final class AppModel {
     var steamSettingsError: GameLaunchError?
     /// §76.3.3 a broker this app started from Settings; only such a broker can be stopped from the app.
     @ObservationIgnored private var manualBrokerSession: SteamBrokerSession?
+    /// §79 a Steam quit was seen while the app ran (fallback when process start times cannot be read).
+    @ObservationIgnored private var steamQuitSeen = false
+    @ObservationIgnored private var steamObservers: [any NSObjectProtocol] = []
     /// Brokers this app started for running joins (stopped when the game closes or the app quits).
     @ObservationIgnored private var joinBrokerSessions: [UUID: SteamBrokerSession] = [:]
     @ObservationIgnored private var steamMonitorTasks: [UUID: Task<Void, Never>] = [:]
@@ -533,6 +539,7 @@ final class AppModel {
             }
         }
         refreshBackupInfo()
+        observeSteamLifecycle()
         reindexSpotlight()
         syncFolder = dependencies.defaults.string(forKey: DefaultsKey.syncFolder).flatMap {
             $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true)
@@ -1384,6 +1391,54 @@ final class AppModel {
                            sleep: deps.steamSleep)
     }
 
+    /// §79 the broker the app started itself (Settings or a running join), if any.
+    private var ownedBrokerSession: SteamBrokerSession? {
+        manualBrokerSession ?? joinBrokerSessions.values.first
+    }
+
+    private func observeSteamLifecycle() {
+        guard deps.observesSteamLifecycle, steamObservers.isEmpty else { return }
+        let center = NSWorkspace.shared.notificationCenter
+        let bundleID = "com.valvesoftware.steam"
+        steamObservers = [
+            center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                guard app?.bundleIdentifier == bundleID else { return }
+                MainActor.assumeIsolated { self?.steamClientDidTerminate() }
+            },
+            center.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] note in
+                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                guard app?.bundleIdentifier == bundleID else { return }
+                MainActor.assumeIsolated { self?.steamClientDidLaunch() }
+            },
+        ]
+    }
+
+    /// §79.3 Steam quit: the broker the app started is stopped; one the user started is only marked stale. Nothing
+    /// is started or connected here.
+    func steamClientDidTerminate() {
+        steamQuitSeen = true
+        steamBroker.release(manualBrokerSession)
+        manualBrokerSession = nil
+        for session in joinBrokerSessions.values { steamBroker.release(session) }
+        joinBrokerSessions = [:]
+        refreshSteamBrokerState()
+    }
+
+    /// §79.3 Steam started again: the state is re-read (a broker that predates it reads as stale).
+    func steamClientDidLaunch() {
+        refreshSteamBrokerState()
+    }
+
+    /// The app started a fresh broker: the stale hint no longer applies.
+    private func adoptBrokerSession(_ session: SteamBrokerSession, replacing old: SteamBrokerSession?) {
+        if let old, old.pid != session.pid {
+            if manualBrokerSession == old { manualBrokerSession = nil }
+            for (key, value) in joinBrokerSessions where value == old { joinBrokerSessions[key] = nil }
+        }
+        if session.startedByApp { steamQuitSeen = false }
+    }
+
     /// §76.6 "Join with…": `standard` is the existing "Join Game"; `steamAuth` is the opt-in Steam identity flow.
     @discardableResult
     func joinGame(_ id: UUID, identity: JoinIdentity) -> Task<Void, Never>? {
@@ -1397,6 +1452,8 @@ final class AppModel {
         let coordinator = SteamJoinCoordinator(launcher: gameLauncher, broker: steamBroker, fileSystem: deps.fileSystem,
                                                now: deps.now, sleep: deps.steamSleep)
         let endpoint = steamEndpoint
+        let owned = ownedBrokerSession
+        let marked = steamQuitSeen
         let gamedir = selectedGamedir
         let known = hostResolutions
         let serverProtocol = launchProtocol(for: id)
@@ -1407,9 +1464,10 @@ final class AppModel {
             do {
                 let handle = try await coordinator.join(
                     host: entry.host, port: entry.port, gamedir: gamedir, known: known, serverProtocol: serverProtocol,
-                    dataRoot: root, endpoint: endpoint,
+                    dataRoot: root, endpoint: endpoint, owned: owned, markedStale: marked,
                     consent: { await self.askSteam(.consent(label: label)) },
                     confirmReplace: { await self.askSteam(.replace(label: label)) })
+                if let session = handle.session { adoptBrokerSession(session, replacing: owned) }
                 noteGoldSrcJoin(handle.plan, for: id)
                 noteIdentityAttempt(.steamAuth, entry: entry)
                 watchSteamJoin(handle, coordinator: coordinator, entry: entry)
@@ -1542,8 +1600,9 @@ final class AppModel {
     func refreshSteamBrokerState() -> Task<Void, Never> {
         let manager = steamBroker
         let endpoint = steamEndpoint
+        let marked = steamQuitSeen
         return Task {
-            let state = await Task.detached { manager.state(endpoint) }.value
+            let state = await Task.detached { manager.state(endpoint, markedStale: marked) }.value
             steamBrokerState = state
         }
     }
@@ -1553,10 +1612,13 @@ final class AppModel {
     func startSteamBroker() -> Task<Void, Never> {
         let manager = steamBroker
         let endpoint = steamEndpoint
+        let owned = ownedBrokerSession
+        let marked = steamQuitSeen
         steamSettingsError = nil
         return Task {
             do {
-                let session = try await manager.prepare(endpoint)
+                let session = try await manager.prepare(endpoint, owned: owned, markedStale: marked)
+                adoptBrokerSession(session, replacing: owned)
                 if session.startedByApp { manualBrokerSession = session }
             } catch let error as GameLaunchError {
                 steamSettingsError = error
@@ -1566,6 +1628,11 @@ final class AppModel {
             await refreshSteamBrokerState().value
         }
     }
+
+    /// §79 Settings "Restart": stops a stale broker the app started and starts it again with `<host>:<port>`; a
+    /// stale broker the user started is not touched (error shown). Runs only on the user's click.
+    @discardableResult
+    func restartSteamBroker() -> Task<Void, Never> { startSteamBroker() }
 
     var canStopSteamBroker: Bool { manualBrokerSession?.startedByApp == true }
 

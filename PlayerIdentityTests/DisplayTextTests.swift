@@ -22,7 +22,7 @@ final class DisplayTextTests: XCTestCase {
                            "play.example.com → ad bulunamadı")
             XCTAssertEqual(ServerRowText.addressLine(host: "play.example.com", status: row(failure: .network)),
                            "play.example.com → DNS hatası (ağ)")
-            XCTAssertNil(ServerRowText.addressLine(host: "51.68.190.91", status: row()))   // IP literal
+            XCTAssertNil(ServerRowText.addressLine(host: "192.0.2.10", status: row()))   // IP literal
             XCTAssertNil(ServerRowText.addressLine(host: "bad host", status: row(failure: .invalid)))
         }
         try inLanguage("en") {

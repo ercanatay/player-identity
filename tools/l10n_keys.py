@@ -192,7 +192,7 @@ KEYS = [
     ("suggestionPublicIPChanged", "suggestion.publicIPChanged", "IP'niz değişmiş (dinamik IP'de normal). Doğru değer buysa Kaydet'e basın.", "Your IP has changed (normal with a dynamic IP). If this is the correct value, press Save."),
     ("suggestionLanIPChanged", "suggestion.lanIPChanged", "Yerel ağ değişmiş (Wi-Fi/Ethernet geçişi olabilir). Bilinçliyse Kaydet'e basın.", "The local network has changed (possibly a Wi-Fi/Ethernet switch). If intended, press Save."),
     ("suggestionServerCIDChanged", "suggestion.serverCIDChanged", "Sunucu CID'si kayıttan farklı; kimlik kaynağı değişmiş olabilir. Yenile'den sonra Kaydet'e basın.", "The server CID differs from the record; the identity source may have changed. Press Save after Refresh."),
-    ("suggestionInvalidHost", "suggestion.invalidHost", "Adresi IP:port biçiminde girin (örn. 51.68.190.91:27015).", "Enter the address as IP:port (e.g. 51.68.190.91:27015)."),
+    ("suggestionInvalidHost", "suggestion.invalidHost", "Adresi IP:port biçiminde girin (örn. 192.0.2.10:27015).", "Enter the address as IP:port (e.g. 192.0.2.10:27015)."),
     ("suggestionLanIPMissing", "suggestion.lanIPMissing", "Ağ bağlantısını (Wi-Fi/Ethernet) kontrol edin, sonra Yenile'ye basın.", "Check the network connection (Wi-Fi/Ethernet), then press Refresh."),
     ("suggestionNameEmpty", "suggestion.nameEmpty", "Oyunda bir oyuncu adı belirleyin, oyunu kapatıp Yenile'ye basın.", "Set a player name in the game, quit the game and press Refresh."),
     ("suggestionModelEmpty", "suggestion.modelEmpty", "Oyunda bir oyuncu modeli seçin, oyunu kapatıp Yenile'ye basın.", "Choose a player model in the game, quit the game and press Refresh."),
@@ -1491,6 +1491,11 @@ KEYS = [
     ("steamSettingsNotFound", "steam.settings.notFound", "Bilinen konumlarda broker bulunamadı.", "No broker was found in the usual places."),
     ("steamSettingsFoundOther", "steam.settings.foundOther", "Başka bir broker bulundu: %@. Belirlediğiniz yol korunur.", "Another broker was found: %@. The path you set is kept."),
     ("steamErrorSettingsHint", "steam.error.settingsHint", "Ayarlar › Bağlantı Yolları’ndaki broker yolunu kontrol edin.", "Check the broker path in Settings › Connection Paths."),
+    ("steamJoinSteamAuthRestart", "steam.join.steamAuthRestart", "Steam kimliğiyle (broker’ı yeniden başlat)", "With Steam identity (restart broker)"),
+    ("steamStateStale", "steam.state.stale", "Broker eski (Steam yeniden başladı)", "Broker outdated (Steam restarted)"),
+    ("steamSettingsStale", "steam.settings.stale", "Steam yeniden başladı — broker’ı yeniden başlatın", "Steam restarted — restart the broker"),
+    ("steamSettingsRestart", "steam.settings.restart", "Yeniden başlat", "Restart"),
+    ("steamErrorStale", "steam.error.stale", "Çalışan broker Steam’den önce başlatılmış ve uygulama onu değiştiremez. Durdurup yeniden deneyin.", "The running broker was started before Steam and cannot be replaced by the app. Stop it, then try again."),
 ]
 
 # InfoPlist.strings of every language: the Turkish product name for `tr`, the English one everywhere else.

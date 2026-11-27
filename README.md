@@ -58,8 +58,11 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.27.1
+## What's new in v2.27.2
 
+- **Broker loads its library from its own folder**: `libsteam_api.dylib` is looked up next to the broker binary, not in the working directory (the app also starts the broker with that folder as working directory). A missing library gives an error with the full path that was searched. The broker accepts a `<host>:<port>` argument as well as `--port N`.
+- **The method no longer depends on `config.cfg`**: both methods put `+set cl_ticket_generator <revemu2013|steam>` on the launch line explicitly (Standard → `revemu2013`, Steam → `steam`), so a value the engine saved in the config never changes the behaviour. The Standard launch line differs from before only by this one cvar; the app still writes nothing to the game folder.
+- **A Steam restart makes the broker stale**: a broker that started before the Steam client is detected (read-only), and when Steam quits the broker the app started is stopped (one you started yourself is only marked stale). The row menu then reads **With Steam identity (restart broker)** and Settings › Connection Paths shows **Steam restarted — restart the broker** with a **Restart** button. Nothing is started or connected automatically.
 - **Join with a Steam identity (optional)**: right-click a server → **Join with ▾** → *Standard* or *With Steam identity*. The Steam method goes through a local Steam broker **you provide** (a third-party tool; this app ships none) and adds only `+set cl_ticket_generator steam` to the launch line — no game file is written. It is never the default, asks for your consent at every selection (it reports your real SteamID to the server) and is marked *Recommended* on GoldSrc 48 servers. **Settings › Connection Paths** sets the broker path and port and shows its live state; the server row shows **Steam ✓ / ✗** from the server's real answer in `engine.log`. CLI: `playeridentityctl join --server <host:port> [--identity standard|steam-auth]`.
 - **Broker is found for you**: the usual places (`~/Documents/steam-broker/steam-broker`, `~/Applications/Steam Broker.app/…/steam-broker`, `/opt/homebrew/bin`, `/usr/local/bin`) are checked read-only for an executable file (symbolic links and folders are ignored). **Settings › Connection Paths → Use Found Broker** writes the first match after you confirm; a path you already set is never overwritten (you only see that another broker was found).
 - **Clear menu entry, one-click start**: without a broker path the Steam entry is disabled with the hint "Choose the Steam broker path in Settings › Connection Paths". With a path but a stopped broker it reads **With Steam identity (start broker)** — after the privacy consent the broker starts and the game connects. If the broker cannot start, you get an error with a button to the settings.
@@ -775,7 +778,7 @@ xcodebuild -project PlayerIdentity.xcodeproj -scheme PlayerIdentity \
 
 - The `.xcodeproj` is generated and not tracked in git.
 - Tests are isolated: temporary fixture folders, fake HTTP/UDP clients, fake command runner, no network.
-- **1339 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
+- **1346 tests** in the main scheme. Most assertions compare Turkish source strings, so the scheme runs tests
   with Turkish; `LocalizationTests` switch languages explicitly.
 
 ### Adding a string
@@ -819,7 +822,7 @@ is best-effort and uploads diagnostics (`ui-diagnostics`, `ui-test-results`) for
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 1339 tests on `macos-26` |
+| `ci.yml` | push / PR | Localization gates, spec sanitization gate, XcodeGen, build, 1346 tests on `macos-26` |
 | `release.yml` | `v*` tag | Release build, Developer ID signing, notarization, stapling, verification, GitHub release, cask update |
 | `ui-tests.yml` | manual | UI smoke test (best-effort) with diagnostics |
 

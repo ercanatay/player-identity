@@ -319,14 +319,14 @@ final class LaunchSummaryTests: XCTestCase {
 // MARK: - §67.4 Spotlight
 
 final class SpotlightIndexTests: XCTestCase {
-    private let cid = "d9de0eb4419608a8423241430581e91c"
+    private let cid = "668afa7c2daff879e69f6aae714ef3b4"
 
     func testItemTitleAndShortenedCID() {
         var entry = ServerEntry(label: "Zombie TR", host: "198.51.100.20")
         entry.cid = cid
         XCTAssertEqual(SpotlightServers.item(for: entry),
                        SpotlightServerItem(identifier: entry.id.uuidString, title: "Zombie TR",
-                                           summary: "198.51.100.20:27015 · d9de0eb4…e91c"))
+                                           summary: "198.51.100.20:27015 · 668afa7c…f3b4"))
         let unnamed = ServerEntry(label: "  ", host: "2001:db8::1", port: 27016)
         XCTAssertEqual(SpotlightServers.item(for: unnamed).title, "[2001:db8::1]:27016")
         XCTAssertEqual(SpotlightServers.item(for: unnamed).summary, "[2001:db8::1]:27016", "no CID yet")

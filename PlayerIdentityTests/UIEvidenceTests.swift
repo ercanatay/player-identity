@@ -23,7 +23,7 @@ final class UIEvidenceTests: XCTestCase {
         var rect = CGRect(x: 0, y: 0, width: 256, height: 256)
         let icon = NSApplication.shared.applicationIconImage.cgImage(forProposedRect: &rect, context: nil, hints: nil)
         let content = ShareCardContent(serverName: "Demo RPG | An intentionally very long demo server name 2026",
-                                       hostPort: "play.example.com:27015", cid: "d9de0eb4419608a8423241430581e91c",
+                                       hostPort: "play.example.com:27015", cid: "668afa7c2daff879e69f6aae714ef3b4",
                                        playerName: "TestPlayer", dateText: "09.11.2026 13:45",
                                        labels: ShareCardLabels(title: "Cybokron Player Identity", server: "Server", cid: "CID",
                                                                player: "Player", date: "Date"),
@@ -229,7 +229,7 @@ final class UIEvidenceTests: XCTestCase {
             deps.pasteboard = pasteboard
             deps.sleeper = HoldingConfirmationSleeper(clock: clock)
         }
-        model.addServer(ServerDraft(label: "Demo RPG", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "192.0.2.10"))
         model.addServer(ServerDraft(label: "Deathmatch EU", host: "51.68.190.92"))
         model.addServer(ServerDraft(label: "Zombie TR", host: "51.68.190.93"))
         await model.refresh().value
@@ -262,7 +262,7 @@ final class UIEvidenceTests: XCTestCase {
         let env = try TestAppEnvironment()
         let game = FakeGameDetector(running: false)
         let model = env.makeModel(game: game)
-        model.addServer(ServerDraft(label: "Demo RPG", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Demo RPG", host: "192.0.2.10"))
         await model.refresh().value
         model.save()
         XCTAssertNil(model.addProfile(name: "Turnuva", dataRoot: URL(fileURLWithPath: "/Users/demo/Games/Xash3D/Turnuva"),

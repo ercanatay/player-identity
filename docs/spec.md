@@ -87,9 +87,9 @@ Girdi: 8 baytlık ham kimlik (küçük-endian byte sırası) + sunucu adresi bay
 ### 4.1 Doğrulama vektörleri (ham kimlik = 0 için, zorunlu birim testi)
 | Sunucu adresi | Beklenen CID |
 |---|---|
-| `95.173.174.175` | `68f8c1fb2a23cb02409b8a3231487970` |
-| `51.68.190.91` | `d9de0eb4419608a8423241430581e91c` |
-| `5.161.189.195` | `5282a6daf7a33fe08469e453086de93c` |
+| `198.51.100.1` | `38deb7f5293007bd3ab41c70a43a5cbd` |
+| `192.0.2.10` | `668afa7c2daff879e69f6aae714ef3b4` |
+| `198.51.100.2` | `c60f3c9f783576db19d68fa956ab503d` |
 | `127.0.0.1` | `e3f650e2c5f1293838ba8e934ba3b796` |
 | Yerel makine (IP baytı yok) | `7dea362b3fac8e00956a4952a3d4f474` |
 
@@ -332,7 +332,7 @@ Eski kayıtlar bu alan olmadan da okunur.
 
 ### 13.6 Kabul kriterleri (v1.1)
 1. Sahte UDP taşıyıcısıyla birim testleri: info→challenge→`ipOk`; ban metni→`ipBanned`; `client_connect`→`cidOk`; `errormsg`+ban→`cidBanned`; `unsupported protocol`→`cidNotApplicable`; sessizlik→`unreachable`.
-2. Gerçek ağ testi (manuel): `51.68.190.91:27015` → `ipBanned`; `5.161.189.195:27015` → `ipOk`.
+2. Gerçek ağ testi (manuel): `192.0.2.10:27015` → `ipBanned`; `198.51.100.2:27015` → `ipOk`.
 3. Ban sonucu genel durumu kırmızıya çevirir ve gerekçede görünür.
 4. "Ban kontrolü" anahtarı kapalıyken hiçbir UDP paketi gönderilmez (test: sahte taşıyıcı sayaç).
 5. Aynı sunucuya 10 sn içinde ikinci kontrol yapılmaz (test: zaman kaynağı enjekte edilir).
@@ -372,7 +372,7 @@ Her gerekçe (reason) için **kullanıcının atabileceği somut adım** göster
 | publicIPChanged | "IP'niz değişmiş (dinamik IP'de normal). Doğru değer buysa Kaydet'e basın." |
 | lanIPChanged | "Yerel ağ değişmiş (Wi-Fi/Ethernet geçişi olabilir). Bilinçliyse Kaydet'e basın." |
 | serverCIDChanged | "Sunucu CID'si kayıttan farklı; kimlik kaynağı değişmiş olabilir. Yenile'den sonra Kaydet'e basın." |
-| invalidHost | "Adresi IP:port biçiminde girin (örn. 51.68.190.91:27015)." |
+| invalidHost | "Adresi IP:port biçiminde girin (örn. 192.0.2.10:27015)." |
 
 ### 14.4 Kabul kriterleri (v1.2)
 1. Her `MessageCode` için **boş olmayan** öneri metni vardır; birim testi tüm kodları gezer (eksik varsa test kırılır).
@@ -610,7 +610,7 @@ Olası nedenler sırayla gösterilir:
 Bu durumda otomatik çözüm önerilmez; itiraz metni + sunucu sayfası verilir.
 
 ### 17.9.4 İletişim kanalı
-- Sunucu sayfası bağlantısı: `https://www.gametracker.com/server_info/<host>:<port>/` — sayfada **Server Manager** adı listelenir (ör. POLIGON RPG için `leo_poligonrpg`). Uygulama bu bağlantıyı "Yöneticiye ulaş" olarak açar; sayfa içeriğini kazımaz.
+- Sunucu sayfası bağlantısı: `https://www.gametracker.com/server_info/<host>:<port>/` — sayfada **Server Manager** adı listelenir (ör. Example Server için `leo_examplerpg`). Uygulama bu bağlantıyı "Yöneticiye ulaş" olarak açar; sayfa içeriğini kazımaz.
 - İtiraz metni panoya kopyalanır; kullanıcı GameTracker yorumu/Discord/Telegram üzerinden gönderir.
 
 ### 17.9.5 Ek kabul kriterleri
@@ -1850,7 +1850,7 @@ Bu bölüm, ayrı davranış spec'inin (E0–E21) uygulama tarafı özetidir. Ç
 
 ## 75. GoldSrc 48 desteği (v5.4, uygulama 2.26.0 build 54)
 
-Amaç: GoldSrc protokol-48 sunucuları (ör. POLIGON RPG 51.68.190.91:27015) doğru tanınsın; bu sunucularda CID "uygulanamaz" gösterilsin; "Oyuna gir" `gs` ile başlasın; ban teşhisi gerçekçi olsun. Kullanıcı bu sunucuda `connect … gs` ile "You have been banned from this server." alıyor; modern connect49 ise "older protocol 48" veriyor. CID bu sunucuya gönderilmez. Kapsam: yalnız protokol tespiti, CID görünürlüğü, başlatma argümanı ve teşhis. Motor kurulumu (§74), kimlik (§73) ve tekillik iddiası değişmez.
+Amaç: GoldSrc protokol-48 sunucuları (ör. Example Server 192.0.2.10:27015) doğru tanınsın; bu sunucularda CID "uygulanamaz" gösterilsin; "Oyuna gir" `gs` ile başlasın; ban teşhisi gerçekçi olsun. Kullanıcı bu sunucuda `connect … gs` ile "You have been banned from this server." alıyor; modern connect49 ise "older protocol 48" veriyor. CID bu sunucuya gönderilmez. Kapsam: yalnız protokol tespiti, CID görünürlüğü, başlatma argümanı ve teşhis. Motor kurulumu (§74), kimlik (§73) ve tekillik iddiası değişmez.
 
 Kaynak notu: A2S yanıt başlığı ve legacy probe paketi (75.2, 75.6) upstream ile doğrulanmış kabul edilir (bkz. her madde). **AC-75.G1 ve AC-75.P1 yakalanmış gerçek paketlerle (fixture) ve sabit bayt vektörüyle de geçmelidir**; uyuşmazlıkta spec ve parser birlikte güncellenir.
 
@@ -1950,7 +1950,7 @@ Sıra: DNS → A2S_INFO (protokol tespiti) → challenge → bağlantı denemesi
 - **AC-75.S1** Gizlilik: UI/CLI/JSON/günlükte tam CID, ticket, parola, seri numarası yok (T-75-16).
 - **AC-75.U1** GoldSrc kartında "CID bu sunucuda kullanılmıyor"; 26 dil anahtar eşitliği (T-75-17).
 - **AC-75.J1** `diagnose --json` GoldSrc alanları (cid=null, cidApplicable=false, goldSrc=true) (T-75-18).
-- **AC-75.R1 (yayın kapısı)** Yalıtılmış motorda `connect <host>:27015 gs` denemesi ile teşhis aynı verdict'i üretir (ban ise ban). **(v5.4.2)** Ölçüt: (a) motor konsolunda "Trying to connect with GoldSrc 48 protocol" ve sunucunun yanıtı; (b) uygulamanın yalnız-probe teşhisi "ban yok" demez (`banned` `null` veya `true`); (c) motorun konsol günlüğüyle yapılan teşhis motorun yanıtına ulaşır (ban → `banned`). Hedef: POLIGON RPG 51.68.190.91:27015. Kullanıcı bu oturumda gerçek POLIGON probe'unu açıkça istedi; bu kapı için onay verilmiş sayılır. Yine de legacy probe **yalnız kullanıcı isteğiyle** çalışır: teşhis düğmesi/komutu veya CLI'da `--confirm` bayrağı. Otomatik, periyodik veya arka plan gönderimi **yoktur**. Kanıt repo dışında kaydedilir.
+- **AC-75.R1 (yayın kapısı)** Yalıtılmış motorda `connect <host>:27015 gs` denemesi ile teşhis aynı verdict'i üretir (ban ise ban). **(v5.4.2)** Ölçüt: (a) motor konsolunda "Trying to connect with GoldSrc 48 protocol" ve sunucunun yanıtı; (b) uygulamanın yalnız-probe teşhisi "ban yok" demez (`banned` `null` veya `true`); (c) motorun konsol günlüğüyle yapılan teşhis motorun yanıtına ulaşır (ban → `banned`). Hedef: Example Server 192.0.2.10:27015. Kullanıcı bu oturumda gerçek Example probe'unu açıkça istedi; bu kapı için onay verilmiş sayılır. Yine de legacy probe **yalnız kullanıcı isteğiyle** çalışır: teşhis düğmesi/komutu veya CLI'da `--confirm` bayrağı. Otomatik, periyodik veya arka plan gönderimi **yoktur**. Kanıt repo dışında kaydedilir.
 - **AC-75.R2 (yayın kapısı)** Tam paket testi, CLI smoke ve 26 dil anahtar kontrolü geçer; yerel build numarası 54, pazarlama sürümü 2.26.0.
 - **AC-75.R3** Changelog, `docs/spec.md` ve `FEATURES.md`/`FEATURES.tr.md` bu sürümle eşitlenir; eski sürüm notları değişmez.
 
@@ -1962,14 +1962,14 @@ Sıra: DNS → A2S_INFO (protokol tespiti) → challenge → bağlantı denemesi
 - Protokol 48 yanıt yapısı, sunucu yazılımına göre (ReHLDS, HLDS, Xash) küçük farklar gösterebilir; bilinmeyen alanlar `unknown` olur, sahte tespit yapılmaz.
 
 ### 75.12 Yakalanmış paketler ve yayın kapısı kanıtı (v5.4.1, 2026-11-26)
-- **A2S (AC-75.G1):** 51.68.190.91:27015 tek `TSource Engine Query`'ye iki yanıt verir: `0x6D` legacy (86 bayt; adres `51.68.190.91:27015`, harita, `valve`, `Half-Life`, numcl, maxcl, protokol **47**, `d`, `l`, parola 0, mod 0, VAC 1, bot 0) ve Source yerleşimli `0x49` (protokol baytı **48**). `0x49`+48 `unknown` kalır (GoldSrc veya eski Xash olabilir); karar `0x6D` yanıtından çıkar. Fixture'lar testlerde bayt bayt sabittir.
+- **A2S (AC-75.G1):** 192.0.2.10:27015 tek `TSource Engine Query`'ye iki yanıt verir: `0x6D` legacy (86 bayt; adres `192.0.2.10:27015`, harita, `valve`, `Half-Life`, numcl, maxcl, protokol **47**, `d`, `l`, parola 0, mod 0, VAC 1, bot 0) ve Source yerleşimli `0x49` (protokol baytı **48**). `0x49`+48 `unknown` kalır (GoldSrc veya eski Xash olabilir); karar `0x6D` yanıtından çıkar. Fixture'lar testlerde bayt bayt sabittir.
 - **Paket (AC-75.P1):** kurulu motorun kendi `connect 127.0.0.1:<port> gs` denemesi yerel dinleyiciyle yakalandı: `FF FF FF FF getchallenge steam\n`, ardından `FF FF FF FF connect 48 <challenge> "\prot\3\unique\-1\raw\steam\cdkey\<32 hex>" "<userinfo>"\n` + ticket. `cl_ticket_generator null` ile ticket tam **512 sıfır bayt**; varsayılan üreteçte (`revemu2013`) ticket sıfır değildir. Pakette `GoldSrcConnect` yoktur. Uygulamanın paketi baş kısım ve 512 sıfır kuyrukla yakalanmış paketle eşleşir; userinfo yalnız `\name\<ad>`'dır.
 - **Yayın kapısı (AC-75.R1), 2026-11-26:** `scripts/verify-goldsrc-connection.sh --confirm` (APFS klon, sandbox, geçici HOME; gerçek motor/oyun verisi/kimlik dosyaları önce = sonra). Motor (gerçek kimliğin klonu, varsayılan ticket): "Trying to connect with GoldSrc 48 protocol" → "Spooling demo header." → "Server issued disconnect. Reason: You have been banned from this server." Uygulamanın probe'u (boş ticket): `goldsrc48`, sunucu reddi "Sorry, no-steam p48 clients are not allowed on this server" → `rejected`. **Kapı GEÇMEDİ** (motor `banned`, probe `rejected`). Neden: (a) sunucu boş ticket'ı Steam'siz istemci diye reddeder; (b) bu sunucuda ban, bağlantı kabul edildikten sonra oturum içinde verilir; oyuncu oturumu açmayan bir probe bunu göremez. Kapının geçmesi için spec kararı gerekir (ör. R1'in boş ticket probe'u için "aynı verdict" yerine "sunucu yanıtı gösterilir" ölçütüyle değiştirilmesi); bu sürüm ban iddiası üretmez.
 - **Uygulama notu (2.26.0, karar bekliyor):** §75.3'teki "`unknown` → CID belirlenemedi, yerel CID gösterilmez" kuralı uygulanmadı; `unknown` (yanıt yok, eski kayıt, `0x49`+48, protokol 17 gibi) mevcut davranışı (source49 varsayılanı: CID hesaplanır/gösterilir, teşhiste connect 49) korur — §75.4 başlatma varsayılanıyla aynı. Gerekçe: kural uygulanırsa ban denetimi kapalı veya sunucu yanıt vermeyen her satırda CID kaybolur. Teşhis JSON'unda `unknown` için `cidApplicable: null` verilir.
 - Motorun konsolu yalnız `-dev 2 -log` ile yazılır; pty üzerinden stdout yakalaması bu sürümde satırı göstermedi (0), konsol günlüğü (`engine.log`) gösterdi (1). Kanıt repo dışında: `$TMPDIR/opencode/pi-goldsrc-gate.*/evidence` (`summary.json`, `engine-excerpt.txt`, `probe.json`); ham kimlik ve ticket kaydedilmez.
 
 ### 75.13 Null-ticket doğrulama sınırı ve motor günlüğü kanıtı (v5.4.2, 2026-11-26)
-- **Canlı bulgu:** geçerli RevEmu ticket'lı yalıtılmış motor (`connect 51.68.190.91:27015 gs`) "Spooling demo header." sonrasında "Server issued disconnect. Reason: You have been banned from this server." aldı; ban bağlantı kurulduktan sonra oturum içinde gelir. Uygulamanın null-ticket probe'u aynı sunucudan yalnız ping/challenge (`FF FF FF FF A …`) veya "Sorry, no-steam p48 clients are not allowed on this server" aldı. Bu yüzden probe'un sessizliği, ping'i, ban metni olmayan reddi veya kabulü **asla "ban yok" değildir**.
+- **Canlı bulgu:** geçerli RevEmu ticket'lı yalıtılmış motor (`connect 192.0.2.10:27015 gs`) "Spooling demo header." sonrasında "Server issued disconnect. Reason: You have been banned from this server." aldı; ban bağlantı kurulduktan sonra oturum içinde gelir. Uygulamanın null-ticket probe'u aynı sunucudan yalnız ping/challenge (`FF FF FF FF A …`) veya "Sorry, no-steam p48 clients are not allowed on this server" aldı. Bu yüzden probe'un sessizliği, ping'i, ban metni olmayan reddi veya kabulü **asla "ban yok" değildir**.
 - **Karar:** GoldSrc yolunda `banned` yalnız ban metniyle (probe yanıtı veya motor günlüğü); aksi `legacyVerificationUnavailable` ("GoldSrc ban durumu doğrulanamadı — sunucuya “Oyuna gir” (gs) ile bağlanıp çıkın, sonra Yenile; uygulama motor günlüğünü okur"). CLI JSON: `banned` `true`/`null` (GoldSrc'de asla `false`), `verdict` `banned`/`legacyVerificationUnavailable`, `cid: null`, `cidApplicable: false`, `serverMessage`, `goldSrcEvidence` (`engineLog`/`probe`). Source49 `banned: false` davranışı değişmez.
 - **Otomatik denetim (yenileme):** GoldSrc 48 sunucuya connect 49 gönderilmez; sonuç `goldSrcUnverified` (turuncu, "GoldSrc: doğrulanamadı"); asla yeşil "Engel yok" değildir. Motor günlüğü ban kanıtı varsa `goldSrcBanned` (kırmızı, "Sunucu banı" / "Sunucu bağlantıyı yasakladı (motor günlüğü).").
 - **Motor günlüğü:** `<veri kökü>/engine.log` (motor `-dev 1 -log` ile açıldığında konsolu yazar; "Oyuna gir" GoldSrc 48'de bunu ekler), salt okunur, son 512 KB. Yalnız **son** "Trying to connect with GoldSrc 48 protocol" bloğu sayılır: bloğun adresi ("Connecting to <adres>…" / "server <adres>") bu sunucunun `host:port`'u veya çözümlenmiş `IP:port`'u olmalı; oturum başlığı ("Game started at …") son 24 saat içinde ve bu oturumdaki son "Oyuna gir"den eski olmamalı; blokta sunucu yanıtı ("Server issued disconnect. Reason: …" veya "Server message" + sonraki satır) olmalı. Başka sunucunun bloğu, eski blok, tarihsiz veya yanıtsız blok kanıt değildir (`unknown`). Gerekçe temizlenir (kontrol karakteri yok, IP maskeli, ≤200 karakter); "ban" içeren gerekçe = ban.
@@ -2122,4 +2122,62 @@ Onay **her seçimde** istenir; kalıcı “her zaman onayla” seçeneği sunulm
 4. Yol var + broker kapalıyken menü öğesi “(broker’ı başlat)” varyantını gösterir ve seçimde onaydan sonra başlatır.
 5. Başlatma hatası kullanıcıya gösterilir; uygulama çökmez.
 6. §76’nın tüm kuralları korunur: oyun cfg’sine yazma yok, yalnız kendi başlattığı broker’ı kapatma, her seçimde gizlilik onayı.
+7. Mevcut testler + yeni testler geçer; l10n parity ve `sync-spec.sh --check` yeşil.
+
+## 78. Broker çalışma dizini ve yöntem belirleme düzeltmesi (v5.6.1, uygulama 2.27.2 build 58)
+
+### 78.1 Sorun (ölçülmüş)
+1. Uygulama broker’ı başlatırken **çalışma dizinini ayarlamıyor**; broker `libsteam_api.dylib`’i `./libsteam_api.dylib` olarak aradığı için bulamıyor ve `sb_error libsteam_api.dylib bulunamadi` döndürüp bağlantıyı kapatıyor → ticket üretilemiyor → sunucu istemciyi reddediyor.
+2. Motor, `+set cl_ticket_generator steam` ile verilen değeri (arşivli cvar) çıkışta **`config.cfg`’ye yazıyor**; sonraki **Standart** başlatma da Steam’e gidiyor ve broker yoksa bağlantı reddediliyor.
+
+### 78.2 Broker tarafı
+- Broker, `libsteam_api.dylib`’i **kendi çalıştırılabilir dosyasının bulunduğu dizinden** yükler (argv[0]/executable yolu); çalışma dizininden yüklemeye **düşmez**.
+- Kütüphane bulunamazsa hata mesajı **aranan tam yolu** içerir ve süreç çökmeden temiz çıkar.
+- Mevcut davranış korunur: `127.0.0.1:27420` dinleme, `sb_gamedir`/`sb_connect`/`sb_disconnect`/`sb_terminate`, tek istemci.
+
+### 78.3 Uygulama tarafı
+- Broker başlatılırken **çalışma dizini broker ikilisinin dizini** olarak ayarlanır (süreç API’sinde cwd parametresi).
+- **Her iki yöntemde de** `+set cl_ticket_generator <değer>` **açıkça** verilir:
+  - Standart → `revemu2013` (motorun varsayılanı)
+  - Steam → `steam`
+- Böylece motorun `config.cfg`’ye yazdığı değer **davranışı etkilemez**; yöntem her zaman başlatma satırından belirlenir.
+- Standart başlatma satırı bu tek cvar dışında **değişmez**; oyun yapılandırma dosyalarına uygulama **yazmaz** (motorun kendi yazımı uygulamanın eylemi değildir; bu yüzden değer her başlatmada açıkça verilir).
+
+### 78.4 Kabul kriterleri ve testler
+1. Standart argv’de `+set cl_ticket_generator revemu2013` bulunur; başka fark yoktur.
+2. Steam argv’sinde `+set cl_ticket_generator steam` bulunur.
+3. `config.cfg` içinde `steam` yazılı olsa bile Standart başlatma `revemu2013` kullanır (regresyon testi: başlatma satırı, cfg’den bağımsız).
+4. Broker başlatılırken cwd = ikilinin dizini (test: sahte süreç çalıştırıcısı cwd’yi doğrular).
+5. Broker, kütüphaneyi ikilinin dizininden yükler; cwd farklı olsa da çalışır (broker testi).
+6. Kütüphane yoksa hata tam yolu gösterir, süreç çökmez.
+7. Mevcut testler + yeni testler geçer; l10n parity ve `sync-spec.sh --check` yeşil.
+
+## 79. Steam yeniden başladığında broker’ı tazeleme (v5.6.2, uygulama 2.27.2 build 58)
+
+### 79.1 Amaç
+Steam istemcisi kapanıp yeniden açıldığında broker’daki Steam oturumu **bayatlar** (ticket üretilemez; ölçüldü: eski broker ile bağlantı kurulmadı, yenisiyle kuruldu). Uygulama bunu kendisi fark etsin ve kullanıcıya **tek tıkla yenileme** sunsun.
+
+### 79.2 Bayatlık tespiti
+Aşağıdakilerden biri doğruysa broker **bayat** sayılır:
+1. Broker sürecinin başlangıç zamanı, **Steam istemcisinin** başlangıç zamanından **önce**dir (Steam, broker’dan sonra açılmış → oturum bayat).
+2. Uygulama çalışırken Steam istemcisi **kapandı** (NSWorkspace terminate bildirimi) ve sonrasında yeniden açıldı.
+- Steam süreci hiç çalışmıyorsa durum `steamSessionMissing` olur (mevcut davranış).
+- Tespit **salt okunur**dur; Steam kimlik bilgisi/ticket okunmaz.
+
+### 79.3 Davranış
+1. Steam kapanınca: **uygulamanın başlattığı** broker durdurulur; kullanıcının kendi başlattığı broker durdurulmaz, yalnız “bayat” olarak işaretlenir.
+2. Steam yeniden açılınca ve broker bayatsa:
+   - Sunucu satırı menüsünde öğe: **“Steam kimliğiyle (broker’ı yeniden başlat)”**
+   - Ayarlar → Bağlantı Yolları: **“Steam yeniden başladı — broker’ı yeniden başlatın”** + **“Yeniden başlat”** düğmesi.
+3. Seçim/buton: gizlilik onayı (yalnız bağlantı için; yeniden başlatma için ayrı onay gerekmez) → broker yeniden başlatılır → bağlantı kurulur.
+4. **Otomatik bağlantı yok**: kullanıcı seçmeden hiçbir şey başlatılmaz/bağlanılmaz.
+5. Yeniden başlatma başarısızsa: anlaşılır hata + ayarlara yönlendirme; çökme yok.
+
+### 79.4 Kabul kriterleri ve testler
+1. Bayatlık: broker başlangıç < Steam başlangıç → `stale` (birim testi, sahte zamanlar).
+2. Steam terminate bildirimi → uygulamanın başlattığı broker durur; kullanıcınınki durmaz.
+3. Menü varyantı: bayat + Steam açık → “(broker’ı yeniden başlat)”; taze → normal öğe.
+4. Ayarlar’daki “Yeniden başlat” yalnız onayla çalışır ve broker’ı `<host>:<port>` argümanıyla yeniden başlatır.
+5. Yeniden başlatma hatası kullanıcıya gösterilir; uygulama çökmez.
+6. §76–§78 kuralları korunur (oyun cfg’sine yazma yok, her bağlantı seçiminde onay, yalnız kendi broker’ını kapatma).
 7. Mevcut testler + yeni testler geçer; l10n parity ve `sync-spec.sh --check` yeşil.

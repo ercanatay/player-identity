@@ -27,13 +27,15 @@ enum GameLaunchError: Error, Sendable, Equatable {
     case steamBrokerUnreachable
     /// §76.3 the broker binary could not be started.
     case steamBrokerStartFailed
+    /// §79 the running broker predates the Steam client (stale) and is not the app's own: it cannot be replaced.
+    case steamBrokerStale
 }
 
 extension GameLaunchError {
     /// §77.3 the broker could not be used (not configured, not listening, not started): the settings help.
     var isSteamBrokerProblem: Bool {
         switch self {
-        case .steamBrokerNotConfigured, .steamBrokerUnreachable, .steamBrokerStartFailed: return true
+        case .steamBrokerNotConfigured, .steamBrokerUnreachable, .steamBrokerStartFailed, .steamBrokerStale: return true
         default: return false
         }
     }
@@ -54,8 +56,15 @@ struct GameLaunchCommand: Sendable, Equatable {
     static let goldSrcLogArguments = ["-dev", "1", "-log"]
     /// §75.13 `open --env` name of the engine's data root.
     static let baseDirVariable = "XASH3D_BASEDIR"
-    /// §76.4 the only argument the Steam identity method adds (launch line only; no game file is written).
-    static let steamArguments = ["+set", "cl_ticket_generator", "steam"]
+    /// §78.3 the only cvar the launch line sets for the identity method (launch line only; the app writes no game
+    /// file). Both methods give it explicitly, so a value the engine saved in `config.cfg` never decides the method.
+    static let ticketGeneratorCvar = "cl_ticket_generator"
+    static let standardTicketGenerator = "revemu2013"
+    static let steamTicketGenerator = "steam"
+
+    static func ticketGeneratorArguments(_ identity: JoinIdentity) -> [String] {
+        ["+set", ticketGeneratorCvar, identity == .steamAuth ? steamTicketGenerator : standardTicketGenerator]
+    }
 
     let app: URL
     let gamedir: String
@@ -65,7 +74,7 @@ struct GameLaunchCommand: Sendable, Equatable {
     var serverProtocol: ServerProtocol = .unknown
     /// §75.13 the data root (`XASH3D_BASEDIR` of a GoldSrc launch; `engine.log` is written there).
     var dataRoot: URL?
-    /// §76 the join identity; `.steamAuth` adds `steamArguments` before `+connect`, `.standard` changes nothing.
+    /// §76/§78 the join identity: decides the value of `+set cl_ticket_generator` placed before `+connect`.
     var identity: JoinIdentity = .standard
 
     init(app: URL, gamedir: String, connect: String, serverProtocol: ServerProtocol = .unknown, dataRoot: URL? = nil,
@@ -80,7 +89,7 @@ struct GameLaunchCommand: Sendable, Equatable {
 
     /// A GoldSrc launch needs a data root; without one the command is not built (`GameLaunchError.noDataRoot`).
     var argv: [String] {
-        let extra = identity == .steamAuth ? Self.steamArguments : []
+        let extra = Self.ticketGeneratorArguments(identity)
         guard serverProtocol == .goldsrc48, let dataRoot else {
             return [Self.openPath, "-a", app.path, "--args", "-game", gamedir] + extra + ["+connect", connect]
         }
@@ -117,16 +126,18 @@ enum GameLaunchAllowlist {
     /// Two exact shapes: `open -a <app> --args -game <dir> +connect <ip:port>` and (§75.13 GoldSrc 48)
     /// `open --env XASH3D_BASEDIR=<absolute data root> -a <app> --args -game <dir> -dev 1 -log +connect <ip:port> gs`.
     static func isAllowed(_ argv: [String]) -> Bool {
-        // §76.4 the Steam identity method adds exactly `+set cl_ticket_generator steam` right before `+connect`.
-        if let marker = argv.firstIndex(of: "+set") {
-            let extra = GameLaunchCommand.steamArguments
-            guard argv.count > marker + extra.count, Array(argv[marker..<(marker + extra.count)]) == extra,
-                  argv[marker + extra.count] == "+connect" else { return false }
-            var stripped = argv
-            stripped.removeSubrange(marker..<(marker + extra.count))
-            guard !stripped.contains("+set") else { return false }
-            return isAllowed(stripped)
-        }
+        // §78.3 exactly one `+set cl_ticket_generator <revemu2013|steam>` right before `+connect`.
+        guard let marker = argv.firstIndex(of: "+set"), argv.count > marker + 3,
+              [GameLaunchCommand.standardTicketGenerator, GameLaunchCommand.steamTicketGenerator].map({
+                  ["+set", GameLaunchCommand.ticketGeneratorCvar, $0]
+              }).contains(Array(argv[marker..<(marker + 3)])), argv[marker + 3] == "+connect" else { return false }
+        var stripped = argv
+        stripped.removeSubrange(marker..<(marker + 3))
+        guard !stripped.contains("+set") else { return false }
+        return isBaseShape(stripped)
+    }
+
+    private static func isBaseShape(_ argv: [String]) -> Bool {
         guard argv.first == GameLaunchCommand.openPath else { return false }
         if argv.count == 8 {
             return argv[1] == "-a" && isAppPath(argv[2]) && argv[3] == "--args" && argv[4] == "-game" && isGamedir(argv[5])

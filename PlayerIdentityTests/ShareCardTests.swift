@@ -5,9 +5,9 @@ import XCTest
 
 /// §33 CID share card: size, content, QR, truncation, missing fields.
 final class ShareCardTests: XCTestCase {
-    private static let cid = "d9de0eb4419608a8423241430581e91c"
+    private static let cid = "668afa7c2daff879e69f6aae714ef3b4"
 
-    private func content(name: String = "POLIGON RPG", player: String = "Oyuncu") -> ShareCardContent {
+    private func content(name: String = "Example Server", player: String = "Oyuncu") -> ShareCardContent {
         ShareCardContent(serverName: name, hostPort: "192.0.2.10:27015", cid: Self.cid, playerName: player,
                          dateText: "09.11.2026 13:45",
                          labels: ShareCardLabels(title: "Cybokron Oyuncu Kimlik Kartı", server: "Sunucu", cid: "CID",

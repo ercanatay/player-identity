@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "您的 IP 已更改（动态 IP 属正常现象）。若此值正确，请按“保存”。";
 "suggestion.lanIPChanged" = "局域网已更改（可能是切换了 Wi-Fi/以太网）。若是预期的更改，请按“保存”。";
 "suggestion.serverCIDChanged" = "服务器 CID 与记录不符；身份来源可能已更改。刷新后按“保存”。";
-"suggestion.invalidHost" = "按 IP:端口 格式输入地址（例如 51.68.190.91:27015）。";
+"suggestion.invalidHost" = "按 IP:端口 格式输入地址（例如 192.0.2.10:27015）。";
 "suggestion.lanIPMissing" = "检查网络连接（Wi-Fi/以太网），然后按“刷新”。";
 "suggestion.nameEmpty" = "在游戏中设置玩家名称，退出游戏并按“刷新”。";
 "suggestion.modelEmpty" = "在游戏中选取玩家模型，退出游戏并按“刷新”。";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "在常见位置中未找到代理。";
 "steam.settings.foundOther" = "找到了另一个代理：%@。您设置的路径将保留。";
 "steam.error.settingsHint" = "请在 设置 › 连接路径 中检查代理路径。";
+"steam.join.steamAuthRestart" = "使用 Steam 身份（重启代理）";
+"steam.state.stale" = "代理已过时（Steam 已重启）";
+"steam.settings.stale" = "Steam 已重启，请重启代理";
+"steam.settings.restart" = "重启";
+"steam.error.stale" = "正在运行的代理是在 Steam 启动之前启动的，应用无法替换它。请先停止它，然后重试。";

@@ -16,10 +16,10 @@ final class SnapshotTests: XCTestCase {
                                  checkedAt: Date(timeIntervalSince1970: 1_793_000_010)),
             servers: [
                 ServerEntry(id: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
-                            label: "Test", host: "95.173.174.175", port: 27015,
-                            cid: "68f8c1fb2a23cb02409b8a3231487970",
+                            label: "Test", host: "198.51.100.1", port: 27015,
+                            cid: "38deb7f5293007bd3ab41c70a43a5cbd",
                             lastCheckedAt: Date(timeIntervalSince1970: 1_793_000_020)),
-                ServerEntry(label: "Yeni", host: "51.68.190.91"),
+                ServerEntry(label: "Yeni", host: "192.0.2.10"),
             ])
     }
 

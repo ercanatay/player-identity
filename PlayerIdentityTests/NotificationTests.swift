@@ -7,21 +7,21 @@ final class NotificationPlannerTests: XCTestCase {
     private let server = UUID()
 
     private func entry(_ kind: HistoryKind, old: String? = "a", new: String? = "b", note: String? = nil) -> HistoryEntry {
-        HistoryEntry(ts: t0, kind: kind, serverID: server, host: "51.68.190.91", old: old, new: new, note: note)
+        HistoryEntry(ts: t0, kind: kind, serverID: server, host: "192.0.2.10", old: old, new: new, note: note)
     }
 
     func testMappingOfKinds() throws {
         try L10n.$bundle.withValue(XCTUnwrap(L10n.languageBundle("tr"))) {
-            let ban = NotificationPlanner.content(for: entry(.banAppeared, old: nil, new: "ipBanned"), serverLabel: "POLIGON")
+            let ban = NotificationPlanner.content(for: entry(.banAppeared, old: nil, new: "ipBanned"), serverLabel: "Example")
             XCTAssertNil(ban)   // first observation
             let appeared = try XCTUnwrap(NotificationPlanner.content(for: entry(.banAppeared, old: "ipBanned", new: "cidBanned"),
-                                                                     serverLabel: "POLIGON"))
+                                                                     serverLabel: "Example"))
             XCTAssertEqual(appeared.title, "Ban başladı")
-            XCTAssertEqual(appeared.body, "POLIGON: CID ban")
+            XCTAssertEqual(appeared.body, "Example: CID ban")
             let lifted = try XCTUnwrap(NotificationPlanner.content(for: entry(.banLifted, old: "ipBanned", new: "ipOk"),
                                                                    serverLabel: nil))
             XCTAssertEqual(lifted.title, "Ban kalktı")
-            XCTAssertEqual(lifted.body, "51.68.190.91: Engel yok")
+            XCTAssertEqual(lifted.body, "192.0.2.10: Engel yok")
             let ip = try XCTUnwrap(NotificationPlanner.content(for: entry(.ipChanged, old: "1.1.1.1", new: "2.2.2.2"),
                                                                serverLabel: nil))
             XCTAssertEqual(ip.title, "Genel IP değişti")

@@ -36,7 +36,7 @@ final class IntentTests: XCTestCase {
                              udpTransport: udp ?? FakeServer.healthy(clock: clock), now: { clock.now })
     }
 
-    private let eu = ServerEntry(label: "POLIGON RPG", host: "51.68.190.91")
+    private let eu = ServerEntry(label: "Example Server", host: "192.0.2.10")
     private let tr = ServerEntry(label: "Zombie TR", host: "play.example.com", port: 27016)
     private let tr2 = ServerEntry(label: "Zombie TR 2", host: "2001:db8::1")
 
@@ -44,17 +44,17 @@ final class IntentTests: XCTestCase {
         let servers = [eu, tr, tr2]
         func resolve(_ query: String?) -> Result<ServerEntry, IntentFailure> { IntentServerResolution.resolve(query, in: servers) }
         XCTAssertEqual(resolve(eu.id.uuidString), .success(eu))
-        XCTAssertEqual(resolve("poligon rpg"), .success(eu))                       // case-insensitive label
+        XCTAssertEqual(resolve("example server"), .success(eu))                       // case-insensitive label
         XCTAssertEqual(resolve("zombie tr"), .success(tr))                         // exact label wins over prefix
         XCTAssertEqual(resolve("Zombie"), .failure(.ambiguous(["Zombie TR", "Zombie TR 2"])))
-        XCTAssertEqual(resolve("POLI"), .success(eu))                              // unique prefix
-        XCTAssertEqual(resolve("51.68.190.91"), .success(eu))
+        XCTAssertEqual(resolve("EXAM"), .success(eu))                              // unique prefix
+        XCTAssertEqual(resolve("192.0.2.10"), .success(eu))
         XCTAssertEqual(resolve("Play.Example.com:27016"), .success(tr))
         XCTAssertEqual(resolve("play.example.com:27015"), .failure(.serverNotFound("play.example.com:27015")))
         XCTAssertEqual(resolve("[2001:db8::1]:27015"), .success(tr2))
         XCTAssertEqual(resolve("2001:DB8::1"), .success(tr2))
         XCTAssertEqual(resolve("nothing"), .failure(.serverNotFound("nothing")))
-        XCTAssertEqual(resolve(nil), .failure(.ambiguous(["POLIGON RPG", "Zombie TR", "Zombie TR 2"])))
+        XCTAssertEqual(resolve(nil), .failure(.ambiguous(["Example Server", "Zombie TR", "Zombie TR 2"])))
         XCTAssertEqual(IntentServerResolution.resolve(nil, in: [eu]), .success(eu))       // only server
         XCTAssertEqual(IntentServerResolution.resolve("x", in: []), .failure(.noServers))
     }
@@ -64,12 +64,12 @@ final class IntentTests: XCTestCase {
         XCTAssertEqual(ServerEntity(entry: tr2).address, "[2001:db8::1]:27015")
         let query = ServerEntityQuery()
         let value1 = try await query.suggestedEntities().map(\.label)
-        XCTAssertEqual(value1, ["Zombie TR", "POLIGON RPG", "Zombie TR 2"])
+        XCTAssertEqual(value1, ["Zombie TR", "Example Server", "Zombie TR 2"])
         let value2 = try await query.entities(for: [eu.id, UUID()]).map(\.id)
         XCTAssertEqual(value2, [eu.id])
         let value3 = try await query.entities(matching: "zombie").map(\.label)
         XCTAssertEqual(value3, ["Zombie TR", "Zombie TR 2"])
-        let value4 = try await query.entities(matching: "51.68.190.91").map(\.id)
+        let value4 = try await query.entities(matching: "192.0.2.10").map(\.id)
         XCTAssertEqual(value4, [eu.id])
         let value5 = try await query.entities(matching: "none")
         XCTAssertEqual(value5, [])
@@ -81,12 +81,12 @@ final class IntentTests: XCTestCase {
     }
 
     func testShowCIDAndCheckBan() async throws {
-        let resolver = FakeAddressResolver(["play.example.com": .success([TestAddresses.v4("51.68.190.91")])])
+        let resolver = FakeAddressResolver(["play.example.com": .success([TestAddresses.v4("192.0.2.10")])])
         IntentEnvironment.service = try service(servers: [eu, tr], resolver: resolver)
         let value7 = try await IntentRunner.cid(ServerEntity(entry: eu))
-        XCTAssertEqual(value7, "d9de0eb4419608a8423241430581e91c")
+        XCTAssertEqual(value7, "668afa7c2daff879e69f6aae714ef3b4")
         let value8 = try await IntentRunner.cid(ServerEntity(entry: tr))
-        XCTAssertEqual(value8, "d9de0eb4419608a8423241430581e91c")
+        XCTAssertEqual(value8, "668afa7c2daff879e69f6aae714ef3b4")
         let value9 = try await IntentRunner.checkBan(ServerEntity(entry: eu))
         XCTAssertEqual(value9, "cidOk")
 

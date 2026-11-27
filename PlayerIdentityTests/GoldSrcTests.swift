@@ -1,7 +1,7 @@
 import XCTest
 @testable import PlayerIdentity
 
-/// §75 captured packets. The A2S replies come from the public server 51.68.190.91:27015 (POLIGON RPG, 2026-11-26):
+/// §75 captured packets. The A2S replies come from the public server 192.0.2.10:27015 (Example Server, 2026-11-26):
 /// it answers one `TSource Engine Query` with a legacy `0x6D` reply (protocol byte 47) and a Source `0x49` reply
 /// (protocol byte 48). The connect packet head comes from the engine's own `connect 127.0.0.1:27999 gs` with
 /// `cl_ticket_generator null` against a local listener; its userinfo (engine cvars) is not kept here.
@@ -17,16 +17,16 @@ enum GoldSrcFixture {
         return result
     }
 
-    /// Legacy `0x6D` reply, 86 bytes.
-    static let poligonLegacy = bytes(
-        "ffffffff6d35312e36382e3139302e39313a323730313500504f4c49474f4e20525047205b742e6d652f706f6c69676f6e5f7270675d00"
+    /// Legacy `0x6D` reply.
+    static let goldSrcLegacy = bytes(
+        "ffffffff6d3139322e302e322e31303a3237303135004578616d706c6520536572766572205b6578616d706c652e696e76616c69645d00"
         + "58666972650076616c76650048616c662d4c69666500091a2f646c00000100")
-    /// Source-layout `0x49` reply of the same server, 85 bytes (protocol byte 48).
-    static let poligonSourceLayout = bytes(
-        "ffffffff4930504f4c49474f4e20525047205b742e6d652f706f6c69676f6e5f7270675d0058666972650076616c76650048616c662d"
+    /// Source-layout `0x49` reply of the same server (protocol byte 48).
+    static let goldSrcSourceLayout = bytes(
+        "ffffffff49304578616d706c6520536572766572205b6578616d706c652e696e76616c69645d0058666972650076616c76650048616c662d"
         + "4c696665004600091a00646c0001312e312e322e372f537464696f00808769")
     /// The server's `getchallenge` reply.
-    static let poligonChallenge: [UInt8] = [0xFF, 0xFF, 0xFF, 0xFF] + Array("A00000000 1270654979 2\n".utf8) + [0]
+    static let goldSrcChallenge: [UInt8] = [0xFF, 0xFF, 0xFF, 0xFF] + Array("A00000000 1270654979 2\n".utf8) + [0]
     /// Engine connect packet up to the opening quote of the userinfo (challenge 1234567890 from the local listener).
     static let capturedConnectHead = bytes(
         "ffffffff636f6e6e656374203438203132333435363738393020225c70726f745c335c756e697175655c2d315c7261775c737465616d5c"
@@ -36,7 +36,7 @@ enum GoldSrcFixture {
     static let capturedGetChallenge = bytes("ffffffff6765746368616c6c656e676520737465616d0a")
 
     /// The server's real answer to a modern connect 49 (captured 2026-11-26 with a zero CID).
-    static let poligonOlderProtocol: [UInt8] = [0xFF, 0xFF, 0xFF, 0xFF] + Array(("9This server is using an older protocol ( 48 ) "
+    static let goldSrcOlderProtocol: [UInt8] = [0xFF, 0xFF, 0xFF, 0xFF] + Array(("9This server is using an older protocol ( 48 ) "
         + "than your client ( 49 ).  If you believe this server is outdated, you can contact the server administrator at "
         + "(no email address specified).\n").utf8) + [0]
 
@@ -60,7 +60,7 @@ enum GoldSrcFixture {
     }
 
     /// Fake GoldSrc server: legacy A2S reply, text challenge, scripted connect reply.
-    static func server(clock: TestClock, info: [UInt8] = poligonLegacy, challenge: FakeReply? = FakeReply(bytes: poligonChallenge),
+    static func server(clock: TestClock, info: [UInt8] = goldSrcLegacy, challenge: FakeReply? = FakeReply(bytes: goldSrcChallenge),
                        connect: FakeReply?) -> FakeUDPTransport {
         FakeUDPTransport(clock: clock) { _, packet in
             if FakeServer.isInfo(packet) { return [FakeReply(bytes: info)] }
@@ -80,29 +80,29 @@ final class GoldSrcParserTests: XCTestCase {
     /// AC-75.G1 (T-75-1): the captured legacy reply is `goldsrc48`; name, map, gamedir and protocol are right and the
     /// address string is kept (never used to connect).
     func testCapturedLegacyReplyIsGoldSrc48() throws {
-        let inspection = ServerInfoParser.inspect(GoldSrcFixture.poligonLegacy)
+        let inspection = ServerInfoParser.inspect(GoldSrcFixture.goldSrcLegacy)
         let info = try XCTUnwrap(inspection.info)
         XCTAssertFalse(inspection.malformed)
         XCTAssertEqual(inspection.trailingBytes, 0)
         XCTAssertEqual(info.serverProtocol, .goldsrc48)
         XCTAssertEqual(info.protocolVersion, 47)   // HLDS reports 47 in the legacy reply
-        XCTAssertEqual(info.name, "POLIGON RPG [t.me/poligon_rpg]")
+        XCTAssertEqual(info.name, "Example Server [example.invalid]")
         XCTAssertEqual(info.map, "Xfire")
         XCTAssertEqual(info.folder, "valve")
         XCTAssertEqual(info.game, "Half-Life")
         XCTAssertEqual(info.players, 9)
         XCTAssertEqual(info.maxPlayers, 26)
-        XCTAssertEqual(info.reportedAddress, "51.68.190.91:27015")
+        XCTAssertEqual(info.reportedAddress, "192.0.2.10:27015")
         // Protocol byte 48 is GoldSrc 48 as well.
         XCTAssertEqual(ServerInfoParser.parse(GoldSrcFixture.legacy(protocolByte: 48))?.serverProtocol, .goldsrc48)
     }
 
     /// The same server's Source-layout reply has protocol byte 48: GoldSrc 48 too (v5.4.3), never `source49`.
     func testSourceLayoutWithProtocol48IsGoldSrc() throws {
-        let info = try XCTUnwrap(ServerInfoParser.parse(GoldSrcFixture.poligonSourceLayout))
+        let info = try XCTUnwrap(ServerInfoParser.parse(GoldSrcFixture.goldSrcSourceLayout))
         XCTAssertEqual(info.serverProtocol, .goldsrc48)
         XCTAssertEqual(info.protocolVersion, 48)
-        XCTAssertEqual(info.name, "POLIGON RPG [t.me/poligon_rpg]")
+        XCTAssertEqual(info.name, "Example Server [example.invalid]")
         XCTAssertEqual(info.map, "Xfire")
         XCTAssertEqual(info.players, 9)
         XCTAssertEqual(info.maxPlayers, 26)
@@ -142,13 +142,13 @@ final class GoldSrcParserTests: XCTestCase {
     /// AC-75.C1 (T-75-4): truncated, unterminated, duplicated field, wrong protocol byte, other type → never a false
     /// `goldsrc48` and never a crash.
     func testMalformedRepliesAreUnknown() {
-        let full = GoldSrcFixture.poligonLegacy
+        let full = GoldSrcFixture.goldSrcLegacy
         for length in 0..<full.count {
             let inspection = ServerInfoParser.inspect(Array(full.prefix(length)))
             XCTAssertNotEqual(inspection.info?.serverProtocol, .goldsrc48, "prefix \(length)")
             if length >= 5 { XCTAssertTrue(inspection.malformed, "prefix \(length)") }
         }
-        let unterminated = A2SFixture.header + [0x6D] + Array("51.68.190.91:27015".utf8)
+        let unterminated = A2SFixture.header + [0x6D] + Array("192.0.2.10:27015".utf8)
         XCTAssertEqual(ServerInfoParser.parse(unterminated)?.serverProtocol, .unknown)
         // The name twice: every later field shifts, the protocol byte is not GoldSrc's.
         let duplicated = A2SFixture.header + [0x6D] + A2SFixture.cString("192.0.2.30:27015") + A2SFixture.cString("Legacy")
@@ -173,7 +173,7 @@ final class GoldSrcParserTests: XCTestCase {
         let check = try SnapshotStore.makeDecoder().decode(BanCheck.self, from: old)
         XCTAssertEqual(check.info?.serverProtocol, .unknown)
         XCTAssertEqual(check.info?.maxPlayers, 2)
-        let info = try XCTUnwrap(ServerInfoParser.parse(GoldSrcFixture.poligonLegacy))
+        let info = try XCTUnwrap(ServerInfoParser.parse(GoldSrcFixture.goldSrcLegacy))
         let data = try SnapshotStore.makeEncoder().encode(info)
         XCTAssertTrue(String(decoding: data, as: UTF8.self).contains(#""protocol" : "goldsrc48""#))
         XCTAssertEqual(try SnapshotStore.makeDecoder().decode(ServerInfo.self, from: data), info)
@@ -187,9 +187,9 @@ final class GoldSrcParserTests: XCTestCase {
 // MARK: - §75.3 CID (T-75-5 … T-75-7)
 
 final class GoldSrcCIDTests: XCTestCase {
-    private let host = "51.68.190.91"
+    private let host = "192.0.2.10"
     private static let rawID: UInt64 = 0
-    private static let sourceCID = "d9de0eb4419608a8423241430581e91c"   // raw ID 0 + 51.68.190.91 (§4)
+    private static let sourceCID = "668afa7c2daff879e69f6aae714ef3b4"   // raw ID 0 + 192.0.2.10 (§4)
 
     private func entry(_ serverProtocol: ServerProtocol?, cid: String = "") -> ServerEntry {
         let info = serverProtocol.map { ServerInfo(name: "S", serverProtocol: $0) }
@@ -273,16 +273,16 @@ final class GoldSrcCIDTests: XCTestCase {
 
 @MainActor
 final class GoldSrcAppModelTests: XCTestCase {
-    private static let legacyCID = "d9de0eb4419608a8423241430581e91c"
+    private static let legacyCID = "668afa7c2daff879e69f6aae714ef3b4"
     private static let app = "/Applications/Xash3D-FWGS.app"
 
-    private func writeLegacyRecord(_ env: TestAppEnvironment, host: String = "51.68.190.91") throws -> UUID {
+    private func writeLegacyRecord(_ env: TestAppEnvironment, host: String = "192.0.2.10") throws -> UUID {
         let id = UUID()
         let record = Snapshot(savedAt: Date(timeIntervalSince1970: 1_793_000_000), gamedir: "valve",
                               dataRoot: env.home.appendingPathComponent("Library/Application Support/Xash3D FWGS").path,
                               displayName: "N", model: "gordon", rawID: "0000000000000000", identitySource: "",
                               network: NetworkInfo(publicIP: "203.0.113.7", lanIPs: ["en0 192.0.2.10"]),
-                              servers: [ServerEntry(id: id, label: "POLIGON", host: host, cid: Self.legacyCID)])
+                              servers: [ServerEntry(id: id, label: "Example", host: host, cid: Self.legacyCID)])
         try SnapshotStore(fileURL: AppPaths(home: env.home).snapshotFile).save(record)
         return id
     }
@@ -329,14 +329,14 @@ final class GoldSrcAppModelTests: XCTestCase {
         let runner = FakeGameLaunchRunner()
         final class Script: @unchecked Sendable {
             let lock = NSLock()
-            var reply = GoldSrcFixture.poligonLegacy
+            var reply = GoldSrcFixture.goldSrcLegacy
             var silent = false
         }
         let script = Script()
         let transport = FakeUDPTransport(clock: env.clock) { _, packet in
             script.lock.lock(); defer { script.lock.unlock() }
             if FakeServer.isInfo(packet) { return script.silent ? [] : [FakeReply(bytes: script.reply)] }
-            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.poligonChallenge)] }
+            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.goldSrcChallenge)] }
             return []
         }
         let model = env.makeModel(udp: transport) {
@@ -344,7 +344,7 @@ final class GoldSrcAppModelTests: XCTestCase {
                                                homeDirectory: URL(fileURLWithPath: "/Users/test"))
             $0.gameLaunchRunner = runner
         }
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         // Nothing known yet → source49 default.
         await model.joinGame(id)?.value
@@ -358,9 +358,9 @@ final class GoldSrcAppModelTests: XCTestCase {
         script.lock.withLock { script.silent = false; script.reply = GoldSrcFixture.source49() }
         await model.refresh().value
         await model.joinGame(id)?.value
-        let base = ["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve", "+connect", "51.68.190.91:27015"]
+        let base = ["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve", "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015"]
         let goldSrc = ["/usr/bin/open", "--env", "XASH3D_BASEDIR=" + model.dataRoot.standardizedFileURL.path, "-a", Self.app,
-                       "--args", "-game", "valve", "-dev", "1", "-log", "+connect", "51.68.190.91:27015", "gs"]
+                       "--args", "-game", "valve", "-dev", "1", "-log", "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015", "gs"]
         XCTAssertEqual(runner.commands, [base, goldSrc, goldSrc, base])
         XCTAssertNotNil(model.goldSrcJoins[id])
         XCTAssertTrue(runner.commands.allSatisfy(GameLaunchAllowlist.isAllowed))
@@ -380,25 +380,25 @@ final class GoldSrcLaunchTests: XCTestCase {
 
     /// AC-75.L1 (T-75-8): exact arguments per protocol; the key is `gs`, never `legacy`.
     func testLaunchArgumentsPerProtocol() async throws {
-        let base = ["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve", "+connect", "51.68.190.91:27015"]
-        let source = try await launcher().plan(host: "51.68.190.91", port: 27015, gamedir: "valve", serverProtocol: .source49)
+        let base = ["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve", "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015"]
+        let source = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve", serverProtocol: .source49)
         XCTAssertEqual(source.command.argv, base)
         let root = URL(fileURLWithPath: "/Users/test/Library/Application Support/Xash3D FWGS", isDirectory: true)
-        let goldSrc = try await launcher().plan(host: "51.68.190.91", port: 27015, gamedir: "valve", serverProtocol: .goldsrc48,
+        let goldSrc = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve", serverProtocol: .goldsrc48,
                                                 dataRoot: root)
         // §75.13: `XASH3D_BASEDIR` reaches the engine (open --env), so engine.log lands in the data root.
         let goldSrcArgv = ["/usr/bin/open", "--env", "XASH3D_BASEDIR=/Users/test/Library/Application Support/Xash3D FWGS",
                            "-a", Self.app, "--args", "-game", "valve", "-dev", "1", "-log",
-                           "+connect", "51.68.190.91:27015", "gs"]
+                           "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015", "gs"]
         XCTAssertEqual(goldSrc.command.argv, goldSrcArgv)
         XCTAssertEqual(goldSrc.command.engineLogURL?.path, "/Users/test/Library/Application Support/Xash3D FWGS/engine.log")
         do {
-            _ = try await launcher().plan(host: "51.68.190.91", port: 27015, gamedir: "valve", serverProtocol: .goldsrc48)
+            _ = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve", serverProtocol: .goldsrc48)
             XCTFail("a GoldSrc launch without a data root must not be built")
         } catch let error as GameLaunchError {
             XCTAssertEqual(error, .noDataRoot)
         }
-        let unknown = try await launcher().plan(host: "51.68.190.91", port: 27015, gamedir: "valve", serverProtocol: .unknown)
+        let unknown = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve", serverProtocol: .unknown)
         XCTAssertEqual(unknown.command.argv, base)
         let ipv6 = try await launcher().plan(host: "2001:db8::1", port: 27016, gamedir: nil, serverProtocol: .goldsrc48,
                                              dataRoot: root)
@@ -430,7 +430,7 @@ final class GoldSrcLaunchTests: XCTestCase {
     func testProtocolMemory() {
         let id = UUID()
         let t0 = Date(timeIntervalSince1970: 1_793_000_000)
-        var entry = ServerEntry(id: id, label: "S", host: "51.68.190.91")
+        var entry = ServerEntry(id: id, label: "S", host: "192.0.2.10")
         var memory = ServerProtocolMemory()
         XCTAssertEqual(memory.launchProtocol(for: entry), .unknown)
         memory.record(.goldsrc48, for: id, host: entry.host, port: entry.port, at: t0)
@@ -446,7 +446,7 @@ final class GoldSrcLaunchTests: XCTestCase {
                                   info: ServerInfo(serverProtocol: .goldsrc48))
         XCTAssertEqual(memory.launchProtocol(for: entry), .goldsrc48)
         // Another port: the memory does not apply.
-        var moved = ServerEntry(id: id, label: "S", host: "51.68.190.91", port: 27016)
+        var moved = ServerEntry(id: id, label: "S", host: "192.0.2.10", port: 27016)
         moved.banCheck = nil
         XCTAssertEqual(memory.launchProtocol(for: moved), .unknown)
     }
@@ -455,7 +455,7 @@ final class GoldSrcLaunchTests: XCTestCase {
 // MARK: - §75.6 legacy probe packets and replies (T-75-10 … T-75-15)
 
 final class GoldSrcProbeTests: XCTestCase {
-    private let host = "51.68.190.91"
+    private let host = "192.0.2.10"
 
     /// AC-75.P1 (T-75-10): the exact byte vector; it matches the engine's captured packet (head, `"\n` + 512 zeros).
     func testConnectPacketByteVector() throws {
@@ -491,7 +491,7 @@ final class GoldSrcProbeTests: XCTestCase {
 
     /// Challenge from the captured server reply; ban text at the challenge; garbage.
     func testChallengeReplies() {
-        XCTAssertEqual(GoldSrcReplies.challenge(GoldSrcFixture.poligonChallenge), .challenge("1270654979"))
+        XCTAssertEqual(GoldSrcReplies.challenge(GoldSrcFixture.goldSrcChallenge), .challenge("1270654979"))
         XCTAssertEqual(GoldSrcReplies.challenge(FakeServer.oobText("A00000000 1270654979 3 1 1\n")), .challenge("1270654979"))
         XCTAssertEqual(GoldSrcReplies.challenge(FakeServer.oobText("lYou have been banned from this server.\n")),
                        .banned("You have been banned from this server."))
@@ -520,7 +520,7 @@ final class GoldSrcProbeTests: XCTestCase {
 // MARK: - §75.5 diagnosis paths (T-75-11 … T-75-15)
 
 final class GoldSrcDiagnosisTests: XCTestCase {
-    private let host = "51.68.190.91"
+    private let host = "192.0.2.10"
     private let clock = TestClock()
 
     private func inLanguage<T>(_ language: String, _ body: () throws -> T) throws -> T {
@@ -581,17 +581,17 @@ final class GoldSrcDiagnosisTests: XCTestCase {
     /// §75.2: both replies of one query (`0x6D` legacy + `0x49`/48) in either order → the legacy reply is kept;
     /// either way GoldSrc 48, no connect 49, no CID.
     func testLegacyReplyIsPreferredInEitherOrder() async throws {
-        for order in [[GoldSrcFixture.poligonLegacy, GoldSrcFixture.poligonSourceLayout],
-                      [GoldSrcFixture.poligonSourceLayout, GoldSrcFixture.poligonLegacy]] {
+        for order in [[GoldSrcFixture.goldSrcLegacy, GoldSrcFixture.goldSrcSourceLayout],
+                      [GoldSrcFixture.goldSrcSourceLayout, GoldSrcFixture.goldSrcLegacy]] {
             let transport = FakeUDPTransport(clock: clock) { _, packet in
                 if FakeServer.isInfo(packet) { return order.map { FakeReply(bytes: $0) } }
-                if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.poligonChallenge)] }
+                if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.goldSrcChallenge)] }
                 return []
             }
             let result = try await run(transport, request(confirmed: false))
             XCTAssertEqual(result.serverProtocol, .goldsrc48)
             XCTAssertEqual(result.info?.protocolVersion, 47)   // the legacy reply
-            XCTAssertEqual(result.info?.reportedAddress, "51.68.190.91:27015")
+            XCTAssertEqual(result.info?.reportedAddress, "192.0.2.10:27015")
             XCTAssertFalse(transport.sentPackets.contains(where: FakeServer.isConnect))
             XCTAssertNil(result.cid)
             let clock = self.clock
@@ -604,8 +604,8 @@ final class GoldSrcDiagnosisTests: XCTestCase {
         }
         // Only the Source-layout reply: still GoldSrc 48 (the short window passes without a legacy reply).
         let only49 = FakeUDPTransport(clock: clock) { _, packet in
-            if FakeServer.isInfo(packet) { return [FakeReply(bytes: GoldSrcFixture.poligonSourceLayout)] }
-            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.poligonChallenge)] }
+            if FakeServer.isInfo(packet) { return [FakeReply(bytes: GoldSrcFixture.goldSrcSourceLayout)] }
+            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.goldSrcChallenge)] }
             return []
         }
         let result = try await run(only49, request(confirmed: false))
@@ -617,7 +617,7 @@ final class GoldSrcDiagnosisTests: XCTestCase {
     /// §75.4: an A2S time-out does not undo a known GoldSrc result — connect 49 is still never sent.
     func testKnownGoldSrcProtocolSurvivesAnA2STimeout() async throws {
         let transport = FakeUDPTransport(clock: clock) { _, packet in
-            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.poligonChallenge)] }
+            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.goldSrcChallenge)] }
             if FakeServer.isConnect(packet) { return [FakeReply(bytes: FakeServer.oobText("A00000000 1 3 1 1\n"))] }
             return []
         }
@@ -682,7 +682,7 @@ final class GoldSrcDiagnosisTests: XCTestCase {
                                   scannedLines: 1)
         XCTAssertEqual(DiagnosisClassifier.final(probe: .legacyVerificationUnavailable, log: log), .legacyVerificationUnavailable)
         XCTAssertEqual(DiagnosisClassifier.final(probe: .goldSrcBanned, log: log), .goldSrcBanned)
-        let diagnosis = ConnectionDiagnosis(serverID: UUID(), label: "POLIGON", host: host, port: 27015,
+        let diagnosis = ConnectionDiagnosis(serverID: UUID(), label: "Example", host: host, port: 27015,
                                             startedAt: clock.now, probe: result, engineLog: log)
         XCTAssertEqual(diagnosis.bannedValue, true)
         XCTAssertTrue(diagnosis.verdict.isBan)
@@ -695,7 +695,7 @@ final class GoldSrcDiagnosisTests: XCTestCase {
         XCTAssertFalse(early.sentPackets.contains(where: FakeServer.isConnect))
     }
 
-    /// AC-75.P4 (T-75-13): a refusal without a ban text names the server's reason (the real POLIGON reply).
+    /// AC-75.P4 (T-75-13): a refusal without a ban text names the server's reason (the real Example reply).
     func testRejectionNamesTheReason() async throws {
         let transport = GoldSrcFixture.server(clock: clock, connect: FakeReply(bytes: FakeServer.oobText(
             "9Sorry, no-steam p48 clients are not allowed on this server\n")))
@@ -720,7 +720,7 @@ final class GoldSrcDiagnosisTests: XCTestCase {
         let silentDiagnosis = ConnectionDiagnosis(serverID: nil, label: "", host: host, port: 27015, startedAt: clock.now,
                                                   probe: result, engineLog: .missing)
         XCTAssertNil(silentDiagnosis.bannedValue)
-        // The live POLIGON answer to the null-ticket probe can be a bare `A…` packet (ping/challenge): unverified.
+        // The live Example answer to the null-ticket probe can be a bare `A…` packet (ping/challenge): unverified.
         let ping = GoldSrcFixture.server(clock: clock, connect: FakeReply(bytes: FakeServer.oobText("A00000000 1270654979 3 1 1\n")))
         let pingResult = try await run(ping, request())
         XCTAssertEqual(pingResult.goldSrc?.outcome, .incomplete)
@@ -755,7 +755,7 @@ final class GoldSrcDiagnosisTests: XCTestCase {
         let transport = GoldSrcFixture.server(clock: clock,
                                               connect: FakeReply(bytes: FakeServer.oobText("9You have been banned from this server.\n")))
         let result = try await run(transport, request(rawID: 0x0123456789ABCDEF))
-        let diagnosis = ConnectionDiagnosis(serverID: UUID(), label: "POLIGON", host: host, port: 27015, startedAt: clock.now,
+        let diagnosis = ConnectionDiagnosis(serverID: UUID(), label: "Example", host: host, port: 27015, startedAt: clock.now,
                                             probe: result, engineLog: .missing, publicIP: "198.51.100.10")
         let cid = CIDCalculator.cid(rawID: 0x0123456789ABCDEF, address: TestAddresses.v4(host))
         let target = CLIServerTarget(host: host, port: 27015, serverID: UUID(), label: "", index: nil, savedCID: cid)
@@ -790,11 +790,11 @@ final class GoldSrcPresentationTests: XCTestCase {
         facts.serverProtocol = .goldsrc48
         facts.goldSrc = outcome
         var probe = ConnectionProbeResult(steps: [], facts: facts, verdict: DiagnosisClassifier.verdict(facts),
-                                          address: "51.68.190.91",
-                                          info: ServerInfo(name: "POLIGON RPG", serverProtocol: .goldsrc48))
+                                          address: "192.0.2.10",
+                                          info: ServerInfo(name: "Example Server", serverProtocol: .goldsrc48))
         probe.serverProtocol = .goldsrc48
         probe.goldSrc = GoldSrcProbeResult(outcome, message: message)
-        return ConnectionDiagnosis(serverID: UUID(), label: "POLIGON", host: "51.68.190.91", port: 27015,
+        return ConnectionDiagnosis(serverID: UUID(), label: "Example", host: "192.0.2.10", port: 27015,
                                    startedAt: clock.now, probe: probe, engineLog: .missing)
     }
 
@@ -808,8 +808,8 @@ final class GoldSrcPresentationTests: XCTestCase {
             XCTAssertEqual(text.outcome, "The server banned this connection.")
             XCTAssertNotNil(text.banScope)
             XCTAssertEqual(text.serverMessage, "Server message: You have been banned from this server.")
-            XCTAssertEqual(text.request, "Server: POLIGON RPG\nAddress: 51.68.190.91:27015\nServer message: You have been banned from this server.")
-            XCTAssertEqual(text.join, "Join Game opens this server with +connect 51.68.190.91:27015 gs.")
+            XCTAssertEqual(text.request, "Server: Example Server\nAddress: 192.0.2.10:27015\nServer message: You have been banned from this server.")
+            XCTAssertEqual(text.join, "Join Game opens this server with +connect 192.0.2.10:27015 gs.")
             XCTAssertEqual(L10n.text(.serversGoldsrcCidNA), "N/A")
         }
         try inTurkish {
@@ -881,7 +881,7 @@ final class GoldSrcPresentationTests: XCTestCase {
         }
         let banned = GoldSrcFixture.server(clock: clock,
                                            connect: FakeReply(bytes: FakeServer.oobText("9You have been banned from this server.\n")))
-        let result = await CLIRunner.run(arguments: ["diagnose", "51.68.190.91:27015", "--confirm", "--json", "--fail-on-ban"],
+        let result = await CLIRunner.run(arguments: ["diagnose", "192.0.2.10:27015", "--confirm", "--json", "--fail-on-ban"],
                                          context: context(banned))
         XCTAssertEqual(result.exitCode, CLIExit.banVerdict, result.stdout + result.stderr)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any])
@@ -900,7 +900,7 @@ final class GoldSrcPresentationTests: XCTestCase {
         XCTAssertEqual(banned.sentPackets.filter(GoldSrcFixture.isConnect48).count, 1)
 
         let quiet = GoldSrcFixture.server(clock: clock, connect: FakeReply(bytes: FakeServer.oob(0x42)))
-        let unconfirmed = await CLIRunner.run(arguments: ["diagnose", "51.68.190.91:27015", "--json"], context: context(quiet))
+        let unconfirmed = await CLIRunner.run(arguments: ["diagnose", "192.0.2.10:27015", "--json"], context: context(quiet))
         XCTAssertEqual(unconfirmed.exitCode, CLIExit.ok)
         let plain = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(unconfirmed.stdout.utf8)) as? [String: Any])
         XCTAssertEqual(plain["goldSrcProbe"] as? String, "notConfirmed")
@@ -912,10 +912,10 @@ final class GoldSrcPresentationTests: XCTestCase {
         // The engine log of the last GoldSrc connection to this server decides: `banned: true`, `serverMessage`.
         let started = Self.sessionHeader(self.clock.now.addingTimeInterval(-600))
         try temp.write("home/Library/Application Support/Xash3D FWGS/engine.log",
-                       GoldSrcLogTests.block(header: started, address: "51.68.190.91:27015",
+                       GoldSrcLogTests.block(header: started, address: "192.0.2.10:27015",
                                              answer: "Server issued disconnect. Reason: You have been banned from this server."))
         let ping = GoldSrcFixture.server(clock: clock, connect: FakeReply(bytes: FakeServer.oobText("A00000000 1 3 1 1\n")))
-        let logged = await CLIRunner.run(arguments: ["diagnose", "51.68.190.91:27015", "--confirm", "--json"], context: context(ping))
+        let logged = await CLIRunner.run(arguments: ["diagnose", "192.0.2.10:27015", "--confirm", "--json"], context: context(ping))
         let loggedObject = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(logged.stdout.utf8)) as? [String: Any])
         XCTAssertEqual(loggedObject["verdict"] as? String, "banned")
         XCTAssertEqual(loggedObject["probeVerdict"] as? String, "legacyVerificationUnavailable")
@@ -928,11 +928,11 @@ final class GoldSrcPresentationTests: XCTestCase {
 
         // Source 49: CID filled, `cidApplicable: true`.
         let source = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: GoldSrcFixture.source49())))
-        let sourceResult = await CLIRunner.run(arguments: ["diagnose", "51.68.190.91:27015", "--json"], context: context(source))
+        let sourceResult = await CLIRunner.run(arguments: ["diagnose", "192.0.2.10:27015", "--json"], context: context(source))
         let sourceObject = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(sourceResult.stdout.utf8)) as? [String: Any])
         XCTAssertEqual(sourceObject["protocol"] as? String, "source49")
         XCTAssertEqual(sourceObject["cidApplicable"] as? Bool, true)
-        XCTAssertEqual(sourceObject["cid"] as? String, "d9de0eb4419608a8423241430581e91c")
+        XCTAssertEqual(sourceObject["cid"] as? String, "668afa7c2daff879e69f6aae714ef3b4")
         XCTAssertEqual(sourceObject["goldSrc"] as? Bool, false)
         XCTAssertEqual(sourceObject["banned"] as? Bool, false)   // Source 49 keeps `banned: false`
     }
@@ -946,8 +946,8 @@ final class GoldSrcPresentationTests: XCTestCase {
     }
 
     func testCLIParsing() {
-        XCTAssertEqual(CLIParser.parse(["diagnose", "51.68.190.91:27015", "--confirm"]),
-                       .success(.diagnose(target: "51.68.190.91:27015", timeout: 5, json: false, failOnBan: false, confirm: true)))
+        XCTAssertEqual(CLIParser.parse(["diagnose", "192.0.2.10:27015", "--confirm"]),
+                       .success(.diagnose(target: "192.0.2.10:27015", timeout: 5, json: false, failOnBan: false, confirm: true)))
         XCTAssertEqual(CLIParser.parse(["diagnose", "--confirm", "2", "--json"]),
                        .success(.diagnose(target: "2", timeout: 5, json: true, failOnBan: false, confirm: true)))
         if case .success = CLIParser.parse(["diagnose", "2", "--confirm=yes"]) { XCTFail() }
@@ -962,7 +962,7 @@ final class GoldSrcPresentationTests: XCTestCase {
 
 final class GoldSrcLogTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_795_000_000)
-    private let poligon: Set<String> = GoldSrcEngineLog.addresses(host: "51.68.190.91", port: 27015, resolved: "51.68.190.91")
+    private let addresses: Set<String> = GoldSrcEngineLog.addresses(host: "192.0.2.10", port: 27015, resolved: "192.0.2.10")
 
     /// One engine session in the format of the real `engine.log` (`-dev 1 -log`), as seen on 2026-11-26.
     static func block(header: String, address: String, answer: String?) -> String {
@@ -982,72 +982,72 @@ final class GoldSrcLogTests: XCTestCase {
 
     /// The real isolated-engine answer: "Server issued disconnect. Reason: You have been banned from this server."
     func testBanFromTheLastGoldSrcBlock() throws {
-        let text = Self.block(header: header(now.addingTimeInterval(-300)), address: "51.68.190.91:27015",
+        let text = Self.block(header: header(now.addingTimeInterval(-300)), address: "192.0.2.10:27015",
                               answer: "Server issued disconnect. Reason: You have been banned from this server.")
-        let evidence = try XCTUnwrap(GoldSrcEngineLog.evidence(in: text, addresses: poligon, now: now))
+        let evidence = try XCTUnwrap(GoldSrcEngineLog.evidence(in: text, addresses: addresses, now: now))
         XCTAssertEqual(evidence.outcome, .banned)
         XCTAssertEqual(evidence.reason, "You have been banned from this server.")
-        XCTAssertEqual(evidence.address, "51.68.190.91:27015")
+        XCTAssertEqual(evidence.address, "192.0.2.10:27015")
         // The out-of-band refusal form ("Server message" + next line) and the console form (colours, `[time] `).
-        let message = Self.block(header: header(now.addingTimeInterval(-60)), address: "51.68.190.91:27015",
+        let message = Self.block(header: header(now.addingTimeInterval(-60)), address: "192.0.2.10:27015",
                                  answer: "Server message\nYou have been banned from this server.")
-        XCTAssertEqual(GoldSrcEngineLog.evidence(in: message, addresses: poligon, now: now)?.outcome, .banned)
+        XCTAssertEqual(GoldSrcEngineLog.evidence(in: message, addresses: addresses, now: now)?.outcome, .banned)
         let console = message.split(separator: "\n").map { "\u{1B}[0m[15:34:24] \u{1B}[1;33m" + $0 + "\u{1B}[0m" }
             .joined(separator: "\n")
-        XCTAssertEqual(GoldSrcEngineLog.evidence(in: console, addresses: poligon, now: now)?.outcome, .banned)
+        XCTAssertEqual(GoldSrcEngineLog.evidence(in: console, addresses: addresses, now: now)?.outcome, .banned)
         // Another reason → `disconnected` (not a ban).
-        let full = Self.block(header: header(now.addingTimeInterval(-60)), address: "51.68.190.91:27015",
+        let full = Self.block(header: header(now.addingTimeInterval(-60)), address: "192.0.2.10:27015",
                               answer: "Server issued disconnect. Reason: Server is full.")
-        XCTAssertEqual(GoldSrcEngineLog.evidence(in: full, addresses: poligon, now: now)?.outcome, .disconnected)
+        XCTAssertEqual(GoldSrcEngineLog.evidence(in: full, addresses: addresses, now: now)?.outcome, .disconnected)
     }
 
     /// Only the last GoldSrc block counts, and only for this server's address.
     func testUnrelatedHostIsIgnored() {
         let other = Self.block(header: header(now.addingTimeInterval(-120)), address: "192.0.2.50:27015",
                                answer: "Server issued disconnect. Reason: You have been banned from this server.")
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: other, addresses: poligon, now: now))
-        // POLIGON banned earlier, then a later session joined another server → the last block is not POLIGON's.
-        let poligonBan = Self.block(header: header(now.addingTimeInterval(-3600)), address: "51.68.190.91:27015",
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: other, addresses: addresses, now: now))
+        // Example banned earlier, then a later session joined another server → the last block is not Example's.
+        let exampleBan = Self.block(header: header(now.addingTimeInterval(-3600)), address: "192.0.2.10:27015",
                                     answer: "Server issued disconnect. Reason: You have been banned from this server.")
         let later = Self.block(header: header(now.addingTimeInterval(-60)), address: "192.0.2.50:27015", answer: nil)
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: poligonBan + later, addresses: poligon, now: now))
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: exampleBan + later, addresses: addresses, now: now))
         // Same server on another port is another server.
-        let port = GoldSrcEngineLog.addresses(host: "51.68.190.91", port: 27016, resolved: nil)
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: poligonBan, addresses: port, now: now))
+        let port = GoldSrcEngineLog.addresses(host: "192.0.2.10", port: 27016, resolved: nil)
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: exampleBan, addresses: port, now: now))
         // A hostname row matches the resolved IP the engine connected to.
-        let named = GoldSrcEngineLog.addresses(host: "rpg.example.test", port: 27015, resolved: "51.68.190.91")
-        let recent = Self.block(header: header(now.addingTimeInterval(-60)), address: "51.68.190.91:27015",
+        let named = GoldSrcEngineLog.addresses(host: "rpg.example.test", port: 27015, resolved: "192.0.2.10")
+        let recent = Self.block(header: header(now.addingTimeInterval(-60)), address: "192.0.2.10:27015",
                                 answer: "Server issued disconnect. Reason: You have been banned from this server.")
         XCTAssertEqual(GoldSrcEngineLog.evidence(in: recent, addresses: named, now: now)?.outcome, .banned)
     }
 
     /// A stale block (older session than 24 h, older than the last Join Game, no session date) is no evidence.
     func testStaleLogIsIgnored() {
-        let old = Self.block(header: header(now.addingTimeInterval(-2 * 24 * 3600)), address: "51.68.190.91:27015",
+        let old = Self.block(header: header(now.addingTimeInterval(-2 * 24 * 3600)), address: "192.0.2.10:27015",
                              answer: "Server issued disconnect. Reason: You have been banned from this server.")
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: old, addresses: poligon, now: now))
-        let hourAgo = Self.block(header: header(now.addingTimeInterval(-3600)), address: "51.68.190.91:27015",
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: old, addresses: addresses, now: now))
+        let hourAgo = Self.block(header: header(now.addingTimeInterval(-3600)), address: "192.0.2.10:27015",
                                  answer: "Server issued disconnect. Reason: You have been banned from this server.")
-        XCTAssertNotNil(GoldSrcEngineLog.evidence(in: hourAgo, addresses: poligon, now: now))
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: hourAgo, addresses: poligon, now: now,
+        XCTAssertNotNil(GoldSrcEngineLog.evidence(in: hourAgo, addresses: addresses, now: now))
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: hourAgo, addresses: addresses, now: now,
                                                notBefore: now.addingTimeInterval(-600)))
         let undated = hourAgo.replacingOccurrences(of: "Game started at", with: "Game launched")
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: undated, addresses: poligon, now: now))
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: undated, addresses: addresses, now: now))
         // No answer in the block (engine killed before the server answered) → no evidence.
         // The engine entered and nothing followed → `connected` (it only clears an older ban; never "no block").
-        let silent = Self.block(header: header(now.addingTimeInterval(-60)), address: "51.68.190.91:27015", answer: nil)
-        XCTAssertEqual(GoldSrcEngineLog.evidence(in: silent, addresses: poligon, now: now)?.outcome, .connected)
+        let silent = Self.block(header: header(now.addingTimeInterval(-60)), address: "192.0.2.10:27015", answer: nil)
+        XCTAssertEqual(GoldSrcEngineLog.evidence(in: silent, addresses: addresses, now: now)?.outcome, .connected)
         let noEntry = silent.replacingOccurrences(of: "Spooling demo header.", with: "")
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: noEntry, addresses: poligon, now: now))
-        XCTAssertNil(GoldSrcEngineLog.evidence(in: "", addresses: poligon, now: now))
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: noEntry, addresses: addresses, now: now))
+        XCTAssertNil(GoldSrcEngineLog.evidence(in: "", addresses: addresses, now: now))
     }
 
     /// The reason is cleaned: control characters removed, IP addresses masked, at most 200 characters.
     func testReasonIsCleaned() throws {
-        let text = Self.block(header: header(now.addingTimeInterval(-60)), address: "51.68.190.91:27015",
+        let text = Self.block(header: header(now.addingTimeInterval(-60)), address: "192.0.2.10:27015",
                               answer: "Server issued disconnect. Reason: Your IP 198.51.100.10 is banned \u{07}"
                                 + String(repeating: "x", count: 400))
-        let evidence = try XCTUnwrap(GoldSrcEngineLog.evidence(in: text, addresses: poligon, now: now))
+        let evidence = try XCTUnwrap(GoldSrcEngineLog.evidence(in: text, addresses: addresses, now: now))
         XCTAssertFalse(evidence.reason.contains("198.51.100.10"))
         XCTAssertLessThanOrEqual(evidence.reason.count, 200)
         XCTAssertEqual(evidence.outcome, .banned)
@@ -1069,7 +1069,7 @@ final class GoldSrcEngineLogAppTests: XCTestCase {
                                                homeDirectory: URL(fileURLWithPath: "/Users/test"))
             $0.gameLaunchRunner = runner
         }
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         model.addServer(ServerDraft(label: "Other", host: "192.0.2.50"))
         let id = try XCTUnwrap(model.servers.first?.id)
         await model.refresh().value
@@ -1079,10 +1079,10 @@ final class GoldSrcEngineLogAppTests: XCTestCase {
 
         // Join Game (gs + engine log), then the engine writes the server's ban.
         await model.joinGame(id)?.value
-        XCTAssertEqual(runner.commands.last?.suffix(6), ["-dev", "1", "-log", "+connect", "51.68.190.91:27015", "gs"])
+        XCTAssertEqual(runner.commands.last?.suffix(9), ["-dev", "1", "-log", "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015", "gs"])
         env.clock.advance(60)
         let log = GoldSrcLogTests.block(header: GoldSrcPresentationTests.sessionHeader(env.clock.now),
-                                        address: "51.68.190.91:27015",
+                                        address: "192.0.2.10:27015",
                                         answer: "Server issued disconnect. Reason: You have been banned from this server.")
         try env.temp.write("home/Library/Application Support/Xash3D FWGS/engine.log", log)
         env.clock.advance(60)
@@ -1093,7 +1093,7 @@ final class GoldSrcEngineLogAppTests: XCTestCase {
         XCTAssertEqual(model.rowStatus(id)?.displayLevel, .red)
         XCTAssertTrue(model.report?.reasons.contains { $0.code == .goldSrcBanned } ?? false)
         XCTAssertNil(model.rowStatus(id)?.currentCID)
-        // The other server (Source fixture path) is untouched by POLIGON's log.
+        // The other server (Source fixture path) is untouched by Example's log.
         XCTAssertNotEqual(model.servers.last?.banCheck?.status, .goldSrcBanned)
         try inTurkish { XCTAssertEqual(MessageCode.goldSrcBanned.text, "Sunucu bağlantıyı yasakladı (motor günlüğü).") }
     }
@@ -1107,14 +1107,14 @@ final class GoldSrcEngineLogAppTests: XCTestCase {
                                                homeDirectory: URL(fileURLWithPath: "/Users/test"))
             $0.gameLaunchRunner = runner
         }
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         await model.refresh().value
         await model.joinGame(id)?.value
         XCTAssertNotNil(model.goldSrcJoins[id])
         // A ban block from a session an hour before this Join Game (the new session wrote nothing yet).
         let log = GoldSrcLogTests.block(header: GoldSrcPresentationTests.sessionHeader(env.clock.now.addingTimeInterval(-3600)),
-                                        address: "51.68.190.91:27015",
+                                        address: "192.0.2.10:27015",
                                         answer: "Server issued disconnect. Reason: You have been banned from this server.")
         try env.temp.write("home/Library/Application Support/Xash3D FWGS/engine.log", log)
         env.clock.advance(60)
@@ -1152,9 +1152,9 @@ final class GoldSrcBanTextTests: XCTestCase {
         let header = GoldSrcPresentationTests.sessionHeader(now.addingTimeInterval(-60))
         for (reason, outcome) in [("Bandwidth limit exceeded", GoldSrcLogEvidence.Outcome.disconnected),
                                   ("You are unbanned", .disconnected), ("You have been banned from this server.", .banned)] {
-            let log = GoldSrcLogTests.block(header: header, address: "51.68.190.91:27015",
+            let log = GoldSrcLogTests.block(header: header, address: "192.0.2.10:27015",
                                             answer: "Server issued disconnect. Reason: " + reason)
-            XCTAssertEqual(GoldSrcEngineLog.evidence(in: log, addresses: ["51.68.190.91:27015"], now: now)?.outcome, outcome,
+            XCTAssertEqual(GoldSrcEngineLog.evidence(in: log, addresses: ["192.0.2.10:27015"], now: now)?.outcome, outcome,
                            reason)
         }
     }
@@ -1164,7 +1164,7 @@ final class GoldSrcStatusTests: XCTestCase {
     /// (C) the protocol decision comes before the address: a known GoldSrc server with an unresolved host shows no CID
     /// (not even the old saved one) and keeps the invalid-host message.
     func testKnownGoldSrcWithUnresolvedHost() {
-        let entry = ServerEntry(label: "S", host: "rpg.example.test", cid: "d9de0eb4419608a8423241430581e91c")
+        let entry = ServerEntry(label: "S", host: "rpg.example.test", cid: "668afa7c2daff879e69f6aae714ef3b4")
         let status = StatusEvaluator.serverRow(entry, rawID: 0, saved: nil, knownProtocol: .goldsrc48)
         XCTAssertNil(status.currentCID)
         XCTAssertTrue(status.cidNotApplicable)
@@ -1180,7 +1180,7 @@ final class GoldSrcStatusTests: XCTestCase {
 @MainActor
 final class GoldSrcReviewAppTests: XCTestCase {
     private static let app = "/Applications/Xash3D-FWGS.app"
-    private static let legacyCID = "d9de0eb4419608a8423241430581e91c"
+    private static let legacyCID = "668afa7c2daff879e69f6aae714ef3b4"
 
     private func install(_ deps: inout AppDependencies, runner: FakeGameLaunchRunner) {
         deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: [Self.app]),
@@ -1191,7 +1191,7 @@ final class GoldSrcReviewAppTests: XCTestCase {
     private func banLog(_ env: TestAppEnvironment, at date: Date, answer: String?) throws {
         try env.temp.write("home/Library/Application Support/Xash3D FWGS/engine.log",
                            GoldSrcLogTests.block(header: GoldSrcPresentationTests.sessionHeader(date),
-                                                 address: "51.68.190.91:27015", answer: answer))
+                                                 address: "192.0.2.10:27015", answer: answer))
     }
 
     /// (C) menu bar: a GoldSrc row whose hostname no longer resolves never offers its old saved CID.
@@ -1223,7 +1223,7 @@ final class GoldSrcReviewAppTests: XCTestCase {
         let runner = FakeGameLaunchRunner()
         let model = env.makeModel(udp: GoldSrcFixture.server(clock: env.clock, connect: nil),
                                   game: FakeGameDetector(running: true)) { self.install(&$0, runner: runner) }
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         await model.joinGame(id)?.value
         XCTAssertNotNil(model.pendingJoin)
@@ -1235,7 +1235,7 @@ final class GoldSrcReviewAppTests: XCTestCase {
         XCTAssertEqual(runner.commands.first?[1], "--env")
         // The row changed while asking → nothing is launched.
         await model.joinGame(id)?.value
-        model.updateServer(id: id, with: ServerDraft(label: "POLIGON", host: "51.68.190.92"))
+        model.updateServer(id: id, with: ServerDraft(label: "Example", host: "51.68.190.92"))
         await model.confirmJoin()?.value
         XCTAssertEqual(runner.commands.count, 1)
     }
@@ -1249,12 +1249,12 @@ final class GoldSrcReviewAppTests: XCTestCase {
         let state = Switch()
         let transport = FakeUDPTransport(clock: env.clock) { _, packet in
             if state.lock.withLock({ state.silent }) { return [] }
-            if FakeServer.isInfo(packet) { return [FakeReply(bytes: GoldSrcFixture.poligonLegacy)] }
-            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.poligonChallenge)] }
+            if FakeServer.isInfo(packet) { return [FakeReply(bytes: GoldSrcFixture.goldSrcLegacy)] }
+            if FakeServer.isGetChallenge(packet) { return [FakeReply(bytes: GoldSrcFixture.goldSrcChallenge)] }
             return []
         }
         let model = env.makeModel(udp: transport) { self.install(&$0, runner: runner) }
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         await model.refresh().value
         XCTAssertEqual(model.servers.first?.banCheck?.status, .goldSrcUnverified)
@@ -1305,7 +1305,7 @@ final class GoldSrcReviewAppTests: XCTestCase {
                                      fileSystem: LocalFileSystem(), resolver: FakeAddressResolver(), udpTransport: transport,
                                      now: { clock.now })
             context.vpnActive = { false }
-            let result = await CLIRunner.run(arguments: ["ban", "51.68.190.91:27015", "--json", "--no-metrics"], context: context)
+            let result = await CLIRunner.run(arguments: ["ban", "192.0.2.10:27015", "--json", "--no-metrics"], context: context)
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any],
                                        result.stdout + result.stderr)
             return (result.stdout, object)
@@ -1334,12 +1334,12 @@ final class GoldSrcReviewAppTests: XCTestCase {
 
 final class GoldSrcEffectiveProtocolTests: XCTestCase {
     private let clock = TestClock()
-    private let host = "51.68.190.91"
+    private let host = "192.0.2.10"
 
     /// The server claims Source 49 in A2S but answers connect 49 with the real "older protocol ( 48 )" text.
     private func olderProtocolServer() -> FakeUDPTransport {
         FakeUDPTransport(clock: clock, responder: FakeServer.scripted(info: FakeReply(bytes: GoldSrcFixture.source49()),
-                                                                      connect: FakeReply(bytes: GoldSrcFixture.poligonOlderProtocol)))
+                                                                      connect: FakeReply(bytes: GoldSrcFixture.goldSrcOlderProtocol)))
     }
 
     /// (1) BanChecker and the diagnosis turn "older protocol 48" into the effective protocol `goldsrc48`.
@@ -1386,14 +1386,14 @@ final class GoldSrcEffectiveProtocolTests: XCTestCase {
             return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any],
                                  result.stdout + result.stderr)
         }
-        let diagnose = try await run(["diagnose", "51.68.190.91:27015", "--json"])
+        let diagnose = try await run(["diagnose", "192.0.2.10:27015", "--json"])
         XCTAssertEqual(diagnose["protocol"] as? String, "goldsrc48")
         XCTAssertTrue(diagnose["cid"] is NSNull)
         XCTAssertEqual(diagnose["cidApplicable"] as? Bool, false)
         XCTAssertEqual(diagnose["goldSrc"] as? Bool, true)
         XCTAssertTrue(diagnose["banned"] is NSNull)
         XCTAssertEqual(diagnose["verdict"] as? String, "legacyVerificationUnavailable")
-        let ban = try await run(["ban", "51.68.190.91:27015", "--json", "--no-metrics"])
+        let ban = try await run(["ban", "192.0.2.10:27015", "--json", "--no-metrics"])
         XCTAssertEqual(ban["protocol"] as? String, "goldsrc48")
         XCTAssertTrue(ban["cid"] is NSNull)
         XCTAssertEqual(ban["cidApplicable"] as? Bool, false)
@@ -1409,7 +1409,7 @@ final class GoldSrcEffectiveProtocolTests: XCTestCase {
         let record = Snapshot(savedAt: clock.now, gamedir: "valve", dataRoot: temp.url.appendingPathComponent("data").path,
                               displayName: "N", model: "m", rawID: "0000000000000000", identitySource: "",
                               network: NetworkInfo(publicIP: "", lanIPs: []),
-                              servers: [ServerEntry(label: "POLIGON", host: "51.68.190.91",
+                              servers: [ServerEntry(label: "Example", host: "192.0.2.10",
                                                     banCheck: BanCheck(status: .goldSrcUnverified, checkedAt: clock.now, detail: "")),
                                         ServerEntry(label: "Named", host: "rpg.example.test",
                                                     banCheck: BanCheck(status: .goldSrcUnverified, checkedAt: clock.now, detail: ""))])
@@ -1436,7 +1436,7 @@ final class GoldSrcEffectiveProtocolTests: XCTestCase {
                                 resolver: FakeAddressResolver(["rpg.example.test": .failure(.notFound)]))
         XCTAssertTrue(dns["banned"] is NSNull)
         XCTAssertTrue(dns["cid"] is NSNull)
-        let ban = try await run(["ban", "51.68.190.91:27015", "--json", "--no-metrics"])
+        let ban = try await run(["ban", "192.0.2.10:27015", "--json", "--no-metrics"])
         XCTAssertTrue(ban["banned"] is NSNull)
         XCTAssertTrue(ban["cid"] is NSNull)
         XCTAssertEqual(ban["protocol"] as? String, "goldsrc48")
@@ -1456,7 +1456,7 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
 
     final class Script: @unchecked Sendable {
         let lock = NSLock()
-        var info: [UInt8]? = GoldSrcFixture.poligonLegacy
+        var info: [UInt8]? = GoldSrcFixture.goldSrcLegacy
         var connect: [UInt8]? = nil
     }
 
@@ -1466,7 +1466,7 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
             if FakeServer.isInfo(packet) { return script.info.map { [FakeReply(bytes: $0)] } ?? [] }
             guard script.info != nil else { return [] }
             if FakeServer.isGetChallenge(packet) {
-                return [FakeReply(bytes: script.info == GoldSrcFixture.poligonLegacy ? GoldSrcFixture.poligonChallenge
+                return [FakeReply(bytes: script.info == GoldSrcFixture.goldSrcLegacy ? GoldSrcFixture.goldSrcChallenge
                                                                                     : FakeServer.oob(0x41, FakeServer.challengeBytes))]
             }
             if FakeServer.isConnect(packet) { return script.connect.map { [FakeReply(bytes: $0)] } ?? [] }
@@ -1476,7 +1476,7 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
 
     private func banLog(_ env: TestAppEnvironment, at date: Date) throws {
         try env.temp.write(logPath, GoldSrcLogTests.block(header: GoldSrcPresentationTests.sessionHeader(date),
-                                                          address: "51.68.190.91:27015",
+                                                          address: "192.0.2.10:27015",
                                                           answer: "Server issued disconnect. Reason: You have been banned from this server."))
     }
 
@@ -1487,7 +1487,7 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
         script.info = nil
         try banLog(env, at: env.clock.now.addingTimeInterval(-300))
         let model = env.makeModel(udp: transport(env, script))
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         await model.refresh().value
         XCTAssertEqual(model.servers.first?.banCheck?.status, .goldSrcBanned)
@@ -1499,7 +1499,7 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
         try banLog(offEnv, at: offEnv.clock.now.addingTimeInterval(-300))
         let off = offEnv.makeModel(udp: transport(offEnv, Script()))
         off.banCheckEnabled = false
-        off.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        off.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         await off.refresh().value
         XCTAssertEqual(off.servers.first?.banCheck?.status, .goldSrcBanned)   // no request at all, the log still decides
     }
@@ -1510,7 +1510,7 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
         let script = Script()
         try banLog(env, at: env.clock.now.addingTimeInterval(-300))
         let model = env.makeModel(udp: transport(env, script))
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         await model.refresh().value
         XCTAssertEqual(model.servers.first?.banCheck?.status, .goldSrcBanned)
         env.clock.advance(60)
@@ -1526,13 +1526,13 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
         let runner = FakeGameLaunchRunner()
         let script = Script()
         script.info = GoldSrcFixture.source49()
-        script.connect = GoldSrcFixture.poligonOlderProtocol
+        script.connect = GoldSrcFixture.goldSrcOlderProtocol
         let model = env.makeModel(udp: transport(env, script)) {
             $0.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: [Self.app]),
                                                homeDirectory: URL(fileURLWithPath: "/Users/test"))
             $0.gameLaunchRunner = runner
         }
-        model.addServer(ServerDraft(label: "POLIGON", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "Example", host: "192.0.2.10"))
         let id = try XCTUnwrap(model.servers.first?.id)
         await model.refresh().value
         XCTAssertEqual(model.servers.first?.banCheck?.status, .goldSrcUnverified)
@@ -1551,8 +1551,8 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
                               dataRoot: env.home.appendingPathComponent("Library/Application Support/Xash3D FWGS").path,
                               displayName: "N", model: "gordon", rawID: "0000000000000000", identitySource: "",
                               network: NetworkInfo(publicIP: "203.0.113.7", lanIPs: ["en0 192.0.2.10"]),
-                              servers: [ServerEntry(id: id, label: "POLIGON", host: "51.68.190.91",
-                                                    cid: "d9de0eb4419608a8423241430581e91c")])
+                              servers: [ServerEntry(id: id, label: "Example", host: "192.0.2.10",
+                                                    cid: "668afa7c2daff879e69f6aae714ef3b4")])
         let store = SnapshotStore(fileURL: AppPaths(home: env.home).snapshotFile)
         try store.save(record)
         let first = env.makeModel(udp: transport(env, Script()))
@@ -1587,7 +1587,7 @@ final class GoldSrcRefreshOrderTests: XCTestCase {
 
 final class GoldSrcCapabilityProbeTests: XCTestCase {
     private let clock = TestClock()
-    private let host = "51.68.190.91"
+    private let host = "192.0.2.10"
     private static let rawID: UInt64 = 0x0123456789ABCDEF
 
     private var realCID: String { CIDCalculator.cid(rawID: Self.rawID, address: TestAddresses.v4(host)) }
@@ -1609,12 +1609,12 @@ final class GoldSrcCapabilityProbeTests: XCTestCase {
                         rawID: Self.rawID)
     }
 
-    /// POLIGON answers the first, CID-less capability packet with "older protocol ( 48 )": the real CID is never
+    /// Example answers the first, CID-less capability packet with "older protocol ( 48 )": the real CID is never
     /// sent (nor computed in the diagnosis), the server is GoldSrc 48.
     func testOlderProtocolGetsOnlyTheCIDLessProbe() async throws {
         let clock = self.clock
         let server = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: GoldSrcFixture.source49()), connect: FakeReply(bytes: GoldSrcFixture.poligonOlderProtocol)))
+            info: FakeReply(bytes: GoldSrcFixture.source49()), connect: FakeReply(bytes: GoldSrcFixture.goldSrcOlderProtocol)))
         let check = try await BanChecker(transport: server, now: { clock.now }).check(request())
         XCTAssertEqual(check.status, .goldSrcUnverified)
         XCTAssertEqual(check.info?.serverProtocol, .goldsrc48)
@@ -1624,7 +1624,7 @@ final class GoldSrcCapabilityProbeTests: XCTestCase {
         assertNoSecret(sent)
 
         let diagnosed = FakeUDPTransport(clock: clock, responder: FakeServer.scripted(
-            info: FakeReply(bytes: GoldSrcFixture.source49()), connect: FakeReply(bytes: GoldSrcFixture.poligonOlderProtocol)))
+            info: FakeReply(bytes: GoldSrcFixture.source49()), connect: FakeReply(bytes: GoldSrcFixture.goldSrcOlderProtocol)))
         let probe = try await ConnectionDiagnoser(transport: diagnosed, resolver: FakeAddressResolver(), now: { clock.now })
             .run(ConnectionDiagnosisRequest(host: host, port: 27015, rawID: Self.rawID, name: "N", checksEnabled: true,
                                             vpnActive: false, knownRange: nil))
@@ -1722,11 +1722,11 @@ final class GoldSrcCapabilityProbeTests: XCTestCase {
                                  environment: [:], fileSystem: LocalFileSystem(), resolver: FakeAddressResolver(),
                                  udpTransport: server(), now: { clock.now })
         context.vpnActive = { false }
-        let result = await CLIRunner.run(arguments: ["ban", "51.68.190.91:27015", "--json", "--no-metrics"], context: context)
+        let result = await CLIRunner.run(arguments: ["ban", "192.0.2.10:27015", "--json", "--no-metrics"], context: context)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any])
         XCTAssertTrue(object["banned"] is NSNull)
         XCTAssertEqual(object["status"] as? String, "cidUnknown")
-        XCTAssertFalse(result.stdout.contains("d9de0eb4419608a8423241430581e91c"))
+        XCTAssertFalse(result.stdout.contains("668afa7c2daff879e69f6aae714ef3b4"))
     }
 
     /// (v5.4.6) an accepted placeholder but the overall budget is used up → no second packet.
@@ -1773,30 +1773,30 @@ final class GoldSrcCapabilityProbeTests: XCTestCase {
     }
 
     func testReportedAddressIsOnlyAnIPLiteral() {
-        XCTAssertEqual(GoldSrcEngineLog.ipLiteral("51.68.190.91:27015"), "51.68.190.91")
-        XCTAssertEqual(GoldSrcEngineLog.ipLiteral("51.68.190.91"), "51.68.190.91")
+        XCTAssertEqual(GoldSrcEngineLog.ipLiteral("192.0.2.10:27015"), "192.0.2.10")
+        XCTAssertEqual(GoldSrcEngineLog.ipLiteral("192.0.2.10"), "192.0.2.10")
         XCTAssertEqual(GoldSrcEngineLog.ipLiteral("[2001:DB8::1]:27015"), "2001:db8::1")
         XCTAssertEqual(GoldSrcEngineLog.ipLiteral("2001:db8::1"), "2001:db8::1")
-        for bad in ["evil.example:27015", "/etc/passwd", "51.68.190.91; rm -rf ~", "../../x", "", "[]:1", "1.2.3:4"] {
+        for bad in ["evil.example:27015", "/etc/passwd", "192.0.2.10; rm -rf ~", "../../x", "", "[]:1", "1.2.3:4"] {
             XCTAssertNil(GoldSrcEngineLog.ipLiteral(bad), bad)
         }
         let set = GoldSrcEngineLog.addresses(host: "rpg.example.test", port: 27015, resolved: nil,
-                                             known: ["51.68.190.91:27016", nil, "evil.example:27015"])
-        XCTAssertEqual(set, ["rpg.example.test:27015", "51.68.190.91:27015"])   // the row's port, IPs only
+                                             known: ["192.0.2.10:27016", nil, "evil.example:27015"])
+        XCTAssertEqual(set, ["rpg.example.test:27015", "192.0.2.10:27015"])   // the row's port, IPs only
     }
 }
 
 @MainActor
 final class GoldSrcDNSLossTests: XCTestCase {
     /// Hostname row, DNS fails now, the saved GoldSrc result carries the server's own address string; the engine log's
-    /// ban for 51.68.190.91:27015 still matches → Server ban.
+    /// ban for 192.0.2.10:27015 still matches → Server ban.
     func testDNSFailureStillMatchesTheEngineLog() async throws {
         let env = try TestAppEnvironment()
         let id = UUID()
         var entry = ServerEntry(id: id, label: "RPG", host: "rpg.example.test")
         entry.banCheck = BanCheck(status: .goldSrcUnverified, checkedAt: env.clock.now.addingTimeInterval(-600), detail: "",
                                   info: ServerInfo(name: "RPG", serverProtocol: .goldsrc48,
-                                                   reportedAddress: "51.68.190.91:27015"))
+                                                   reportedAddress: "192.0.2.10:27015"))
         let record = Snapshot(savedAt: env.clock.now, gamedir: "valve",
                               dataRoot: env.home.appendingPathComponent("Library/Application Support/Xash3D FWGS").path,
                               displayName: "N", model: "gordon", rawID: "0000000000000000", identitySource: "",
@@ -1804,14 +1804,14 @@ final class GoldSrcDNSLossTests: XCTestCase {
         try SnapshotStore(fileURL: AppPaths(home: env.home).snapshotFile).save(record)
         try env.temp.write("home/Library/Application Support/Xash3D FWGS/engine.log",
                            GoldSrcLogTests.block(header: GoldSrcPresentationTests.sessionHeader(env.clock.now.addingTimeInterval(-60)),
-                                                 address: "51.68.190.91:27015",
+                                                 address: "192.0.2.10:27015",
                                                  answer: "Server issued disconnect. Reason: You have been banned from this server."))
         let model = env.makeModel(udp: FakeUDPTransport(clock: env.clock, responder: FakeServer.scripted(info: nil, challenge: nil, connect: nil)),
                                   resolver: FakeAddressResolver(["rpg.example.test": .failure(.notFound)]))
         await model.refresh().value
         XCTAssertEqual(model.rowStatus(id)?.message, .invalidHost)
         XCTAssertEqual(model.servers.first?.banCheck?.status, .goldSrcBanned)
-        XCTAssertEqual(model.servers.first?.banCheck?.info?.reportedAddress, "51.68.190.91:27015")
+        XCTAssertEqual(model.servers.first?.banCheck?.info?.reportedAddress, "192.0.2.10:27015")
         XCTAssertTrue(model.isCIDNotApplicable(id))
     }
 }

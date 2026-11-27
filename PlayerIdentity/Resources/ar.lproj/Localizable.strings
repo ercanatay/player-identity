@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "لقد تغير الـ IP الخاص بك (أمر طبيعي مع IP الديناميكي). إذا كانت هذه هي القيمة الصحيحة، اضغط على حفظ.";
 "suggestion.lanIPChanged" = "لقد تغيرت الشبكة المحلية (ربما بسبب التبديل بين Wi-Fi/Ethernet). إذا كان ذلك مقصوداً، اضغط على حفظ.";
 "suggestion.serverCIDChanged" = "CID الخاص بالخادم يختلف عن السجل؛ قد يكون مصدر الهوية قد تغير. اضغط على حفظ بعد تحديث.";
-"suggestion.invalidHost" = "أدخل العنوان بصيغة IP:port (مثال: 51.68.190.91:27015).";
+"suggestion.invalidHost" = "أدخل العنوان بصيغة IP:port (مثال: 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "تحقق من اتصال الشبكة (Wi-Fi/Ethernet)، ثم اضغط على تحديث.";
 "suggestion.nameEmpty" = "عيّن اسم لاعب في اللعبة، وأغلق اللعبة واضغط على تحديث.";
 "suggestion.modelEmpty" = "اختر نموذج لاعب في اللعبة، وأغلق اللعبة واضغط على تحديث.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "لم يُعثر على أي وسيط في المواقع المعتادة.";
 "steam.settings.foundOther" = "تم العثور على وسيط آخر: %@. سيتم الاحتفاظ بالمسار الذي حددته.";
 "steam.error.settingsHint" = "تحقق من مسار الوسيط في الإعدادات › مسارات الاتصال.";
+"steam.join.steamAuthRestart" = "مع هوية Steam (أعد تشغيل الوسيط)";
+"steam.state.stale" = "الوسيط قديم (تمت إعادة تشغيل Steam)";
+"steam.settings.stale" = "تمت إعادة تشغيل Steam — أعد تشغيل الوسيط";
+"steam.settings.restart" = "إعادة التشغيل";
+"steam.error.stale" = "الوسيط الجاري تشغيله بدأ قبل Steam ولا يمكن للتطبيق استبداله. أوقفه، ثم حاول مرة أخرى.";

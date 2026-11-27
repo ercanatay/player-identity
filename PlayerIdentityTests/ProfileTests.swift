@@ -43,8 +43,8 @@ final class SnapshotBuilderTests: XCTestCase {
     }
 
     func testCIDWrittenOnlyForCheckedRows() {
-        let checked = ServerEntry(label: "A", host: "95.173.174.175", lastCheckedAt: Date(timeIntervalSince1970: 10))
-        let fresh = ServerEntry(label: "B", host: "51.68.190.91")
+        let checked = ServerEntry(label: "A", host: "198.51.100.1", lastCheckedAt: Date(timeIntervalSince1970: 10))
+        let fresh = ServerEntry(label: "B", host: "192.0.2.10")
         let snapshot = SnapshotBuilder.make(savedAt: Date(timeIntervalSince1970: 20),
                                             dataRoot: URL(fileURLWithPath: "/data/root/"),
                                             gamedir: "valve",
@@ -54,7 +54,7 @@ final class SnapshotBuilderTests: XCTestCase {
                                             lanIPs: ["en0 · 10.0.0.2"],
                                             checkedAt: Date(timeIntervalSince1970: 10),
                                             servers: [checked, fresh])
-        XCTAssertEqual(snapshot.servers[0].cid, "68f8c1fb2a23cb02409b8a3231487970")
+        XCTAssertEqual(snapshot.servers[0].cid, "38deb7f5293007bd3ab41c70a43a5cbd")
         XCTAssertEqual(snapshot.servers[1].cid, "")
         XCTAssertEqual(snapshot.rawID, "0000000000000000")
         XCTAssertEqual(snapshot.identitySource, "/h/.config/.xash_id")

@@ -25,7 +25,7 @@ expect() {
 }
 
 expect 0 "$CTL" --version
-expect 0 "$CTL" cid 51.68.190.91 --raw-id 0 --json
+expect 0 "$CTL" cid 192.0.2.10 --raw-id 0 --json
 expect 0 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-profile.json" "$CTL" status --json
 expect 3 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/cli-status-banned.json" "$CTL" status
 expect 2 env PLAYERIDENTITYCTL_SNAPSHOT="$FIXTURES/does-not-exist.json" "$CTL" status --json
@@ -70,8 +70,8 @@ expect 0 env PLAYERIDENTITYCTL_ENGINE_APP=/nonexistent/Engine.app PLAYERIDENTITY
 expect 0 "$CTL" engine backups --json
 rmdir "$IDENTITY_HOME"
 
-cid=$("$CTL" cid 51.68.190.91 --raw-id 0 </dev/null)
-if [[ "$cid" == "d9de0eb4419608a8423241430581e91c" ]]; then echo "ok   cid vector"; else echo "FAIL cid vector: $cid"; failures=$((failures + 1)); fi
+cid=$("$CTL" cid 192.0.2.10 --raw-id 0 </dev/null)
+if [[ "$cid" == "668afa7c2daff879e69f6aae714ef3b4" ]]; then echo "ok   cid vector"; else echo "FAIL cid vector: $cid"; failures=$((failures + 1)); fi
 
 [[ $failures == 0 ]] && echo "cli smoke: all passed" || echo "cli smoke: $failures failed"
 exit $((failures > 0))

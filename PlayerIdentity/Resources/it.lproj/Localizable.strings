@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "Il tuo IP è cambiato (normale con un IP dinamico). Se questo è il valore corretto, premi Salva.";
 "suggestion.lanIPChanged" = "La rete locale è cambiata (possibile passaggio tra Wi-Fi ed Ethernet). Se intenzionale, premi Salva.";
 "suggestion.serverCIDChanged" = "Il CID del server differisce dal record; la sorgente dell'identità potrebbe essere cambiata. Premi Salva dopo Aggiorna.";
-"suggestion.invalidHost" = "Inserisci l'indirizzo come IP:porta (es. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Inserisci l'indirizzo come IP:porta (es. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Controlla la connessione di rete (Wi-Fi/Ethernet), poi premi Aggiorna.";
 "suggestion.nameEmpty" = "Imposta un nome giocatore nel gioco, esci dal gioco e premi Aggiorna.";
 "suggestion.modelEmpty" = "Scegli un modello giocatore nel gioco, esci dal gioco e premi Aggiorna.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Nessun broker è stato trovato nelle posizioni consuete.";
 "steam.settings.foundOther" = "È stato trovato un altro broker: %@. Il percorso impostato viene mantenuto.";
 "steam.error.settingsHint" = "Controlla il percorso del broker in Impostazioni › Percorsi di connessione.";
+"steam.join.steamAuthRestart" = "Con identità Steam (riavvia il broker)";
+"steam.state.stale" = "Broker obsoleto (Steam riavviato)";
+"steam.settings.stale" = "Steam riavviato — riavvia il broker";
+"steam.settings.restart" = "Riavvia";
+"steam.error.stale" = "Il broker in esecuzione è stato avviato prima di Steam e non può essere sostituito dall'app. Arrestalo, quindi riprova.";

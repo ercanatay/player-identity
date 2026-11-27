@@ -182,7 +182,7 @@ final class MenuBarTests: XCTestCase {
         let env = try TestAppEnvironment()
         let pasteboard = RecordingPasteboard()
         let model = env.makeModel { $0.pasteboard = pasteboard }
-        model.addServer(ServerDraft(label: "A", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
         model.addServer(ServerDraft(label: "B", host: "51.68.190.92"))
         let ids = model.servers.map(\.id)
         XCTAssertEqual(model.menuBarQuickItems, [])                       // menu bar mode off
@@ -233,7 +233,7 @@ final class MenuBarTests: XCTestCase {
         let pasteboard = RecordingPasteboard()
         pasteboard.fails = true
         let model = env.makeModel { $0.pasteboard = pasteboard }
-        model.addServer(ServerDraft(label: "A", host: "51.68.190.91"))
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
         model.menuBarEnabled = true
         await model.refresh().value
         let id = try XCTUnwrap(model.servers.first?.id)

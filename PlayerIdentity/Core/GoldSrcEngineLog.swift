@@ -138,7 +138,7 @@ enum GoldSrcEngineLog {
         return text.trimmingCharacters(in: .whitespaces)
     }
 
-    /// `Connecting to 51.68.190.91:27015... (retry #1)` / `server 51.68.190.91:27015` → `51.68.190.91:27015`.
+    /// `Connecting to 192.0.2.10:27015... (retry #1)` / `server 192.0.2.10:27015` → `192.0.2.10:27015`.
     static func connectAddress(_ line: String) -> String? {
         for prefix in ["Connecting to ", "server "] where line.hasPrefix(prefix) {
             let rest = line.dropFirst(prefix.count)

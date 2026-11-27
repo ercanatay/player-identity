@@ -22,7 +22,7 @@ final class HistoryTests: XCTestCase {
                              bans: [(UUID, BanStatus?)] = []) -> HistoryObservation {
         HistoryObservation(ts: t0.addingTimeInterval(offset), overall: overall, publicIP: ip, identity: identity,
                            name: name, model: model,
-                           servers: bans.map { HistoryObservation.Server(id: $0.0, host: "51.68.190.91", ban: $0.1) })
+                           servers: bans.map { HistoryObservation.Server(id: $0.0, host: "192.0.2.10", ban: $0.1) })
     }
 
     // MARK: Store
@@ -141,7 +141,7 @@ final class HistoryTests: XCTestCase {
         XCTAssertEqual([ip.old, ip.new], ["203.0.113.7", "198.51.100.1"])
         let lifted = try XCTUnwrap(changed.last)
         XCTAssertEqual(lifted.serverID, serverA)
-        XCTAssertEqual(lifted.host, "51.68.190.91")
+        XCTAssertEqual(lifted.host, "192.0.2.10")
         XCTAssertEqual([lifted.old, lifted.new], ["ipBanned", "cidOk"])
 
         // Ban type change is a new transition; undetermined results neither lift nor add a ban.

@@ -13,8 +13,8 @@ final class StatusTests: XCTestCase {
 
     private func matchingPair(rawID: UInt64? = nil) -> (CurrentState, Snapshot) {
         let raw = rawID ?? self.rawID
-        let cid = CIDCalculator.cid(rawID: raw, host: "95.173.174.175")!
-        let server = ServerEntry(id: serverID, label: "Test", host: "95.173.174.175", cid: cid)
+        let cid = CIDCalculator.cid(rawID: raw, host: "198.51.100.1")!
+        let server = ServerEntry(id: serverID, label: "Test", host: "198.51.100.1", cid: cid)
         let current = CurrentState(identity: .success(identity(rawID: raw)),
                                    displayName: "Oyuncu",
                                    model: "gordon",
@@ -90,7 +90,7 @@ final class StatusTests: XCTestCase {
 
     func testOrangeWhenServerCIDDiffersOrSavedEmpty() {
         var (current, snapshot) = matchingPair()
-        let newServer = ServerEntry(label: "Yeni", host: "51.68.190.91")   // not in the record → saved CID empty
+        let newServer = ServerEntry(label: "Yeni", host: "192.0.2.10")   // not in the record → saved CID empty
         current.servers.append(newServer)
         snapshot.servers[0].cid = "00000000000000000000000000000000"
         let report = StatusEvaluator.evaluate(current: current, snapshot: .loaded(snapshot))
@@ -98,7 +98,7 @@ final class StatusTests: XCTestCase {
         XCTAssertEqual(report.reasons.filter { $0.code == .serverCIDChanged }.count, 1)
         XCTAssertEqual(report.server(serverID)?.level, .orange)
         XCTAssertEqual(report.server(newServer.id)?.level, .orange)
-        XCTAssertEqual(report.server(newServer.id)?.currentCID, CIDCalculator.cid(rawID: rawID, host: "51.68.190.91"))
+        XCTAssertEqual(report.server(newServer.id)?.currentCID, CIDCalculator.cid(rawID: rawID, host: "192.0.2.10"))
     }
 
     // MARK: Red

@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "Az IP-címe megváltozott (dinamikus IP esetén normális). Ha ez a helyes érték, kattintson a Mentés gombra.";
 "suggestion.lanIPChanged" = "A helyi hálózat megváltozott (esetleg Wi-Fi/Ethernet váltás történt). Ha szándékos, kattintson a Mentés gombra.";
 "suggestion.serverCIDChanged" = "A szerver CID eltér a rekordtól; lehet, hogy megváltozott az azonosítóforrás. Frissítés után kattintson a Mentés gombra.";
-"suggestion.invalidHost" = "Adja meg a címet IP:port formátumban (pl. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Adja meg a címet IP:port formátumban (pl. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Ellenőrizze a hálózati kapcsolatot (Wi-Fi/Ethernet), majd kattintson a Frissítés gombra.";
 "suggestion.nameEmpty" = "Állítson be egy játékosnevet a játékban, lépjen ki a játékból, majd kattintson a Frissítés gombra.";
 "suggestion.modelEmpty" = "Válasszon egy játékosmodellt a játékban, lépjen ki a játékból, majd kattintson a Frissítés gombra.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "A szokásos helyeken nem található broker.";
 "steam.settings.foundOther" = "Másik broker is található: %@. A beállított útvonal megmarad.";
 "steam.error.settingsHint" = "Ellenőrizze a Steam broker útvonalát a Beállítások › Kapcsolati útvonalak alatt.";
+"steam.join.steamAuthRestart" = "Steam-azonosítóval (a broker újraindítása szükséges)";
+"steam.state.stale" = "A broker elavult (a Steam újra lett indítva)";
+"steam.settings.stale" = "A Steam újra lett indítva – indítsa újra a brokert";
+"steam.settings.restart" = "Újraindítás";
+"steam.error.stale" = "A futó brokert a Steam előtt indították el, ezért az alkalmazás nem tudja lecserélni. Állítsa le, majd próbálja újra.";

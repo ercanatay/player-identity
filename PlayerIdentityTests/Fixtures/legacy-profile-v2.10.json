@@ -36,7 +36,7 @@
       "label" : "Example RPG",
       "host" : "192.0.2.20",
       "id" : "1E390D91-9114-454E-A9B3-4AB1833ACD48",
-      "cid" : "d9de0eb4419608a8423241430581e91c",
+      "cid" : "668afa7c2daff879e69f6aae714ef3b4",
       "order" : 0,
       "note" : ""
     },
@@ -48,7 +48,7 @@
       "label" : "IP ok testi",
       "host" : "192.0.2.30",
       "id" : "5E3A1D2C-0B7E-4C61-9C1F-2D7B4F0A5161",
-      "cid" : "5282a6daf7a33fe08469e453086de93c",
+      "cid" : "c60f3c9f783576db19d68fa956ab503d",
       "order" : 0,
       "note" : ""
     }

@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "IPが変更されました（動的IPでは正常です）。これが正しい値であれば「保存」を押してください。";
 "suggestion.lanIPChanged" = "ローカルネットワークが変更されました（Wi-Fi/Ethernetの切り替えなど）。意図したものであれば「保存」を押してください。";
 "suggestion.serverCIDChanged" = "サーバーCIDがレコードと異なります。識別情報のソースが変更された可能性があります。「更新」後に「保存」を押してください。";
-"suggestion.invalidHost" = "アドレスはIP:ポートの形式で入力してください（例: 51.68.190.91:27015）。";
+"suggestion.invalidHost" = "アドレスはIP:ポートの形式で入力してください（例: 192.0.2.10:27015）。";
 "suggestion.lanIPMissing" = "ネットワーク接続（Wi-Fi/Ethernet）を確認し、「更新」を押してください。";
 "suggestion.nameEmpty" = "ゲーム内でプレイヤー名を設定し、ゲームを終了して「更新」を押してください。";
 "suggestion.modelEmpty" = "ゲーム内でプレイヤーモデルを選択し、ゲームを終了して「更新」を押してください。";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "通常の場所にブローカーが見つかりませんでした。";
 "steam.settings.foundOther" = "別のブローカーが見つかりました: %@。設定したパスはそのまま保持されます。";
 "steam.error.settingsHint" = "「設定 › 接続パス」でブローカーのパスを確認してください。";
+"steam.join.steamAuthRestart" = "Steam ID で接続（ブローカーの再起動が必要）";
+"steam.state.stale" = "ブローカーが古くなっています（Steam が再起動されました）";
+"steam.settings.stale" = "Steam が再起動されました — ブローカーを再起動してください";
+"steam.settings.restart" = "再起動";
+"steam.error.stale" = "実行中のブローカーは Steam より前に起動されているため、アプリから置き換えることはできません。停止してから、もう一度お試しください。";

@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "IP가 변경되었습니다(유동 IP의 경우 정상). 올바른 값이라면 저장을 누르십시오.";
 "suggestion.lanIPChanged" = "로컬 네트워크가 변경되었습니다(Wi-Fi/이더넷 전환일 수 있음). 의도한 것이라면 저장을 누르십시오.";
 "suggestion.serverCIDChanged" = "서버 CID가 기록과 다릅니다. 식별자 원본이 변경되었을 수 있습니다. 새로고침 후 저장을 누르십시오.";
-"suggestion.invalidHost" = "주소를 IP:포트 형식으로 입력하십시오(예: 51.68.190.91:27015).";
+"suggestion.invalidHost" = "주소를 IP:포트 형식으로 입력하십시오(예: 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "네트워크 연결(Wi-Fi/이더넷)을 확인한 후 새로고침을 누르십시오.";
 "suggestion.nameEmpty" = "게임에서 플레이어 이름을 설정하고 게임을 종료한 후 새로고침을 누르십시오.";
 "suggestion.modelEmpty" = "게임에서 플레이어 모델을 선택하고 게임을 종료한 후 새로고침을 누르십시오.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "일반적인 위치에서 브로커를 찾을 수 없습니다.";
 "steam.settings.foundOther" = "다른 브로커를 찾았습니다: %@. 설정한 경로는 그대로 유지됩니다.";
 "steam.error.settingsHint" = "설정 › 연결 경로에서 브로커 경로를 확인하십시오.";
+"steam.join.steamAuthRestart" = "Steam 계정 정보 사용 (브로커 재시작 필요)";
+"steam.state.stale" = "브로커가 오래됨 (Steam 재시작됨)";
+"steam.settings.stale" = "Steam이 재시작됨 — 브로커를 재시작하세요";
+"steam.settings.restart" = "재시작";
+"steam.error.stale" = "실행 중인 브로커는 Steam보다 먼저 시작되어 앱에서 교체할 수 없습니다. 브로커를 중지한 후 다시 시도하세요.";

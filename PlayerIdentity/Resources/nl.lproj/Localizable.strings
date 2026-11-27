@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "Je IP is gewijzigd (normaal bij een dynamisch IP). Als dit de juiste waarde is, klik op Bewaar.";
 "suggestion.lanIPChanged" = "Het lokale netwerk is gewijzigd (mogelijk gewisseld tussen wifi en ethernet). Indien bedoeld, klik op Bewaar.";
 "suggestion.serverCIDChanged" = "De server-CID wijkt af van de record; de identiteitsbron is mogelijk gewijzigd. Klik op Bewaar na Vernieuw.";
-"suggestion.invalidHost" = "Voer het adres in als IP:poort (bijv. 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Voer het adres in als IP:poort (bijv. 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Controleer de netwerkverbinding (wifi/ethernet) en klik daarna op Vernieuw.";
 "suggestion.nameEmpty" = "Stel een spelersnaam in het spel in, sluit het spel af en klik op Vernieuw.";
 "suggestion.modelEmpty" = "Kies een spelersmodel in het spel, sluit het spel af en klik op Vernieuw.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Er is geen broker gevonden op de gebruikelijke locaties.";
 "steam.settings.foundOther" = "Er is een andere broker gevonden: %@. Het pad dat je hebt ingesteld, blijft behouden.";
 "steam.error.settingsHint" = "Controleer het brokerpad in Instellingen › Verbindingspaden.";
+"steam.join.steamAuthRestart" = "Met Steam-identiteit (broker herstarten)";
+"steam.state.stale" = "Broker verouderd (Steam is herstart)";
+"steam.settings.stale" = "Steam is herstart — herstart de broker";
+"steam.settings.restart" = "Herstarten";
+"steam.error.stale" = "De draaiende broker is gestart voordat Steam is gestart en kan niet door de app worden vervangen. Stop hem en probeer het opnieuw.";

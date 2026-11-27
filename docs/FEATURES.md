@@ -70,7 +70,7 @@ When the card says **Not supported** (no engine indicators, identity zero or mis
 If macOS blocks the first launch of the ad-hoc signed engine: System Settings → Privacy & Security → "Open Anyway" (for this app only); the app never bypasses Gatekeeper (behaviour on a clean account not measured). Intel Macs keep the release page only. Settings → Data → Engine backups lists the backups (newest 3 kept); older ones are deleted only after a confirmation. CLI: `playeridentityctl engine status`, `engine install-compatible [--yes]`, `engine backups [delete --confirm <code>]`.
 
 ### GoldSrc 48 servers (2.26)
-The app tells GoldSrc protocol 48 servers (HLDS/ReHLDS, e.g. POLIGON RPG) from Source/Xash protocol 49 servers by their A2S_INFO reply:
+The app tells GoldSrc protocol 48 servers (HLDS/ReHLDS, e.g. Example Server) from Source/Xash protocol 49 servers by their A2S_INFO reply:
 
 - **Protocol:** a legacy `0x6D` reply with the GoldSrc protocol byte, or a `0x49` reply with protocol byte 48, is `goldsrc48` (when both arrive, the legacy reply is kept); a `0x49` reply with protocol byte 49 is `source49`; an empty, truncated, unrecognised or inconsistent reply is `unknown` (never a guess). Older records without the field read as `unknown`. Only `source49` servers get the CID test (connect 49); `goldsrc48` and `unknown` never get a CID.
 - **CID:** on a `goldsrc48` server no CID is computed, shown or copied: the server row says **N/A** ("CID is not used on this server"), the menu bar has no CID to copy and an old saved CID of that server is removed by the next successful refresh that gets the GoldSrc reply (a failed refresh removes nothing). `source49` keeps the existing CID; `unknown` follows the existing behaviour.

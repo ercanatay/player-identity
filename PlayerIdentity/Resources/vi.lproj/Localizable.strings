@@ -137,7 +137,7 @@
 "suggestion.publicIPChanged" = "IP của bạn đã thay đổi (bình thường với IP động). Nếu đây là giá trị đúng, hãy nhấn Lưu.";
 "suggestion.lanIPChanged" = "Mạng cục bộ đã thay đổi (có thể do chuyển đổi Wi-Fi/Ethernet). Nếu là chủ ý của bạn, hãy nhấn Lưu.";
 "suggestion.serverCIDChanged" = "CID máy chủ khác với bản ghi; nguồn danh tính có thể đã thay đổi. Nhấn Lưu sau khi Làm mới.";
-"suggestion.invalidHost" = "Nhập địa chỉ theo dạng IP:cổng (ví dụ: 51.68.190.91:27015).";
+"suggestion.invalidHost" = "Nhập địa chỉ theo dạng IP:cổng (ví dụ: 192.0.2.10:27015).";
 "suggestion.lanIPMissing" = "Kiểm tra kết nối mạng (Wi-Fi/Ethernet), sau đó nhấn Làm mới.";
 "suggestion.nameEmpty" = "Đặt tên người chơi trong game, thoát game và nhấn Làm mới.";
 "suggestion.modelEmpty" = "Chọn một mô hình người chơi trong game, thoát game và nhấn Làm mới.";
@@ -1371,3 +1371,8 @@
 "steam.settings.notFound" = "Không tìm thấy broker ở các vị trí thông thường.";
 "steam.settings.foundOther" = "Đã tìm thấy một broker khác: %@. Đường dẫn bạn đã đặt vẫn được giữ nguyên.";
 "steam.error.settingsHint" = "Hãy kiểm tra đường dẫn Steam broker trong Cài đặt › Đường dẫn kết nối.";
+"steam.join.steamAuthRestart" = "Với danh tính Steam (khởi động lại broker)";
+"steam.state.stale" = "Broker đã cũ (Steam đã khởi động lại)";
+"steam.settings.stale" = "Steam đã khởi động lại — hãy khởi động lại broker";
+"steam.settings.restart" = "Khởi động lại";
+"steam.error.stale" = "Broker đang chạy được khởi động trước Steam và không thể được ứng dụng thay thế. Hãy dừng nó, sau đó thử lại.";

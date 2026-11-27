@@ -215,7 +215,7 @@ final class LocalizationTests: XCTestCase {
 
     func testWholeTextsSwitchWithLanguage() throws {
         let check = BanCheck(status: .ipBanned, checkedAt: Date(timeIntervalSince1970: 1_793_000_000), detail: "ipBanned: x")
-        let input = AppealInput(serverLabel: "S", host: "51.68.190.91", port: 27015, checkedAt: check.checkedAt,
+        let input = AppealInput(serverLabel: "S", host: "192.0.2.10", port: 27015, checkedAt: check.checkedAt,
                                 playerName: "P", cid: "c", publicIP: "198.51.100.10", gamedir: "valve", check: check,
                                 rangeBan: RangeBanInfo(cidr: "198.51.0.0/16", oldIP: "A", newIP: "B"))
         let english = try inEnglish { () -> String in
@@ -224,7 +224,7 @@ final class LocalizationTests: XCTestCase {
             XCTAssertEqual(PlayerOptions.modelOptions(available: [], current: "x").first?.label, "x (current)")
             return AppealText.make(input)
         }
-        for line in ["Hello,", "Server: S (51.68.190.91:27015)", "(local)", "Player name: P", "Egress IP: 198.51.100.10",
+        for line in ["Hello,", "Server: S (192.0.2.10:27015)", "(local)", "Player name: P", "Egress IP: 198.51.100.10",
                      "Check type: engine IP (getchallenge)", "Possible range ban: 198.51.0.0/16 (old IP: A, new IP: B)",
                      "Checklist for the admin:", "  1. Find the entry with listid and listip."] {
             XCTAssertTrue(english.contains(line), "missing \(line)\n\(english)")

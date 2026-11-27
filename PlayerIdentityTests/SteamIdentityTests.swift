@@ -12,7 +12,10 @@ final class FakeSteamBroker: SteamBrokerEnvironment, SteamBrokerProcessControlli
     var listensAfterStart = true
     private var startedValue: [String] = []
     private var addressesValue: [String] = []
+    private var cwdValue: [String] = []
     var executableFiles: Set<String> = []
+    var steamStart: Date? = Date(timeIntervalSince1970: 1_000)
+    var brokerStart: Date? = Date(timeIntervalSince1970: 2_000)
     private var stoppedValue: [Int32] = []
     var startFails = false
 
@@ -22,6 +25,7 @@ final class FakeSteamBroker: SteamBrokerEnvironment, SteamBrokerProcessControlli
     }
     var started: [String] { lock.withLock { startedValue } }
     var startAddresses: [String] { lock.withLock { addressesValue } }
+    var startDirectories: [String] { lock.withLock { cwdValue } }
     var stopped: [Int32] { lock.withLock { stoppedValue } }
 
     func pathCheck(_ path: String) -> SteamBrokerPathCheck { pathResult }
@@ -29,18 +33,22 @@ final class FakeSteamBroker: SteamBrokerEnvironment, SteamBrokerProcessControlli
     func isBrokerProcessRunning(executablePath: String) -> Bool { brokerProcessRunning }
     func isSteamClientRunning() -> Bool { steamRunning }
     func isExecutableRegularFile(_ path: String) -> Bool { executableFiles.contains(path) }
+    func steamClientStartTime() -> Date? { steamRunning ? steamStart : nil }
+    func brokerProcessStartTime(executablePath: String) -> Date? { listening || brokerProcessRunning ? brokerStart : nil }
 
-    func start(executablePath: String, address: String) throws -> Int32 {
+    func start(executablePath: String, address: String, workingDirectory: String) throws -> Int32 {
         if startFails { throw CommandError.launchFailed }
         lock.withLock {
             startedValue.append(executablePath)
             addressesValue.append(address)
+            cwdValue.append(workingDirectory)
             if listensAfterStart { listeningValue = true }
+            brokerStart = Date(timeIntervalSince1970: 10_000)   // a started broker is newer than Steam
         }
         return 4242
     }
 
-    func stop(pid: Int32) { lock.withLock { stoppedValue.append(pid) } }
+    func stop(pid: Int32) { lock.withLock { stoppedValue.append(pid); listeningValue = false } }
 }
 
 /// A file system that serves one `engine.log`.
@@ -82,20 +90,33 @@ final class SteamIdentityTests: XCTestCase {
 
     // MARK: §76.8.6 argv
 
-    func testStandardArgvIsUnchangedAndSteamAddsOnlyTheTicketGenerator() async throws {
+    func testBothMethodsSetTheTicketGeneratorExplicitly() async throws {
         let standard = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve")
         XCTAssertEqual(standard.command.argv, ["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve",
-                                               "+connect", "192.0.2.10:27015"])
+                                               "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015"])
         XCTAssertEqual(standard.command.identity, .standard)
         let steam = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve", identity: .steamAuth)
         XCTAssertEqual(steam.command.argv, ["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve"]
                        + steamTriple + ["+connect", "192.0.2.10:27015"])
-        // Without the three tokens the two lines are identical.
-        var stripped = steam.command.argv
-        stripped.removeSubrange(6..<9)
-        XCTAssertEqual(stripped, standard.command.argv)
+        // The two lines differ only in the cvar value.
+        var swapped = steam.command.argv
+        swapped[8] = "revemu2013"
+        XCTAssertEqual(swapped, standard.command.argv)
         XCTAssertTrue(GameLaunchAllowlist.isAllowed(steam.command.argv))
         XCTAssertTrue(GameLaunchAllowlist.isAllowed(standard.command.argv))
+    }
+
+    /// §78.4.3 a `steam` value saved in `config.cfg` does not decide the method: the launch line always does, and
+    /// the app writes nothing to the game folder.
+    func testConfigCfgValueNeverDecidesTheStandardMethod() async throws {
+        let temp = try TempDirectory()
+        let cfg = try temp.write("data/valve/config.cfg", "cl_ticket_generator \"steam\"\nname \"N\"\n")
+        let before = try Data(contentsOf: cfg)
+        let plan = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve",
+                                             dataRoot: temp.url.appendingPathComponent("data", isDirectory: true))
+        XCTAssertEqual(Array(plan.command.argv[6..<9]), ["+set", "cl_ticket_generator", "revemu2013"])
+        XCTAssertFalse(plan.command.argv.contains("steam"))
+        XCTAssertEqual(try Data(contentsOf: cfg), before)
     }
 
     func testGoldSrcSteamArgvKeepsTheLogArgumentsAndTheAllowlistStaysStrict() async throws {
@@ -103,10 +124,10 @@ final class SteamIdentityTests: XCTestCase {
                                                  serverProtocol: .goldsrc48, dataRoot: dataRoot)
         let steam = try await launcher().plan(host: "192.0.2.10", port: 27015, gamedir: "valve",
                                               serverProtocol: .goldsrc48, dataRoot: dataRoot, identity: .steamAuth)
-        var stripped = steam.command.argv
-        let marker = try XCTUnwrap(stripped.firstIndex(of: "+set"))
-        stripped.removeSubrange(marker..<(marker + 3))
-        XCTAssertEqual(stripped, standard.command.argv)
+        var swapped = steam.command.argv
+        let marker = try XCTUnwrap(swapped.firstIndex(of: "+set"))
+        swapped[marker + 2] = "revemu2013"
+        XCTAssertEqual(swapped, standard.command.argv)
         XCTAssertTrue(steam.command.argv.suffix(3) == ["+connect", "192.0.2.10:27015", "gs"])
         XCTAssertTrue(GameLaunchAllowlist.isAllowed(steam.command.argv))
         // Any other `+set` shape is refused.
@@ -118,6 +139,9 @@ final class SteamIdentityTests: XCTestCase {
         XCTAssertFalse(GameLaunchAllowlist.isAllowed(twice))
         XCTAssertFalse(GameLaunchAllowlist.isAllowed(["/usr/bin/open", "+set", "cl_ticket_generator", "steam", "+connect",
                                                       "192.0.2.10:27015"]))
+        // A line without the explicit cvar is no longer a launch line.
+        XCTAssertFalse(GameLaunchAllowlist.isAllowed(["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve",
+                                                      "+connect", "192.0.2.10:27015"]))
     }
 
     // MARK: §76.8.3 consent
@@ -184,7 +208,7 @@ final class SteamIdentityTests: XCTestCase {
         // A plain "Join Game" never carries it.
         await model.joinGame(id, identity: .standard)?.value
         XCTAssertEqual(runner.commands.count, 2)
-        XCTAssertFalse(runner.commands[1].contains("cl_ticket_generator"))
+        XCTAssertEqual(Array(runner.commands[1][6..<9]), ["+set", "cl_ticket_generator", "revemu2013"])
     }
 
     // MARK: §76.8.4 / §76.8.5 broker state and errors
@@ -484,7 +508,7 @@ final class SteamIdentityTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(standard.stdout.utf8)) as? [String: Any])
         XCTAssertEqual(object["identity"] as? String, "standard")
         XCTAssertEqual(runner.commands, [["/usr/bin/open", "-a", Self.app, "--args", "-game", "valve",
-                                          "+connect", "192.0.2.10:27015"]])
+                                          "+set", "cl_ticket_generator", "revemu2013", "+connect", "192.0.2.10:27015"]])
     }
 
     func testCLISteamAuthNeedsAConfiguredBrokerAndConsent() async throws {
@@ -573,6 +597,9 @@ final class SteamIdentityTests: XCTestCase {
         let manager = SteamBrokerManager(environment: broker, control: broker, sleep: { _ in })
         _ = try await manager.prepare(custom)
         XCTAssertEqual(broker.startAddresses, ["127.0.0.1:27555"])
+        // §78.4.4 the broker runs in the folder of its binary (it finds its library next to itself).
+        XCTAssertEqual(broker.startDirectories, ["/opt/broker"])
+        XCTAssertEqual(SteamBrokerManager.workingDirectory(forBinary: "/opt/broker/broker"), "/opt/broker")
         XCTAssertEqual(SteamBrokerEndpoint(executablePath: "/x").addressArgument, "127.0.0.1:27420")
         // A host that is not a plain name / IP is never passed.
         var odd = custom
@@ -773,5 +800,151 @@ final class SteamIdentityTests: XCTestCase {
         let text = GameLaunchText.error(.steamBrokerStartFailed)
         XCTAssertTrue(text.contains(L10n.text(.steamErrorStart)))
         XCTAssertTrue(text.contains(L10n.text(.steamErrorSettingsHint)))
+    }
+
+    // MARK: §79
+
+    func testStalenessFromProcessStartTimes() {
+        let broker = FakeSteamBroker()
+        broker.listening = true
+        let manager = SteamBrokerManager(environment: broker, control: broker, sleep: { _ in })
+        broker.steamStart = Date(timeIntervalSince1970: 5_000)
+        broker.brokerStart = Date(timeIntervalSince1970: 4_000)        // broker older than Steam
+        XCTAssertEqual(manager.state(endpoint), .stale)
+        broker.brokerStart = Date(timeIntervalSince1970: 6_000)        // broker newer: fresh
+        XCTAssertEqual(manager.state(endpoint), .listening)
+        broker.steamRunning = false                                    // no Steam at all: existing behaviour
+        XCTAssertEqual(manager.state(endpoint), .steamSessionMissing)
+        // Without readable start times the "Steam quit was seen" hint decides.
+        broker.steamRunning = true
+        broker.brokerStart = nil
+        XCTAssertEqual(manager.state(endpoint, markedStale: true), .stale)
+        XCTAssertEqual(manager.state(endpoint, markedStale: false), .listening)
+        XCTAssertTrue(SteamBrokerManager.isStale(brokerStart: Date(timeIntervalSince1970: 1), steamStart: Date(timeIntervalSince1970: 2), markedStale: false))
+        XCTAssertFalse(SteamBrokerManager.isStale(brokerStart: Date(timeIntervalSince1970: 3), steamStart: Date(timeIntervalSince1970: 2), markedStale: true))
+    }
+
+    func testMenuVariantForAStaleBroker() {
+        let stale = SteamMenuItem.make(pathUsable: true, state: .stale, recommended: false)
+        XCTAssertTrue(stale.isEnabled)
+        XCTAssertTrue(stale.startsBroker)
+        XCTAssertTrue(stale.title.hasPrefix(L10n.text(.steamJoinSteamAuthRestart)))
+        let fresh = SteamMenuItem.make(pathUsable: true, state: .listening, recommended: false)
+        XCTAssertFalse(fresh.title.contains(L10n.text(.steamJoinSteamAuthRestart)))
+        XCTAssertFalse(fresh.startsBroker)
+        // Steam closed: not the restart variant.
+        XCTAssertFalse(SteamMenuItem.make(pathUsable: true, state: .steamSessionMissing, recommended: false)
+            .title.contains(L10n.text(.steamJoinSteamAuthRestart)))
+    }
+
+    @MainActor
+    private func staleModel(_ env: TestAppEnvironment, broker: FakeSteamBroker, runner: FakeGameLaunchRunner = FakeGameLaunchRunner()) -> AppModel {
+        let model = env.makeModel { deps in
+            deps.gameAppLocator = GameAppLocator(fileSystem: FakeDirectories(directories: [Self.app]), homeDirectory: self.home)
+            deps.gameLaunchRunner = runner
+            deps.steamBrokerEnvironment = broker
+            deps.steamBrokerControl = broker
+            deps.steamSleep = { _ in }
+        }
+        model.setSteamBroker(path: "/opt/broker/broker", port: 27420)
+        return model
+    }
+
+    @MainActor
+    func testSteamQuitStopsOnlyTheAppsBrokerAndStartsNothing() async throws {
+        let env = try TestAppEnvironment()
+        let own = FakeSteamBroker()
+        let model = staleModel(env, broker: own)
+        await model.startSteamBroker().value                         // the app starts it
+        XCTAssertEqual(own.started.count, 1)
+        model.steamClientDidTerminate()
+        XCTAssertEqual(own.stopped, [4242])                          // the app's broker stops
+        model.steamClientDidLaunch()
+        XCTAssertEqual(own.started.count, 1)                         // nothing is started automatically
+
+        let foreign = FakeSteamBroker()
+        foreign.listening = true                                     // the user's own broker
+        foreign.steamStart = Date(timeIntervalSince1970: 5_000)
+        foreign.brokerStart = Date(timeIntervalSince1970: 4_000)
+        let other = staleModel(env, broker: foreign)
+        await other.startSteamBroker().value                         // adopts nothing
+        other.steamClientDidTerminate()
+        XCTAssertEqual(foreign.stopped, [])                          // not stopped, only marked stale
+        await other.refreshSteamBrokerState().value
+        XCTAssertEqual(other.steamBrokerState, .stale)
+        XCTAssertEqual(foreign.started, [])
+    }
+
+    @MainActor
+    func testSettingsRestartReplacesAStaleBrokerTheAppStartedWithTheHostPortArgument() async throws {
+        let env = try TestAppEnvironment()
+        let broker = FakeSteamBroker()
+        let model = staleModel(env, broker: broker)
+        await model.startSteamBroker().value
+        XCTAssertEqual(broker.startAddresses, ["127.0.0.1:27420"])
+        // Steam restarted after the broker: stale.
+        broker.steamStart = Date(timeIntervalSince1970: 9_000)
+        broker.brokerStart = Date(timeIntervalSince1970: 3_000)
+        await model.refreshSteamBrokerState().value
+        XCTAssertEqual(model.steamBrokerState, .stale)
+        XCTAssertEqual(broker.started.count, 1)                      // nothing happened by itself
+        await model.restartSteamBroker().value
+        XCTAssertEqual(broker.stopped, [4242])                       // the old one (the app's) was stopped
+        XCTAssertEqual(broker.startAddresses, ["127.0.0.1:27420", "127.0.0.1:27420"])
+        XCTAssertEqual(broker.startDirectories, ["/opt/broker", "/opt/broker"])
+        XCTAssertNil(model.steamSettingsError)
+        XCTAssertEqual(model.steamBrokerState, .listening)
+    }
+
+    @MainActor
+    func testRestartErrorsAreShownAndANonOwnedStaleBrokerIsNotReplaced() async throws {
+        let env = try TestAppEnvironment()
+        let foreign = FakeSteamBroker()
+        foreign.listening = true
+        foreign.steamStart = Date(timeIntervalSince1970: 5_000)
+        foreign.brokerStart = Date(timeIntervalSince1970: 4_000)
+        let model = staleModel(env, broker: foreign)
+        await model.restartSteamBroker().value
+        XCTAssertEqual(model.steamSettingsError, .steamBrokerStale)
+        XCTAssertEqual(foreign.stopped, [])
+        XCTAssertEqual(foreign.started, [])
+        let text = GameLaunchText.error(.steamBrokerStale)
+        XCTAssertTrue(text.contains(L10n.text(.steamErrorStale)) && text.contains(L10n.text(.steamErrorSettingsHint)))
+        XCTAssertTrue(GameLaunchError.steamBrokerStale.isSteamBrokerProblem)
+
+        // The app's own stale broker that cannot be started again: a clear error, no crash.
+        let own = FakeSteamBroker()
+        let other = staleModel(env, broker: own)
+        await other.startSteamBroker().value
+        own.steamStart = Date(timeIntervalSince1970: 9_000)
+        own.brokerStart = Date(timeIntervalSince1970: 3_000)
+        own.startFails = true
+        await other.restartSteamBroker().value
+        XCTAssertEqual(other.steamSettingsError, .steamBrokerStartFailed)
+    }
+
+    @MainActor
+    func testJoinWithAStaleBrokerAsksConsentThenRestartsAndConnects() async throws {
+        let env = try TestAppEnvironment()
+        let runner = FakeGameLaunchRunner()
+        let broker = FakeSteamBroker()
+        let model = staleModel(env, broker: broker, runner: runner)
+        await model.startSteamBroker().value
+        broker.steamStart = Date(timeIntervalSince1970: 9_000)
+        broker.brokerStart = Date(timeIntervalSince1970: 3_000)
+        model.addServer(ServerDraft(label: "A", host: "192.0.2.10"))
+        let id = try XCTUnwrap(model.servers.first?.id)
+        await model.refreshSteamBrokerState().value
+        XCTAssertTrue(model.steamMenuItem(for: id).title.contains(L10n.text(.steamJoinSteamAuthRestart)))
+
+        let join = try XCTUnwrap(model.joinGame(id, identity: .steamAuth))
+        for _ in 0..<50 where model.steamPrompt == nil { await Task.yield() }
+        XCTAssertEqual(broker.started.count, 1)                      // nothing before the consent
+        model.answerSteamPrompt(true)
+        await join.value
+        XCTAssertEqual(broker.stopped.first, 4242)                    // the stale broker (the app's) was stopped first
+        XCTAssertEqual(broker.started.count, 2)
+        XCTAssertEqual(runner.commands.count, 1)
+        XCTAssertEqual(Array(runner.commands[0][6..<9]), steamTriple)
     }
 }

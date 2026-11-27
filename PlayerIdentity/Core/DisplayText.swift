@@ -123,6 +123,7 @@ enum GameLaunchText {
         case .steamBrokerNotConfigured: return L10n.text(.steamJoinDisabledHint)
         case .steamSessionRequired: return L10n.text(.steamStateSessionMissing)
         case .steamBrokerUnreachable: return L10n.text(.steamErrorUnreachable) + "\n" + L10n.text(.steamErrorSettingsHint)
+        case .steamBrokerStale: return L10n.text(.steamErrorStale) + "\n" + L10n.text(.steamErrorSettingsHint)
         case .steamBrokerStartFailed: return L10n.text(.steamErrorStart) + "\n" + L10n.text(.steamErrorSettingsHint)
         }
     }

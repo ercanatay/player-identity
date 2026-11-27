@@ -3,11 +3,11 @@ import XCTest
 
 /// §13.6/1: ban check scenarios with a fake UDP transport (no network).
 final class BanCheckTests: XCTestCase {
-    private let cid = "d9de0eb4419608a8423241430581e91c"
+    private let cid = "668afa7c2daff879e69f6aae714ef3b4"
 
-    private func request(cid: String? = "d9de0eb4419608a8423241430581e91c", name: String = "Oyuncu") -> BanCheckRequest {
-        BanCheckRequest(serverID: UUID(), host: "51.68.190.91", port: 27015,
-                        endpoint: UDPEndpoint(address: ServerAddress.parse("51.68.190.91")!, port: 27015),
+    private func request(cid: String? = "668afa7c2daff879e69f6aae714ef3b4", name: String = "Oyuncu") -> BanCheckRequest {
+        BanCheckRequest(serverID: UUID(), host: "192.0.2.10", port: 27015,
+                        endpoint: UDPEndpoint(address: ServerAddress.parse("192.0.2.10")!, port: 27015),
                         cid: cid, name: name)
     }
 
@@ -205,15 +205,15 @@ final class BanCheckTests: XCTestCase {
     }
 
     func testRequestsSkipInvalidHosts() {
-        let servers = [ServerEntry(label: "ok", host: "5.161.189.195"),
+        let servers = [ServerEntry(label: "ok", host: "198.51.100.2"),
                        ServerEntry(label: "domain", host: "example.com"),
                        ServerEntry(label: "port", host: "1.2.3.4", port: 0),
                        ServerEntry(label: "v6", host: "2001:db8::1")]
         let requests = BanCheckRunner.requests(servers: servers, rawID: 0, name: "N")
-        XCTAssertEqual(requests.map(\.host), ["5.161.189.195", "2001:db8::1"])
+        XCTAssertEqual(requests.map(\.host), ["198.51.100.2", "2001:db8::1"])
         // §75.3: the CID is derived only in the check (for a proven Source 49 server), from the raw identity.
         XCTAssertNil(requests.first?.cid)
-        XCTAssertEqual(requests.first?.sourceCID, "5282a6daf7a33fe08469e453086de93c")
+        XCTAssertEqual(requests.first?.sourceCID, "c60f3c9f783576db19d68fa956ab503d")
         XCTAssertNil(BanCheckRunner.requests(servers: servers, rawID: nil, name: "N").first?.sourceCID)
     }
 }
