@@ -41,6 +41,12 @@ enum L10n {
         return setting.resolved(preferredLanguages: preferred ?? Locale.preferredLanguages)
     }
 
+    /// Locale of the texts currently shown, for case mapping (Turkish "Tarih" → "TARİH").
+    static var textLocale: Locale {
+        if let override = bundle { return Locale(identifier: override.bundleURL.deletingPathExtension().lastPathComponent) }
+        return Locale(identifier: currentLanguage.rawValue)
+    }
+
     private static var activeBundle: Bundle {
         if let override = bundle { return override }
         return cachedBundle(currentLanguage)

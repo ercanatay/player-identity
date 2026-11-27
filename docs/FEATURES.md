@@ -16,7 +16,7 @@ A complete, behaviour-level description of **Cybokron Player Identity**, a nativ
 | **Game** | Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) with a `valve` or `gearbox` data folder |
 | **Data source** | Read-only access to the engine's `.xash_id` files and `config.cfg` / `userconfig.cfg`; public IP from `api.ipify.org` (fallback `ifconfig.me`); server answers over UDP |
 | **Write behaviour** | Read-only by default. The only game files ever written are the `name` and `model` lines of `config.cfg` / `userconfig.cfg`, and only after you confirm **Apply** (or **Remove line**). Everything else lives in the app's own folder |
-| **Languages** | 26 languages (1161 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
+| **Languages** | 26 languages (1329 localization keys per language) shown with native names, `en` fallback for missing keys, RTL support, switchable at runtime |
 | **Distribution** | Developer ID signed, Apple-notarized, stapled ZIP on GitHub Releases with `SHA256SUMS.txt`; Homebrew cask `ercanatay/tap/player-identity` |
 | **Automation** | `playeridentityctl` CLI, `playeridentity://` URL scheme, three Shortcuts/Siri actions; menu-bar quick actions, profile switcher and ban-list templates in the UI |
 | **Tests** | 1006 unit tests in the main scheme (temporary fixtures, fake HTTP/UDP/command runners, no network) |
@@ -122,7 +122,7 @@ The window has a minimum size of 720×520 and follows the system light/dark appe
 - **Refresh (⌘R)** and **Save (⌘S)**.
 - While servers are being checked, the toolbar reads "Checking N servers…". The toolbar switches to a compact layout when horizontal space runs out, and the title flexes.
 - **History (⌘Y)**, the **Ban Matrix** window and **Settings** are reachable from the app's menus and toolbar.
-- **Share card** — the 1200×630 PNG is created from a server row's menu (see [Server management](#server-management)).
+- **Share card** — the 1200×630 PNG is created from a server row's menu (see [Server management](#server-management)). Besides the server, CID, player and date it shows **STATUS** (Banned / Not banned / Could not be verified / Not checked) and **BAN TYPE** (IP ban / IP range ban / CID ban / Server connection ban (type unknown) / Could not be determined / —) from the row's last ban check; red and orange values always carry a symbol. A GoldSrc 48 card has no CID row and its QR carries only `sunucu`, `adres`, `durum`, `ban` and `surum=goldsrc48` (no CID, raw ID, serial, ticket or password); Source 49 cards keep the CID row and the CID QR.
 
 Quitting or closing with unsaved changes asks for confirmation.
 

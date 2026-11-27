@@ -1437,6 +1437,18 @@ KEYS = [
     ("errorGoldSrcBanned", "error.goldSrcBanned", "Sunucu bağlantıyı yasakladı (motor günlüğü).", "The server banned the connection (engine log)."),
     ("suggestionGoldSrcBanUnverified", "suggestion.goldSrcBanUnverified", "“Oyuna gir”e basın (gs ile bağlanır ve engine.log yazar), oyundan ana menüde çıkın, sonra Yenile'ye basın.", "Press Join Game (it connects with gs and writes engine.log), leave the game at the main menu, then press Refresh."),
     ("suggestionGoldSrcBanned", "suggestion.goldSrcBanned", "Sunucu adı, IP:port ve sunucu mesajıyla yöneticiye başvurun; ban türü (hesap, SteamID veya IP) belirlenemez.", "Contact the server administrator with the server name, IP:port and the server message; the ban kind (account, SteamID or IP) cannot be determined."),
+    ("shareCardStatus", "shareCard.status", "DURUM", "Status"),
+    ("shareCardBanType", "shareCard.banType", "BAN TİPİ", "Ban type"),
+    ("shareCardStatusBanned", "shareCard.status.banned", "Ban var", "Banned"),
+    ("shareCardStatusClear", "shareCard.status.clear", "Ban yok", "Not banned"),
+    ("shareCardStatusUnverified", "shareCard.status.unverified", "Doğrulanamadı", "Could not be verified"),
+    ("shareCardStatusNotChecked", "shareCard.status.notChecked", "Kontrol edilmedi", "Not checked"),
+    ("shareCardBanTypeIP", "shareCard.banType.ip", "IP banı", "IP ban"),
+    ("shareCardBanTypeIPRange", "shareCard.banType.ipRange", "IP aralık banı", "IP range ban"),
+    ("shareCardBanTypeCID", "shareCard.banType.cid", "CID banı", "CID ban"),
+    ("shareCardBanTypeGoldSrc", "shareCard.banType.goldSrc", "Sunucu bağlantı banı (tür belirsiz)", "Server connection ban (type unknown)"),
+    ("shareCardBanTypeUnknown", "shareCard.banType.unknown", "Belirlenemedi", "Could not be determined"),
+    ("shareCardQRStatusOnly", "shareCard.qr.statusOnly", "QR: durum özeti, CID içermez", "QR: status summary, no CID"),
 ]
 
 # InfoPlist.strings of every language: the Turkish product name for `tr`, the English one everywhere else.

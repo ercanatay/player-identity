@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "O servidor baniu a conexão (log do engine).";
 "suggestion.goldSrcBanUnverified" = "Pressione Join Game (ele conecta com gs e grava engine.log), saia do jogo no menu principal e pressione Refresh.";
 "suggestion.goldSrcBanned" = "Entre em contato com o administrador do servidor com o nome do servidor, o IP:port e a mensagem do servidor; o tipo de banimento (conta, SteamID ou IP) não pode ser determinado.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Tipo de banimento";
+"shareCard.status.banned" = "Banido";
+"shareCard.status.clear" = "Não banido";
+"shareCard.status.unverified" = "Não foi possível verificar";
+"shareCard.status.notChecked" = "Não verificado";
+"shareCard.banType.ip" = "Banimento por IP";
+"shareCard.banType.ipRange" = "Banimento por faixa de IP";
+"shareCard.banType.cid" = "Banimento por CID";
+"shareCard.banType.goldSrc" = "Banimento de conexão com o servidor (tipo desconhecido)";
+"shareCard.banType.unknown" = "Não foi possível determinar";
+"shareCard.qr.statusOnly" = "QR: resumo de status, sem CID";

@@ -384,7 +384,7 @@
 "appeal.problem.transition" = "Αυτή η αλλαγή κατάστασης δεν επιτρέπεται: %@ → %@";
 "history.kind.appeal" = "Αίτηση";
 "shareCard.create" = "Δημιουργία κάρτας κοινοποίησης";
-"shareCard.server" = "Server";
+"shareCard.server" = "Διακομιστής";
 "shareCard.cid" = "CID";
 "shareCard.player" = "Παίκτης";
 "shareCard.date" = "Ημερομηνία";
@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Ο διακομιστής απέκλεισε τη σύνδεση (αρχείο καταγραφής μηχανής).";
 "suggestion.goldSrcBanUnverified" = "Πατήστε Join Game (συνδέεται με gs και γράφει το engine.log), αποχωρήστε από το παιχνίδι στο κεντρικό μενού και μετά πατήστε Refresh.";
 "suggestion.goldSrcBanned" = "Επικοινωνήστε με τον διαχειριστή του διακομιστή με το όνομα του διακομιστή, το IP:port και το μήνυμα του διακομιστή· το είδος του αποκλεισμού (λογαριασμός, SteamID ή IP) δεν μπορεί να προσδιοριστεί.";
+"shareCard.status" = "Κατάσταση";
+"shareCard.banType" = "Τύπος αποκλεισμού";
+"shareCard.status.banned" = "Αποκλεισμένος";
+"shareCard.status.clear" = "Χωρίς αποκλεισμό";
+"shareCard.status.unverified" = "Δεν μπόρεσε να επαληθευτεί";
+"shareCard.status.notChecked" = "Δεν ελέγχθηκε";
+"shareCard.banType.ip" = "Αποκλεισμός IP";
+"shareCard.banType.ipRange" = "Αποκλεισμός εύρους IP";
+"shareCard.banType.cid" = "Αποκλεισμός CID";
+"shareCard.banType.goldSrc" = "Αποκλεισμός σύνδεσης διακομιστή (άγνωστος τύπος)";
+"shareCard.banType.unknown" = "Δεν μπόρεσε να προσδιοριστεί";
+"shareCard.qr.statusOnly" = "QR: σύνοψη κατάστασης, χωρίς CID";

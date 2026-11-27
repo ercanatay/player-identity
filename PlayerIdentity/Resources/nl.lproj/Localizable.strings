@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "De server heeft de verbinding geblokkeerd (engine-log).";
 "suggestion.goldSrcBanUnverified" = "Druk op Join Game (dit verbindt met gs en schrijft engine.log), verlaat het spel in het hoofdmenu en druk daarna op Refresh.";
 "suggestion.goldSrcBanned" = "Neem contact op met de serverbeheerder met de servernaam, het IP:port en het servericbericht; het soort ban (account, SteamID of IP) kan niet worden bepaald.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Bantype";
+"shareCard.status.banned" = "Geblokkeerd";
+"shareCard.status.clear" = "Niet geblokkeerd";
+"shareCard.status.unverified" = "Kon niet worden geverifieerd";
+"shareCard.status.notChecked" = "Niet gecontroleerd";
+"shareCard.banType.ip" = "IP-ban";
+"shareCard.banType.ipRange" = "IP-bereikban";
+"shareCard.banType.cid" = "CID-ban";
+"shareCard.banType.goldSrc" = "Serververbindingsban (type onbekend)";
+"shareCard.banType.unknown" = "Kon niet worden bepaald";
+"shareCard.qr.statusOnly" = "QR: statusoverzicht, geen CID";

@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "حظر الخادم الاتصال (سجل المحرك).";
 "suggestion.goldSrcBanUnverified" = "اضغط Join Game (يتصل باستخدام gs ويكتب engine.log)، ثم اخرج من اللعبة في القائمة الرئيسية، ثم اضغط Refresh.";
 "suggestion.goldSrcBanned" = "تواصل مع مسؤول الخادم مع اسم الخادم وIP:port ورسالة الخادم؛ لا يمكن تحديد نوع الحظر (الحساب أو SteamID أو IP).";
+"shareCard.status" = "الحالة";
+"shareCard.banType" = "نوع الحظر";
+"shareCard.status.banned" = "محظور";
+"shareCard.status.clear" = "غير محظور";
+"shareCard.status.unverified" = "تعذّر التحقق";
+"shareCard.status.notChecked" = "لم يتم الفحص";
+"shareCard.banType.ip" = "حظر IP";
+"shareCard.banType.ipRange" = "حظر نطاق IP";
+"shareCard.banType.cid" = "حظر CID";
+"shareCard.banType.goldSrc" = "حظر اتصال الخادم (النوع غير معروف)";
+"shareCard.banType.unknown" = "تعذّر التحديد";
+"shareCard.qr.statusOnly" = "QR: ملخص الحالة، دون CID";

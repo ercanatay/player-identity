@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Serwer zablokował połączenie (dziennik silnika).";
 "suggestion.goldSrcBanUnverified" = "Naciśnij Join Game (łączy się przez gs i zapisuje engine.log), wyjdź z gry w menu głównym, a następnie naciśnij Refresh.";
 "suggestion.goldSrcBanned" = "Skontaktuj się z administratorem serwera, podając nazwę serwera, IP:port i wiadomość serwera; rodzaju blokady (konto, SteamID lub IP) nie da się ustalić.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Typ blokady";
+"shareCard.status.banned" = "Zablokowany";
+"shareCard.status.clear" = "Niezablokowany";
+"shareCard.status.unverified" = "Nie można zweryfikować";
+"shareCard.status.notChecked" = "Nie sprawdzono";
+"shareCard.banType.ip" = "Blokada IP";
+"shareCard.banType.ipRange" = "Blokada zakresu IP";
+"shareCard.banType.cid" = "Blokada CID";
+"shareCard.banType.goldSrc" = "Blokada połączenia z serwerem (nieznany typ)";
+"shareCard.banType.unknown" = "Nie można ustalić";
+"shareCard.qr.statusOnly" = "QR: podsumowanie statusu, bez CID";

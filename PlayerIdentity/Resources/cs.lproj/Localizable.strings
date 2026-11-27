@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Server zakázal připojení (engine log).";
 "suggestion.goldSrcBanUnverified" = "Stiskněte Join Game (připojí se pomocí gs a zapíše engine.log), v hlavním menu opusťte hru a stiskněte Refresh.";
 "suggestion.goldSrcBanned" = "Kontaktujte administrátora serveru s názvem serveru, IP:port a zprávou serveru; druh zákazu (účet, SteamID nebo IP) nelze určit.";
+"shareCard.status" = "Stav";
+"shareCard.banType" = "Typ banu";
+"shareCard.status.banned" = "Zabanován";
+"shareCard.status.clear" = "Nezabanován";
+"shareCard.status.unverified" = "Nelze ověřit";
+"shareCard.status.notChecked" = "Neověřeno";
+"shareCard.banType.ip" = "Zablokování IP";
+"shareCard.banType.ipRange" = "Ban rozsahu IP adres";
+"shareCard.banType.cid" = "Zablokování CID";
+"shareCard.banType.goldSrc" = "Ban připojení k serveru (typ neznámý)";
+"shareCard.banType.unknown" = "Nelze určit";
+"shareCard.qr.statusOnly" = "QR: souhrn stavu, bez CID";

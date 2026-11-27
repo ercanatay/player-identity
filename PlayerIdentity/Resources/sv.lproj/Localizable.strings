@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Servern bannade anslutningen (motorlogg).";
 "suggestion.goldSrcBanUnverified" = "Tryck på Join Game (den ansluter med gs och skriver engine.log), lämna spelet i huvudmenyn och tryck sedan på Refresh.";
 "suggestion.goldSrcBanned" = "Kontakta serveradministratören med servernamnet, IP:port och servermeddelandet; typen av ban (konto, SteamID eller IP) kan inte fastställas.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Bantyp";
+"shareCard.status.banned" = "Bannad";
+"shareCard.status.clear" = "Inte bannad";
+"shareCard.status.unverified" = "Kunde inte verifieras";
+"shareCard.status.notChecked" = "Ej kontrollerad";
+"shareCard.banType.ip" = "IP-ban";
+"shareCard.banType.ipRange" = "IP-intervallban";
+"shareCard.banType.cid" = "CID-ban";
+"shareCard.banType.goldSrc" = "Serveranslutningsban (typ okänd)";
+"shareCard.banType.unknown" = "Kunde inte fastställas";
+"shareCard.qr.statusOnly" = "QR: statussammanfattning, ingen CID";

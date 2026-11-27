@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "サーバーが接続をBANしました（エンジンログ）。";
 "suggestion.goldSrcBanUnverified" = "Join Gameを押してください（gsで接続し、engine.logに書き込みます）。メインメニューでゲームを終了し、Refreshを押してください。";
 "suggestion.goldSrcBanned" = "サーバー名、IP:port、サーバーメッセージを添えてサーバー管理者に連絡してください。BANの種類（アカウント、SteamID、IP）は特定できません。";
+"shareCard.status" = "ステータス";
+"shareCard.banType" = "BAN種別";
+"shareCard.status.banned" = "BAN済み";
+"shareCard.status.clear" = "BANなし";
+"shareCard.status.unverified" = "検証できませんでした";
+"shareCard.status.notChecked" = "未確認";
+"shareCard.banType.ip" = "IP BAN";
+"shareCard.banType.ipRange" = "IPレンジBAN";
+"shareCard.banType.cid" = "CID BAN";
+"shareCard.banType.goldSrc" = "サーバー接続BAN（種別不明）";
+"shareCard.banType.unknown" = "判定できません";
+"shareCard.qr.statusOnly" = "QR: ステータス概要のみ、CIDなし";

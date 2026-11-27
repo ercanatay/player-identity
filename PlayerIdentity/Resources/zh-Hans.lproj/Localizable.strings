@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "服务器封禁了此连接（引擎日志）。";
 "suggestion.goldSrcBanUnverified" = "点击 Join Game（它会使用 gs 连接并写入 engine.log），在主菜单退出游戏，然后按 Refresh。";
 "suggestion.goldSrcBanned" = "请将服务器名称、IP:port 和服务器消息告知服务器管理员；封禁类型（账户、SteamID 或 IP）无法确定。";
+"shareCard.status" = "状态";
+"shareCard.banType" = "封禁类型";
+"shareCard.status.banned" = "已封禁";
+"shareCard.status.clear" = "未封禁";
+"shareCard.status.unverified" = "无法验证";
+"shareCard.status.notChecked" = "未检查";
+"shareCard.banType.ip" = "IP 封禁";
+"shareCard.banType.ipRange" = "IP 段封禁";
+"shareCard.banType.cid" = "CID 封禁";
+"shareCard.banType.goldSrc" = "服务器连接封禁（类型未知）";
+"shareCard.banType.unknown" = "无法确定";
+"shareCard.qr.statusOnly" = "QR：仅状态摘要，不含 CID";

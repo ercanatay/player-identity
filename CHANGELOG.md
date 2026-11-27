@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.1] - 2026-11-27
+
+### Added
+- **Share card: STATUS and BAN TYPE** (spec §33.1): the 1200×630 card now shows the row's ban status and ban type next to the server, read from the last ban check (no network call). STATUS: **Banned** (IP, range, CID or GoldSrc server ban), **Not banned** (CID OK), **Could not be verified** (GoldSrc unverified, CID unknown, unknown, unreachable), **Not checked**. BAN TYPE: **IP ban**, **IP range ban** (when a range ban is known from the current Fix result or from the history; it wins over a plain IP ban), **CID ban**, **Server connection ban (type unknown)** for GoldSrc (no account, SteamID or IP claim), **Could not be determined**, or "—". A GoldSrc 48 server never reads "Not banned", and there only the GoldSrc ban proof counts: an older Source result saved for the server (e.g. a CID ban) reads *Could not be verified* / *Could not be determined*.
+- Colour is never the only signal: a banned status is red with an octagon symbol, an unverified status or uncertain type orange with a triangle; definite IP/CID types red.
+
+### Changed
+- **GoldSrc 48 card**: no CID row at all (previously "N/A"), and the QR holds a status-only text — `sunucu=<name>`, `adres=<host:port>`, `durum=<banned|clear|unverified|notChecked>`, `ban=<ip|ipRange|cid|goldSrc|unknown|none>`, `surum=goldsrc48` — never a CID, raw ID, serial, ticket, password or path; a note under the QR says so. **Source 49 cards** keep the CID row and the CID QR unchanged, with STATUS and BAN TYPE added.
+- Card layout: server name, status and ban type are measured whole (no character cut before the layout) and wrap to two lines; when the block still does not fit, it shrinks step by step to 75 % (floor), and only then a line ends with "…". The player name and the date never shrink: they wrap to two lines in their own columns. Captions are upper-cased in the card language (Turkish "TARİH").
+- A Source 49 row without a CID has no CID row (no "—" placeholder) and no QR.
+- The share card is rendered once, after the range ban kept in the history is read; until then the sheet shows a progress indicator and **Copy** / **Save** are disabled.
+- 12 new localization keys (`shareCard.status*`, `shareCard.banType*`, `shareCard.qr.statusOnly`) in all 26 languages.
+
 ## [2.26.0] - 2026-11-26
 
 ### Added

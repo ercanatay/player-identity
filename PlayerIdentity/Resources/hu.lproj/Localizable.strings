@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "A szerver tiltotta le a kapcsolatot (motornapló).";
 "suggestion.goldSrcBanUnverified" = "Nyomd meg a Join Game gombot (gs-sel csatlakozik és írja az engine.log fájlt), lépj ki a játékból a főmenüben, majd nyomd meg a Refresh gombot.";
 "suggestion.goldSrcBanned" = "Lépj kapcsolatba a szerver adminisztrátorával a szerver nevével, az IP:port címmel és a szerverüzenettel; a tiltás típusát (fiók, SteamID vagy IP) nem lehet megállapítani.";
+"shareCard.status" = "Állapot";
+"shareCard.banType" = "Tiltás típusa";
+"shareCard.status.banned" = "Tiltva";
+"shareCard.status.clear" = "Nincs tiltva";
+"shareCard.status.unverified" = "Nem ellenőrizhető";
+"shareCard.status.notChecked" = "Nincs ellenőrizve";
+"shareCard.banType.ip" = "IP-tiltás";
+"shareCard.banType.ipRange" = "IP-tartomány tiltása";
+"shareCard.banType.cid" = "CID-tiltás";
+"shareCard.banType.goldSrc" = "Szerverkapcsolat-tiltás (típus ismeretlen)";
+"shareCard.banType.unknown" = "Nem állapítható meg";
+"shareCard.qr.statusOnly" = "QR: csak állapotösszesítő, CID nélkül";

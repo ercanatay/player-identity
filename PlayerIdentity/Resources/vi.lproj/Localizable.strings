@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Máy chủ đã cấm kết nối (nhật ký engine).";
 "suggestion.goldSrcBanUnverified" = "Nhấn Join Game (kết nối bằng gs và ghi engine.log), thoát trò chơi tại màn hình chính, rồi nhấn Refresh.";
 "suggestion.goldSrcBanned" = "Liên hệ quản trị viên máy chủ với tên máy chủ, IP:port và thông báo máy chủ; không thể xác định loại cấm (tài khoản, SteamID hoặc IP).";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Loại cấm";
+"shareCard.status.banned" = "Bị cấm";
+"shareCard.status.clear" = "Không bị cấm";
+"shareCard.status.unverified" = "Không thể xác minh";
+"shareCard.status.notChecked" = "Chưa kiểm tra";
+"shareCard.banType.ip" = "Cấm IP";
+"shareCard.banType.ipRange" = "Cấm dải IP";
+"shareCard.banType.cid" = "Cấm CID";
+"shareCard.banType.goldSrc" = "Cấm kết nối máy chủ (loại không xác định)";
+"shareCard.banType.unknown" = "Không thể xác định";
+"shareCard.qr.statusOnly" = "QR: tóm tắt trạng thái, không có CID";

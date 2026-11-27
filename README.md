@@ -58,9 +58,9 @@ folder (`profile.json`, history, metrics, updates).
 
 ---
 
-## What's new in v2.26.0
+## What's new in v2.26.1
 
-- **GoldSrc 48 servers**: the A2S_INFO reply tells GoldSrc protocol 48 servers (legacy `0x6D` reply, or a `0x49` reply with protocol byte 48) from Source/Xash protocol 49 servers. On a GoldSrc 48 server the CID is not used: the row says **N/A**, an old saved CID is removed by the next successful refresh, **Join game** starts the engine through `open --env XASH3D_BASEDIR=<data root> … -dev 1 -log +connect <host>:<port> gs` (so it writes `<data root>/engine.log`), and the real CID is never sent to it — a server claiming Source 49 first gets a CID-less capability probe (all-zero placeholder), and only a server that does not answer "older protocol ( 48 )" gets the real CID. The ban status is never shown as "no block": it stays **GoldSrc: unverified** until the engine log of your last GoldSrc connection to that server shows the server's answer — "You have been banned from this server." makes it **Server ban**. The diagnosis sends one null-ticket GoldSrc connect 48 probe only when you start it (Diagnose button, menu bar, `playeridentityctl diagnose … --confirm`); its silence or refusal is a verification limit, never "no ban". The app never claims an account, SteamID or IP ban.
+- **Share card shows the ban status and type**: next to the server, the 1200×630 card now has **STATUS** (*Banned*, *Not banned*, *Could not be verified*, *Not checked*) and **BAN TYPE** (*IP ban*, *IP range ban*, *CID ban*, *Server connection ban (type unknown)*, *Could not be determined*, or "—"), read from the row's last ban check. A GoldSrc 48 card has no CID row and its QR carries only the server, address, status and type keys and `surum=goldsrc48` — never a CID, raw ID, serial, ticket or password. Source 49 cards keep the CID row and the CID QR. Red/orange values always come with a symbol, long names wrap to two lines, and the player name and date always stay on the card.
 
 Earlier releases are listed in [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -475,7 +475,18 @@ not installed, the action is hidden.
 ### Share card
 
 “Create share card” renders a **1200×630 PNG** with the app icon, server name and address, CID (monospaced),
-player name, timestamp and a **QR code** of the CID. Copy it to the clipboard or save it with a save panel.
+**STATUS** and **BAN TYPE**, player name, timestamp and a **QR code** of the CID. Copy it to the clipboard or save
+it with a save panel.
+
+- **STATUS**: *Banned* (IP, range, CID or GoldSrc server ban, red with an octagon), *Not banned* (CID OK),
+  *Could not be verified* (GoldSrc unverified, CID unknown, unknown, unreachable; orange with a triangle) or
+  *Not checked*.
+- **BAN TYPE**: *IP ban*, *IP range ban* (a range known from Fix or the history wins), *CID ban*,
+  *Server connection ban (type unknown)* on GoldSrc (no account/SteamID/IP claim), *Could not be determined* or "—".
+- **GoldSrc 48**: no CID row; the QR holds only `sunucu=…`, `adres=…`, `durum=…`, `ban=…`, `surum=goldsrc48`.
+- Long server names and ban types wrap to two lines and shrink to a 75 % floor if needed (only then "…"); the
+  player name and the date keep their size and wrap in their own columns.
+- The card is rendered once the history (range bans) is read; until then Copy and Save are disabled.
 
 ### Menu bar and launch at login
 

@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Server bağlantını banladı (engine log).";
 "suggestion.goldSrcBanUnverified" = "Join Game düyməsinə basın (o, gs ilə qoşulur və engine.log yazır), əsas menyuda oyundan çıxın, sonra Refresh düyməsinə basın.";
 "suggestion.goldSrcBanned" = "Server administratoru ilə server adı, IP:port və server mesajı ilə əlaqə saxlayın; ban növü (hesab, SteamID və ya IP) müəyyən edilə bilmir.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Ban növü";
+"shareCard.status.banned" = "Banlanıb";
+"shareCard.status.clear" = "Banlanmayıb";
+"shareCard.status.unverified" = "Təsdiqlənə bilmədi";
+"shareCard.status.notChecked" = "Yoxlanılmayıb";
+"shareCard.banType.ip" = "IP qadağası";
+"shareCard.banType.ipRange" = "IP diapazonu banı";
+"shareCard.banType.cid" = "CID qadağası";
+"shareCard.banType.goldSrc" = "Server bağlantısı banı (növ naməlumdur)";
+"shareCard.banType.unknown" = "Müəyyən edilə bilmədi";
+"shareCard.qr.statusOnly" = "QR: yalnız status xülasəsi, CID yoxdur";

@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Server melarang koneksi (log engine).";
 "suggestion.goldSrcBanUnverified" = "Tekan Gabung Permainan (terhubung dengan gs dan menulis engine.log), keluar dari permainan di menu utama, lalu tekan Refresh.";
 "suggestion.goldSrcBanned" = "Hubungi administrator server dengan nama server, IP:port, dan pesan server; jenis larangan (akun, SteamID, atau IP) tidak dapat ditentukan.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Jenis blokir";
+"shareCard.status.banned" = "Diblokir";
+"shareCard.status.clear" = "Tidak diblokir";
+"shareCard.status.unverified" = "Tidak dapat diverifikasi";
+"shareCard.status.notChecked" = "Belum diperiksa";
+"shareCard.banType.ip" = "Blokir IP";
+"shareCard.banType.ipRange" = "Blokir rentang IP";
+"shareCard.banType.cid" = "Blokir CID";
+"shareCard.banType.goldSrc" = "Blokir koneksi server (jenis tidak diketahui)";
+"shareCard.banType.unknown" = "Tidak dapat ditentukan";
+"shareCard.qr.statusOnly" = "QR: ringkasan status, tanpa CID";

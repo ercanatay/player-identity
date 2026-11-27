@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Der Server hat die Verbindung gesperrt (Engine-Log).";
 "suggestion.goldSrcBanUnverified" = "Drücke Spiel beitreten (es verbindet sich mit gs und schreibt engine.log), verlasse das Spiel im Hauptmenü und drücke dann Aktualisieren.";
 "suggestion.goldSrcBanned" = "Kontaktiere den Server-Administrator mit dem Servernamen, der IP:port und der Servernachricht; die Art der Sperre (Konto, SteamID oder IP) lässt sich nicht bestimmen.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Sperrtyp";
+"shareCard.status.banned" = "Gesperrt";
+"shareCard.status.clear" = "Nicht gesperrt";
+"shareCard.status.unverified" = "Konnte nicht verifiziert werden";
+"shareCard.status.notChecked" = "Nicht geprüft";
+"shareCard.banType.ip" = "IP-Sperre";
+"shareCard.banType.ipRange" = "IP-Bereichssperre";
+"shareCard.banType.cid" = "CID-Sperre";
+"shareCard.banType.goldSrc" = "Serververbindungssperre (Typ unbekannt)";
+"shareCard.banType.unknown" = "Konnte nicht ermittelt werden";
+"shareCard.qr.statusOnly" = "QR: Statusübersicht, keine CID";

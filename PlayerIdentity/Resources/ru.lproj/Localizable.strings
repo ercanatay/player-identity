@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Сервер заблокировал соединение (журнал движка).";
 "suggestion.goldSrcBanUnverified" = "Нажмите Join Game (подключение через gs и запись engine.log), выйдите из игры в главном меню, затем нажмите Refresh.";
 "suggestion.goldSrcBanned" = "Свяжитесь с администратором сервера, укажите название сервера, IP:port и сообщение сервера; тип бана (аккаунт, SteamID или IP) определить невозможно.";
+"shareCard.status" = "Статус";
+"shareCard.banType" = "Тип бана";
+"shareCard.status.banned" = "Забанен";
+"shareCard.status.clear" = "Не забанен";
+"shareCard.status.unverified" = "Не удалось проверить";
+"shareCard.status.notChecked" = "Не проверено";
+"shareCard.banType.ip" = "IP-бан";
+"shareCard.banType.ipRange" = "Бан диапазона IP-адресов";
+"shareCard.banType.cid" = "CID-бан";
+"shareCard.banType.goldSrc" = "Бан подключения к серверу (тип неизвестен)";
+"shareCard.banType.unknown" = "Не удалось определить";
+"shareCard.qr.statusOnly" = "QR: сводка статуса, без CID";

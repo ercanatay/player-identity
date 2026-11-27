@@ -18,7 +18,7 @@ macOS üzerindeki **Xash3D FWGS / GoldSrc** oyuncuları için yerel bir SwiftUI 
 | **Oyun** | `valve` veya `gearbox` veri klasörüne sahip Xash3D FWGS (`/Applications/Xash3D-FWGS.app`) |
 | **Veri kaynağı** | Oyun motorunun `.xash_id` dosyalarına ve `config.cfg` / `userconfig.cfg` dosyalarına salt okunur erişim; `api.ipify.org` üzerinden genel IP (yedek: `ifconfig.me`); UDP üzerinden sunucu yanıtları |
 | **Yazma davranışı** | Varsayılan olarak salt okunur. Üzerine yazılan tek oyun dosyaları `config.cfg` / `userconfig.cfg` içindeki `name` ve `model` satırlarıdır ve bu yalnızca siz **Uygula**'yı (veya **Satırı kaldır**'ı) onayladıktan sonra gerçekleşir. Geri kalan her şey uygulamanın kendi klasöründe bulunur |
-| **Diller** | 26 dil (dil başına 1161 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
+| **Diller** | 26 dil (dil başına 1329 yerelleştirme anahtarı), yerel adlarla gösterilir, eksik anahtarda `en` düşüşü, RTL desteği, çalışma zamanında değiştirilebilir |
 | **Dağıtım** | Developer ID ile imzalanmış, Apple tarafından onaylanmış (notarized), GitHub Releases üzerinde `SHA256SUMS.txt` ile birlikte zımbalanmış (stapled) ZIP; Homebrew cask `ercanatay/tap/player-identity` |
 | **Otomasyon** | `playeridentityctl` CLI, `playeridentity://` URL şeması, üç Kestirmeler/Siri eylemi; menü çubuğu hızlı eylemleri, profil değiştirici ve arayüzde ban listesi şablonları |
 | **Testler** | Ana şemada 1006 birim testi (geçici fikstürler, sahte HTTP/UDP/komut çalıştırıcıları, ağ kullanımı yok) |
@@ -124,7 +124,7 @@ Pencere en az 720×520 boyutundadır ve sistemin açık/koyu görünümünü tak
 - **Yenile (⌘R)** ve **Kaydet (⌘S)**.
 - Sunucular denetlenirken araç çubuğunda "N sunucu denetleniyor…" yazar. Yatay alan tükendiğinde araç çubuğu kompakt bir düzene geçer ve başlık esner.
 - **Geçmiş (⌘Y)**, **Ban Matrisi** penceresi ve **Ayarlar**'a uygulamanın menülerinden ve araç çubuğundan erişilebilir.
-- **Paylaşım kartı** — 1200×630 PNG, bir sunucu satırının menüsünden oluşturulur (bkz. [Sunucu yönetimi](#sunucu-yönetimi)).
+- **Paylaşım kartı** — 1200×630 PNG, bir sunucu satırının menüsünden oluşturulur (bkz. [Sunucu yönetimi](#sunucu-yönetimi)). Sunucu, CID, oyuncu ve tarihin yanında satırın son ban kontrolünden **DURUM** (Ban var / Ban yok / Doğrulanamadı / Kontrol edilmedi) ve **BAN TİPİ** (IP banı / IP aralık banı / CID banı / Sunucu bağlantı banı (tür belirsiz) / Belirlenemedi / —) gösterir; kırmızı ve turuncu değerler her zaman bir simgeyle birlikte gelir. GoldSrc 48 kartında CID satırı yoktur ve QR yalnız `sunucu`, `adres`, `durum`, `ban` ve `surum=goldsrc48` taşır (CID, ham kimlik, seri numarası, ticket veya parola yok); Source 49 kartları CID satırını ve CID QR'ını korur.
 
 Kaydedilmemiş değişiklikler varken çıkmak veya pencereyi kapatmak onay ister.
 

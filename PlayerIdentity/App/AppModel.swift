@@ -1529,22 +1529,44 @@ final class AppModel {
 
     // MARK: §33 share card
 
-    /// Card content for a row; labels and date in the user's language.
-    func shareCardContent(for id: UUID, icon: CGImage?) -> ShareCardContent? {
+    /// Card content for a row; labels and date in the user's language. §33.1: DURUM and BAN TİPİ come from the row's
+    /// last ban check; `historyRange` is the range ban kept in the history (§17.10), the current fix result wins.
+    func shareCardContent(for id: UUID, icon: CGImage?, historyRange: String? = nil) -> ShareCardContent? {
         guard let entry = servers.first(where: { $0.id == id }) else { return nil }
-        // §75.3: a GoldSrc 48 server has no CID ("N/A" instead of an old saved CID).
-        let cid = isCIDNotApplicable(id) ? L10n.text(.serversGoldsrcCidNA) : rowStatus(id)?.currentCID ?? entry.cid
+        // §75.3 / §33.1.3: a GoldSrc 48 card has no CID row at all (not even "N/A" or an old saved CID).
+        let goldSrc = isCIDNotApplicable(id)
+        let cid = goldSrc ? "" : rowStatus(id)?.currentCID ?? entry.cid
+        // §33.1.3: a Source49 row without a CID draws no CID caption or row (no "—" placeholder).
+        let showsCID = !goldSrc && !cid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let host = ServerAddress.parse(entry.host).flatMap { address -> String? in
             if case .ipv6 = address { return "[\(entry.host)]" }
             return nil
         } ?? entry.host
+        let hostPort = "\(host):\(entry.port)"
+        var range = historyRange
+        if case .finished(.rangeBanned(_, _, let cidr), _)? = fixSession?.phase, fixSession?.id == id { range = cidr }
+        let check = rowStatus(id)?.ban ?? entry.banCheck
+        let summary = ShareCardBanSummary.classify(check?.status, rangeKnown: range != nil, goldSrc: goldSrc)
+        // §33.1.4: Source49 keeps the CID QR; GoldSrc 48 carries the status-only payload.
+        let qr = goldSrc ? ShareCardQR.goldSrcPayload(serverName: entry.label, hostPort: hostPort,
+                                                      status: summary.status, banType: summary.banType) : nil
         let name = config.name.isEmpty ? (snapshotState.snapshot?.displayName ?? "") : config.name
-        return ShareCardContent(serverName: entry.label, hostPort: "\(host):\(entry.port)", cid: cid, playerName: name,
+        return ShareCardContent(serverName: entry.label, hostPort: hostPort, cid: cid, playerName: name,
                                 dateText: DateFormatter.localizedString(from: deps.now(), dateStyle: .medium, timeStyle: .short),
                                 labels: ShareCardLabels(title: L10n.text(.appWindowTitle), server: L10n.text(.shareCardServer),
                                                         cid: L10n.text(.shareCardCID), player: L10n.text(.shareCardPlayer),
-                                                        date: L10n.text(.shareCardDate)),
-                                icon: icon)
+                                                        date: L10n.text(.shareCardDate),
+                                                        status: L10n.text(.shareCardStatus),
+                                                        banType: L10n.text(.shareCardBanType),
+                                                        qrNote: L10n.text(.shareCardQRStatusOnly)),
+                                icon: icon, statusText: summary.status.text, banTypeText: summary.banType.text,
+                                status: summary.status, banType: summary.banType, showsCID: showsCID, qrPayload: qr)
+    }
+
+    /// §33.1.2 the same content with the range ban read from the history (off the main thread).
+    func shareCardContentWithHistory(for id: UUID, icon: CGImage?) async -> ShareCardContent? {
+        let ranges = BanMatrix.rangeBans(from: await loadHistory())
+        return shareCardContent(for: id, icon: icon, historyRange: ranges[id])
     }
 
     // MARK: §32 notes and appeals

@@ -58,13 +58,19 @@ final class ShareCardTests: XCTestCase {
     }
 
     func testLongNamesAreTruncated() throws {
-        XCTAssertEqual(ShareCardText.truncated("kisa", maxCharacters: 10), "kisa")
+        // §33.1.5: no character cap; the text goes to CoreText whole and only the measured width adds "…".
+        XCTAssertEqual(ShareCardText.displayed("kisa"), "kisa")
+        XCTAssertEqual(ShareCardText.displayed("a\nb"), "a b")
+        XCTAssertEqual(ShareCardText.displayed(" \n "), "—")
         let long = String(repeating: "Çok Uzun Sunucu Adı ", count: 10)
-        let cut = ShareCardText.truncated(long, maxCharacters: ShareCardRenderer.maxNameCharacters)
-        XCTAssertEqual(cut.count, ShareCardRenderer.maxNameCharacters)
-        XCTAssertTrue(cut.hasSuffix("…"))
-        XCTAssertEqual(ShareCardText.truncated("a\nb", maxCharacters: 10), "a b")
-        XCTAssertEqual(ShareCardText.truncated(" \n ", maxCharacters: 10), "—")
+        XCTAssertEqual(ShareCardText.displayed(long), long.trimmingCharacters(in: .whitespaces))
+        let layout = ShareCardRenderer.layout(content(name: long, player: long))
+        for role in [ShareCardLayout.Role.serverName, .player] {
+            let box = try XCTUnwrap(layout.box(role))
+            XCTAssertTrue(box.truncated, role.rawValue)
+            XCTAssertEqual(box.lineCount, 2, role.rawValue)
+            XCTAssertTrue(box.text.hasSuffix("…"), role.rawValue)
+        }
         let image = try decode(try XCTUnwrap(ShareCardRenderer.png(content(name: long, player: long))))
         XCTAssertEqual(image.width, 1200)
     }

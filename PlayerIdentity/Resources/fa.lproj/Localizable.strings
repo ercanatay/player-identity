@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "سرور اتصال را مسدود کرده است (گزارش موتور).";
 "suggestion.goldSrcBanUnverified" = "Join Game را بزنید (با gs متصل می‌شود و engine.log را می‌نویسد)، بازی را در منوی اصلی ترک کنید و سپس Refresh را بزنید.";
 "suggestion.goldSrcBanned" = "با مدیر سرور تماس بگیرید و نام سرور، IP:port و پیام سرور را ارسال کنید؛ نوع مسدودسازی (حساب، SteamID یا IP) مشخص نیست.";
+"shareCard.status" = "وضعیت";
+"shareCard.banType" = "نوع بَن";
+"shareCard.status.banned" = "بن شده";
+"shareCard.status.clear" = "بن نشده";
+"shareCard.status.unverified" = "قابل تأیید نبود";
+"shareCard.status.notChecked" = "بررسی نشده";
+"shareCard.banType.ip" = "بَن IP";
+"shareCard.banType.ipRange" = "بَن محدوده IP";
+"shareCard.banType.cid" = "بَن CID";
+"shareCard.banType.goldSrc" = "بَن اتصال به سرور (نوع نامشخص)";
+"shareCard.banType.unknown" = "مشخص نشد";
+"shareCard.qr.statusOnly" = "QR: خلاصه وضعیت، بدون CID";

@@ -32,6 +32,39 @@ final class UIEvidenceTests: XCTestCase {
         try png.write(to: directory.appendingPathComponent("share-card.png"))
     }
 
+    /// §33.1 AC-33.1.K: one card per DURUM / BAN TİPİ case in every app language (GoldSrc 48 and Source49, long
+    /// names, the language's longest status/type texts); each PNG is checked and listed in `manifest.json`.
+    func testRenderShareCardBanStates() throws {
+        var rect = CGRect(x: 0, y: 0, width: 256, height: 256)
+        let icon = NSApplication.shared.applicationIconImage.cgImage(forProposedRect: &rect, context: nil, hints: nil)
+        // AC-33.1.K: evidence/share-card/<language>/<case>.png + manifest.json
+        let folder = directory.appendingPathComponent("share-card", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var results: [ShareCardEvidence.Result] = []
+        for language in AppLanguage.allCases {
+            let bundle = try XCTUnwrap(L10n.languageBundle(language.rawValue), language.rawValue)
+            try L10n.$bundle.withValue(bundle) {
+                for item in ShareCardEvidence.cases {
+                    let content = ShareCardEvidence.content(item, icon: icon)
+                    var (png, result) = try ShareCardEvidence.verify(content, case: item, language: language.rawValue,
+                                                                     decodeQR: true)
+                    let file = "\(language.rawValue)/\(item.name).png"
+                    try FileManager.default.createDirectory(at: folder.appendingPathComponent(language.rawValue),
+                                                            withIntermediateDirectories: true)
+                    try png.write(to: folder.appendingPathComponent(file))
+                    result.file = file
+                    XCTAssertEqual(result.problems, [], file)
+                    results.append(result)
+                }
+            }
+        }
+        XCTAssertEqual(results.count, AppLanguage.allCases.count * ShareCardEvidence.cases.count)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try encoder.encode(results).write(to: folder.appendingPathComponent("manifest.json"))
+    }
+
     /// §43 userconfig override warning (before/after removal) and the multi-source model list (fake fixtures).
     func testRenderOverrideAndModelCatalog() async throws {
         let env = try TestAppEnvironment()
@@ -315,7 +348,9 @@ final class UIEvidenceTests: XCTestCase {
         try render(ServerDetailSheet(model: model, serverID: ids[2], onClose: {},
                                      editingAppeal: AppealDraft(try XCTUnwrap(model.servers[2].appeal), now: clock.now)),
                    size: CGSize(width: 560, height: 680), name: "v2-appeal-form")
-        try render(ShareCardSheet(model: model, serverID: ids[0], onClose: {}),
+        let sharePreview = ShareCardPreview()
+        await sharePreview.load { await model.shareCardContentWithHistory(for: ids[0], icon: nil) }
+        try render(ShareCardSheet(model: model, serverID: ids[0], onClose: {}, preview: sharePreview),
                    size: CGSize(width: 640, height: 470), name: "v2-share-card")
         try render(MenuBarEvidenceView(model: model), size: CGSize(width: 420, height: 420), name: "v2-menubar")
         try render(GeneralSettingsView(model: model), size: CGSize(width: 600, height: 300), name: "v2-settings-general")

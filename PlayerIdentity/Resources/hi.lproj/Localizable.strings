@@ -387,7 +387,7 @@
 "shareCard.server" = "सर्वर";
 "shareCard.cid" = "CID";
 "shareCard.player" = "खिलाड़ी";
-"shareCard.date" = "तिथि";
+"shareCard.date" = "तारीख";
 "shareCard.copy" = "क्लिपबोर्ड पर कॉपी करें";
 "shareCard.save" = "डिस्क पर सहेजें";
 "shareCard.saved" = "सहेजा गया: %@";
@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "सर्वर ने कनेक्शन को बैन किया है (इंजन लॉग)।";
 "suggestion.goldSrcBanUnverified" = "Join Game दबाएँ (यह gs से कनेक्ट होता है और engine.log लिखता है), मुख्य मेनू पर गेम छोड़ें, फिर Refresh दबाएँ।";
 "suggestion.goldSrcBanned" = "सर्वर का नाम, IP:port और सर्वर संदेश के साथ सर्वर एडमिनिस्ट्रेटर से संपर्क करें; बैन का प्रकार (अकाउंट, SteamID या IP) निर्धारित नहीं किया जा सकता।";
+"shareCard.status" = "स्थिति";
+"shareCard.banType" = "प्रतिबंध का प्रकार";
+"shareCard.status.banned" = "प्रतिबंधित";
+"shareCard.status.clear" = "प्रतिबंधित नहीं";
+"shareCard.status.unverified" = "सत्यापित नहीं किया जा सका";
+"shareCard.status.notChecked" = "जाँचा नहीं गया";
+"shareCard.banType.ip" = "IP प्रतिबंध";
+"shareCard.banType.ipRange" = "IP रेंज प्रतिबंध";
+"shareCard.banType.cid" = "CID प्रतिबंध";
+"shareCard.banType.goldSrc" = "सर्वर कनेक्शन प्रतिबंध (प्रकार अज्ञात)";
+"shareCard.banType.unknown" = "निर्धारित नहीं किया जा सका";
+"shareCard.qr.statusOnly" = "QR: स्थिति सारांश, कोई CID नहीं";

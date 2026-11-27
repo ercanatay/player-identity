@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Sunucu bağlantıyı yasakladı (motor günlüğü).";
 "suggestion.goldSrcBanUnverified" = "“Oyuna gir”e basın (gs ile bağlanır ve engine.log yazar), oyundan ana menüde çıkın, sonra Yenile'ye basın.";
 "suggestion.goldSrcBanned" = "Sunucu adı, IP:port ve sunucu mesajıyla yöneticiye başvurun; ban türü (hesap, SteamID veya IP) belirlenemez.";
+"shareCard.status" = "DURUM";
+"shareCard.banType" = "BAN TİPİ";
+"shareCard.status.banned" = "Ban var";
+"shareCard.status.clear" = "Ban yok";
+"shareCard.status.unverified" = "Doğrulanamadı";
+"shareCard.status.notChecked" = "Kontrol edilmedi";
+"shareCard.banType.ip" = "IP banı";
+"shareCard.banType.ipRange" = "IP aralık banı";
+"shareCard.banType.cid" = "CID banı";
+"shareCard.banType.goldSrc" = "Sunucu bağlantı banı (tür belirsiz)";
+"shareCard.banType.unknown" = "Belirlenemedi";
+"shareCard.qr.statusOnly" = "QR: durum özeti, CID içermez";

@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Сървърът блокира връзката (журнал на енджина).";
 "suggestion.goldSrcBanUnverified" = "Натиснете Join Game (се свързва с gs и записва engine.log), напуснете играта в главното меню, след което натиснете Refresh.";
 "suggestion.goldSrcBanned" = "Свържете се с администратора на сървъра с името на сървъра, IP:port и съобщението от сървъра; видът на блокирането (акаунт, SteamID или IP) не може да бъде определен.";
+"shareCard.status" = "Статус";
+"shareCard.banType" = "Тип бан";
+"shareCard.status.banned" = "Баннат";
+"shareCard.status.clear" = "Не е баннат";
+"shareCard.status.unverified" = "Не може да бъде потвърден";
+"shareCard.status.notChecked" = "Не е проверен";
+"shareCard.banType.ip" = "IP бан";
+"shareCard.banType.ipRange" = "Бан за IP диапазон";
+"shareCard.banType.cid" = "CID бан";
+"shareCard.banType.goldSrc" = "Бан за връзка със сървър (типът е неизвестен)";
+"shareCard.banType.unknown" = "Не може да бъде определен";
+"shareCard.qr.statusOnly" = "QR: обобщение на статуса, без CID";

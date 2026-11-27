@@ -1,7 +1,7 @@
 <!-- Source: specs/player-identity/spec.md; run scripts/sync-spec.sh -->
 # Ürün Spesifikasyonu — Cybokron Oyuncu Kimlik Kartı (macOS)
 
-Sürüm: 5.4.6 · Tarih: 2026-11-26 · Durum: uygulanacak (v5.0 → v5.1: §73 macOS donanım kimliği sağlığı; v5.1 → v5.2: §73 bağımsız inceleme düzeltmeleri — kimlik özelliği spec v2.25.0; v5.2 → v5.3: §74 uyumlu motoru kur — uygulama 2.25.0 build 53, özellik spec'i E0–E21; v5.3 → v5.4: §75 GoldSrc 48 desteği — uygulama 2.26.0 build 54; v5.4 → v5.4.1: §75 yakalanmış paketlerle düzeltme, §75.12; v5.4.1 → v5.4.2: §75.13 null-ticket doğrulama sınırı ve motor günlüğü kanıtı, R1 yeniden tanımlandı; v5.4.2 → v5.4.3: §75.14 bağımsız inceleme düzeltmeleri; v5.4.3 → v5.4.4: §75.15 son inceleme düzeltmeleri; v5.4.4 → v5.4.5: §75.16 CID'siz yetenek denemesi, DNS kaybında günlük eşleşmesi; v5.4.5 → v5.4.6: §75.17 ikinci paket kuralı)
+Sürüm: 5.4.7 · Tarih: 2026-11-26 · Durum: uygulanacak (v5.0 → v5.1: §73 macOS donanım kimliği sağlığı; v5.1 → v5.2: §73 bağımsız inceleme düzeltmeleri — kimlik özelliği spec v2.25.0; v5.2 → v5.3: §74 uyumlu motoru kur — uygulama 2.25.0 build 53, özellik spec'i E0–E21; v5.3 → v5.4: §75 GoldSrc 48 desteği — uygulama 2.26.0 build 54; v5.4 → v5.4.1: §75 yakalanmış paketlerle düzeltme, §75.12; v5.4.1 → v5.4.2: §75.13 null-ticket doğrulama sınırı ve motor günlüğü kanıtı, R1 yeniden tanımlandı; v5.4.2 → v5.4.3: §75.14 bağımsız inceleme düzeltmeleri; v5.4.3 → v5.4.4: §75.15 son inceleme düzeltmeleri; v5.4.4 → v5.4.5: §75.16 CID'siz yetenek denemesi, DNS kaybında günlük eşleşmesi; v5.4.5 → v5.4.6: §75.17 ikinci paket kuralı; v5.4.6 → v5.4.7: §33.1 paylaşım kartı DURUM/BAN TİPİ, politika istisnası ve uzun metin kuralı, uygulama 2.26.1 build 55)
 Bu doküman **tek doğruluk kaynağıdır**. Dış bağlam, ek sözlü açıklama, üçüncü taraf kod veya analiz yoktur.
 Belirsizlik varsa doküman esas alınır; dokümanda yazmayan davranış eklenmez.
 
@@ -906,6 +906,78 @@ Feed'de eski sürümler; downgrade seçimi; veri yedeği içeriği; şema uyumsu
 - Satır menüsünde **"Paylaşım kartı oluştur"**: 1200×630 PNG; içerik: uygulama ikonu, sunucu adı/host:port, CID (monospace), kullanıcı adı, tarih-saat, **QR** (CID metni).
 - "Panoya kopyala" ve "Diske kaydet" (NSSavePanel). Arka plan marka rengi, TR/EN etiketler.
 - Testler: kart üretimi (boyut, boş değil), QR üretimi, uzun isim kısaltma, eksik alanlarda çökme yok.
+
+### 33.1 Paylaşım kartı: DURUM ve BAN TİPİ (v2.26.1, spec v5.4.7)
+
+Kapsam: ban durumu veya GoldSrc 48 sunucusu için paylaşım kartı (§33) CID satırı yerine **DURUM** ve **BAN TİPİ** alanlarını gösterir. Kart, §17/§7 ban sonuçlarını değiştirmez; yalnız sunumunu ve QR içeriğini belirler. Kart üretimi salt okunurdur ve ağ çağrısı yapmaz.
+
+**Kart alanları (sıra):** uygulama ikonu · sunucu adı · host:port · **DURUM** · **BAN TİPİ** · CID (yalnız source49 ve CID mevcutsa, aşağıdaki kural) · kullanıcı adı · tarih-saat · QR.
+
+#### 33.1.1 DURUM eşlemesi (tek metin, renkten bağımsız)
+| Kaynak durumu | DURUM metni | Görsel durum |
+|---|---|---|
+| `ipBanned`, `rangeBanned`, `cidBanned`, `goldSrcBanned` | "Ban var" | kırmızı |
+| `cidOk` | "Ban yok" | yeşil |
+| `goldSrcUnverified`, `cidUnknown`, `unknown`, `unreachable` | "Doğrulanamadı" | gri/turuncu |
+| kontrol yapılmadı (check yok) | "Kontrol edilmedi" | gri |
+
+- `goldSrcBanned` = §75 `banned` sonucu (yalnız ban metni). `goldSrcUnverified` = §75 `legacyVerificationUnavailable`. "Ban yok" GoldSrc'de hiçbir koşulda üretilmez (§75.10 P6).
+
+#### 33.1.2 BAN TİPİ eşlemesi
+| Kaynak | BAN TİPİ metni |
+|---|---|
+| `ipBanned` (aralık bilinmiyor) | "IP banı" |
+| aralık biliniyorsa (`rangeBanned`, §17.10; aralık `ipBanned` ile birlikte biliniyorsa da) | "IP aralık banı" |
+| `cidBanned` | "CID banı" |
+| `goldSrcBanned` | "Sunucu bağlantı banı (tür belirsiz)" — hesap/SteamID/IP iddiası **yok** |
+| doğrulanamadı / kanıt yok (`goldSrcUnverified`, `cidUnknown`, `unknown`) | "Belirlenemedi" |
+| `cidOk`, `unreachable` (ban iddiası yok), kontrol yok | "—" |
+
+- Öncelik: aralık bilgisi varsa IP türleri için "IP aralık banı" kullanılır (daha özgül).
+- `goldSrcUnverified` ve `cidUnknown` iken BAN TİPİ "Belirlenemedi"dir (tür kanıtlanamadı); `unreachable` ban iddiası taşımadığı için "—"dır.
+- Source49 `cidBanned` ile IP türleri birlikte bilinmiyorsa birincil tür `cidBanned`'dır.
+
+#### 33.1.3 CID satırı kuralı (açık istisna: source49 geriye uyum)
+- **Source49:** §33'teki mevcut davranış korunur: CID doluysa kartta tam CID satırı bulunabilir ve QR CID'yi taşıyabilir. Bu, politikanın **açık istisnasıdır**. Ban durumunda DURUM ve BAN TİPİ bu satırlara **ek** gösterilir.
+- **Source49 CID boşsa CID satırı yoktur** (boş metin veya yer tutucu gösterilmez).
+- **GoldSrc 48:** CID satırı yoktur; hesaplanan/yerel CID hiçbir yerde yazılmaz (§75.3).
+
+#### 33.1.4 QR içeriği
+- **Source49:** mevcut CID QR davranışı korunur (CID taşıyabilir); DURUM ve BAN TİPİ QR'a eklenmez (geriye uyum).
+- **GoldSrc 48:** QR payload yalnız şu alanları taşır (sabit anahtar sırası, satır sonu ayraçlı düz metin): `sunucu=<ad>`, `adres=<host:port>`, `durum=<DURUM anahtarı>`, `ban=<BAN TİPİ anahtarı>` (`ip`, `ipRange`, `cid`, `goldSrc`, `unknown`, `none`), `surum=goldsrc48`. Adres (sunucunun host:port'u) QR'da ve kartta bulunabilir; coğrafi konum/koordinat ise yoktur.
+- **GoldSrc QR ve kartta yasak:** tam CID, raw ID, seri numarası, ticket, parola, coğrafi konum/koordinat, yerel dosya yolu.
+
+#### 33.1.5 Görsel ve düzen
+- Ban durumunda DURUM metni kırmızı, BAN TİPİ turuncu (kritik değil) veya kırmızı; renk tek başına anlam taşımaz: metin ve simge (`xmark.octagon` / `exclamationmark.triangle`) birlikte.
+- 1200×630 tuvalde hiçbir metin taşmaz veya kesilmez.
+- **Uzun metin kuralı:** sarmalanacak alanlarda (sunucu adı, BAN TİPİ, uzun kullanıcı adı) ön-kesim (`prefix`/`truncate` ile önceden kısaltma) **yoktur**. Önce satır sarma, sonra yazı ölçeği tabana kadar küçültülür (taban değer tasarımda sabitlenir ve testte doğrulanır). Taban da sığmazsa son çare **ellipsis** (`…`) ile kesilir; ellipsis yalnız bu son adımda kullanılır.
+- **Player adı ve tarih-saat küçülmez** (font ölçeği dışı tutulur); gerekiyorsa kendi alanlarında sarılır, düşürülmez.
+- Metinler 26 dilde `shareCard.status.*`, `shareCard.banType.*`, `shareCard.qr.*` anahtarlarıyla bulunur (TR/EN dolu, 24 dil İngilizce yer tutucu, §63 aracı). Anahtar seti eşit kalır.
+
+#### 33.1.6 Gizlilik
+- **Source49:** mevcut §33 maskeleme ve CID satırı kuralı geçerlidir (CID doluysa gösterilebilir; açık istisna).
+- **GoldSrc 48:** kartta ve QR'da tam CID, raw ID, seri numarası, ticket, parola, coğrafi konum/koordinat ve yerel dosya yolu **yoktur**. Sunucu adı, host:port, DURUM ve BAN TİPİ bulunabilir.
+- **Geçmiş dışa aktarımı:** kart veya QR ile birlikte geçmiş (history) verisi dışa aktarılacaksa, geçmiş aralığı tamamen yüklenmeden dışa aktarma **devre dışıdır** (kullanıcıya "geçmiş yükleniyor" durumu gösterilir).
+
+#### 33.1.7 Kabul kriterleri ve testler
+- **AC-33.1.A** GoldSrc `goldSrcBanned` kartı: "Ban var" ve "Sunucu bağlantı banı (tür belirsiz)" içerikte; CID satırı yok (T-33-1).
+- **AC-33.1.B** Source49 `cidBanned`, CID dolu: DURUM "Ban var", BAN TİPİ "CID banı"; CID satırı korunur (istisna) (T-33-2).
+- **AC-33.1.C** `ipBanned` (aralık yok): "IP banı" (T-33-3).
+- **AC-33.1.D** `rangeBanned`/aralık biliniyor: "IP aralık banı" (T-33-4).
+- **AC-33.1.E** `goldSrcUnverified`/`cidUnknown`/`unknown`: "Doğrulanamadı" + "Belirlenemedi"; `unreachable`: "Doğrulanamadı" + "—" (T-33-5).
+- **AC-33.1.F** Kontrol yok: "Kontrol edilmedi" + "—" (T-33-6).
+- **AC-33.1.G** `cidOk`: "Ban yok" + "—" (T-33-7).
+- **AC-33.1.H** GoldSrc QR payload: `sunucu`, `adres`, `durum`, `ban`, `surum=goldsrc48` içerir; CID, raw ID, seri, ticket, parola, coğrafi konum içermez (T-33-8).
+- **AC-33.1.I** Politika (iki kural, T-33-9): (a) GoldSrc kartı ve QR'ında CID/raw ID/seri/ticket/parola/konum dizgisi aranır, bulunmaz; (b) source49 CID dolu iken kart ve QR'da tam CID bulunabilir (açık istisna); source49 CID boşsa CID satırı yoktur.
+- **AC-33.1.J** Düzen (T-33-10): 1200×630, uzun sunucu adı + uzun BAN TİPİ + 26 dil en uzun çeviri; ön-kesim yok; sarma → ölçek tabanı → son çare ellipsis sırası; player ve tarih ölçeklenmez/düşmez.
+- **AC-33.1.K** Kanıt (T-33-11): her ban durumu ve her 26 dil için PNG üretilir (`evidence/share-card/<dil>/<durum>.png`); içerik kontrolü DURUM metninin varlığını, taşmamayı ve ellipsis yalnız son çare olduğunu doğrular.
+- **AC-33.1.L** Renk tek başına değil: kırmızı/turuncu sınıflarda metin ve simge birlikte (T-33-12).
+- **AC-33.1.M** l10n: `shareCard.*` anahtarları 26 dilde eşit, TR/EN dolu, 24 dil yer tutucu (T-33-13).
+- **AC-33.1.N** Geçmiş dışa aktarımı: geçmiş aralığı yüklenmeden export düğmesi devre dışı; yükleme bitince etkin (T-33-14).
+
+#### 33.1.8 Sınırlar
+- "Sunucu bağlantı banı (tür belirsiz)" GoldSrc'de ban türünü (hesap, SteamID, IP, aralık) iddia etmez.
+- Kart DURUM alanı tekil ölçümün anlık sonucudur; geçmiş veya kesin ban kaydı değildir.
 
 ## 34. CLI yardımcısı (`playeridentityctl`) (v2.0)
 

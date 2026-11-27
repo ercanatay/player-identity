@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "Serverul a blocat conexiunea (jurnalul motorului).";
 "suggestion.goldSrcBanUnverified" = "Apasă Join Game (se conectează cu gs și scrie engine.log), ieși din joc din meniul principal, apoi apasă Refresh.";
 "suggestion.goldSrcBanned" = "Contactează administratorul serverului cu numele serverului, IP:port-ul și mesajul serverului; tipul banului (cont, SteamID sau IP) nu poate fi determinat.";
+"shareCard.status" = "Stare";
+"shareCard.banType" = "Tip interdicție";
+"shareCard.status.banned" = "Interzis";
+"shareCard.status.clear" = "Neinterzis";
+"shareCard.status.unverified" = "Nu a putut fi verificat";
+"shareCard.status.notChecked" = "Neverificat";
+"shareCard.banType.ip" = "Interdicție IP";
+"shareCard.banType.ipRange" = "Interdicție pe interval IP";
+"shareCard.banType.cid" = "Interdicție CID";
+"shareCard.banType.goldSrc" = "Interdicție de conectare la server (tip necunoscut)";
+"shareCard.banType.unknown" = "Nu a putut fi determinat";
+"shareCard.qr.statusOnly" = "QR: rezumat al stării, fără CID";

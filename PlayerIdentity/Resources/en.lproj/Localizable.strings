@@ -1317,3 +1317,15 @@
 "error.goldSrcBanned" = "The server banned the connection (engine log).";
 "suggestion.goldSrcBanUnverified" = "Press Join Game (it connects with gs and writes engine.log), leave the game at the main menu, then press Refresh.";
 "suggestion.goldSrcBanned" = "Contact the server administrator with the server name, IP:port and the server message; the ban kind (account, SteamID or IP) cannot be determined.";
+"shareCard.status" = "Status";
+"shareCard.banType" = "Ban type";
+"shareCard.status.banned" = "Banned";
+"shareCard.status.clear" = "Not banned";
+"shareCard.status.unverified" = "Could not be verified";
+"shareCard.status.notChecked" = "Not checked";
+"shareCard.banType.ip" = "IP ban";
+"shareCard.banType.ipRange" = "IP range ban";
+"shareCard.banType.cid" = "CID ban";
+"shareCard.banType.goldSrc" = "Server connection ban (type unknown)";
+"shareCard.banType.unknown" = "Could not be determined";
+"shareCard.qr.statusOnly" = "QR: status summary, no CID";
